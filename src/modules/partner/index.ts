@@ -104,8 +104,9 @@ function partnerActionsKeyboard() {
 
 function partnerLevelsKeyboard() {
   return Markup.inlineKeyboard([
-    [Markup.button.callback('👤 Партнёры: 1-й', PARTNERS_LEVEL_1_ACTION), Markup.button.callback('👥 Партнёры: 2-й', PARTNERS_LEVEL_2_ACTION), Markup.button.callback('👨‍👩‍👧‍👦 Партнёры: 3-й', PARTNERS_LEVEL_3_ACTION)],
-    [Markup.button.callback('🔙 Назад к основному меню', DASHBOARD_ACTION)],
+    [Markup.button.callback('👤 Партнёры: 1-й', PARTNERS_LEVEL_1_ACTION)],
+    [Markup.button.callback('👥 Партнёры: 2-й', PARTNERS_LEVEL_2_ACTION)],
+    [Markup.button.callback('👨‍👩‍👧‍👦 Партнёры: 3-й', PARTNERS_LEVEL_3_ACTION)],
   ]);
 }
 
@@ -533,7 +534,10 @@ async function showInvite(ctx: Context) {
   }
 
   await ctx.answerCbQuery('Выберите тип ссылки', { show_alert: false });
-  await ctx.reply(`Ваши реферальные ссылки:\n\nДружище 🌟\nЯ желаю тебе энергии, здоровья и внутренней силы, поэтому делюсь с тобой этим ботом 💧\nПопробуй PLAZMA Water — технология будущего, которая реально меняет состояние ⚡️\n🔗 Твоя ссылка:\n${buildReferralLink(dashboard.profile.referralCode, 'DIRECT')}\n\n🔗 Многоуровневая ссылка (15% + 5% + 5%):\n${buildReferralLink(dashboard.profile.referralCode, 'MULTI_LEVEL')}`);
+  await ctx.reply(`Ваши реферальные ссылки:\n\nДружище 🌟\nЯ желаю тебе энергии, здоровья и внутренней силы, поэтому делюсь с тобой этим ботом 💧\nПопробуй PLAZMA Water — технология будущего, которая реально меняет состояние ⚡️\n🔗 Твоя ссылка:\n${buildReferralLink(dashboard.profile.referralCode, 'DIRECT')}\n\nДружище 🌟
+Я желаю тебе энергии, здоровья и внутренней силы, поэтому делюсь с тобой этим ботом 💧
+Попробуй PLAZMA Water — технология будущего, которая реально меняет состояние ⚡️
+🔗 Твоя ссылка (сеть 15% + 5% + 5%):\n${buildReferralLink(dashboard.profile.referralCode, 'MULTI_LEVEL')}`);
 }
 
 async function showDirectInvite(ctx: Context) {
@@ -567,7 +571,10 @@ async function showMultiInvite(ctx: Context) {
   }
 
   await ctx.answerCbQuery();
-  await ctx.reply(`🔗 Многоуровневая ссылка (15% + 5% + 5%):\n${buildReferralLink(dashboard.profile.referralCode, 'MULTI_LEVEL')}\n\nВыберите уровень партнёров для просмотра:`, partnerLevelsKeyboard());
+  await ctx.reply(`Дружище 🌟
+Я желаю тебе энергии, здоровья и внутренней силы, поэтому делюсь с тобой этим ботом 💧
+Попробуй PLAZMA Water — технология будущего, которая реально меняет состояние ⚡️
+🔗 Твоя ссылка (сеть 15% + 5% + 5%):\n${buildReferralLink(dashboard.profile.referralCode, 'MULTI_LEVEL')}\n\nВыберите уровень партнёров для просмотра:`, partnerLevelsKeyboard());
 }
 
 export const partnerModule: BotModule = {
