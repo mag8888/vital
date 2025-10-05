@@ -3,9 +3,7 @@ import { Context } from '../../bot/context.js';
 import { BotModule } from '../../bot/types.js';
 import { ensureUser, logUserAction } from '../../services/user-history.js';
 import { createAudioFile, getActiveAudioFiles, getAllAudioFiles, formatDuration } from '../../services/audio-service.js';
-import { env } from '../../config/env.js';
-
-const ADMIN_USER_IDS = env.adminChatId ? [env.adminChatId] : [];
+import { getAdminChatIds } from '../../config/env.js';
 
 export async function showAudioFiles(ctx: Context, category?: string) {
   await logUserAction(ctx, 'audio:show_files', { category });
@@ -63,9 +61,18 @@ async function handleAudioUpload(ctx: Context) {
   if (!user) return;
 
   // Check if user is admin
-  const isAdmin = ADMIN_USER_IDS.includes(ctx.from?.id?.toString() || '');
+  const adminChatIds = getAdminChatIds();
+  const userId = ctx.from?.id?.toString() || '';
+  const isAdmin = adminChatIds.includes(userId);
+  
+  console.log('🔍 Audio upload admin check:', {
+    userId,
+    adminChatIds,
+    isAdmin
+  });
+  
   if (!isAdmin) {
-    await ctx.reply('❌ Только администраторы могут загружать аудиофайлы.');
+    await ctx.reply(`❌ Только администраторы могут загружать аудиофайлы.\n\nВаш ID: ${userId}\nНастроенные админы: ${adminChatIds.join(', ') || 'не настроены'}`);
     return;
   }
 
@@ -194,9 +201,18 @@ export const audioModule: BotModule = {
       if (!user) return;
 
       // Check if user is admin
-      const isAdmin = ADMIN_USER_IDS.includes(ctx.from?.id?.toString() || '');
+      const adminChatIds = getAdminChatIds();
+      const userId = ctx.from?.id?.toString() || '';
+      const isAdmin = adminChatIds.includes(userId);
+      
+      console.log('🔍 Admin check:', {
+        userId,
+        adminChatIds,
+        isAdmin
+      });
+      
       if (!isAdmin) {
-        await ctx.reply('❌ Доступ запрещен. Только администраторы могут использовать эту команду.');
+        await ctx.reply(`❌ Доступ запрещен. Только администраторы могут использовать эту команду.\n\nВаш ID: ${userId}\nНастроенные админы: ${adminChatIds.join(', ') || 'не настроены'}`);
         return;
       }
 
@@ -223,9 +239,18 @@ export const audioModule: BotModule = {
       if (!user) return;
 
       // Check if user is admin
-      const isAdmin = ADMIN_USER_IDS.includes(ctx.from?.id?.toString() || '');
+      const adminChatIds = getAdminChatIds();
+      const userId = ctx.from?.id?.toString() || '';
+      const isAdmin = adminChatIds.includes(userId);
+      
+      console.log('🔍 Admin check:', {
+        userId,
+        adminChatIds,
+        isAdmin
+      });
+      
       if (!isAdmin) {
-        await ctx.reply('❌ Доступ запрещен. Только администраторы могут использовать эту команду.');
+        await ctx.reply(`❌ Доступ запрещен. Только администраторы могут использовать эту команду.\n\nВаш ID: ${userId}\nНастроенные админы: ${adminChatIds.join(', ') || 'не настроены'}`);
         return;
       }
 
@@ -262,9 +287,18 @@ export const audioModule: BotModule = {
       if (!user) return;
 
       // Check if user is admin
-      const isAdmin = ADMIN_USER_IDS.includes(ctx.from?.id?.toString() || '');
+      const adminChatIds = getAdminChatIds();
+      const userId = ctx.from?.id?.toString() || '';
+      const isAdmin = adminChatIds.includes(userId);
+      
+      console.log('🔍 Voice upload admin check:', {
+        userId,
+        adminChatIds,
+        isAdmin
+      });
+      
       if (!isAdmin) {
-        await ctx.reply('❌ Только администраторы могут загружать аудиофайлы.');
+        await ctx.reply(`❌ Только администраторы могут загружать аудиофайлы.\n\nВаш ID: ${userId}\nНастроенные админы: ${adminChatIds.join(', ') || 'не настроены'}`);
         return;
       }
 
