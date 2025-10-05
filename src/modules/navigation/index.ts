@@ -473,9 +473,32 @@ export const navigationModule: BotModule = {
     });
 
     // Обработчики для кнопок классического меню
+    bot.hears('🛒 Магазин', async (ctx) => {
+      await logUserAction(ctx, 'menu:shop');
+      const { showCategories } = await import('../shop/index.js');
+      await showCategories(ctx);
+    });
+
+    bot.hears('🤝 Партнёрка', async (ctx) => {
+      await logUserAction(ctx, 'menu:partner');
+      const { showPartnerIntro } = await import('../partner/index.js');
+      await showPartnerIntro(ctx);
+    });
+
     bot.hears('🎵 Звуковые матрицы Гаряева', async (ctx) => {
       await logUserAction(ctx, 'menu:sounds');
-      await showGiftMessage(ctx);
+      const { showAudioFiles } = await import('../audio/index.js');
+      await showAudioFiles(ctx, 'gift');
+    });
+
+    bot.hears('⭐ Отзывы', async (ctx) => {
+      await logUserAction(ctx, 'menu:reviews');
+      await ctx.reply('⭐ Отзывы\n\nЗдесь будут отзывы наших клиентов о продукции Plazma Water.');
+    });
+
+    bot.hears('ℹ️ О PLASMA', async (ctx) => {
+      await logUserAction(ctx, 'menu:about');
+      await ctx.reply('ℹ️ О PLASMA\n\nPlazma Water — это жидкие витамины и минералы в наноформе с усвоением до 99,9%.');
     });
 
 
