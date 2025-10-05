@@ -338,9 +338,34 @@ async function showPartnersByLevel(ctx: Context, level: number) {
       console.log(`🔍 Partner: Level 1 partner ${index + 1}:`, {
         referredId: p.referredId,
         username: p.profile.user.username,
-        firstName: p.profile.user.firstName
+        firstName: p.profile.user.firstName,
+        profileId: p.profileId
       });
     });
+    
+    // Дополнительная проверка: кто пригласил каждого из прямых партнеров
+    for (const partner of partnerReferrals) {
+      if (partner.referredId) {
+        const whoInvitedThisPartner = await prisma.partnerReferral.findMany({
+          where: { referredId: partner.referredId },
+          include: {
+            profile: {
+              include: {
+                user: {
+                  select: { username: true, firstName: true }
+                }
+              }
+            }
+          }
+        });
+        
+        console.log(`🔍 Partner: Who invited ${partner.referredId}:`, whoInvitedThisPartner.map(p => ({
+          inviterUsername: p.profile.user.username,
+          inviterFirstName: p.profile.user.firstName,
+          profileId: p.profileId
+        })));
+      }
+    }
   } else if (level === 2) {
     // Партнеры 2-го уровня - партнеры наших партнеров
     // Сначала находим наших прямых партнеров
