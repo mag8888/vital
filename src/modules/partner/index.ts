@@ -205,9 +205,9 @@ async function showDashboard(ctx: Context) {
     }
   }
 
-  // Use user.balance instead of profile.balance for display
+  // Use profile.balance (synced with user.balance in recalculatePartnerBonuses)
   const message = cardTemplate({
-    balance: Number(user.balance).toFixed(2),
+    balance: Number(profile.balance).toFixed(2),
     partners: stats.partners,
     direct: stats.directPartners,
     bonus: Number(profile.bonus).toFixed(2),
