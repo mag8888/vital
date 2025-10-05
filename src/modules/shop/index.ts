@@ -51,7 +51,11 @@ export async function showCategories(ctx: Context, region?: string) {
     
     if (categories.length === 0) {
       console.log('🛍️ No active categories found, showing empty message');
-      await ctx.reply('🛍️ Каталог товаров Plazma Water\n\nКаталог пока пуст. Добавьте категории и товары в админке.');
+      // Получаем баланс пользователя
+      const user = await ensureUser(ctx);
+      const userBalance = Number((user as any)?.balance || 0);
+      
+      await ctx.reply(`🛍️ Каталог товаров Plazma Water\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ\n\nКаталог пока пуст. Добавьте категории и товары в админке.`);
       return;
     }
 
@@ -74,14 +78,22 @@ export async function showCategories(ctx: Context, region?: string) {
       ]
     ];
 
-    await ctx.reply(`🛍️ Каталог товаров Plazma Water\n\n📍 Регион: ${regionEmoji} ${regionText}\n\nВыберите категорию:`, {
+    // Получаем баланс пользователя
+    const user = await ensureUser(ctx);
+    const userBalance = Number((user as any)?.balance || 0);
+    
+    await ctx.reply(`🛍️ Каталог товаров Plazma Water\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ\n📍 Регион: ${regionEmoji} ${regionText}\n\nВыберите категорию:`, {
       reply_markup: {
         inline_keyboard: keyboard,
       },
     });
   } catch (error) {
     console.error('Error loading categories:', error);
-    await ctx.reply('🛍️ Каталог товаров Plazma Water\n\n❌ Ошибка загрузки каталога. Попробуйте позже.');
+    // Получаем баланс пользователя
+    const user = await ensureUser(ctx);
+    const userBalance = Number((user as any)?.balance || 0);
+    
+    await ctx.reply(`🛍️ Каталог товаров Plazma Water\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ\n\n❌ Ошибка загрузки каталога. Попробуйте позже.`);
   }
 }
 
