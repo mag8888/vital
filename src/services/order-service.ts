@@ -18,7 +18,15 @@ export async function createOrderRequest(params: {
     price: Number(item.price),
   }));
 
-  return prisma.orderRequest.create({
+  console.log('🛒 Creating order request:', {
+    userId: params.userId,
+    contact: params.contact,
+    message: params.message,
+    itemsCount: params.items.length,
+    items: params.items
+  });
+
+  const order = await prisma.orderRequest.create({
     data: {
       userId: params.userId,
       contact: params.contact,
@@ -26,4 +34,13 @@ export async function createOrderRequest(params: {
       itemsJson,
     },
   });
+
+  console.log('✅ Order request created successfully:', {
+    orderId: order.id,
+    userId: order.userId,
+    status: order.status,
+    createdAt: order.createdAt
+  });
+
+  return order;
 }

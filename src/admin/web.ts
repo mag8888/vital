@@ -1743,6 +1743,8 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
       const partnerProfile = user.partner;
       const directPartners = partnerProfile?.referrals?.length || 0;
       
+      console.log(`👤 User ${user.firstName} (@${user.username}): ${user.orders?.length || 0} orders`);
+      
       // Разделяем заказы по статусам
       const ordersByStatus = {
         new: user.orders?.filter((order: any) => order.status === 'NEW') || [],
