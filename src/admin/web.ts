@@ -5461,7 +5461,7 @@ function getStatusDisplayName(status: string) {
         await prisma.partnerProfile.update({
           where: { userId },
           data: {
-            programType: programType as 'DIRECT' | 'MULTI_LEVEL'
+            programType: 'MULTI_LEVEL' // Always use MULTI_LEVEL for dual system
           }
         });
       } else {
@@ -5471,7 +5471,7 @@ function getStatusDisplayName(status: string) {
         await prisma.partnerProfile.create({
           data: {
             userId,
-            programType: programType as 'DIRECT' | 'MULTI_LEVEL',
+            programType: 'MULTI_LEVEL', // Always use MULTI_LEVEL for dual system
             referralCode,
             balance: 0,
             bonus: 0
