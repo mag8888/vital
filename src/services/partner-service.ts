@@ -405,3 +405,30 @@ export async function createPartnerReferral(profileId: string, level: number, re
     },
   });
 }
+
+export async function upsertPartnerReferral(profileId: string, level: number, referredId?: string, contact?: string, referralType: 'DIRECT' | 'MULTI_LEVEL' = 'DIRECT') {
+  // Check if referral already exists
+  const existingReferral = await prisma.partnerReferral.findFirst({
+    where: {
+      profileId,
+      referredId,
+      level
+    }
+  });
+
+  if (existingReferral) {
+    console.log(`🔄 Referral already exists for profileId: ${profileId}, referredId: ${referredId}, level: ${level}`);
+    return existingReferral;
+  }
+
+  // Create new referral if it doesn't exist
+  return prisma.partnerReferral.create({
+    data: {
+      profileId,
+      level,
+      referredId,
+      contact,
+      referralType,
+    },
+  });
+}

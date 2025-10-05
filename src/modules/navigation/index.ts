@@ -2,7 +2,7 @@ import { Telegraf, Markup } from 'telegraf';
 import { Context } from '../../bot/context.js';
 import { BotModule } from '../../bot/types.js';
 import { logUserAction, ensureUser } from '../../services/user-history.js';
-import { createPartnerReferral, recordPartnerTransaction } from '../../services/partner-service.js';
+import { upsertPartnerReferral, recordPartnerTransaction } from '../../services/partner-service.js';
 import { prisma } from '../../lib/prisma.js';
 
 const greeting = `👋 Добро пожаловать!
@@ -348,27 +348,15 @@ export const navigationModule: BotModule = {
               return;
             }
             
-            console.log('🔗 Referral: User ensured, checking for existing referral record');
+            console.log('🔗 Referral: User ensured, upserting referral record');
             
-            // Check if referral record already exists
-            const existingReferral = await prisma.partnerReferral.findFirst({
-              where: {
-                profileId: partnerProfile.id,
-                referredId: user.id
-              }
-            });
+            // Use upsert to create or get existing referral record
+            const referralLevel = programType === 'DIRECT' ? 1 : 1; // Both start at level 1
+            const referral = await upsertPartnerReferral(partnerProfile.id, referralLevel, user.id, undefined, programType);
             
-            if (!existingReferral) {
-              console.log('🔗 Referral: Creating new referral record');
-              // Create referral record using user ID (ObjectId) with correct level based on program type
-              const referralLevel = programType === 'DIRECT' ? 1 : 1; // Both start at level 1
-              await createPartnerReferral(partnerProfile.id, referralLevel, user.id, undefined, programType);
-            } else {
-              console.log('🔗 Referral: Referral record already exists, skipping creation');
-            }
-            
-            // Award bonus only if this is a new referral record
-            if (!existingReferral) {
+            // Award bonus only if this is a new referral record (check by creation time)
+            const isNewReferral = referral.createdAt.getTime() > Date.now() - 5000; // Created within last 5 seconds
+            if (isNewReferral) {
               // Check if bonus was already awarded for this user
               const existingBonus = await prisma.partnerTransaction.findFirst({
                 where: {
@@ -395,7 +383,7 @@ export const navigationModule: BotModule = {
             }
             
             // Send notification to inviter only for new referrals
-            if (!existingReferral) {
+            if (isNewReferral) {
               try {
                 console.log('🔗 Referral: Sending notification to inviter:', partnerProfile.user.telegramId);
                 await ctx.telegram.sendMessage(
