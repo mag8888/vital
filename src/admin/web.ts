@@ -2184,6 +2184,36 @@ router.get('/api/categories', requireAdmin, async (req, res) => {
   }
 });
 
+// Test endpoint for dual system bonuses
+router.get('/test-dual-system', requireAdmin, async (req, res) => {
+  try {
+    // Test with a sample order amount
+    const testOrderAmount = 100; // 100 PZ
+    const testUserId = '0000000000000001a5d56f19'; // Aurelia (direct referral of Roman)
+    
+    console.log(`🧪 Testing dual system with order amount: ${testOrderAmount} PZ for user: ${testUserId}`);
+    
+    // Call the dual system calculation
+    const bonuses = await calculateDualSystemBonuses(testUserId, testOrderAmount);
+    
+    res.json({
+      success: true,
+      message: 'Dual system test completed',
+      testData: {
+        orderAmount: testOrderAmount,
+        userId: testUserId,
+        bonuses: bonuses || []
+      }
+    });
+  } catch (error) {
+    console.error('❌ Dual system test error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // API: Create category
 router.post('/api/categories', requireAdmin, async (req, res) => {
   try {
