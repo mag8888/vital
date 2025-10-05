@@ -299,33 +299,46 @@ export async function calculateDualSystemBonuses(orderUserId: string, orderAmoun
     
     // Проверяем, активен ли партнерский профиль
     const isActive = await checkPartnerActivation(partnerProfile.userId);
-    if (!isActive) {
-      console.log(`⚠️ Partner ${partnerProfile.userId} is not active, skipping bonus`);
-      continue;
-    }
-
+    
     let bonusAmount = 0;
     let description = '';
 
     if (referral.level === 1) {
-      // Прямой реферал: процент зависит от типа программы реферала
-      if (referral.referralType === 'DIRECT') {
-        // Прямая система: 25%
-        bonusAmount = orderAmount * 0.25;
-        description = `Бонус за заказ прямого реферала (${orderAmount} PZ) - прямая система 25%`;
+      // Прямой реферал: всегда 10% для неактивных, расширенные % для активных
+      if (!isActive) {
+        // Базовый бонус 10% для неактивных партнеров
+        bonusAmount = orderAmount * 0.10;
+        description = `Базовый бонус за заказ прямого реферала (${orderAmount} PZ) - 10%`;
       } else {
-        // Многоуровневая система: 15%
-        bonusAmount = orderAmount * 0.15;
-        description = `Бонус за заказ прямого реферала (${orderAmount} PZ) - многоуровневая система 15%`;
+        // Расширенные бонусы для активных партнеров
+        if (referral.referralType === 'DIRECT') {
+          // Прямая система: 25%
+          bonusAmount = orderAmount * 0.25;
+          description = `Бонус за заказ прямого реферала (${orderAmount} PZ) - прямая система 25%`;
+        } else {
+          // Многоуровневая система: 15%
+          bonusAmount = orderAmount * 0.15;
+          description = `Бонус за заказ прямого реферала (${orderAmount} PZ) - многоуровневая система 15%`;
+        }
       }
     } else if (referral.level === 2) {
-      // Уровень 2: 5%
-      bonusAmount = orderAmount * 0.05;
-      description = `Бонус за заказ реферала 2-го уровня (${orderAmount} PZ)`;
+      // Уровень 2: только для активных партнеров
+      if (isActive) {
+        bonusAmount = orderAmount * 0.05;
+        description = `Бонус за заказ реферала 2-го уровня (${orderAmount} PZ)`;
+      } else {
+        console.log(`⚠️ Partner ${partnerProfile.userId} (level 2) is not active, skipping bonus`);
+        continue;
+      }
     } else if (referral.level === 3) {
-      // Уровень 3: 5%
-      bonusAmount = orderAmount * 0.05;
-      description = `Бонус за заказ реферала 3-го уровня (${orderAmount} PZ)`;
+      // Уровень 3: только для активных партнеров
+      if (isActive) {
+        bonusAmount = orderAmount * 0.05;
+        description = `Бонус за заказ реферала 3-го уровня (${orderAmount} PZ)`;
+      } else {
+        console.log(`⚠️ Partner ${partnerProfile.userId} (level 3) is not active, skipping bonus`);
+        continue;
+      }
     }
 
     if (bonusAmount > 0) {
