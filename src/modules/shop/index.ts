@@ -5,6 +5,7 @@ import { ensureUser, logUserAction } from '../../services/user-history.js';
 import { getActiveCategories, getCategoryById, getProductById, getProductsByCategory } from '../../services/shop-service.js';
 import { addProductToCart, cartItemsToText, getCartItems } from '../../services/cart-service.js';
 import { createOrderRequest } from '../../services/order-service.js';
+import { calculateDualSystemBonuses } from '../../services/partner-service.js';
 import { env } from '../../config/env.js';
 import { prisma } from '../../lib/prisma.js';
 
@@ -242,6 +243,17 @@ async function handleBuy(ctx: Context, productId: string) {
   });
   
   console.log('✅ SHOP: Order request created successfully');
+
+  // Calculate and award referral bonuses
+  const totalAmount = itemsPayload.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  console.log('🎯 SHOP: Calculating referral bonuses for amount:', totalAmount);
+  
+  try {
+    const bonuses = await calculateDualSystemBonuses(user.id, totalAmount);
+    console.log('✅ SHOP: Referral bonuses calculated:', bonuses.length, 'bonuses awarded');
+  } catch (error) {
+    console.error('❌ SHOP: Error calculating referral bonuses:', error);
+  }
 
   await logUserAction(ctx, 'shop:buy', { productId });
 

@@ -4,6 +4,7 @@ import { Context } from '../../bot/context.js';
 import { logUserAction, ensureUser } from '../../services/user-history.js';
 import { getCartItems, cartItemsToText, clearCart, increaseProductQuantity, decreaseProductQuantity, removeProductFromCart } from '../../services/cart-service.js';
 import { createOrderRequest } from '../../services/order-service.js';
+import { calculateDualSystemBonuses } from '../../services/partner-service.js';
 
 export const cartModule: BotModule = {
   async register(bot: Telegraf<Context>) {
@@ -213,6 +214,17 @@ export function registerCartActions(bot: Telegraf<Context>) {
         items: itemsPayload,
       });
       console.log('✅ CART CHECKOUT: Order request created successfully');
+
+      // Calculate and award referral bonuses
+      const totalAmount = cartItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+      console.log('🎯 CART CHECKOUT: Calculating referral bonuses for amount:', totalAmount);
+      
+      try {
+        const bonuses = await calculateDualSystemBonuses(userId, totalAmount);
+        console.log('✅ CART CHECKOUT: Referral bonuses calculated:', bonuses.length, 'bonuses awarded');
+      } catch (error) {
+        console.error('❌ CART CHECKOUT: Error calculating referral bonuses:', error);
+      }
 
       const cartText = cartItemsToText(cartItems);
       const orderText = `🛍️ Новый заказ от ${ctx.from?.first_name || 'Пользователь'}\n\n${cartText}\n\n📞 Свяжитесь с покупателем: @${ctx.from?.username || 'нет username'}`;
