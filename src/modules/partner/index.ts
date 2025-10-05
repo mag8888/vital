@@ -424,21 +424,40 @@ async function showPartnersByLevel(ctx: Context, level: number) {
     if (directPartners.length > 0) {
       const directPartnerIds = directPartners.map(p => p.referredId).filter((id): id is string => Boolean(id));
       
+      // Находим profileId наших прямых партнеров
+      const directPartnerProfiles = await prisma.partnerProfile.findMany({
+        where: { userId: { in: directPartnerIds } },
+        select: { id: true, userId: true }
+      });
+      
+      const directPartnerProfileIds = directPartnerProfiles.map(p => p.id);
+      console.log(`🔍 Partner: Direct partner profile IDs for level 3 search:`, directPartnerProfileIds);
+      
       // Находим партнеров наших прямых партнеров (2-й уровень)
       const secondLevelPartners = await prisma.partnerReferral.findMany({
         where: { 
-          referredId: { in: directPartnerIds }
+          profileId: { in: directPartnerProfileIds }
         },
         select: { referredId: true }
       });
       
       if (secondLevelPartners.length > 0) {
         const secondLevelPartnerIds = secondLevelPartners.map(p => p.referredId).filter((id): id is string => Boolean(id));
+        console.log(`🔍 Partner: Second level partner IDs for level 3 search:`, secondLevelPartnerIds);
+        
+        // Находим profileId партнеров 2-го уровня
+        const secondLevelPartnerProfiles = await prisma.partnerProfile.findMany({
+          where: { userId: { in: secondLevelPartnerIds } },
+          select: { id: true, userId: true }
+        });
+        
+        const secondLevelPartnerProfileIds = secondLevelPartnerProfiles.map(p => p.id);
+        console.log(`🔍 Partner: Second level partner profile IDs for level 3 search:`, secondLevelPartnerProfileIds);
         
         // Находим партнеров партнеров наших партнеров (3-й уровень)
         partnerReferrals = await prisma.partnerReferral.findMany({
           where: { 
-            referredId: { in: secondLevelPartnerIds }
+            profileId: { in: secondLevelPartnerProfileIds }
           },
           include: {
             profile: {
@@ -450,6 +469,8 @@ async function showPartnersByLevel(ctx: Context, level: number) {
             }
           }
         });
+        
+        console.log(`🔍 Partner: Found ${partnerReferrals.length} third level partners`);
       }
     }
   }
