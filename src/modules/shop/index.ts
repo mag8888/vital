@@ -233,11 +233,15 @@ async function handleBuy(ctx: Context, productId: string) {
     quantity: 1,
   });
 
+  console.log('🛒 SHOP: About to create order request for user:', user.id, user.firstName, user.username);
+  
   await createOrderRequest({
     userId: user.id,
     message: `Покупка через бота. Основной товар: ${product.title}`,
     items: itemsPayload,
   });
+  
+  console.log('✅ SHOP: Order request created successfully');
 
   await logUserAction(ctx, 'shop:buy', { productId });
 
