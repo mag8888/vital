@@ -3,6 +3,7 @@ import { BotModule } from '../../bot/types.js';
 import { Context } from '../../bot/context.js';
 import { logUserAction, ensureUser } from '../../services/user-history.js';
 import { getCartItems, cartItemsToText, clearCart, increaseProductQuantity, decreaseProductQuantity, removeProductFromCart } from '../../services/cart-service.js';
+import { createOrderRequest } from '../../services/order-service.js';
 
 export const cartModule: BotModule = {
   async register(bot: Telegraf<Context>) {
@@ -186,12 +187,32 @@ export function registerCartActions(bot: Telegraf<Context>) {
     const userId = user.id;
 
     try {
+      console.log('🛒 CART CHECKOUT: Starting checkout for user:', userId, user.firstName, user.username);
+      
       const cartItems = await getCartItems(userId);
       
       if (cartItems.length === 0) {
         await ctx.reply('🛍️ Ваша корзина пуста');
         return;
       }
+
+      console.log('🛒 CART CHECKOUT: Found cart items:', cartItems.length);
+
+      // Create order in database
+      const itemsPayload = cartItems.map((item: any) => ({
+        productId: item.productId,
+        title: item.product.title,
+        price: Number(item.product.price),
+        quantity: item.quantity,
+      }));
+
+      console.log('🛒 CART CHECKOUT: Creating order request...');
+      await createOrderRequest({
+        userId: userId,
+        message: `Заказ через корзину от ${user.firstName || 'Пользователь'}`,
+        items: itemsPayload,
+      });
+      console.log('✅ CART CHECKOUT: Order request created successfully');
 
       const cartText = cartItemsToText(cartItems);
       const orderText = `🛍️ Новый заказ от ${ctx.from?.first_name || 'Пользователь'}\n\n${cartText}\n\n📞 Свяжитесь с покупателем: @${ctx.from?.username || 'нет username'}`;
@@ -205,7 +226,7 @@ export function registerCartActions(bot: Telegraf<Context>) {
       
       await ctx.reply('✅ Заказ отправлен! Мы свяжемся с вами в ближайшее время.');
     } catch (error) {
-      console.error('Error processing checkout:', error);
+      console.error('❌ CART CHECKOUT: Error processing checkout:', error);
       await ctx.reply('❌ Ошибка оформления заказа. Попробуйте позже.');
     }
   });
