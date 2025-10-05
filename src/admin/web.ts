@@ -6223,17 +6223,20 @@ function getStatusDisplayName(status: string) {
             
             try {
               // Загружаем данные заказа
-              const response = await fetch(\`/admin/orders/\${orderId}\`, {
+              const orderResponse = await fetch(\`/admin/orders/\${orderId}\`, {
                 method: 'GET',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include'
               });
               
-              const order = await response.json();
+              const order = await orderResponse.json();
               
               if (order.success) {
                 currentEditItems = order.data.items || [];
                 renderEditItems();
+                
+                // Загружаем список товаров
+                await loadProducts();
                 
                 // Показываем модальное окно
                 document.getElementById('editOrderModal').style.display = 'block';
@@ -6243,6 +6246,37 @@ function getStatusDisplayName(status: string) {
             } catch (error) {
               console.error('Error loading order:', error);
               alert('Ошибка загрузки заказа');
+            }
+          }
+          
+          // Загрузить список товаров в выпадающий список
+          async function loadProducts() {
+            try {
+              const response = await fetch('/admin/api/products', {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include'
+              });
+              
+              const result = await response.json();
+              
+              if (result.success) {
+                const productSelect = document.getElementById('productSelect');
+                productSelect.innerHTML = '<option value="">-- Выберите товар --</option>';
+                
+                result.data.forEach(product => {
+                  const option = document.createElement('option');
+                  option.value = product.id;
+                  option.textContent = \`\${product.title} (\${product.category?.name || 'Без категории'}) - \${product.price.toFixed(2)} PZ\`;
+                  option.dataset.title = product.title;
+                  option.dataset.price = product.price;
+                  productSelect.appendChild(option);
+                });
+              } else {
+                console.error('Error loading products:', result.error);
+              }
+            } catch (error) {
+              console.error('Error loading products:', error);
             }
           }
           
@@ -6292,14 +6326,17 @@ function getStatusDisplayName(status: string) {
           document.getElementById('addProductForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
-            const title = document.getElementById('productTitle').value;
-            const price = parseFloat(document.getElementById('productPrice').value);
+            const productSelect = document.getElementById('productSelect');
+            const selectedOption = productSelect.options[productSelect.selectedIndex];
             const quantity = parseInt(document.getElementById('productQuantity').value);
             
-            if (!title || !price || !quantity) {
-              alert('Заполните все поля');
+            if (!selectedOption.value || !quantity) {
+              alert('Выберите товар и укажите количество');
               return;
             }
+            
+            const title = selectedOption.dataset.title;
+            const price = parseFloat(selectedOption.dataset.price);
             
             currentEditItems.push({
               title: title,
@@ -6371,12 +6408,10 @@ function getStatusDisplayName(status: string) {
               <h3>➕ Добавить товар</h3>
               <form id="addProductForm" class="add-product-form">
                 <div class="form-group">
-                  <label for="productTitle">Название товара:</label>
-                  <input type="text" id="productTitle" name="title" required>
-                </div>
-                <div class="form-group">
-                  <label for="productPrice">Цена (PZ):</label>
-                  <input type="number" id="productPrice" name="price" step="0.01" min="0" required>
+                  <label for="productSelect">Выберите товар:</label>
+                  <select id="productSelect" name="productId" required>
+                    <option value="">-- Выберите товар --</option>
+                  </select>
                 </div>
                 <div class="form-group">
                   <label for="productQuantity">Количество:</label>
@@ -6616,6 +6651,39 @@ router.put('/orders/:orderId/items', requireAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Update order items error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : String(error) 
+    });
+  }
+});
+
+// Get all products for dropdown
+router.get('/api/products', requireAdmin, async (req, res) => {
+  try {
+    const products = await prisma.product.findMany({
+      select: {
+        id: true,
+        title: true,
+        price: true,
+        category: {
+          select: {
+            name: true
+          }
+        }
+      },
+      orderBy: [
+        { category: { name: 'asc' } },
+        { title: 'asc' }
+      ]
+    });
+    
+    res.json({
+      success: true,
+      data: products
+    });
+  } catch (error) {
+    console.error('❌ Get products error:', error);
     res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : String(error) 
