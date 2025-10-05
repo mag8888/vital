@@ -18,29 +18,66 @@ export async function showAudioFiles(ctx: Context, category?: string) {
       return;
     }
 
-    // Send audio files as informational cards with buttons
+    // Send audio files
     for (const audioFile of audioFiles) {
       console.log('🎵 Sending audio file:', audioFile.title, 'File ID:', audioFile.fileId);
       
-      // Отправляем файл как информационную карточку с кнопкой
-      await ctx.reply(
-        `🎵 ${audioFile.title}\n` +
-        `📝 ${audioFile.description}\n` +
-        `⏱️ Длительность: ${audioFile.duration ? formatDuration(audioFile.duration) : 'Неизвестно'}\n\n` +
-        `💡 Для прослушивания нажмите кнопку ниже.`,
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [
-                {
-                  text: '🎵 Слушать звуковые матрицы',
-                  callback_data: `audio:play:${audioFile.id}`
-                }
-              ]
-            ]
-          }
+      try {
+        // Проверяем, является ли file_id заглушкой
+        if (audioFile.fileId.startsWith('BAADBAAD') || audioFile.fileId === 'PLACEHOLDER_FILE_ID') {
+          // Отправляем как информационную карточку
+          await ctx.reply(
+            `🎵 ${audioFile.title}\n` +
+            `📝 ${audioFile.description}\n` +
+            `⏱️ Длительность: ${audioFile.duration ? formatDuration(audioFile.duration) : 'Неизвестно'}\n\n` +
+            `💡 Для прослушивания нажмите кнопку ниже.`,
+            {
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    {
+                      text: '🎵 Слушать звуковые матрицы',
+                      callback_data: `audio:play:${audioFile.id}`
+                    }
+                  ]
+                ]
+              }
+            }
+          );
+        } else {
+          // Отправляем реальный аудиофайл
+          await ctx.replyWithAudio(
+            audioFile.fileId,
+            {
+              title: audioFile.title,
+              performer: 'Anton Matrix Laboratory',
+              duration: audioFile.duration || undefined,
+              caption: audioFile.description || undefined,
+            }
+          );
         }
-      );
+      } catch (error) {
+        console.error('Error sending audio file:', audioFile.title, error);
+        // Отправляем как информационную карточку в случае ошибки
+        await ctx.reply(
+          `🎵 ${audioFile.title}\n` +
+          `📝 ${audioFile.description}\n` +
+          `⏱️ Длительность: ${audioFile.duration ? formatDuration(audioFile.duration) : 'Неизвестно'}\n\n` +
+          `💡 Для прослушивания нажмите кнопку ниже.`,
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: '🎵 Слушать звуковые матрицы',
+                    callback_data: `audio:play:${audioFile.id}`
+                  }
+                ]
+              ]
+            }
+          }
+        );
+      }
     }
 
     // Send summary message
