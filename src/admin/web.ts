@@ -4966,9 +4966,14 @@ function createUserOrderCard(order: any) {
           </button>
         </div>
         
-        ${order.status !== 'COMPLETED' && order.status !== 'CANCELLED' ? 
-          '<button class="pay-btn" onclick="payFromBalance(\'' + order.id + '\', ' + totalAmount + ')">💳 Оплатить с баланса</button>' 
-          : ''}
+        <div class="order-edit-actions">
+          ${order.status !== 'COMPLETED' && order.status !== 'CANCELLED' ? 
+            '<button class="edit-btn" onclick="openEditOrderModal(\'' + order.id + '\')">✏️ Редактировать</button>' 
+            : ''}
+          ${order.status !== 'COMPLETED' && order.status !== 'CANCELLED' ? 
+            '<button class="pay-btn" onclick="payFromBalance(\'' + order.id + '\', ' + totalAmount + ')">💳 Оплатить с баланса</button>' 
+            : ''}
+        </div>
       </div>
     </div>
   `;
@@ -5870,12 +5875,29 @@ function getStatusDisplayName(status: string) {
             background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
           }
           
+          .order-edit-actions {
+            display: flex; gap: 10px; margin-top: 10px; 
+          }
+          
+          .edit-btn {
+            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+            color: white; border: none; padding: 12px 20px; 
+            border-radius: 8px; cursor: pointer; font-size: 14px; 
+            font-weight: 600; transition: all 0.2s ease; 
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2); flex: 1;
+          }
+          
+          .edit-btn:hover {
+            transform: translateY(-1px); 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+          }
+          
           .pay-btn {
             background: linear-gradient(135deg, #28a745 0%, #20c997 100%); 
             color: white; border: none; padding: 12px 24px; 
             border-radius: 8px; font-weight: 600; cursor: pointer; 
             font-size: 14px; transition: all 0.2s ease; 
-            box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2); 
+            box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2); flex: 1;
           }
           
           .pay-btn:hover {
@@ -5884,6 +5906,179 @@ function getStatusDisplayName(status: string) {
           }
           
           .empty-state { text-align: center; padding: 40px; color: #6c757d; }
+          
+          /* Модальное окно редактирования заказа */
+          .edit-order-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+          }
+          
+          .edit-order-modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+          }
+          
+          .edit-order-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e9ecef;
+          }
+          
+          .edit-order-close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+          }
+          
+          .edit-order-close:hover {
+            color: #000;
+          }
+          
+          .order-items-edit {
+            margin-bottom: 20px;
+          }
+          
+          .order-item-edit {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+          }
+          
+          .order-item-info {
+            flex: 1;
+          }
+          
+          .order-item-price {
+            font-weight: bold;
+            color: #28a745;
+            margin: 0 15px;
+          }
+          
+          .remove-item-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+          }
+          
+          .remove-item-btn:hover {
+            background: #c82333;
+          }
+          
+          .add-product-section {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            background: #f8f9fa;
+          }
+          
+          .add-product-form {
+            display: flex;
+            gap: 10px;
+            align-items: end;
+            flex-wrap: wrap;
+          }
+          
+          .form-group {
+            flex: 1;
+            min-width: 200px;
+          }
+          
+          .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #495057;
+          }
+          
+          .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+          }
+          
+          .add-product-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+          }
+          
+          .add-product-btn:hover {
+            background: #218838;
+          }
+          
+          .edit-order-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #e9ecef;
+          }
+          
+          .save-order-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+          }
+          
+          .save-order-btn:hover {
+            background: #0056b3;
+          }
+          
+          .cancel-edit-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+          }
+          
+          .cancel-edit-btn:hover {
+            background: #545b62;
+          }
         </style>
       </head>
       <body>
@@ -5997,7 +6192,186 @@ function getStatusDisplayName(status: string) {
               alert('Ошибка оплаты заказа');
             }
           }
+          
+          // Переменные для редактирования заказа
+          let currentEditOrderId = null;
+          let currentEditItems = [];
+          
+          // Открыть модальное окно редактирования заказа
+          async function openEditOrderModal(orderId) {
+            currentEditOrderId = orderId;
+            
+            try {
+              // Загружаем данные заказа
+              const response = await fetch(\`/admin/orders/\${orderId}\`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include'
+              });
+              
+              const order = await response.json();
+              
+              if (order.success) {
+                currentEditItems = order.data.items || [];
+                renderEditItems();
+                
+                // Показываем модальное окно
+                document.getElementById('editOrderModal').style.display = 'block';
+              } else {
+                alert('Ошибка загрузки данных заказа');
+              }
+            } catch (error) {
+              console.error('Error loading order:', error);
+              alert('Ошибка загрузки заказа');
+            }
+          }
+          
+          // Закрыть модальное окно редактирования заказа
+          function closeEditOrderModal() {
+            document.getElementById('editOrderModal').style.display = 'none';
+            currentEditOrderId = null;
+            currentEditItems = [];
+          }
+          
+          // Отобразить товары для редактирования
+          function renderEditItems() {
+            const container = document.getElementById('orderItemsEdit');
+            
+            if (currentEditItems.length === 0) {
+              container.innerHTML = '<p style="text-align: center; color: #6c757d; padding: 20px;">В заказе пока нет товаров</p>';
+              return;
+            }
+            
+            container.innerHTML = currentEditItems.map((item, index) => \`
+              <div class="order-item-edit">
+                <div class="order-item-info">
+                  <strong>\${item.title}</strong>
+                  <div style="font-size: 12px; color: #6c757d;">
+                    \${item.quantity} шт. × \${item.price.toFixed(2)} PZ
+                  </div>
+                </div>
+                <div class="order-item-price">
+                  \${(item.price * item.quantity).toFixed(2)} PZ
+                </div>
+                <button class="remove-item-btn" onclick="removeEditItem(\${index})">
+                  🗑️ Удалить
+                </button>
+              </div>
+            \`).join('');
+          }
+          
+          // Удалить товар из редактируемого заказа
+          function removeEditItem(index) {
+            if (confirm('Удалить этот товар из заказа?')) {
+              currentEditItems.splice(index, 1);
+              renderEditItems();
+            }
+          }
+          
+          // Добавить товар в редактируемый заказ
+          document.getElementById('addProductForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const title = document.getElementById('productTitle').value;
+            const price = parseFloat(document.getElementById('productPrice').value);
+            const quantity = parseInt(document.getElementById('productQuantity').value);
+            
+            if (!title || !price || !quantity) {
+              alert('Заполните все поля');
+              return;
+            }
+            
+            currentEditItems.push({
+              title: title,
+              price: price,
+              quantity: quantity
+            });
+            
+            renderEditItems();
+            
+            // Очищаем форму
+            document.getElementById('addProductForm').reset();
+            document.getElementById('productQuantity').value = 1;
+          });
+          
+          // Сохранить изменения заказа
+          async function saveOrderChanges() {
+            if (!currentEditOrderId) {
+              alert('Ошибка: не выбран заказ для редактирования');
+              return;
+            }
+            
+            try {
+              const response = await fetch(\`/admin/orders/\${currentEditOrderId}/items\`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                  items: currentEditItems
+                })
+              });
+              
+              const result = await response.json();
+              
+              if (result.success) {
+                alert('Заказ успешно обновлен!');
+                closeEditOrderModal();
+                location.reload();
+              } else {
+                alert(\`Ошибка обновления заказа: \${result.error}\`);
+              }
+            } catch (error) {
+              console.error('Error saving order:', error);
+              alert('Ошибка сохранения заказа');
+            }
+          }
+          
+          // Закрытие модального окна при клике вне его
+          window.onclick = function(event) {
+            const modal = document.getElementById('editOrderModal');
+            if (event.target === modal) {
+              closeEditOrderModal();
+            }
+          }
         </script>
+        
+        <!-- Модальное окно редактирования заказа -->
+        <div id="editOrderModal" class="edit-order-modal">
+          <div class="edit-order-modal-content">
+            <div class="edit-order-header">
+              <h2>✏️ Редактировать заказ</h2>
+              <span class="edit-order-close" onclick="closeEditOrderModal()">&times;</span>
+            </div>
+            
+            <div id="orderItemsEdit" class="order-items-edit">
+              <!-- Товары заказа будут загружены динамически -->
+            </div>
+            
+            <div class="add-product-section">
+              <h3>➕ Добавить товар</h3>
+              <form id="addProductForm" class="add-product-form">
+                <div class="form-group">
+                  <label for="productTitle">Название товара:</label>
+                  <input type="text" id="productTitle" name="title" required>
+                </div>
+                <div class="form-group">
+                  <label for="productPrice">Цена (PZ):</label>
+                  <input type="number" id="productPrice" name="price" step="0.01" min="0" required>
+                </div>
+                <div class="form-group">
+                  <label for="productQuantity">Количество:</label>
+                  <input type="number" id="productQuantity" name="quantity" min="1" value="1" required>
+                </div>
+                <button type="submit" class="add-product-btn">➕ Добавить</button>
+              </form>
+            </div>
+            
+            <div class="edit-order-actions">
+              <button class="cancel-edit-btn" onclick="closeEditOrderModal()">❌ Отмена</button>
+              <button class="save-order-btn" onclick="saveOrderChanges()">💾 Сохранить изменения</button>
+            </div>
+          </div>
+        </div>
       </body>
       </html>
     `);
@@ -6132,6 +6506,100 @@ router.post('/orders/:orderId/pay', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('❌ Pay order error:', error);
     res.status(500).json({ success: false, error: 'Ошибка оплаты заказа' });
+  }
+});
+
+// Get order details for editing
+router.get('/orders/:orderId', requireAdmin, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    
+    const order = await prisma.orderRequest.findUnique({
+      where: { id: orderId },
+      include: {
+        user: {
+          select: { id: true, firstName: true, username: true }
+        }
+      }
+    });
+    
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Заказ не найден' });
+    }
+    
+    // Parse items from JSON
+    const items = typeof order.itemsJson === 'string' 
+      ? JSON.parse(order.itemsJson || '[]') 
+      : (order.itemsJson || []);
+    
+    res.json({
+      success: true,
+      data: {
+        id: order.id,
+        status: order.status,
+        createdAt: order.createdAt,
+        items: items,
+        user: order.user
+      }
+    });
+  } catch (error) {
+    console.error('❌ Get order error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : String(error) 
+    });
+  }
+});
+
+// Update order items
+router.put('/orders/:orderId/items', requireAdmin, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { items } = req.body;
+    
+    if (!items || !Array.isArray(items)) {
+      return res.status(400).json({ success: false, error: 'Неверный формат товаров' });
+    }
+    
+    // Validate items
+    for (const item of items) {
+      if (!item.title || !item.price || !item.quantity) {
+        return res.status(400).json({ success: false, error: 'Неверный формат товара' });
+      }
+      if (item.price < 0 || item.quantity < 1) {
+        return res.status(400).json({ success: false, error: 'Неверные значения цены или количества' });
+      }
+    }
+    
+    // Check if order exists
+    const existingOrder = await prisma.orderRequest.findUnique({
+      where: { id: orderId }
+    });
+    
+    if (!existingOrder) {
+      return res.status(404).json({ success: false, error: 'Заказ не найден' });
+    }
+    
+    // Update order items
+    await prisma.orderRequest.update({
+      where: { id: orderId },
+      data: {
+        itemsJson: JSON.stringify(items)
+      }
+    });
+    
+    console.log(`✅ Order ${orderId} items updated: ${items.length} items`);
+    
+    res.json({
+      success: true,
+      message: 'Товары заказа обновлены'
+    });
+  } catch (error) {
+    console.error('❌ Update order items error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : String(error) 
+    });
   }
 });
 
