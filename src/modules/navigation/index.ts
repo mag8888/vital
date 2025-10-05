@@ -493,12 +493,14 @@ export const navigationModule: BotModule = {
 
     bot.hears('⭐ Отзывы', async (ctx) => {
       await logUserAction(ctx, 'menu:reviews');
-      await ctx.reply('⭐ Отзывы\n\nЗдесь будут отзывы наших клиентов о продукции Plazma Water.');
+      const { showReviews } = await import('../reviews/index.js');
+      await showReviews(ctx);
     });
 
     bot.hears('ℹ️ О PLASMA', async (ctx) => {
       await logUserAction(ctx, 'menu:about');
-      await ctx.reply('ℹ️ О PLASMA\n\nPlazma Water — это жидкие витамины и минералы в наноформе с усвоением до 99,9%.');
+      const { showAbout } = await import('../about/index.js');
+      await showAbout(ctx);
     });
 
 
