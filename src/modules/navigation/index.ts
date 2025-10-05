@@ -405,6 +405,11 @@ export const navigationModule: BotModule = {
             programType
           });
           console.log('🔗 Referral: User action logged');
+          
+          // For referral users, send navigation menu without greeting
+          await sendNavigationMenu(ctx);
+          await sendWelcomeVideo(ctx);
+          return; // Don't call renderHome to avoid duplicate greeting
         } else {
           console.log('🔗 Referral: Partner profile not found for code:', referralCode);
           await ctx.reply('❌ Реферальная ссылка недействительна. Партнёр не найден.');
