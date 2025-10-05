@@ -23,29 +23,15 @@ export async function showAudioFiles(ctx: Context, category?: string) {
       console.log('🎵 Sending audio file:', audioFile.title, 'File ID:', audioFile.fileId);
       
       try {
-        // Проверяем, является ли file_id заглушкой
-        if (audioFile.fileId.startsWith('PLACEHOLDER_') || audioFile.fileId.startsWith('BAADBAAD')) {
-          // Отправляем информацию о файле вместо самого файла
-          await ctx.reply(
-            `🎵 ${audioFile.title}\n` +
-            `📝 ${audioFile.description}\n` +
-            `⏱️ Длительность: ${audioFile.duration ? formatDuration(audioFile.duration) : 'Неизвестно'}\n` +
-            `📁 Размер: ${audioFile.fileSize ? Math.round(audioFile.fileSize / 1024) + ' KB' : 'Неизвестно'}\n\n` +
-            `⚠️ Файл загружен в систему, но требуется реальный file_id от Telegram.\n` +
-            `💡 Для прослушивания загрузите файл через бота.`
-          );
-        } else {
-          // Отправляем реальный аудиофайл
-          await ctx.replyWithAudio(
-            audioFile.fileId,
-            {
-              title: audioFile.title,
-              performer: audioFile.description || 'Plazma Water',
-              duration: audioFile.duration || undefined,
-              caption: audioFile.description || undefined,
-            }
-          );
-        }
+        await ctx.replyWithAudio(
+          audioFile.fileId,
+          {
+            title: audioFile.title,
+            performer: audioFile.description || 'Plazma Water',
+            duration: audioFile.duration || undefined,
+            caption: audioFile.description || undefined,
+          }
+        );
       } catch (error) {
         console.error('Error sending audio file:', audioFile.title, error);
         // Отправляем информацию о файле в случае ошибки
