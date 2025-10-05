@@ -2,7 +2,7 @@ import { Markup, Telegraf } from 'telegraf';
 import { Context } from '../../bot/context.js';
 import { BotModule } from '../../bot/types.js';
 import { ensureUser, logUserAction } from '../../services/user-history.js';
-import { createAudioFile, getActiveAudioFiles, getAllAudioFiles, formatDuration } from '../../services/audio-service.js';
+import { createAudioFile, getActiveAudioFiles, getAllAudioFiles, formatDuration, getAudioFileById } from '../../services/audio-service.js';
 import { getAdminChatIds } from '../../config/env.js';
 
 export async function showAudioFiles(ctx: Context, category?: string) {
@@ -18,11 +18,12 @@ export async function showAudioFiles(ctx: Context, category?: string) {
       return;
     }
 
-    // Send each audio file
+    // Send audio files as clickable buttons
     for (const audioFile of audioFiles) {
       console.log('🎵 Sending audio file:', audioFile.title, 'File ID:', audioFile.fileId);
       
       try {
+        // Отправляем файл как аудиофайл
         await ctx.replyWithAudio(
           audioFile.fileId,
           {
@@ -30,6 +31,16 @@ export async function showAudioFiles(ctx: Context, category?: string) {
             performer: audioFile.description || 'Plazma Water',
             duration: audioFile.duration || undefined,
             caption: audioFile.description || undefined,
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: '🎵 Слушать',
+                    callback_data: `audio:play:${audioFile.id}`
+                  }
+                ]
+              ]
+            }
           }
         );
       } catch (error) {
@@ -39,7 +50,19 @@ export async function showAudioFiles(ctx: Context, category?: string) {
           `🎵 ${audioFile.title}\n` +
           `📝 ${audioFile.description}\n` +
           `⏱️ Длительность: ${audioFile.duration ? formatDuration(audioFile.duration) : 'Неизвестно'}\n\n` +
-          `❌ Ошибка воспроизведения файла.`
+          `❌ Ошибка воспроизведения файла.`,
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: '🎵 Попробовать снова',
+                    callback_data: `audio:retry:${audioFile.id}`
+                  }
+                ]
+              ]
+            }
+          }
         );
       }
     }
@@ -349,6 +372,72 @@ export const audioModule: BotModule = {
       } catch (error) {
         console.error('Error uploading voice message:', error);
         await ctx.reply('❌ Ошибка при сохранении голосового сообщения. Попробуйте позже.');
+      }
+    });
+
+    // Handle audio play button clicks
+    bot.action(/^audio:play:(.+)$/, async (ctx) => {
+      await ctx.answerCbQuery();
+      const audioId = ctx.match[1];
+      
+      try {
+        const audioFile = await getAudioFileById(audioId);
+        if (!audioFile) {
+          await ctx.reply('❌ Аудиофайл не найден.');
+          return;
+        }
+        
+        // Отправляем аудиофайл для прослушивания
+        await ctx.replyWithAudio(
+          audioFile.fileId,
+          {
+            title: audioFile.title,
+            performer: audioFile.description || 'Plazma Water',
+            duration: audioFile.duration || undefined,
+            caption: `🎵 ${audioFile.title}\n📝 ${audioFile.description}`,
+          }
+        );
+      } catch (error) {
+        console.error('Error playing audio:', error);
+        await ctx.reply('❌ Ошибка воспроизведения аудиофайла.');
+      }
+    });
+
+    // Handle audio retry button clicks
+    bot.action(/^audio:retry:(.+)$/, async (ctx) => {
+      await ctx.answerCbQuery();
+      const audioId = ctx.match[1];
+      
+      try {
+        const audioFile = await getAudioFileById(audioId);
+        if (!audioFile) {
+          await ctx.reply('❌ Аудиофайл не найден.');
+          return;
+        }
+        
+        // Пытаемся отправить файл снова
+        await ctx.replyWithAudio(
+          audioFile.fileId,
+          {
+            title: audioFile.title,
+            performer: audioFile.description || 'Plazma Water',
+            duration: audioFile.duration || undefined,
+            caption: audioFile.description || undefined,
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: '🎵 Слушать',
+                    callback_data: `audio:play:${audioFile.id}`
+                  }
+                ]
+              ]
+            }
+          }
+        );
+      } catch (error) {
+        console.error('Error retrying audio:', error);
+        await ctx.reply('❌ Не удалось воспроизвести аудиофайл. Возможно, файл поврежден или недоступен.');
       }
     });
 
