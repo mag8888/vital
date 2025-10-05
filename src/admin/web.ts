@@ -269,7 +269,7 @@ router.get('/', requireAdmin, async (req, res) => {
                 </thead>
                 <tbody>
                   ${usersWithStats.map(user => `
-                    <tr data-user-id="${user.id}" data-name="${user.firstName || 'Без имени'}" data-balance="${user.balance}" data-partners="${user.totalPartners}" data-orders="${user.totalOrderSum}" data-activity="${user.lastActivity.getTime()}">
+                    <tr data-user-id="${user.id}" data-name="${user.firstName || 'Без имени'}" data-balance="${user.balance}" data-partners="${user.totalPartners}" data-orders="${user.priorityStatus}" data-orders-sum="${user.totalOrderSum}" data-activity="${user.lastActivity.getTime()}">
                       <td><input type="checkbox" class="user-checkbox" value="${user.id}"></td>
                       <td>
                         <div class="user-info">
@@ -1355,8 +1355,10 @@ router.get('/', requireAdmin, async (req, res) => {
                   bVal = parseInt(b.dataset.partners);
                   break;
                 case 'orders':
-                  aVal = parseFloat(a.dataset.orders);
-                  bVal = parseFloat(b.dataset.orders);
+                  // Приоритет статуса заказов: new > processing > completed > cancelled > none
+                  const statusPriority = { 'new': 5, 'processing': 4, 'completed': 3, 'cancelled': 2, 'none': 1 };
+                  aVal = statusPriority[a.dataset.orders] || 0;
+                  bVal = statusPriority[b.dataset.orders] || 0;
                   break;
                 case 'activity':
                   aVal = parseInt(a.dataset.activity);
