@@ -5768,6 +5768,22 @@ function getStatusDisplayName(status: string) {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
             color: white; padding: 30px; text-align: center; 
           }
+          
+          .user-balance {
+            margin-top: 15px; padding: 10px 20px; 
+            background: rgba(255, 255, 255, 0.1); 
+            border-radius: 8px; display: inline-block;
+            backdrop-filter: blur(10px);
+          }
+          
+          .balance-label {
+            font-size: 16px; font-weight: 600; margin-right: 10px;
+          }
+          
+          .balance-amount {
+            font-size: 18px; font-weight: 700; 
+            color: #ffd700; text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+          }
           .back-btn { 
             background: #6c757d; color: white; text-decoration: none; 
             padding: 10px 20px; border-radius: 6px; 
@@ -6086,6 +6102,10 @@ function getStatusDisplayName(status: string) {
           <div class="header">
             <h1>📦 Заказы пользователя</h1>
             <p>${user.firstName || 'Пользователь'} ${user.lastName || ''} (@${user.username || 'без username'})</p>
+            <div class="user-balance">
+              <span class="balance-label">💰 Баланс:</span>
+              <span class="balance-amount">${Number(user.balance || 0).toFixed(2)} PZ</span>
+            </div>
           </div>
           
           <div class="content">
