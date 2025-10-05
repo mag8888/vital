@@ -1160,7 +1160,7 @@ router.get('/', requireAdmin, async (req, res) => {
                   alert('Ошибка: ' + result.error);
                 }
               } catch (error) {
-                alert('Ошибка: ' + error.message);
+                alert('Ошибка: ' + (error instanceof Error ? error.message : String(error)));
               }
             };
           }
@@ -1476,7 +1476,7 @@ router.get('/', requireAdmin, async (req, res) => {
               }
             })
             .catch(error => {
-              alert('Ошибка: ' + error.message);
+              alert('Ошибка: ' + (error instanceof Error ? error.message : String(error)));
             });
           }
           
@@ -1660,7 +1660,7 @@ router.get('/', requireAdmin, async (req, res) => {
                 alert(\`❌ Ошибка при \${isEdit ? 'обновлении' : 'создании'} товара: \` + result.error);
               }
             } catch (error) {
-              alert('❌ Ошибка: ' + error.message);
+              alert('❌ Ошибка: ' + (error instanceof Error ? error.message : String(error)));
             }
           });
           
@@ -1692,7 +1692,7 @@ router.get('/', requireAdmin, async (req, res) => {
                 alert('❌ Ошибка при создании категории: ' + result.error);
               }
             } catch (error) {
-              alert('❌ Ошибка: ' + error.message);
+              alert('❌ Ошибка: ' + (error instanceof Error ? error.message : String(error)));
             }
           });
           
@@ -2214,7 +2214,7 @@ router.get('/test-dual-system', requireAdmin, async (req, res) => {
     console.error('❌ Dual system test error:', error);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
@@ -3677,7 +3677,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 }
               })
               .catch(error => {
-                alert('Ошибка: ' + error.message);
+                alert('Ошибка: ' + (error instanceof Error ? error.message : String(error)));
               });
             };
           }
