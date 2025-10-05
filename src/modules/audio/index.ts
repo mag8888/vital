@@ -18,53 +18,29 @@ export async function showAudioFiles(ctx: Context, category?: string) {
       return;
     }
 
-    // Send audio files as clickable buttons
+    // Send audio files as informational cards with buttons
     for (const audioFile of audioFiles) {
       console.log('🎵 Sending audio file:', audioFile.title, 'File ID:', audioFile.fileId);
       
-      try {
-        // Отправляем файл как аудиофайл
-        await ctx.replyWithAudio(
-          audioFile.fileId,
-          {
-            title: audioFile.title,
-            performer: audioFile.description || 'Plazma Water',
-            duration: audioFile.duration || undefined,
-            caption: audioFile.description || undefined,
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  {
-                    text: '🎵 Слушать',
-                    callback_data: `audio:play:${audioFile.id}`
-                  }
-                ]
+      // Отправляем файл как информационную карточку с кнопкой
+      await ctx.reply(
+        `🎵 ${audioFile.title}\n` +
+        `📝 ${audioFile.description}\n` +
+        `⏱️ Длительность: ${audioFile.duration ? formatDuration(audioFile.duration) : 'Неизвестно'}\n\n` +
+        `💡 Для прослушивания нажмите кнопку ниже.`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: '🎵 Слушать звуковые матрицы',
+                  callback_data: `audio:play:${audioFile.id}`
+                }
               ]
-            }
+            ]
           }
-        );
-      } catch (error) {
-        console.error('Error sending audio file:', audioFile.title, error);
-        // Отправляем информацию о файле в случае ошибки
-        await ctx.reply(
-          `🎵 ${audioFile.title}\n` +
-          `📝 ${audioFile.description}\n` +
-          `⏱️ Длительность: ${audioFile.duration ? formatDuration(audioFile.duration) : 'Неизвестно'}\n\n` +
-          `❌ Ошибка воспроизведения файла.`,
-          {
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  {
-                    text: '🎵 Попробовать снова',
-                    callback_data: `audio:retry:${audioFile.id}`
-                  }
-                ]
-              ]
-            }
-          }
-        );
-      }
+        }
+      );
     }
 
     // Send summary message
@@ -387,16 +363,38 @@ export const audioModule: BotModule = {
           return;
         }
         
-        // Отправляем аудиофайл для прослушивания
-        await ctx.replyWithAudio(
-          audioFile.fileId,
-          {
-            title: audioFile.title,
-            performer: audioFile.description || 'Plazma Water',
-            duration: audioFile.duration || undefined,
-            caption: `🎵 ${audioFile.title}\n📝 ${audioFile.description}`,
-          }
-        );
+        // Проверяем, является ли file_id заглушкой
+        if (audioFile.fileId.startsWith('BAADBAAD') || audioFile.fileId === 'PLACEHOLDER_FILE_ID') {
+          await ctx.reply(
+            `🎵 ${audioFile.title}\n\n` +
+            `📝 ${audioFile.description}\n\n` +
+            `⚠️ Для прослушивания этого файла администратор должен загрузить реальный аудиофайл через бота.\n\n` +
+            `💡 Пока файл находится в системе как информация о доступной звуковой матрице.`,
+            {
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    {
+                      text: '⬅️ Назад к списку',
+                      callback_data: 'nav:audio:gift'
+                    }
+                  ]
+                ]
+              }
+            }
+          );
+        } else {
+          // Отправляем реальный аудиофайл
+          await ctx.replyWithAudio(
+            audioFile.fileId,
+            {
+              title: audioFile.title,
+              performer: audioFile.description || 'Plazma Water',
+              duration: audioFile.duration || undefined,
+              caption: `🎵 ${audioFile.title}\n📝 ${audioFile.description}`,
+            }
+          );
+        }
       } catch (error) {
         console.error('Error playing audio:', error);
         await ctx.reply('❌ Ошибка воспроизведения аудиофайла.');
