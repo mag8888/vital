@@ -2686,13 +2686,42 @@ router.get('/users/:userId', requireAdmin, async (req, res) => {
                     </tr>
                   </thead>
                   <tbody>
-                    ${(user as any).histories.map((action: any) => `
+                    ${(user as any).histories.map((action: any) => {
+                      function humanizeAction(a: any): string {
+                        const map: Record<string, string> = {
+                          'shop:buy': 'Покупка оформлена',
+                          'shop:add-to-cart': 'Добавлен товар в корзину',
+                          'shop:product-details': 'Просмотр товара',
+                          'shop:category': 'Переход в категорию',
+                          'nav:more': 'Открыт подробный раздел',
+                          'partner:invite': 'Открыт экран приглашений',
+                          'partner:dashboard': 'Просмотр кабинета партнёра',
+                          'partner:level:1': 'Просмотр партнёров 1-го уровня',
+                          'partner:level:2': 'Просмотр партнёров 2-го уровня',
+                          'partner:level:3': 'Просмотр партнёров 3-го уровня',
+                          'cart:add': 'Товар добавлен в корзину',
+                          'cart:checkout': 'Оформление заказа',
+                          'admin_message_sent': 'Отправлено сообщение пользователю'
+                        };
+                        return map[a.action] || a.action;
+                      }
+                      function humanizePayload(a: any): string {
+                        try {
+                          if (!a.payload) return '-';
+                          const p = a.payload;
+                          if (p.productId) return `Товар: ${p.productId}`;
+                          if (p.categoryId) return `Категория: ${p.categoryId}`;
+                          if (p.type === 'text' && p.messageLength) return `Текст ${p.messageLength} симв.`;
+                          return JSON.stringify(p);
+                        } catch { return '-'; }
+                      }
+                      return `
                       <tr>
-                        <td>${action.action}</td>
-                        <td>${action.payload ? JSON.stringify(action.payload) : '-'}</td>
+                        <td>${humanizeAction(action)}</td>
+                        <td>${humanizePayload(action)}</td>
                         <td>${action.createdAt.toLocaleString('ru-RU')}</td>
-                      </tr>
-                    `).join('')}
+                      </tr>`;
+                    }).join('')}
                   </tbody>
                 </table>
               </div>
