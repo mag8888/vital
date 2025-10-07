@@ -319,13 +319,11 @@ router.get('/', requireAdmin, async (req, res) => {
                           ${user.lastActivity.toLocaleString('ru-RU')}
                         </div>
                       </td>
-                      <td>
-                        ${user.partner ? `
-                          <button class="action-btn hierarchy" onclick="showHierarchy('${user.id}')">
-                            🌳 Иерархия
-                          </button>
-                        ` : ''}
-                        <button class="action-btn" onclick="showUserDetails('${user.id}')">
+                    <td>
+                      <button class="action-btn hierarchy" onclick="showHierarchy('${user.id}')">
+                        🌳 Иерархия
+                      </button>
+                      <button class="action-btn" onclick="showUserDetails('${user.id}')">
                           👁 Подробно
                         </button>
                         <button class="action-btn" onclick="openChangeInviter('${user.id}', '${user.firstName || 'Пользователь'}')">
@@ -2107,11 +2105,9 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                       </div>
                     </td>
                     <td>
-                      ${user.partner ? `
-                        <button class="action-btn hierarchy" onclick="showHierarchy('${user.id}')">
-                          🌳 Иерархия
-                        </button>
-                      ` : ''}
+                      <button class="action-btn hierarchy" onclick="showHierarchy('${user.id}')">
+                        🌳 Иерархия
+                      </button>
                       <button class="action-btn" onclick="showUserDetails('${user.id}')">
                         👁 Подробно
                       </button>
