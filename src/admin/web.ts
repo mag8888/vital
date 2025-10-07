@@ -3165,12 +3165,13 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
       // 4: level 3 referrals
       const level3 = partnersWithInviters.filter(p => p.inviter && level2Ids.has(p.inviter.id));
 
-      function renderUserRow(label: string, u: any | null) {
-        if (!u) return `<div class="partner-node"><div class="partner-header level-0">${label}: —</div></div>`;
+      function renderUserRow(label: string, u: any | null, canChange = false, idForChange: string | null = null) {
+        if (!u) return `<div class=\"partner-node\"><div class=\"partner-header level-0\">${label}: —</div></div>`;
         const name = `${u.firstName || u.user?.firstName || ''} ${u.lastName || u.user?.lastName || ''}`.trim();
         const username = (u.username || u.user?.username) ? ` (@${u.username || u.user?.username})` : '';
         const balance = (u.balance ?? u.user?.balance ?? 0).toFixed ? (u.balance).toFixed(2) : (Number(u.balance || 0)).toFixed(2);
-        return `<div class="partner-node"><div class="partner-header level-0"><strong>${label}:</strong> ${name}${username} <span class="balance">${balance} PZ</span></div></div>`;
+        const btn = canChange && idForChange ? ` <button class=\"btn\" style=\"background:#10b981; margin-left:8px;\" onclick=\"changeInviterPrompt('${idForChange}')\">Сменить пригласителя</button>` : '';
+        return `<div class=\"partner-node\"><div class=\"partner-header level-0\"><strong>${label}:</strong> ${name}${username} <span class=\"balance\">${balance} PZ</span>${btn}</div></div>`;
       }
 
       function renderList(label: string, arr: any[]) {
@@ -3189,7 +3190,7 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
 
       return `
         ${renderUserRow('0 — Пригласитель', inviter)}
-        ${renderUserRow('1 — Пользователь', user.user || user)}
+        ${renderUserRow('1 — Пользователь', user.user || user, true, user.user.id)}
         ${renderList('2 — Партнёры 1-го уровня', level1)}
         ${renderList('3 — Партнёры 2-го уровня', level2)}
         ${renderList('4 — Партнёры 3-го уровня', level3)}
@@ -3291,6 +3292,19 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
         </div>
         
         <script>
+          async function changeInviterPrompt(userId){
+            const q = prompt('Введите @username пригласителя или код');
+            if (!q) return;
+            let payload = {};
+            if (q.startsWith('@')) payload = { inviterUsername: q.replace(/^@/, '') };
+            else payload = { newInviterCode: q };
+            try{
+              const resp = await fetch('/admin/users/' + userId + '/change-inviter', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
+              if (resp.redirected) { location.href = resp.url; return; }
+              if (resp.ok) { alert('Пригласитель изменён'); location.reload(); }
+              else { alert('Не удалось изменить пригласителя'); }
+            }catch(e){ alert('Ошибка сети'); }
+          }
           function toggleChildren(expandId, childrenId) {
             const expandIcon = document.getElementById(expandId);
             const children = document.getElementById(childrenId);
