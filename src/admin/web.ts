@@ -1069,7 +1069,7 @@ router.get('/', requireAdmin, async (req, res) => {
           </div>
         </div>
         <script>
-          function switchTab(tabName) {
+          window.switchTab = function(tabName) {
             // Hide all tab contents
             const contents = document.querySelectorAll('.tab-content');
             contents.forEach(content => content.classList.remove('active'));
@@ -1085,16 +1085,16 @@ router.get('/', requireAdmin, async (req, res) => {
             event.target.classList.add('active');
           }
           
-          function showHierarchy(userId) {
+          window.showHierarchy = function(userId) {
             window.open(\`/admin/partners-hierarchy?user=\${userId}\`, '_blank', 'width=800,height=600');
           }
           
-          function showUserDetails(userId) {
+          window.showUserDetails = function(userId) {
             window.open(\`/admin/users/\${userId}\`, '_blank', 'width=600,height=400');
           }
           
-          // Expose globally for inline handlers across sections
-          (window as any).openChangeInviter = async function(userId, userName) {
+          // Expose globally for inline handlers across sections (plain JS, no TS syntax)
+          window.openChangeInviter = async function(userId, userName) {
             const modal = document.createElement('div');
             modal.id = 'inviterModal';
             modal.innerHTML =
