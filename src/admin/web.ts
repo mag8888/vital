@@ -1093,15 +1093,16 @@ router.get('/', requireAdmin, async (req, res) => {
             window.open(\`/admin/users/\${userId}\`, '_blank', 'width=600,height=400');
           }
           
-          async function openChangeInviter(userId, userName) {
+          // Expose globally for inline handlers across sections
+          (window as any).openChangeInviter = async function(userId, userName) {
             const modal = document.createElement('div');
             modal.id = 'inviterModal';
             modal.innerHTML =
-              '<div class="modal-overlay" onclick="(function(e){if(e.target===this) document.body.removeChild(document.getElementById(\'inviterModal\'));}).call(this,event)">' +
-                '<div class="modal-content" style="max-width:520px;" onclick="event.stopPropagation()">' +
+              '<div class="modal-overlay" id="inviterOverlay">' +
+                '<div class="modal-content" style="max-width:520px;" id="inviterContent">' +
                   '<div class="modal-header">' +
                     '<h2>🔄 Смена пригласителя</h2>' +
-                    '<button class="close-btn" onclick="document.body.removeChild(document.getElementById(\'inviterModal\'))">&times;</button>' +
+                    '<button class="close-btn" id="inviterClose">&times;</button>' +
                   '</div>' +
                   '<div class="modal-body">' +
                     '<p>Пользователь: <strong>' + userName + '</strong></p>' +
@@ -1116,7 +1117,7 @@ router.get('/', requireAdmin, async (req, res) => {
                     '</div>' +
                   '</div>' +
                   '<div class="modal-footer">' +
-                    '<button class="btn" style="background:#6c757d" onclick="document.body.removeChild(document.getElementById(\'inviterModal\'))">Отмена</button>' +
+                    '<button class="btn" style="background:#6c757d" id="inviterCancel">Отмена</button>' +
                     '<button class="btn" id="inviterApplyBtn" style="background:#10b981">Применить</button>' +
                   '</div>' +
                 '</div>' +
@@ -1127,6 +1128,23 @@ router.get('/', requireAdmin, async (req, res) => {
             const resultsEl = document.getElementById('inviterResults');
             const codeInput = document.getElementById('inviterCodeManual');
             const applyBtn = document.getElementById('inviterApplyBtn');
+            const closeBtn = document.getElementById('inviterClose');
+            const cancelBtn = document.getElementById('inviterCancel');
+            const overlay = document.getElementById('inviterOverlay');
+            const content = document.getElementById('inviterContent');
+
+            function closeModal(){
+              const el = document.getElementById('inviterModal');
+              if (el && el.parentNode) el.parentNode.removeChild(el);
+            }
+
+            if (closeBtn) closeBtn.addEventListener('click', closeModal);
+            if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+            if (overlay && content) {
+              overlay.addEventListener('click', function(e){
+                if (e.target === overlay) closeModal();
+              });
+            }
 
             let selected = null; // {username, referralCode}
             let typingTimer;
