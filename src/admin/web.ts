@@ -1099,7 +1099,7 @@ router.get('/', requireAdmin, async (req, res) => {
             modal.id = 'inviterModal';
             modal.innerHTML =
               '<div class="modal-overlay" id="inviterOverlay">' +
-                '<div class="modal-content" style="max-width:560px; border-radius:12px; overflow:hidden; box-shadow:0 12px 30px rgba(0,0,0,.2)" id="inviterContent">' +
+                '<div class="modal-content" id="inviterContent" style="max-width:560px; border-radius:12px; overflow:hidden; box-shadow:0 12px 30px rgba(0,0,0,.2)">' +
                   '<div class="modal-header" style="background:linear-gradient(135deg,#667eea,#764ba2); color:#fff; padding:16px 20px; display:flex; align-items:center; justify-content:space-between">' +
                     '<h2 style="margin:0; font-size:18px; font-weight:600">🔄 Смена пригласителя</h2>' +
                     '<button class="close-btn" id="inviterClose" style="background:transparent; border:none; color:#fff; font-size:22px; cursor:pointer">&times;</button>' +
@@ -1111,7 +1111,7 @@ router.get('/', requireAdmin, async (req, res) => {
                       '<label style="display:block; font-weight:600; margin-bottom:6px">Поиск по @username или коду</label>' +
                       '<input type="text" id="inviterSearch" placeholder="@username или код" autocomplete="off" style="width:100%; padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px" />' +
                     '</div>' +
-                    '<div id="inviterResults" style="max-height:200px; overflow:auto; border:1px solid #e5e7eb; border-radius:8px; padding:6px; display:none"></div>' +
+                    '<div id="inviterResults" style="max-height:220px; overflow:auto; border:1px solid #e5e7eb; border-radius:8px; padding:6px; display:none"></div>' +
                     '<div class="form-group" style="margin-top:10px">' +
                       '<label style="display:block; font-weight:600; margin-bottom:6px">Или введите код вручную</label>' +
                       '<input type="text" id="inviterCodeManual" placeholder="Код пригласителя" style="width:260px; padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px" />' +
@@ -1180,7 +1180,7 @@ router.get('/', requireAdmin, async (req, res) => {
             });
             applyBtn.addEventListener('click', async function(){
               var typed = (codeInput.value || searchInput.value).trim();
-              var payload = {};
+              var payload:any = {};
               if (selected && selected.username) {
                 payload = { inviterUsername: selected.username };
               } else if (typed) {
