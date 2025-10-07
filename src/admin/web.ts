@@ -1180,7 +1180,7 @@ router.get('/', requireAdmin, async (req, res) => {
             });
             applyBtn.addEventListener('click', async function(){
               var typed = (codeInput.value || searchInput.value).trim();
-              var payload:any = {};
+              var payload = {};
               if (selected && selected.username) {
                 payload = { inviterUsername: selected.username };
               } else if (typed) {
