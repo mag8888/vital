@@ -3347,6 +3347,7 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
             <a href="/admin" class="btn">🏠 Главная</a>
             <button class="control-btn" onclick="expandAll()">🔽 Развернуть всё</button>
             <button class="control-btn" onclick="collapseAll()">🔼 Свернуть всё</button>
+            ${userId ? `<button class="control-btn primary" onclick="changeInviterPrompt('${userId}')">🔄 Сменить пригласителя</button>` : ''}
           </div>
           
           <div class="stats">
