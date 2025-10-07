@@ -3455,10 +3455,12 @@ router.post('/admin/partners/:id/change-inviter', requireAdmin, async (req, res)
     let newInviter = null as any;
     if (inviterUsername) {
       const uname = String(inviterUsername).trim().replace(/^@/, '');
-      newInviter = await prisma.partnerProfile.findFirst({
-        where: { user: { username: { equals: uname, mode: 'insensitive' } } },
-        include: { user: true },
+      const inviterUser = await prisma.user.findFirst({
+        where: { username: { equals: uname, mode: 'insensitive' } }
       });
+      if (inviterUser) {
+        newInviter = await prisma.partnerProfile.findFirst({ where: { userId: inviterUser.id }, include: { user: true } });
+      }
     } else if (newInviterCode) {
       newInviter = await prisma.partnerProfile.findUnique({ where: { referralCode: newInviterCode }, include: { user: true } });
     }
@@ -3491,10 +3493,12 @@ router.post('/admin/users/:id/change-inviter', requireAdmin, async (req, res) =>
     let newInviter = null as any;
     if (inviterUsername) {
       const uname = String(inviterUsername).trim().replace(/^@/, '');
-      newInviter = await prisma.partnerProfile.findFirst({
-        where: { user: { username: { equals: uname, mode: 'insensitive' } } },
-        include: { user: true },
+      const inviterUser = await prisma.user.findFirst({
+        where: { username: { equals: uname, mode: 'insensitive' } }
       });
+      if (inviterUser) {
+        newInviter = await prisma.partnerProfile.findFirst({ where: { userId: inviterUser.id }, include: { user: true } });
+      }
     } else if (newInviterCode) {
       newInviter = await prisma.partnerProfile.findUnique({ where: { referralCode: newInviterCode }, include: { user: true } });
     }
