@@ -6745,8 +6745,8 @@ router.post('/orders/:orderId/pay', requireAdmin, async (req, res) => {
       });
     });
     
-    // Check if this purchase qualifies for referral program activation (200 PZ)
-    if (totalAmount >= 200) {
+    // Check if this purchase qualifies for referral program activation (120 PZ)
+    if (totalAmount >= 120) {
       try {
         console.log(`🎯 Purchase of ${totalAmount} PZ qualifies for referral program activation`);
         await activatePartnerProfile(order.user.id, 'PURCHASE', 1); // 1 month activation
