@@ -1854,18 +1854,31 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
       };
     });
 
+    // Enrich with inviter info
+    const usersWithInviters = await Promise.all(usersWithStats.map(async (u: any) => {
+      const referralRecord = await prisma.partnerReferral.findFirst({
+        where: { referredId: u.id },
+        include: {
+          profile: {
+            include: { user: { select: { username: true, firstName: true } } }
+          }
+        }
+      });
+      return { ...u, inviter: referralRecord?.profile?.user || null };
+    }));
+
     // Apply sorting
-    let sortedUsers = usersWithStats;
+    let sortedUsers = usersWithInviters;
     if (sortBy === 'balance') {
-      sortedUsers = usersWithStats.sort((a, b) => 
+      sortedUsers = usersWithInviters.sort((a, b) => 
         sortOrder === 'desc' ? b.balance - a.balance : a.balance - b.balance
       );
     } else if (sortBy === 'partners') {
-      sortedUsers = usersWithStats.sort((a, b) => 
+      sortedUsers = usersWithInviters.sort((a, b) => 
         sortOrder === 'desc' ? b.directPartners - a.directPartners : a.directPartners - b.directPartners
       );
     } else if (sortBy === 'orders') {
-      sortedUsers = usersWithStats.sort((a, b) => {
+      sortedUsers = usersWithInviters.sort((a, b) => {
         // 1. Приоритет: сначала новые красные заказы
         const aHasNew = a.priorityStatus === 'new';
         const bHasNew = b.priorityStatus === 'new';
@@ -1904,7 +1917,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
         return sortOrder === 'desc' ? b.totalOrderSum - a.totalOrderSum : a.totalOrderSum - b.totalOrderSum;
       });
     } else if (sortBy === 'activity') {
-      sortedUsers = usersWithStats.sort((a, b) => 
+      sortedUsers = usersWithInviters.sort((a, b) => 
         sortOrder === 'desc' ? new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime() : 
                                new Date(a.lastActivity).getTime() - new Date(b.lastActivity).getTime()
       );
@@ -2053,7 +2066,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                         <div class="user-avatar">${(user.firstName || 'U')[0].toUpperCase()}</div>
                         <div class="user-details">
                           <h4>${user.firstName || 'Без имени'} ${user.lastName || ''}</h4>
-                          <p>@${user.username || 'без username'}</p>
+                          <p>@${user.username || 'без username'}${user.inviter ? ` · пригласил: @${user.inviter.username || user.inviter.firstName || 'неизвестно'}` : ''}</p>
                         </div>
                       </div>
                     </td>
