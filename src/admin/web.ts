@@ -277,7 +277,10 @@ router.get('/', requireAdmin, async (req, res) => {
                           <div class="user-details">
                             <h4><a href="/admin/users/${user.id}/card" class="user-name-link">${user.firstName || 'Без имени'} ${user.lastName || ''}</a></h4>
                             <p>@${user.username || 'без username'}</p>
-                            ${user.inviter ? `<p style="font-size: 11px; color: #6c757d;">Пригласил: @${user.inviter.username || user.inviter.firstName || 'неизвестно'}</p>` : ''}
+                            <div style="display:flex; align-items:center; gap:6px;">
+                              ${user.inviter ? `<p style=\"font-size: 11px; color: #6c757d; margin:0;\">Пригласил: @${user.inviter.username || user.inviter.firstName || 'неизвестно'}</p>` : `<p style=\"font-size: 11px; color: #6c757d; margin:0;\">Пригласитель: —</p>`}
+                              <button class="balance-plus-btn" title="Сменить пригласителя" onclick="openChangeInviter('${user.id}', '${user.firstName || 'Пользователь'}')">+</button>
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -323,6 +326,9 @@ router.get('/', requireAdmin, async (req, res) => {
                         ` : ''}
                         <button class="action-btn" onclick="showUserDetails('${user.id}')">
                           👁 Подробно
+                        </button>
+                        <button class="action-btn" onclick="openChangeInviter('${user.id}', '${user.firstName || 'Пользователь'}')">
+                          🔄 Пригласитель
                         </button>
                       </td>
                     </tr>
@@ -430,7 +436,6 @@ router.get('/', requireAdmin, async (req, res) => {
         return '<div class="empty-list">Ошибка загрузки</div>';
       }
     }
-
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -1064,7 +1069,6 @@ router.get('/', requireAdmin, async (req, res) => {
             </form>
           </div>
         </div>
-        
         <script>
           function switchTab(tabName) {
             // Hide all tab contents
@@ -1088,6 +1092,31 @@ router.get('/', requireAdmin, async (req, res) => {
           
           function showUserDetails(userId) {
             window.open(\`/admin/users/\${userId}\`, '_blank', 'width=600,height=400');
+          }
+          
+          async function openChangeInviter(userId, userName) {
+            const code = prompt(\`Введите код пригласителя для «\${userName}»\`);
+            if (!code) return;
+            try {
+              const resp = await fetch('/admin/users/' + userId + '/change-inviter', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ newInviterCode: code })
+              });
+              if (resp.redirected) {
+                window.location.href = resp.url;
+                return;
+              }
+              if (resp.ok) {
+                alert('Пригласитель изменен');
+                window.location.reload();
+              } else {
+                alert('Не удалось изменить пригласителя');
+              }
+            } catch (e) {
+              alert('Ошибка сети при смене пригласителя');
+            }
           }
           
           // Balance management modal
@@ -1669,7 +1698,6 @@ router.get('/', requireAdmin, async (req, res) => {
               alert('❌ Ошибка: ' + (error instanceof Error ? error.message : String(error)));
             }
           });
-          
           // Handle category form submission
           document.getElementById('addCategoryForm').addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -1715,7 +1743,6 @@ router.get('/', requireAdmin, async (req, res) => {
     res.status(500).send('Internal server error');
   }
 });
-
 // Detailed users management with sorting and filtering
 router.get('/users-detailed', requireAdmin, async (req, res) => {
   try {
@@ -2026,6 +2053,9 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                       <button class="action-btn" onclick="showUserDetails('${user.id}')">
                         👁 Подробно
                       </button>
+                      <button class="action-btn" onclick="openChangeInviter('${user.id}', '${user.firstName || 'Без имени'} ${user.lastName || ''}')">
+                        🔄 Сменить пригласителя
+                      </button>
                     </td>
                   </tr>
                 `).join('')}
@@ -2051,6 +2081,31 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
           
           function showUserDetails(userId) {
             window.open(\`/admin/users/\${userId}\`, '_blank', 'width=600,height=400');
+          }
+          
+          async function openChangeInviter(userId, userName) {
+            const code = prompt(\`Введите код пригласителя для «\${userName}»\`);
+            if (!code) return;
+            try {
+              const resp = await fetch('/admin/users/' + userId + '/change-inviter', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ newInviterCode: code })
+              });
+              if (resp.redirected) {
+                window.location.href = resp.url;
+                return;
+              }
+              if (resp.ok) {
+                alert('Пригласитель изменен');
+                window.location.reload();
+              } else {
+                alert('Не удалось изменить пригласителя');
+              }
+            } catch (e) {
+              alert('Ошибка сети при смене пригласителя');
+            }
           }
         </script>
       </body>
@@ -2251,7 +2306,6 @@ router.post('/api/categories', requireAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: 'Ошибка создания категории' });
   }
 });
-
 // API: Create product
 router.post('/api/products', requireAdmin, upload.single('image'), async (req, res) => {
   try {
@@ -2325,7 +2379,6 @@ router.post('/api/products', requireAdmin, upload.single('image'), async (req, r
     res.status(500).json({ success: false, error: 'Ошибка создания товара' });
   }
 });
-
 // Individual user details page
 router.get('/users/:userId', requireAdmin, async (req, res) => {
   try {
@@ -2843,7 +2896,6 @@ router.get('/partners', requireAdmin, async (req, res) => {
     res.status(500).send('Ошибка загрузки партнёров');
   }
 });
-
 // Partners hierarchy route
 router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
   try {
@@ -3104,6 +3156,71 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Partners hierarchy error:', error);
     res.status(500).send('Ошибка загрузки иерархии партнёров');
+  }
+});
+
+// Handle partner inviter change
+router.post('/admin/partners/:id/change-inviter', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newInviterCode } = req.body as any;
+
+    const newInviter = await prisma.partnerProfile.findUnique({
+      where: { referralCode: newInviterCode },
+      include: { user: true }
+    });
+    if (!newInviter) {
+      return res.redirect('/admin/partners?error=inviter_not_found');
+    }
+
+    const currentPartner = await prisma.partnerProfile.findUnique({
+      where: { id },
+      include: { user: true }
+    });
+    if (!currentPartner) {
+      return res.redirect('/admin/partners?error=partner_not_found');
+    }
+
+    await prisma.partnerReferral.deleteMany({ where: { referredId: currentPartner.userId } });
+    await prisma.partnerReferral.create({
+      data: { profileId: newInviter.id, referredId: currentPartner.userId, level: 1 }
+    });
+
+    return res.redirect('/admin/partners?success=inviter_changed');
+  } catch (error) {
+    console.error('Change inviter error:', error);
+    return res.redirect('/admin/partners?error=inviter_change');
+  }
+});
+
+// Handle user inviter change
+router.post('/admin/users/:id/change-inviter', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newInviterCode } = req.body as any;
+
+    const newInviter = await prisma.partnerProfile.findUnique({
+      where: { referralCode: newInviterCode },
+      include: { user: true }
+    });
+    if (!newInviter) {
+      return res.redirect('/admin/users?error=inviter_not_found');
+    }
+
+    const currentUser = await prisma.user.findUnique({ where: { id } });
+    if (!currentUser) {
+      return res.redirect('/admin/users?error=user_not_found');
+    }
+
+    await prisma.partnerReferral.deleteMany({ where: { referredId: id } });
+    await prisma.partnerReferral.create({
+      data: { profileId: newInviter.id, referredId: id, level: 1 }
+    });
+
+    return res.redirect('/admin/users?success=inviter_changed');
+  } catch (error) {
+    console.error('Change user inviter error:', error);
+    return res.redirect('/admin/users?error=inviter_change');
   }
 });
 
@@ -3436,7 +3553,6 @@ router.get('/products', requireAdmin, async (req, res) => {
           </div>
       `;
     });
-
     html += `
         </div>
 
@@ -3780,7 +3896,6 @@ router.post('/products/:productId/update', requireAdmin, upload.single('image'),
     res.status(500).json({ success: false, error: 'Ошибка обновления товара' });
   }
 });
-
 router.get('/reviews', requireAdmin, async (req, res) => {
   try {
     const reviews = await prisma.review.findMany({
@@ -3908,7 +4023,6 @@ router.get('/reviews', requireAdmin, async (req, res) => {
     res.status(500).send('Ошибка загрузки отзывов');
   }
 });
-
 router.get('/orders', requireAdmin, async (req, res) => {
   try {
     const orders = await prisma.orderRequest.findMany({
@@ -4065,7 +4179,6 @@ router.post('/recalculate-bonuses', requireAdmin, async (req, res) => {
     res.redirect('/admin/partners?error=bonus_recalculation');
   }
 });
-
 // Cleanup duplicates endpoint
 router.post('/cleanup-duplicates', requireAdmin, async (req, res) => {
   try {
@@ -4559,7 +4672,6 @@ router.post('/cleanup-duplicate-bonuses', requireAdmin, async (req, res) => {
     res.redirect('/admin/partners?error=duplicate_bonuses_cleanup_failed');
   }
 });
-
 // Fix Roman Arctur bonuses specifically
 router.post('/fix-roman-bonuses', requireAdmin, async (req, res) => {
   try {
@@ -4614,7 +4726,6 @@ router.post('/fix-roman-bonuses', requireAdmin, async (req, res) => {
     res.redirect('/admin/partners?error=roman_bonuses_fix_failed');
   }
 });
-
 // Show user partners page
 router.get('/users/:userId/partners', requireAdmin, async (req, res) => {
   try {
@@ -4988,7 +5099,6 @@ function getStatusDisplayName(status: string) {
   };
   return names[status as keyof typeof names] || status;
 }
-
 // Show user orders page
   // Test route for debugging
   router.get('/debug-user/:userId', requireAdmin, async (req, res) => {
@@ -5715,7 +5825,6 @@ function getStatusDisplayName(status: string) {
       res.status(500).send('Ошибка активации реферальной программы');
     }
   });
-
   // Get user orders
   router.get('/users/:userId/orders', requireAdmin, async (req, res) => {
     try {
@@ -6460,7 +6569,6 @@ router.post('/orders/:orderId/status', requireAdmin, async (req, res) => {
     res.status(500).json({ success: false, error: 'Ошибка обновления статуса заказа' });
   }
 });
-
 // Pay order from user balance
 router.post('/orders/:orderId/pay', requireAdmin, async (req, res) => {
   try {
@@ -6745,8 +6853,6 @@ async function distributeReferralBonuses(userId: string, orderAmount: number) {
     throw error;
   }
 }
-
-
 // Audio files management routes
 router.get('/admin/audio', requireAdmin, async (req, res) => {
   try {
