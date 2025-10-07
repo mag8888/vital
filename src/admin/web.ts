@@ -3468,7 +3468,7 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
 });
 
 // Handle partner inviter change
-router.post('/admin/partners/:id/change-inviter', requireAdmin, async (req, res) => {
+router.post('/partners/:id/change-inviter', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { newInviterCode, inviterUsername } = req.body as any;
@@ -3518,7 +3518,7 @@ router.post('/admin/partners/:id/change-inviter', requireAdmin, async (req, res)
 });
 
 // Handle user inviter change
-router.post('/admin/users/:id/change-inviter', requireAdmin, async (req, res) => {
+router.post('/users/:id/change-inviter', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { newInviterCode, inviterUsername } = req.body as any;
