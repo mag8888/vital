@@ -1977,10 +1977,11 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
           
           <div class="controls">
             <div class="sort-controls">
-              <div class="sort-group">
+              <div class="sort-group" style="position: relative;">
                 <label>Найти по юзернейм:</label>
-                <input type="text" id="searchUsername" placeholder="@username" style="padding:8px 12px; border:1px solid #ced4da; border-radius:6px; font-size:14px;" />
+                <input type="text" id="searchUsername" placeholder="@username" style="padding:8px 12px; border:1px solid #ced4da; border-radius:6px; font-size:14px;" autocomplete="off" />
                 <button onclick="searchByUsername()">🔎 Найти</button>
+                <div id="searchSuggestions" style="position:absolute; top:36px; left:0; background:#fff; border:1px solid #e5e7eb; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,.1); width:260px; max-height:220px; overflow:auto; display:none; z-index:5"></div>
               </div>
               <div class="sort-group">
                 <label>Сортировать по:</label>
@@ -2116,7 +2117,36 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             if(q.startsWith('@')) q = q.slice(1);
             window.location.href = '/admin/users-detailed?search=' + encodeURIComponent(q);
           }
-          document.getElementById('searchUsername').addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); searchByUsername(); }});
+          (function(){
+            var typingTimer; var inputEl = document.getElementById('searchUsername'); var box = document.getElementById('searchSuggestions');
+            function hide(){ box.style.display='none'; box.innerHTML=''; }
+            inputEl.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); searchByUsername(); hide(); }});
+            inputEl.addEventListener('input', function(){
+              clearTimeout(typingTimer);
+              var val = inputEl.value.trim();
+              if(val.startsWith('@')) val = val.slice(1);
+              if(!val){ hide(); return; }
+              typingTimer = setTimeout(async function(){
+                try{
+                  const resp = await fetch('/admin/users/search?q=' + encodeURIComponent(val), { credentials:'include' });
+                  const data = await resp.json();
+                  if(!Array.isArray(data) || data.length===0){ hide(); return; }
+                  box.innerHTML = data.map(u => '<div class="list-item" style="padding:6px 10px; cursor:pointer; border-bottom:1px solid #f3f4f6">' +
+                    (u.username ? '@'+u.username : (u.firstName||'')) +
+                    '</div>').join('');
+                  Array.from(box.children).forEach((el, idx)=>{
+                    el.addEventListener('click', function(){
+                      var uname = data[idx].username || '';
+                      if(uname){ window.location.href = '/admin/users-detailed?search=' + encodeURIComponent(uname); }
+                      hide();
+                    });
+                  });
+                  box.style.display = 'block';
+                }catch(e){ hide(); }
+              }, 250);
+            });
+            document.addEventListener('click', function(e){ if(!box.contains(e.target) && e.target !== inputEl){ hide(); } });
+          })();
           
           function showHierarchy(userId) {
             window.open(\`/admin/partners-hierarchy?user=\${userId}\`, '_blank', 'width=800,height=600');
@@ -2231,6 +2261,23 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('❌ Detailed users page error:', error);
     res.status(500).send('Ошибка загрузки страницы пользователей');
+  }
+});
+
+// Lightweight username prefix search for suggestions
+router.get('/users/search', requireAdmin, async (req, res) => {
+  try {
+    const q = String((req.query.q as string) || '').trim().replace(/^@/, '');
+    if (!q) return res.json([]);
+    const users = await prisma.user.findMany({
+      where: { username: { startsWith: q, mode: 'insensitive' } },
+      select: { id: true, username: true, firstName: true },
+      take: 10,
+      orderBy: { username: 'asc' }
+    });
+    res.json(users);
+  } catch (e) {
+    res.json([]);
   }
 });
 // Send messages to users
