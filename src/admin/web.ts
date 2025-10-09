@@ -200,6 +200,18 @@ router.get('/', requireAdmin, async (req, res) => {
           else if (hasCompletedOrders) priorityStatus = 'completed';
           else if (hasCancelledOrders) priorityStatus = 'cancelled';
           
+          // Debug: Log status determination
+          if (user.orders && user.orders.length > 0) {
+            console.log(`User ${user.firstName} orders:`, {
+              total: user.orders.length,
+              new: ordersByStatus.new.length,
+              processing: ordersByStatus.processing.length,
+              completed: ordersByStatus.completed.length,
+              cancelled: ordersByStatus.cancelled.length,
+              priorityStatus: priorityStatus
+            });
+          }
+          
           const totalOrderSum = paidOrderSum; // Используем только оплаченные заказы
           const balance = user.balance || partnerProfile?.balance || 0;
           const bonus = partnerProfile?.bonus || 0;
@@ -305,7 +317,7 @@ router.get('/', requireAdmin, async (req, res) => {
                       <td>
                         <button class="orders-sum-btn" onclick="if(typeof showUserOrders === 'function') { showUserOrders('${user.id}', '${user.firstName || 'Пользователь'}'); } else { console.error('showUserOrders not defined'); window.open('/admin/users/${user.id}/orders', '_blank', 'width=1000,height=700'); }" style="background: none; border: none; cursor: pointer; padding: 0; width: 100%; text-align: left;">
                           <div class="orders-sum">${user.totalOrderSum.toFixed(2)} PZ</div>
-                          <div class="orders-count status-${user.priorityStatus}" data-status="${user.priorityStatus}">
+                          <div class="orders-count status-${user.priorityStatus}" data-status="${user.priorityStatus}" title="Status: ${user.priorityStatus}">
                             ${user.orders?.length || 0} заказов
                             ${user.priorityStatus === 'new' ? ' 🔴' : ''}
                             ${user.priorityStatus === 'processing' ? ' 🟡' : ''}
@@ -567,10 +579,10 @@ router.get('/', requireAdmin, async (req, res) => {
           }
           
           .orders-count.status-processing {
-            background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
-            color: white;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
-            box-shadow: 0 2px 4px rgba(255, 193, 7, 0.3);
+            background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%) !important;
+            color: white !important;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2) !important;
+            box-shadow: 0 2px 4px rgba(255, 193, 7, 0.3) !important;
           }
           
           .orders-count.status-completed {
@@ -1889,6 +1901,18 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
       else if (hasCompletedOrders) priorityStatus = 'completed';
       else if (hasCancelledOrders) priorityStatus = 'cancelled';
       
+      // Debug: Log status determination for detailed view
+      if (user.orders && user.orders.length > 0) {
+        console.log(`Detailed view - User ${user.firstName} orders:`, {
+          total: user.orders.length,
+          new: ordersByStatus.new.length,
+          processing: ordersByStatus.processing.length,
+          completed: ordersByStatus.completed.length,
+          cancelled: ordersByStatus.cancelled.length,
+          priorityStatus: priorityStatus
+        });
+      }
+      
       const totalOrderSum = paidOrderSum; // Используем только оплаченные заказы
       const balance = user.balance || partnerProfile?.balance || 0;
       const bonus = partnerProfile?.bonus || 0;
@@ -2143,7 +2167,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                     <td>
                       <button class="orders-sum-btn" onclick="if(typeof showUserOrders === 'function') { showUserOrders('${user.id}', '${user.firstName || 'Пользователь'}'); } else { console.error('showUserOrders not defined'); window.open('/admin/users/${user.id}/orders', '_blank', 'width=1000,height=700'); }" style="background: none; border: none; cursor: pointer; padding: 0; width: 100%; text-align: left;">
                         <div class="orders-sum">${user.totalOrderSum.toFixed(2)} PZ</div>
-                        <div class="orders-count status-${user.priorityStatus}" data-status="${user.priorityStatus}">
+                        <div class="orders-count status-${user.priorityStatus}" data-status="${user.priorityStatus}" title="Status: ${user.priorityStatus}">
                           ${user.orders?.length || 0} заказов
                           ${user.priorityStatus === 'new' ? ' 🔴' : ''}
                           ${user.priorityStatus === 'processing' ? ' 🟡' : ''}
