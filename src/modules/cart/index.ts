@@ -12,6 +12,42 @@ export const cartModule: BotModule = {
       await logUserAction(ctx, 'menu:cart');
       await showCart(ctx);
     });
+
+    // Handle text messages for delivery address input
+    bot.on('text', async (ctx, next) => {
+      const user = await ensureUser(ctx);
+      if (!user) {
+        await next();
+        return;
+      }
+
+      const text = ctx.message?.text;
+      if (!text) {
+        await next();
+        return;
+      }
+
+      // Check if user is waiting for address input
+      if ((ctx as any).waitingForBaliAddress) {
+        await handleDeliveryAddress(ctx, 'Бали', text);
+        (ctx as any).waitingForBaliAddress = false;
+        return;
+      }
+
+      if ((ctx as any).waitingForRussiaAddress) {
+        await handleDeliveryAddress(ctx, 'Россия', text);
+        (ctx as any).waitingForRussiaAddress = false;
+        return;
+      }
+
+      if ((ctx as any).waitingForCustomAddress) {
+        await handleDeliveryAddress(ctx, 'Произвольный', text);
+        (ctx as any).waitingForCustomAddress = false;
+        return;
+      }
+
+      await next();
+    });
   },
 };
 
@@ -225,6 +261,20 @@ export function registerCartActions(bot: Telegraf<Context>) {
       await clearCart(userId);
       
       await ctx.reply('✅ Заказ отправлен! Мы свяжемся с вами в ближайшее время.');
+      
+      // Show delivery address button
+      await ctx.reply('📍 Укажите адрес доставки:', {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '📍 Адрес доставки',
+                callback_data: 'delivery:address',
+              },
+            ],
+          ],
+        },
+      });
     } catch (error) {
       console.error('❌ CART CHECKOUT: Error processing checkout:', error);
       await ctx.reply('❌ Ошибка оформления заказа. Попробуйте позже.');
@@ -308,4 +358,161 @@ export function registerCartActions(bot: Telegraf<Context>) {
       await ctx.reply('❌ Ошибка удаления товара. Попробуйте позже.');
     }
   });
+
+  // Delivery address handlers
+  bot.action('delivery:address', async (ctx) => {
+    await ctx.answerCbQuery();
+    await logUserAction(ctx, 'delivery:address');
+    
+    await ctx.reply('📍 Выберите тип адреса доставки:', {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: '🇮🇩 Бали - район и вилла',
+              callback_data: 'delivery:bali',
+            },
+          ],
+          [
+            {
+              text: '🇷🇺 РФ - город и адрес',
+              callback_data: 'delivery:russia',
+            },
+          ],
+          [
+            {
+              text: '✏️ Ввести свой вариант',
+              callback_data: 'delivery:custom',
+            },
+          ],
+        ],
+      },
+    });
+  });
+
+  bot.action('delivery:bali', async (ctx) => {
+    await ctx.answerCbQuery();
+    await logUserAction(ctx, 'delivery:bali');
+    
+    await ctx.reply(
+      '🇮🇩 Укажите адрес для Бали:\n\n' +
+      'Напишите район и название виллы (например: "Семиньяк, Villa Seminyak Resort")\n\n' +
+      'Или пришлите ссылку на Google Maps с адресом.',
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '🔙 Назад к выбору',
+                callback_data: 'delivery:address',
+              },
+            ],
+          ],
+        },
+      },
+    );
+    
+    // Store state to wait for text input
+    (ctx as any).waitingForBaliAddress = true;
+  });
+
+  bot.action('delivery:russia', async (ctx) => {
+    await ctx.answerCbQuery();
+    await logUserAction(ctx, 'delivery:russia');
+    
+    await ctx.reply(
+      '🇷🇺 Укажите адрес для России:\n\n' +
+      'Напишите ваш город и точный адрес (например: "Москва, ул. Тверская, д. 10, кв. 5")',
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '🔙 Назад к выбору',
+                callback_data: 'delivery:address',
+              },
+            ],
+          ],
+        },
+      },
+    );
+    
+    // Store state to wait for text input
+    (ctx as any).waitingForRussiaAddress = true;
+  });
+
+  bot.action('delivery:custom', async (ctx) => {
+    await ctx.answerCbQuery();
+    await logUserAction(ctx, 'delivery:custom');
+    
+    await ctx.reply(
+      '✏️ Введите свой вариант адреса:\n\n' +
+      'Напишите полный адрес доставки в произвольной форме.',
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '🔙 Назад к выбору',
+                callback_data: 'delivery:address',
+              },
+            ],
+          ],
+        },
+      },
+    );
+    
+    // Store state to wait for text input
+    (ctx as any).waitingForCustomAddress = true;
+  });
+
+  bot.action('delivery:confirmed', async (ctx) => {
+    await ctx.answerCbQuery();
+    await logUserAction(ctx, 'delivery:confirmed');
+    
+    await ctx.reply('✅ Спасибо! Адрес доставки сохранен. Мы учтем его при отправке заказа.');
+  });
+}
+
+// Handle delivery address input
+async function handleDeliveryAddress(ctx: Context, addressType: string, address: string) {
+  try {
+    const user = await ensureUser(ctx);
+    if (!user) {
+      await ctx.reply('❌ Ошибка. Попробуйте позже.');
+      return;
+    }
+
+    const addressText = `📍 Адрес доставки получен!\n\nТип: ${addressType}\nАдрес: ${address}`;
+    
+    await ctx.reply(addressText, {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: '✅ Адрес сохранен',
+              callback_data: 'delivery:confirmed',
+            },
+          ],
+          [
+            {
+              text: '✏️ Изменить адрес',
+              callback_data: 'delivery:address',
+            },
+          ],
+        ],
+      },
+    });
+
+    // Send address to admins
+    const adminMessage = `📍 Новый адрес доставки от ${user.firstName || 'Пользователь'} (@${user.username || 'нет username'})\n\nТип: ${addressType}\nАдрес: ${address}`;
+    
+    const { sendToAllAdmins } = await import('../../config/env.js');
+    await sendToAllAdmins(ctx, adminMessage);
+
+    await logUserAction(ctx, `delivery:address_saved:${addressType}`);
+  } catch (error) {
+    console.error('❌ Error handling delivery address:', error);
+    await ctx.reply('❌ Ошибка сохранения адреса. Попробуйте позже.');
+  }
 }
