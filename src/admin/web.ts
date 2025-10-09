@@ -1285,15 +1285,6 @@ router.get('/', requireAdmin, async (req, res) => {
             }
           }
           
-          // Show user partners
-          window.showUserPartners = function(userId, userName) {
-            window.open(\`/admin/users/\${userId}/partners\`, '_blank', 'width=800,height=600');
-          }
-          
-          // Show user orders
-          window.showUserOrders = function(userId, userName) {
-            window.open(\`/admin/users/\${userId}/orders\`, '_blank', 'width=1000,height=700');
-          }
           
           // Global function for loading categories
           window.loadCategories = async function() {
@@ -1766,6 +1757,23 @@ router.get('/', requireAdmin, async (req, res) => {
           window.addEventListener('DOMContentLoaded', function() {
             applySorting();
           });
+
+          // Global functions for user actions
+          window.showUserPartners = function(userId, userName) {
+            window.open('/admin/users/' + userId + '/partners', '_blank', 'width=800,height=600');
+          }
+          
+          window.showUserOrders = function(userId, userName) {
+            window.open('/admin/users/' + userId + '/orders', '_blank', 'width=1000,height=700');
+          }
+
+          window.showUserDetails = function(userId) {
+            window.open('/admin/users/' + userId, '_blank', 'width=600,height=400');
+          }
+
+          window.showHierarchy = function(userId) {
+            window.open('/admin/partners-hierarchy?user=' + userId, '_blank', 'width=800,height=600');
+          }
         </script>
       </body>
       </html>
@@ -2181,14 +2189,6 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             });
             document.addEventListener('click', function(e){ if(!box.contains(e.target) && e.target !== inputEl){ hide(); } });
           })();
-          
-          window.showHierarchy = function(userId) {
-            window.open(\`/admin/partners-hierarchy?user=\${userId}\`, '_blank', 'width=800,height=600');
-          }
-          
-          window.showUserDetails = function(userId) {
-            window.open(\`/admin/users/\${userId}\`, '_blank', 'width=600,height=400');
-          }
           
           window.openChangeInviter = async function(userId, userName) {
             const modal = document.createElement('div');
