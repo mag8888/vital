@@ -1286,12 +1286,12 @@ router.get('/', requireAdmin, async (req, res) => {
           }
           
           // Show user partners
-          function showUserPartners(userId, userName) {
+          window.showUserPartners = function(userId, userName) {
             window.open(\`/admin/users/\${userId}/partners\`, '_blank', 'width=800,height=600');
           }
           
           // Show user orders
-          function showUserOrders(userId, userName) {
+          window.showUserOrders = function(userId, userName) {
             window.open(\`/admin/users/\${userId}/orders\`, '_blank', 'width=1000,height=700');
           }
           
@@ -2182,11 +2182,11 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             document.addEventListener('click', function(e){ if(!box.contains(e.target) && e.target !== inputEl){ hide(); } });
           })();
           
-          function showHierarchy(userId) {
+          window.showHierarchy = function(userId) {
             window.open(\`/admin/partners-hierarchy?user=\${userId}\`, '_blank', 'width=800,height=600');
           }
           
-          function showUserDetails(userId) {
+          window.showUserDetails = function(userId) {
             window.open(\`/admin/users/\${userId}\`, '_blank', 'width=600,height=400');
           }
           
