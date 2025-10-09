@@ -501,7 +501,7 @@ export function registerCartActions(bot: Telegraf<Context>) {
     await ctx.answerCbQuery();
     await logUserAction(ctx, 'delivery:confirmed');
     
-    await ctx.reply('✅ Спасибо! Адрес доставки сохранен. Мы учтем его при отправке заказа.');
+    await ctx.reply('✅ Отлично! Ваш адрес доставки принят и сохранен.\n\n📦 Мы учтем его при отправке вашего заказа.\n\nСпасибо за предоставленную информацию!');
   });
 
   bot.action('delivery:change', async (ctx) => {
@@ -560,14 +560,14 @@ async function handleDeliveryAddress(ctx: Context, addressType: string, address:
       data: { deliveryAddress: fullAddress }
     });
 
-    const addressText = `📍 Адрес доставки сохранен!\n\nТип: ${addressType}\nАдрес: ${address}`;
+    const addressText = `✅ Ваш адрес принят!\n\n📍 Адрес доставки:\nТип: ${addressType}\nАдрес: ${address}`;
     
     await ctx.reply(addressText, {
       reply_markup: {
         inline_keyboard: [
           [
             {
-              text: '✅ Адрес сохранен',
+              text: '✅ Адрес принят',
               callback_data: 'delivery:confirmed',
             },
           ],
@@ -582,7 +582,7 @@ async function handleDeliveryAddress(ctx: Context, addressType: string, address:
     });
 
     // Send address to admins
-    const adminMessage = `📍 Новый адрес доставки от ${user.firstName || 'Пользователь'} (@${user.username || 'нет username'})\n\nТип: ${addressType}\nАдрес: ${address}`;
+    const adminMessage = `📍 НОВЫЙ АДРЕС ДОСТАВКИ\n\n👤 Пользователь: ${user.firstName || 'Без имени'} ${user.lastName || ''} (@${user.username || 'нет username'})\n📱 Telegram ID: ${user.telegramId}\n\n📍 Адрес доставки:\nТип: ${addressType}\nАдрес: ${address}\n\n✅ Адрес принят и сохранен в системе`;
     
     const { sendToAllAdmins } = await import('../../config/env.js');
     await sendToAllAdmins(ctx, adminMessage);
