@@ -283,6 +283,20 @@ router.get('/api/partner/dashboard', async (req, res) => {
   }
 });
 
+// Total products count endpoint
+router.get('/api/products/count', async (req, res) => {
+  try {
+    const { prisma } = await import('../lib/prisma.js');
+    const count = await prisma.product.count({
+      where: { isActive: true }
+    });
+    res.json({ totalProducts: count });
+  } catch (error) {
+    console.error('Error fetching total product count:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Reviews
 router.get('/api/reviews', async (req, res) => {
   try {

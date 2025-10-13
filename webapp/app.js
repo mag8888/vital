@@ -651,10 +651,25 @@ async function loadCartItems() {
   }
 }
 
+// Load product count for shop badge
+async function loadProductCount() {
+    try {
+        const response = await fetch(`${API_BASE}/products/count`);
+        if (response.ok) {
+            const data = await response.json();
+            const shopBadge = document.getElementById('shop-badge');
+            if (shopBadge) {
+                shopBadge.textContent = data.totalProducts || '0';
+            }
+        }
+    } catch (error) {
+        console.error('Error loading product count:', error);
+    }
+}
+
 function updateBadges() {
-    // Update shop badge with cart items count
-    const cartCount = cartItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
-    document.getElementById('shop-badge').textContent = cartCount > 0 ? cartCount : '0';
+    // Update shop badge with total products count (not cart count)
+    loadProductCount();
     
     // Update other badges based on data
     // This would be populated from actual data
