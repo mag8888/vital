@@ -354,48 +354,6 @@ async function loadFavoritesContent() {
 }
 
 // Action functions
-async function showCategoryProducts(categoryId) {
-    try {
-        const response = await fetch(`${API_BASE}/categories/${categoryId}/products`);
-        const products = await response.json();
-        
-        let content = '<div class="content-section">';
-        content += '<button class="btn btn-secondary" onclick="openSection(\'shop\')" style="margin-bottom: 20px;">← Назад к каталогу</button>';
-        content += '<h3>Товары категории</h3>';
-        
-        if (products && products.length > 0) {
-            products.forEach(product => {
-                content += `
-                    <div style="background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%); 
-                                border: 1px solid rgba(255, 255, 255, 0.1); 
-                                border-radius: 12px; 
-                                padding: 16px; 
-                                margin-bottom: 16px;">
-                        <h4 style="color: #ffffff; margin-bottom: 8px;">${product.title}</h4>
-                        <p style="color: #cccccc; margin-bottom: 12px;">${product.summary}</p>
-                        <div style="display: flex; gap: 8px;">
-                            <button class="btn" onclick="addToCart('${product.id}')" style="flex: 1;">
-                                🛒 В корзину
-                            </button>
-                            <button class="btn btn-secondary" onclick="buyProduct('${product.id}')" style="flex: 1;">
-                                💳 Купить
-                            </button>
-                        </div>
-                    </div>
-                `;
-            });
-        } else {
-            content += '<p>В этой категории пока нет товаров</p>';
-        }
-        
-        content += '</div>';
-        
-        document.getElementById('section-body').innerHTML = content;
-    } catch (error) {
-        console.error('Error loading products:', error);
-        document.getElementById('section-body').innerHTML = '<div class="error-message"><h3>Ошибка загрузки товаров</h3><p>Попробуйте позже</p></div>';
-    }
-}
 
 async function addToCart(productId) {
     try {
