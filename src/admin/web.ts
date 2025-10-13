@@ -2277,7 +2277,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                       <div class="user-info">
                         <div class="user-avatar">${(user.firstName || 'U')[0].toUpperCase()}</div>
                         <div class="user-details">
-                          <h4><a href="javascript:void(0)" onclick="showUserDetails('${user.id}')" class="user-name-link" style="cursor: pointer; color: #007bff; text-decoration: none;">${user.firstName || 'Без имени'} ${user.lastName || ''}</a></h4>
+                          <h4><a href="javascript:void(0)" onclick="if(typeof showUserDetails === 'function') { showUserDetails('${user.id}'); } else { console.error('showUserDetails not defined'); window.open('/admin/users/${user.id}', '_blank', 'width=600,height=400'); }" class="user-name-link" style="cursor: pointer; color: #007bff; text-decoration: none;">${user.firstName || 'Без имени'} ${user.lastName || ''}</a></h4>
                           <p>@${user.username || 'без username'}</p>
                         </div>
                       </div>
@@ -2328,6 +2328,15 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
         </div>
         
         <script>
+          // Определяем функции для совместимости
+          window.showUserDetails = function(userId) {
+            window.open('/admin/users/' + userId, '_blank', 'width=600,height=400');
+          };
+          
+          window.showHierarchy = function(userId) {
+            window.open('/admin/partners-hierarchy?user=' + userId, '_blank', 'width=800,height=600');
+          };
+          
           function applySorting() {
             const sortBy = document.getElementById('sortSelect').value;
             const order = document.getElementById('orderSelect').value;
