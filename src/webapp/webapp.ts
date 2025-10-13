@@ -153,56 +153,6 @@ router.get('/api/cart/items', async (req, res) => {
   }
 });
 
-// Partner operations
-router.get('/api/partner/dashboard', async (req, res) => {
-  try {
-    const telegramUser = getTelegramUser(req);
-    if (!telegramUser) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const { prisma } = await import('../lib/prisma.js');
-    const user = await prisma.user.findUnique({
-      where: { telegramId: telegramUser.id.toString() },
-      include: { partner: true }
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    if (!user.partner) {
-      return res.json({ 
-        isActive: false, 
-        message: 'Партнерская программа не активирована' 
-      });
-    }
-
-    res.json({
-      isActive: user.partner.isActive,
-      balance: user.partner.balance,
-      bonus: user.partner.bonus,
-      referralCode: user.partner.referralCode,
-      totalPartners: user.partner.totalPartners,
-      directPartners: user.partner.directPartners
-    });
-  } catch (error) {
-    console.error('Error getting partner dashboard:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Reviews
-router.get('/api/reviews', async (req, res) => {
-  try {
-    const reviews = await getActiveReviews();
-    res.json(reviews);
-  } catch (error) {
-    console.error('Error getting reviews:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // Cart add endpoint
 router.post('/api/cart/add', async (req, res) => {
   try {
@@ -290,6 +240,56 @@ router.post('/api/orders/create', async (req, res) => {
     res.json({ success: true, orderId: order.id });
   } catch (error) {
     console.error('Error creating order:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Partner operations
+router.get('/api/partner/dashboard', async (req, res) => {
+  try {
+    const telegramUser = getTelegramUser(req);
+    if (!telegramUser) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { prisma } = await import('../lib/prisma.js');
+    const user = await prisma.user.findUnique({
+      where: { telegramId: telegramUser.id.toString() },
+      include: { partner: true }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (!user.partner) {
+      return res.json({ 
+        isActive: false, 
+        message: 'Партнерская программа не активирована' 
+      });
+    }
+
+    res.json({
+      isActive: user.partner.isActive,
+      balance: user.partner.balance,
+      bonus: user.partner.bonus,
+      referralCode: user.partner.referralCode,
+      totalPartners: user.partner.totalPartners,
+      directPartners: user.partner.directPartners
+    });
+  } catch (error) {
+    console.error('Error getting partner dashboard:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Reviews
+router.get('/api/reviews', async (req, res) => {
+  try {
+    const reviews = await getActiveReviews();
+    res.json(reviews);
+  } catch (error) {
+    console.error('Error getting reviews:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
