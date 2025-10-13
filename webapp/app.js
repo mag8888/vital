@@ -544,6 +544,26 @@ function showPartners() {
     // Здесь можно добавить логику показа партнёров
 }
 
+// Show products section with custom content
+function showProductsSection(content) {
+    currentSection = 'shop';
+    const overlay = document.getElementById('section-overlay');
+    const title = document.getElementById('section-title');
+    const body = document.getElementById('section-body');
+    
+    // Set section title
+    title.textContent = 'Товары';
+    
+    // Set custom content
+    body.innerHTML = content;
+    
+    // Show overlay
+    overlay.classList.remove('hidden');
+    setTimeout(() => {
+        overlay.classList.add('open');
+    }, 10);
+}
+
 // Show category products
 async function showCategoryProducts(categoryId) {
     try {
@@ -587,7 +607,7 @@ async function showCategoryProducts(categoryId) {
         content += '</div>';
         
         // Show the products section
-        showSection('shop', 'Товары', content);
+        showProductsSection(content);
     } catch (error) {
         console.error('Error loading category products:', error);
         showError('Ошибка загрузки товаров');
