@@ -1,6 +1,11 @@
 import express from 'express';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { Context } from '../bot/context.js';
+
+// ES module equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { ensureUser } from '../services/user-history.js';
 import { getActiveCategories, getCategoryById, getProductById, getProductsByCategory } from '../services/shop-service.js';
 import { addProductToCart, getCartItems, cartItemsToText } from '../services/cart-service.js';
