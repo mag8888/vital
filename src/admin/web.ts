@@ -1929,61 +1929,55 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
       }
     });
 
-    // Helper function to count partners by level
+    // Helper function to count partners by level (based on hierarchy depth)
     async function countPartnersByLevel(userId: string): Promise<{level1: number, level2: number, level3: number}> {
-      // Level 1: Direct referrals
-      const level1Count = await prisma.partnerReferral.count({
-        where: { 
-          profile: { userId: userId },
-          level: 1,
-          referredId: { not: null }
-        }
-      });
-
-      // Level 2: Referrals of level 1 partners
+      // Level 1: Direct referrals (all referrals of this user)
       const level1Partners = await prisma.partnerReferral.findMany({
         where: { 
           profile: { userId: userId },
-          level: 1,
           referredId: { not: null }
         },
         select: { referredId: true }
       });
 
-      const level2Count = level1Partners.length > 0 ? await prisma.partnerReferral.count({
+      const level1Count = level1Partners.length;
+
+      // Level 2: Referrals of level 1 partners
+      const level1UserIds = level1Partners.map(p => p.referredId).filter((id): id is string => id !== null);
+      
+      const level2Count = level1UserIds.length > 0 ? await prisma.partnerReferral.count({
         where: { 
           profile: { 
             userId: { 
-              in: level1Partners.map(p => p.referredId).filter((id): id is string => id !== null)
+              in: level1UserIds
             }
           },
-          level: 1,
           referredId: { not: null }
         }
       }) : 0;
 
       // Level 3: Referrals of level 2 partners
-      const level2Partners = level1Partners.length > 0 ? await prisma.partnerReferral.findMany({
+      const level2Partners = level1UserIds.length > 0 ? await prisma.partnerReferral.findMany({
         where: { 
           profile: { 
             userId: { 
-              in: level1Partners.map(p => p.referredId).filter((id): id is string => id !== null)
+              in: level1UserIds
             }
           },
-          level: 1,
           referredId: { not: null }
         },
         select: { referredId: true }
       }) : [];
 
-      const level3Count = level2Partners.length > 0 ? await prisma.partnerReferral.count({
+      const level2UserIds = level2Partners.map(p => p.referredId).filter((id): id is string => id !== null);
+
+      const level3Count = level2UserIds.length > 0 ? await prisma.partnerReferral.count({
         where: { 
           profile: { 
             userId: { 
-              in: level2Partners.map(p => p.referredId).filter((id): id is string => id !== null)
+              in: level2UserIds
             }
           },
-          level: 1,
           referredId: { not: null }
         }
       }) : 0;
