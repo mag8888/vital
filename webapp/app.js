@@ -533,9 +533,9 @@ async function showCategoryProducts(categoryId) {
         
         let content = `
             <div class="content-section">
-                <button class="btn-back-to-catalog" onclick="showShop()">
-                    ← Назад к каталогу
-                </button>
+                    <button class="btn-back-to-catalog" onclick="openSection('shop')">
+                        ← Назад к каталогу
+                    </button>
                 <h3>Товары категории</h3>
         `;
         
