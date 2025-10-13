@@ -1929,10 +1929,75 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
       }
     });
 
+    // Helper function to count partners by level
+    async function countPartnersByLevel(userId: string): Promise<{level1: number, level2: number, level3: number}> {
+      // Level 1: Direct referrals
+      const level1Count = await prisma.partnerReferral.count({
+        where: { 
+          profile: { userId: userId },
+          level: 1,
+          referredId: { not: null }
+        }
+      });
+
+      // Level 2: Referrals of level 1 partners
+      const level1Partners = await prisma.partnerReferral.findMany({
+        where: { 
+          profile: { userId: userId },
+          level: 1,
+          referredId: { not: null }
+        },
+        select: { referredId: true }
+      });
+
+      const level2Count = level1Partners.length > 0 ? await prisma.partnerReferral.count({
+        where: { 
+          profile: { 
+            userId: { 
+              in: level1Partners.map(p => p.referredId).filter((id): id is string => id !== null)
+            }
+          },
+          level: 1,
+          referredId: { not: null }
+        }
+      }) : 0;
+
+      // Level 3: Referrals of level 2 partners
+      const level2Partners = level1Partners.length > 0 ? await prisma.partnerReferral.findMany({
+        where: { 
+          profile: { 
+            userId: { 
+              in: level1Partners.map(p => p.referredId).filter((id): id is string => id !== null)
+            }
+          },
+          level: 1,
+          referredId: { not: null }
+        },
+        select: { referredId: true }
+      }) : [];
+
+      const level3Count = level2Partners.length > 0 ? await prisma.partnerReferral.count({
+        where: { 
+          profile: { 
+            userId: { 
+              in: level2Partners.map(p => p.referredId).filter((id): id is string => id !== null)
+            }
+          },
+          level: 1,
+          referredId: { not: null }
+        }
+      }) : 0;
+
+      return { level1: level1Count, level2: level2Count, level3: level3Count };
+    }
+
     // Calculate additional data for each user
-    const usersWithStats = users.map((user: any) => {
+    const usersWithStats = await Promise.all(users.map(async (user: any) => {
       const partnerProfile = user.partner;
       const directPartners = partnerProfile?.referrals?.length || 0;
+      
+      // Get partners count by level
+      const partnersByLevel = await countPartnersByLevel(user.id);
       
       console.log(`👤 User ${user.firstName} (@${user.username}) ID: ${user.id}: ${user.orders?.length || 0} orders`);
       
@@ -1989,6 +2054,8 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
       return {
         ...user,
         directPartners,
+        level2Partners: partnersByLevel.level2,
+        level3Partners: partnersByLevel.level3,
         totalOrderSum,
         balance,
         bonus,
@@ -1997,7 +2064,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
         priorityStatus,
         paidOrderSum
       };
-    });
+    }));
 
     // Enrich with inviter info
     const usersWithInviters = await Promise.all(usersWithStats.map(async (u: any) => {
@@ -2431,10 +2498,10 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                   const withdrawnEarnings = partnerProfile?.withdrawnEarnings || 0;
                   const pendingEarnings = totalEarnings - withdrawnEarnings;
                   
-                  // Подсчет партнеров по уровням (упрощенная версия)
+                  // Подсчет партнеров по уровням
                   const level1Partners = user.directPartners || 0;
-                  const level2Partners = 0; // TODO: реализовать подсчет партнеров 2го уровня
-                  const level3Partners = 0; // TODO: реализовать подсчет партнеров 3го уровня
+                  const level2Partners = user.level2Partners || 0;
+                  const level3Partners = user.level3Partners || 0;
                   
                   return `
                   <tr>
