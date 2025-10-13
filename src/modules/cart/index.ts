@@ -371,8 +371,8 @@ export function registerCartActions(bot: Telegraf<Context>) {
     }
 
     // Check if user already has a delivery address
-    if (user.deliveryAddress) {
-      const [addressType, ...addressParts] = user.deliveryAddress.split(': ');
+    if ((user as any).deliveryAddress) {
+      const [addressType, ...addressParts] = (user as any).deliveryAddress.split(': ');
       const address = addressParts.join(': ');
       
       await ctx.reply(`📍 Ваш текущий адрес доставки:\n\nТип: ${addressType}\nАдрес: ${address}`, {

@@ -9,7 +9,8 @@
     "build": "tsc --project tsconfig.json",
     "migrate:dev": "prisma db push",
     "migrate:deploy": "prisma db push",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "setup-webapp": "node scripts/setup-webapp.js"
   },
   "dependencies": {
     "@adminjs/express": "^6.1.1",

@@ -10,6 +10,7 @@ import { applyBotModules } from './bot/setup-modules.js';
 import { prisma } from './lib/prisma.js';
 import { ensureInitialData } from './lib/bootstrap.js';
 import { adminWebRouter } from './admin/web.js';
+import { webappRouter } from './webapp/webapp.js';
 import { setBotInstance } from './lib/bot-instance.js';
 
 async function bootstrap() {
@@ -23,6 +24,18 @@ async function bootstrap() {
     const app = express();
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
+    
+    // CORS for webapp
+    app.use((req, res, next) => {
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, X-Telegram-Init-Data');
+      if (req.method === 'OPTIONS') {
+        res.sendStatus(200);
+      } else {
+        next();
+      }
+    });
 
     // Configure session middleware
     app.use(session({
@@ -34,6 +47,9 @@ async function bootstrap() {
 
     // Web admin panel
     app.use('/admin', adminWebRouter);
+    
+    // Webapp routes
+    app.use('/webapp', webappRouter);
 
     const port = Number(process.env.PORT ?? 3000);
     app.get('/health', (_req, res) => {
