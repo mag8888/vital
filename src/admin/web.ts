@@ -518,14 +518,14 @@ router.get('/', requireAdmin, async (req, res) => {
           .user-name-link { color: #212529; text-decoration: none; transition: color 0.3s ease; }
           .user-name-link:hover { color: #007bff; text-decoration: underline; }
           
-          .balance { font-weight: bold; font-size: 16px; }
+          .balance { font-weight: bold; font-size: 14px; }
           .balance.positive { color: #28a745; }
           .balance.zero { color: #6c757d; }
           
-          .partners-count { background: #e3f2fd; color: #1976d2; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-          .orders-sum { background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+          .partners-count { background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 8px; font-size: 10px; font-weight: 600; }
+          .orders-sum { background: #fff3cd; color: #856404; padding: 2px 6px; border-radius: 8px; font-size: 10px; font-weight: 600; }
           
-          .action-btn { background: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; margin: 2px; }
+          .action-btn { background: #007bff; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; margin: 1px; }
           .action-btn:hover { background: #0056b3; }
           .action-btn.hierarchy { background: #28a745; }
           .action-btn.hierarchy:hover { background: #1e7e34; }
@@ -2101,10 +2101,17 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
           .stat-label { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
           
           .table-container { overflow-x: auto; width: 100%; border: 1px solid #dee2e6; border-radius: 8px; }
-          .users-table { width: 100%; border-collapse: collapse; min-width: 1600px; }
-          .users-table th { background: #f8f9fa; padding: 12px 8px; text-align: left; font-weight: 600; color: #495057; border-bottom: 2px solid #dee2e6; white-space: nowrap; position: sticky; top: 0; z-index: 10; font-size: 13px; }
-          .users-table td { padding: 12px 8px; border-bottom: 1px solid #dee2e6; vertical-align: top; white-space: nowrap; font-size: 13px; }
+          .users-table { width: 100%; border-collapse: collapse; min-width: 1400px; }
+          .users-table th { background: #f8f9fa; padding: 8px 6px; text-align: left; font-weight: 600; color: #495057; border-bottom: 2px solid #dee2e6; white-space: nowrap; position: sticky; top: 0; z-index: 10; font-size: 12px; }
+          .users-table td { padding: 8px 6px; border-bottom: 1px solid #dee2e6; vertical-align: top; white-space: nowrap; font-size: 12px; }
           .users-table tr:hover { background: #f8f9fa; }
+          
+          /* Sticky колонка пользователя */
+          .users-table th.user-cell, .users-table td.user-cell { 
+            position: sticky; left: 0; z-index: 5; 
+            background: #f8f9fa; border-right: 2px solid #dee2e6;
+          }
+          .users-table tr:hover td.user-cell { background: #f8f9fa; }
           
           /* Стили для горизонтального скролла */
           .table-container::-webkit-scrollbar { height: 8px; }
@@ -2113,25 +2120,25 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
           .table-container::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
           
           /* Компактные стили для колонок */
-          .compact-cell { min-width: 80px; max-width: 120px; }
-          .user-cell { min-width: 180px; max-width: 220px; }
-          .actions-cell { min-width: 200px; }
+          .compact-cell { min-width: 70px; max-width: 100px; }
+          .user-cell { min-width: 160px; max-width: 180px; }
+          .actions-cell { min-width: 180px; }
           
-          .user-info { display: flex; align-items: center; gap: 12px; }
-          .user-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 16px; }
-          .user-details h4 { margin: 0; font-size: 16px; color: #212529; }
-          .user-details p { margin: 2px 0 0 0; font-size: 13px; color: #6c757d; }
+          .user-info { display: flex; align-items: center; gap: 8px; }
+          .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px; }
+          .user-details h4 { margin: 0; font-size: 14px; color: #212529; }
+          .user-details p { margin: 1px 0 0 0; font-size: 11px; color: #6c757d; }
           .user-name-link { color: #212529; text-decoration: none; transition: color 0.3s ease; }
           .user-name-link:hover { color: #007bff; text-decoration: underline; }
           
-          .balance { font-weight: bold; font-size: 16px; }
+          .balance { font-weight: bold; font-size: 14px; }
           .balance.positive { color: #28a745; }
           .balance.zero { color: #6c757d; }
           
-          .partners-count { background: #e3f2fd; color: #1976d2; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-          .orders-sum { background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+          .partners-count { background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 8px; font-size: 10px; font-weight: 600; }
+          .orders-sum { background: #fff3cd; color: #856404; padding: 2px 6px; border-radius: 8px; font-size: 10px; font-weight: 600; }
           
-          .action-btn { background: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; margin: 2px; }
+          .action-btn { background: #007bff; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; margin: 1px; }
           .action-btn:hover { background: #0056b3; }
           .action-btn.hierarchy { background: #28a745; }
           .action-btn.hierarchy:hover { background: #1e7e34; }
