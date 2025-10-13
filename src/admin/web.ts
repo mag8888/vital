@@ -5743,7 +5743,7 @@ router.post('/fix-roman-bonuses', requireAdmin, async (req, res) => {
   }
 });
 // Show user partners page
-router.get('/users/:userId/partners', requireAdmin, async (req, res) => {
+router.get('/users/:userId/partners-page', requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
     
