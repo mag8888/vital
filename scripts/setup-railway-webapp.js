@@ -1,63 +1,56 @@
 #!/usr/bin/env node
 
 /**
- * Скрипт для настройки Telegram Web App
- * Настраивает кнопку меню в боте и проверяет доступность веб-приложения
+ * Скрипт для настройки Telegram Web App на Railway
+ * Специально для домена plazma-production.up.railway.app
  */
 
 import { config } from 'dotenv';
 import https from 'https';
-import http from 'http';
 
 // Загружаем переменные окружения
 config();
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://plazma-production.up.railway.app';
-const WEBAPP_URL = process.env.WEBAPP_URL || PUBLIC_BASE_URL + '/webapp';
+const RAILWAY_URL = 'https://plazma-production.up.railway.app';
+const WEBAPP_URL = `${RAILWAY_URL}/webapp`;
 
-async function setupWebApp() {
-  console.log('🚀 Настройка Telegram Web App...\n');
+async function setupRailwayWebApp() {
+  console.log('🚀 Настройка Telegram Web App для Railway...\n');
+  console.log(`🌐 Railway URL: ${RAILWAY_URL}`);
+  console.log(`📱 Web App URL: ${WEBAPP_URL}\n`);
 
   if (!BOT_TOKEN) {
     console.error('❌ BOT_TOKEN не найден в переменных окружения');
+    console.log('💡 Добавьте BOT_TOKEN в Railway Variables');
     process.exit(1);
   }
 
-  if (!PUBLIC_BASE_URL) {
-    console.error('❌ PUBLIC_BASE_URL не найден в переменных окружения');
-    process.exit(1);
-  }
-
-  const webappUrl = WEBAPP_URL || `${PUBLIC_BASE_URL}/webapp`;
-  
-  console.log(`📱 URL веб-приложения: ${webappUrl}`);
   console.log(`🤖 Токен бота: ${BOT_TOKEN.substring(0, 10)}...\n`);
 
   // Проверяем доступность веб-приложения
-  await checkWebAppAvailability(webappUrl);
+  await checkWebAppAvailability(WEBAPP_URL);
 
   // Настраиваем кнопку меню
-  await setupMenuButton(webappUrl);
+  await setupMenuButton(WEBAPP_URL);
 
   // Настраиваем команды бота
   await setupBotCommands();
 
   console.log('\n✅ Настройка завершена!');
   console.log('\n📋 Следующие шаги:');
-  console.log('1. Убедитесь, что сервер запущен');
-  console.log('2. Проверьте доступность веб-приложения в браузере');
-  console.log('3. Протестируйте кнопку меню в боте');
-  console.log('4. Настройте SSL сертификат для HTTPS');
+  console.log('1. Проверьте доступность веб-приложения в браузере');
+  console.log('2. Протестируйте кнопку меню в боте');
+  console.log('3. Проверьте все разделы веб-приложения');
+  console.log('\n🌐 Ваше веб-приложение:');
+  console.log(`   ${WEBAPP_URL}`);
 }
 
 async function checkWebAppAvailability(url) {
   console.log('🔍 Проверка доступности веб-приложения...');
   
   return new Promise((resolve, reject) => {
-    const client = url.startsWith('https') ? https : http;
-    
-    const req = client.get(url, (res) => {
+    const req = https.get(url, (res) => {
       if (res.statusCode === 200) {
         console.log('✅ Веб-приложение доступно');
         resolve();
@@ -69,11 +62,11 @@ async function checkWebAppAvailability(url) {
 
     req.on('error', (err) => {
       console.log('❌ Веб-приложение недоступно:', err.message);
-      console.log('💡 Убедитесь, что сервер запущен на правильном порту');
+      console.log('💡 Убедитесь, что приложение развернуто на Railway');
       resolve(); // Не прерываем выполнение
     });
 
-    req.setTimeout(5000, () => {
+    req.setTimeout(10000, () => {
       console.log('⏰ Таймаут проверки доступности');
       req.destroy();
       resolve();
@@ -109,6 +102,7 @@ async function setupMenuButton(webappUrl) {
     
     if (result.ok) {
       console.log('✅ Кнопка меню настроена успешно');
+      console.log(`   URL: ${webappUrl}`);
     } else {
       console.log('❌ Ошибка настройки кнопки меню:', result.description);
     }
@@ -153,8 +147,40 @@ async function setupBotCommands() {
   }
 }
 
+// Проверяем Railway переменные
+function checkRailwayVariables() {
+  console.log('🔧 Проверка Railway переменных...\n');
+  
+  const requiredVars = [
+    'BOT_TOKEN',
+    'DATABASE_URL',
+    'SESSION_SECRET'
+  ];
+  
+  const missing = requiredVars.filter(varName => !process.env[varName]);
+  
+  if (missing.length > 0) {
+    console.log('⚠️  Отсутствуют переменные окружения:');
+    missing.forEach(varName => {
+      console.log(`   - ${varName}`);
+    });
+    console.log('\n💡 Добавьте их в Railway Variables');
+    console.log('   Railway Dashboard → Settings → Variables');
+  } else {
+    console.log('✅ Все необходимые переменные настроены');
+  }
+  
+  console.log('\n🌐 Railway URL будет автоматически установлен как:');
+  console.log(`   PUBLIC_BASE_URL=https://plazma-production.up.railway.app`);
+  console.log(`   WEBAPP_URL=https://plazma-production.up.railway.app/webapp`);
+}
+
 // Запускаем настройку
-setupWebApp().catch((error) => {
+console.log('🚂 Railway Web App Setup\n');
+checkRailwayVariables();
+console.log('\n' + '='.repeat(50) + '\n');
+
+setupRailwayWebApp().catch((error) => {
   console.error('💥 Критическая ошибка:', error);
   process.exit(1);
 });
