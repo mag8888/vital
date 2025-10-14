@@ -7977,17 +7977,24 @@ router.post('/messages/send', requireAdmin, async (req, res) => {
     const errors = [];
     
     // Отправляем сообщения каждому пользователю
+    console.log(`📤 Начинаем отправку сообщений ${userIds.length} пользователям:`, userIds);
+    
     for (const userId of userIds) {
       try {
+        console.log(`📤 Обрабатываем пользователя: ${userId}`);
+        
         // Получаем пользователя
         const user = await prisma.user.findUnique({
           where: { id: userId }
         });
         
         if (!user) {
+          console.log(`❌ Пользователь ${userId} не найден в базе данных`);
           errors.push(`Пользователь ${userId} не найден`);
           continue;
         }
+        
+        console.log(`✅ Пользователь найден: ${user.firstName} (telegramId: ${user.telegramId})`);
         
         // Отправляем сообщение через Telegram Bot API
         try {
@@ -8054,6 +8061,8 @@ router.post('/messages/send', requireAdmin, async (req, res) => {
         console.error('Error saving template:', error);
       }
     }
+    
+    console.log(`📊 Итоговые результаты отправки: успешно ${successCount}/${userIds.length}, ошибок: ${errors.length}`);
     
     res.json({
       successCount,
