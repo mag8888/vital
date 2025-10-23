@@ -121,6 +121,7 @@ export async function setupAdminPanel(app: Application) {
               type: 'textarea',
               props: {
                 rows: 6,
+                placeholder: 'Введите инструкцию по применению товара...',
               },
               isVisible: {
                 list: false,
@@ -128,6 +129,9 @@ export async function setupAdminPanel(app: Application) {
                 show: true,
                 filter: false,
               },
+              isRequired: false,
+              position: 4, // Позиция после description
+              label: '📋 Инструкция по применению',
             },
             price: {
               type: 'number',
