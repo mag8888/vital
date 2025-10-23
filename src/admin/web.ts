@@ -4704,6 +4704,104 @@ router.get('/products', requireAdmin, async (req, res) => {
           .alert { padding: 12px 16px; margin: 16px 0; border-radius: 8px; font-weight: 500; }
           .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
           .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+          
+          /* Instruction modal styles */
+          .instruction-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .instruction-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+          }
+          .instruction-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 80vh;
+            overflow: hidden;
+            transform: scale(0.8);
+            transition: transform 0.3s ease;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+          }
+          .instruction-header {
+            padding: 20px 24px 16px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          }
+          .instruction-header h3 {
+            color: #333;
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+          }
+          .btn-close {
+            background: none;
+            border: none;
+            color: #6c757d;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+          }
+          .btn-close:hover {
+            background: #f8f9fa;
+            color: #333;
+          }
+          .instruction-body {
+            padding: 20px 24px;
+            max-height: 50vh;
+            overflow-y: auto;
+          }
+          .instruction-text {
+            color: #333;
+            line-height: 1.6;
+            font-size: 14px;
+            white-space: pre-wrap;
+          }
+          .instruction-footer {
+            padding: 16px 24px 20px;
+            border-top: 1px solid #e9ecef;
+            display: flex;
+            justify-content: flex-end;
+          }
+          .btn-secondary {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+          }
+          .btn-secondary:hover {
+            background: #5a6268;
+          }
         </style>
       </head>
       <body>
@@ -5069,6 +5167,51 @@ router.get('/products', requireAdmin, async (req, res) => {
               modal.style.display = 'none';
             }
           }
+          
+          // Instruction modal functions
+          window.showInstruction = function(productId, instructionText) {
+            const modal = document.createElement('div');
+            modal.className = 'instruction-modal';
+            modal.innerHTML = \`
+              <div class="instruction-overlay" onclick="closeInstruction()">
+                <div class="instruction-content" onclick="event.stopPropagation()">
+                  <div class="instruction-header">
+                    <h3>📋 Инструкция по применению</h3>
+                    <button class="btn-close" onclick="closeInstruction()">×</button>
+                  </div>
+                  <div class="instruction-body">
+                    <div class="instruction-text">\${instructionText.replace(/\\n/g, '<br>')}</div>
+                  </div>
+                  <div class="instruction-footer">
+                    <button class="btn btn-secondary" onclick="closeInstruction()">Закрыть</button>
+                  </div>
+                </div>
+              </div>
+            \`;
+            
+            document.body.appendChild(modal);
+            
+            // Add animation
+            setTimeout(() => {
+              const content = modal.querySelector('.instruction-content');
+              if (content) {
+                content.style.transform = 'scale(1)';
+              }
+            }, 10);
+          };
+          
+          window.closeInstruction = function() {
+            const modal = document.querySelector('.instruction-modal');
+            if (modal) {
+              const content = modal.querySelector('.instruction-content');
+              if (content) {
+                content.style.transform = 'scale(0.8)';
+              }
+              setTimeout(() => {
+                modal.remove();
+              }, 200);
+            }
+          };
         </script>
       </body>
       </html>
