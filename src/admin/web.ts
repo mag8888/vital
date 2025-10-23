@@ -1027,6 +1027,11 @@ router.get('/', requireAdmin, async (req, res) => {
                   <label>Полное описание *</label>
                   <textarea id="productFullDescription" required placeholder="Подробное описание товара"></textarea>
                 </div>
+                <div class="form-group">
+                  <label>📋 Инструкция по применению</label>
+                  <textarea id="productInstruction" placeholder="Инструкция по применению товара (необязательно)"></textarea>
+                  <div class="char-count">Инструкция будет отображаться в мини-приложении</div>
+                </div>
               </div>
 
               <div class="product-section">
@@ -1339,6 +1344,7 @@ router.get('/', requireAdmin, async (req, res) => {
             document.getElementById('productName').value = title;
             document.getElementById('productShortDescription').value = summary;
             document.getElementById('productFullDescription').value = description;
+            document.getElementById('productInstruction').value = instruction || '';
             document.getElementById('productPrice').value = price;
             document.getElementById('productPriceRub').value = (price * 100).toFixed(2);
             document.getElementById('productStock').value = '999';
@@ -1400,6 +1406,7 @@ router.get('/', requireAdmin, async (req, res) => {
             document.getElementById('productName').value = title;
             document.getElementById('productShortDescription').value = summary;
             document.getElementById('productFullDescription').value = description;
+            document.getElementById('productInstruction').value = instruction || '';
             document.getElementById('productPrice').value = price;
             document.getElementById('productPriceRub').value = (price * 100).toFixed(2);
             document.getElementById('productStock').value = '999'; // Default stock
@@ -1635,6 +1642,7 @@ router.get('/', requireAdmin, async (req, res) => {
             document.getElementById('productName').value = title;
             document.getElementById('productShortDescription').value = summary;
             document.getElementById('productFullDescription').value = description;
+            document.getElementById('productInstruction').value = instruction || '';
             document.getElementById('productPrice').value = price;
             document.getElementById('productPriceRub').value = (price * 100).toFixed(2);
             document.getElementById('productStock').value = '999'; // Default stock
@@ -1701,6 +1709,7 @@ router.get('/', requireAdmin, async (req, res) => {
             formData.append('stock', document.getElementById('productStock').value || 0);
             formData.append('summary', document.getElementById('productShortDescription').value);
             formData.append('description', document.getElementById('productFullDescription').value);
+            formData.append('instruction', document.getElementById('productInstruction').value);
             formData.append('isActive', document.getElementById('productStatus').checked);
             
             // Regions
@@ -1896,6 +1905,51 @@ router.get('/', requireAdmin, async (req, res) => {
               alert('Ошибка сети: ' + error.message);
             }
           };
+          
+          // Instruction modal functions
+          function showInstruction(productId, instructionText) {
+            const modal = document.createElement('div');
+            modal.className = 'instruction-modal';
+            modal.innerHTML = \`
+              <div class="instruction-overlay" onclick="closeInstruction()">
+                <div class="instruction-content" onclick="event.stopPropagation()">
+                  <div class="instruction-header">
+                    <h3>📋 Инструкция по применению</h3>
+                    <button class="btn-close" onclick="closeInstruction()">×</button>
+                  </div>
+                  <div class="instruction-body">
+                    <div class="instruction-text">\${instructionText.replace(/\\n/g, '<br>')}</div>
+                  </div>
+                  <div class="instruction-footer">
+                    <button class="btn btn-secondary" onclick="closeInstruction()">Закрыть</button>
+                  </div>
+                </div>
+              </div>
+            \`;
+            
+            document.body.appendChild(modal);
+            
+            // Add animation
+            setTimeout(() => {
+              const content = modal.querySelector('.instruction-content') as HTMLElement;
+              if (content) {
+                content.style.transform = 'scale(1)';
+              }
+            }, 10);
+          }
+          
+          function closeInstruction() {
+            const modal = document.querySelector('.instruction-modal');
+            if (modal) {
+              const content = modal.querySelector('.instruction-content') as HTMLElement;
+              if (content) {
+                content.style.transform = 'scale(0.8)';
+              }
+              setTimeout(() => {
+                modal.remove();
+              }, 200);
+            }
+          }
         </script>
       </body>
       </html>
@@ -3243,7 +3297,7 @@ router.post('/api/categories', requireAdmin, async (req, res) => {
 // API: Create product
 router.post('/api/products', requireAdmin, upload.single('image'), async (req, res) => {
   try {
-    const { name, price, categoryId, stock, shortDescription, fullDescription, active, availableInRussia, availableInBali } = req.body;
+    const { name, price, categoryId, stock, shortDescription, fullDescription, instruction, active, availableInRussia, availableInBali } = req.body;
     
     // Validation
     if (!name || !name.trim()) {
@@ -3298,6 +3352,7 @@ router.post('/api/products', requireAdmin, upload.single('image'), async (req, r
         title: name.trim(),
         summary: shortDescription.trim(),
         description: fullDescription.trim(),
+        instruction: instruction?.trim() || null,
         price: parseFloat(price),
         categoryId,
         imageUrl,
@@ -3386,6 +3441,104 @@ router.get('/users/:userId', requireAdmin, async (req, res) => {
           .back-btn { background: #6c757d; color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; display: inline-block; margin-bottom: 20px; }
           .back-btn:hover { background: #5a6268; }
           .empty-state { text-align: center; padding: 40px; color: #6c757d; }
+          
+          /* Instruction modal styles */
+          .instruction-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .instruction-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+          }
+          .instruction-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 80vh;
+            overflow: hidden;
+            transform: scale(0.8);
+            transition: transform 0.3s ease;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+          }
+          .instruction-header {
+            padding: 20px 24px 16px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          }
+          .instruction-header h3 {
+            color: #333;
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+          }
+          .btn-close {
+            background: none;
+            border: none;
+            color: #6c757d;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+          }
+          .btn-close:hover {
+            background: #f8f9fa;
+            color: #333;
+          }
+          .instruction-body {
+            padding: 20px 24px;
+            max-height: 50vh;
+            overflow-y: auto;
+          }
+          .instruction-text {
+            color: #333;
+            line-height: 1.6;
+            font-size: 14px;
+            white-space: pre-wrap;
+          }
+          .instruction-footer {
+            padding: 16px 24px 20px;
+            border-top: 1px solid #e9ecef;
+            display: flex;
+            justify-content: flex-end;
+          }
+          .btn-secondary {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+          }
+          .btn-secondary:hover {
+            background: #5a6268;
+          }
         </style>
       </head>
       <body>
@@ -4632,6 +4785,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 data-title="${product.title.replace(/"/g, '&quot;')}"
                 data-summary="${(product.summary || '').replace(/"/g, '&quot;')}"
                 data-description="${(product.description || '').replace(/"/g, '&quot;')}"
+                data-instruction="${((product as any).instruction || '').replace(/"/g, '&quot;')}"
                 data-price="${product.price}"
                 data-category-id="${product.categoryId}"
                 data-active="${product.isActive ? 'true' : 'false'}"
@@ -4647,6 +4801,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 <input type="file" name="image" accept="image/*" style="display: none;" id="image-${product.id}" onchange="this.form.submit()">
                 <button type="button" class="image-btn" onclick="document.getElementById('image-${product.id}').click()">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</button>
               </form>
+              <button class="instruction-btn" onclick="showInstruction('${product.id}', '${(product as any).instruction || ''}')" style="background: #28a745;">📋 Инструкция</button>
               <form method="post" action="/admin/products/${product.id}/delete" onsubmit="return confirm('Удалить товар «${product.title}»?')">
                 <button type="submit" class="delete-btn">Удалить</button>
               </form>
@@ -4951,7 +5106,7 @@ router.post('/products/:id/toggle-active', requireAdmin, async (req, res) => {
 router.post('/products/:productId/update', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const { productId } = req.params;
-    const { title, price, summary, description, isActive, categoryId, stock, availableInRussia, availableInBali } = req.body as any;
+    const { title, price, summary, description, instruction, isActive, categoryId, stock, availableInRussia, availableInBali } = req.body as any;
     
     console.log('Update product request:', {
       productId,
@@ -4978,6 +5133,7 @@ router.post('/products/:productId/update', requireAdmin, upload.single('image'),
     if (price) updateData.price = parseFloat(price);
     if (summary) updateData.summary = summary.trim();
     if (description) updateData.description = description.trim();
+    if (instruction !== undefined) updateData.instruction = instruction?.trim() || null;
     if (categoryId) updateData.categoryId = categoryId;
     if (stock !== undefined) updateData.stock = parseInt(stock);
     if (isActive !== undefined) updateData.isActive = isActive === 'true';
@@ -8885,5 +9041,16 @@ router.post('/admin/audio/delete', requireAdmin, async (req, res) => {
 
 // Mount orders module
 // router.use('/', ordersModule);
+
+// Global functions for instruction modal
+declare global {
+  function showInstruction(productId: string, instructionText: string): void;
+  function closeInstruction(): void;
+}
+
+
+// Make functions globally available
+(window as any).showInstruction = showInstruction;
+(window as any).closeInstruction = closeInstruction;
 
 export { router as adminWebRouter };
