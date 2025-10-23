@@ -350,6 +350,7 @@ router.get('/', requireAdmin, async (req, res) => {
             
             <div style="text-align: center; margin-top: 20px;">
               <a href="/admin/users-detailed" class="btn">📊 Полный список пользователей</a>
+              <a href="/admin/instructions" class="btn" style="background: #28a745; margin-left: 10px;">📋 Инструкции</a>
             </div>
           </div>
         `;
@@ -5236,6 +5237,246 @@ router.get('/orders', requireAdmin, async (req, res) => {
 });
 
 // Logout
+// Страница с инструкциями
+router.get('/instructions', requireAdmin, (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Инструкции - Plazma Water Admin</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+        .header h1 { margin: 0; font-size: 28px; font-weight: 600; }
+        .header p { margin: 10px 0 0 0; opacity: 0.9; font-size: 16px; }
+        .back-btn { background: rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; border: 1px solid rgba(255,255,255,0.3); transition: all 0.3s ease; display: inline-block; margin-top: 15px; }
+        .back-btn:hover { background: rgba(255,255,255,0.3); transform: translateY(-2px); }
+        .content { padding: 30px; }
+        .section { margin-bottom: 30px; }
+        .section h2 { color: #667eea; font-size: 24px; margin-bottom: 15px; border-bottom: 2px solid #e9ecef; padding-bottom: 10px; }
+        .section h3 { color: #495057; font-size: 18px; margin-bottom: 10px; }
+        .section p { color: #6c757d; line-height: 1.6; margin-bottom: 10px; }
+        .section ul { color: #6c757d; line-height: 1.6; }
+        .section li { margin-bottom: 5px; }
+        .code { background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea; font-family: 'Courier New', monospace; margin: 10px 0; }
+        .highlight { background: #fff3cd; padding: 10px; border-radius: 6px; border-left: 4px solid #ffc107; margin: 10px 0; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin: 20px 0; }
+        .card { background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #e9ecef; }
+        .card h4 { color: #667eea; margin-top: 0; }
+        .btn { background: #667eea; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; display: inline-block; margin: 5px; transition: all 0.3s ease; }
+        .btn:hover { background: #5a6fd8; transform: translateY(-2px); }
+        .btn-secondary { background: #6c757d; }
+        .btn-secondary:hover { background: #5a6268; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>📋 Инструкции по работе с админ панелью</h1>
+          <p>Полное руководство по управлению Plazma Water</p>
+          <a href="/admin" class="back-btn">← Назад к панели</a>
+        </div>
+        
+        <div class="content">
+          <div class="section">
+            <h2>🚀 Быстрый старт</h2>
+            <div class="grid">
+              <div class="card">
+                <h4>🔐 Доступ к админ панели</h4>
+                <p><strong>URL:</strong> <code>https://plazma-production.up.railway.app/admin</code></p>
+                <p><strong>Логин:</strong> admin@plazma.com</p>
+                <p><strong>Пароль:</strong> admin123</p>
+              </div>
+              <div class="card">
+                <h4>📱 Основные разделы</h4>
+                <ul>
+                  <li>👥 Пользователи</li>
+                  <li>🛍️ Товары</li>
+                  <li>📦 Заказы</li>
+                  <li>🤝 Партнеры</li>
+                  <li>📝 Контент бота</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>👥 Управление пользователями</h2>
+            <div class="grid">
+              <div class="card">
+                <h4>📊 Список пользователей</h4>
+                <p>Просмотр всех пользователей с возможностью фильтрации и сортировки</p>
+                <a href="/admin/resources/users" class="btn">Перейти к пользователям</a>
+              </div>
+              <div class="card">
+                <h4>🔍 Детальная информация</h4>
+                <p>Полная статистика по каждому пользователю: заказы, партнеры, баланс</p>
+                <a href="/admin/users-detailed" class="btn">Детальная информация</a>
+              </div>
+            </div>
+            <h3>Основные функции:</h3>
+            <ul>
+              <li><strong>Редактирование данных:</strong> Телефон, адрес, баланс</li>
+              <li><strong>Партнерская программа:</strong> Активация и настройка</li>
+              <li><strong>История заказов:</strong> Просмотр всех заказов пользователя</li>
+              <li><strong>Финансовые операции:</strong> Управление балансом</li>
+            </ul>
+          </div>
+
+          <div class="section">
+            <h2>🛍️ Управление товарами</h2>
+            <div class="grid">
+              <div class="card">
+                <h4>📦 Каталог товаров</h4>
+                <p>Управление всеми товарами в системе</p>
+                <a href="/admin/resources/products" class="btn">Перейти к товарам</a>
+              </div>
+              <div class="card">
+                <h4>📂 Категории</h4>
+                <p>Организация товаров по категориям</p>
+                <a href="/admin/categories" class="btn">Управление категориями</a>
+              </div>
+            </div>
+            <h3>Возможности:</h3>
+            <ul>
+              <li><strong>Добавление товаров:</strong> Название, цена, описание, изображение</li>
+              <li><strong>Настройки:</strong> Активность, доступность в регионах</li>
+              <li><strong>Сток:</strong> Управление количеством товаров</li>
+              <li><strong>Цены:</strong> Гибкая система ценообразования</li>
+            </ul>
+          </div>
+
+          <div class="section">
+            <h2>📦 Управление заказами</h2>
+            <div class="grid">
+              <div class="card">
+                <h4>📋 Список заказов</h4>
+                <p>Все заказы с фильтрацией по статусу</p>
+                <a href="/admin/resources/order-requests" class="btn">Перейти к заказам</a>
+              </div>
+              <div class="card">
+                <h4>📊 Статусы заказов</h4>
+                <p>NEW → PROCESSING → COMPLETED → CANCELLED</p>
+              </div>
+            </div>
+            <h3>Управление заказами:</h3>
+            <ul>
+              <li><strong>Изменение статусов:</strong> NEW → PROCESSING → COMPLETED</li>
+              <li><strong>Контактная информация:</strong> Телефон и адрес доставки</li>
+              <li><strong>Уведомления:</strong> Отправка сообщений пользователям</li>
+              <li><strong>Финансы:</strong> Отслеживание платежей</li>
+            </ul>
+          </div>
+
+          <div class="section">
+            <h2>🤝 Партнерская программа</h2>
+            <div class="grid">
+              <div class="card">
+                <h4>👥 Управление партнерами</h4>
+                <p>Активация и настройка партнеров</p>
+                <a href="/admin/partners" class="btn">Перейти к партнерам</a>
+              </div>
+              <div class="card">
+                <h4>🔗 Реферальные ссылки</h4>
+                <p>Генерация и управление реферальными ссылками</p>
+              </div>
+            </div>
+            <h3>Партнерская система:</h3>
+            <ul>
+              <li><strong>Активация партнеров:</strong> Создание партнерских профилей</li>
+              <li><strong>Реферальные ссылки:</strong> Генерация уникальных ссылок</li>
+              <li><strong>Бонусы:</strong> Расчет и выплата комиссий</li>
+              <li><strong>Иерархия:</strong> Многоуровневая система (3 уровня)</li>
+            </ul>
+          </div>
+
+          <div class="section">
+            <h2>📝 Контент бота</h2>
+            <div class="grid">
+              <div class="card">
+                <h4>✏️ Редактирование текстов</h4>
+                <p>Все сообщения бота можно редактировать</p>
+                <a href="/admin/resources/bot-content" class="btn">Редактировать контент</a>
+              </div>
+              <div class="card">
+                <h4>🌍 Многоязычность</h4>
+                <p>Поддержка русского и английского языков</p>
+              </div>
+            </div>
+            <h3>Управление контентом:</h3>
+            <ul>
+              <li><strong>Сообщения бота:</strong> Приветствие, помощь, ошибки</li>
+              <li><strong>Кнопки и описания:</strong> Настройка интерфейса</li>
+              <li><strong>Категории контента:</strong> Сообщения, описания, кнопки</li>
+              <li><strong>Активация:</strong> Включение/отключение контента</li>
+            </ul>
+          </div>
+
+          <div class="section">
+            <h2>📊 Статистика и аналитика</h2>
+            <div class="highlight">
+              <h3>📈 Основные метрики</h3>
+              <ul>
+                <li><strong>Общее количество пользователей</strong></li>
+                <li><strong>Активные партнеры</strong></li>
+                <li><strong>Общая сумма заказов</strong></li>
+                <li><strong>Баланс партнеров</strong></li>
+              </ul>
+            </div>
+            <h3>Детальная аналитика:</h3>
+            <ul>
+              <li><strong>Заказы по статусам:</strong> NEW, PROCESSING, COMPLETED, CANCELLED</li>
+              <li><strong>Партнерская статистика:</strong> Уровни, рефералы, бонусы</li>
+              <li><strong>Финансовая отчетность:</strong> Доходы, выплаты, остатки</li>
+            </ul>
+          </div>
+
+          <div class="section">
+            <h2>🚨 Устранение неполадок</h2>
+            <div class="grid">
+              <div class="card">
+                <h4>❓ Частые проблемы</h4>
+                <ul>
+                  <li>Не загружается страница</li>
+                  <li>Ошибка авторизации</li>
+                  <li>Не сохраняются изменения</li>
+                  <li>Медленная работа</li>
+                </ul>
+              </div>
+              <div class="card">
+                <h4>📞 Контакты поддержки</h4>
+                <p><strong>Telegram:</strong> @diglukhov</p>
+                <p><strong>Email:</strong> support@plazma.com</p>
+                <p><strong>Документация:</strong> Этот файл</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h2>🔐 Безопасность</h2>
+            <div class="code">
+              <strong>Доступ к админ панели:</strong><br>
+              • Аутентификация: Логин и пароль<br>
+              • Сессии: Автоматический выход при неактивности<br>
+              • Логирование: Все действия записываются
+            </div>
+            <div class="code">
+              <strong>Управление данными:</strong><br>
+              • Резервное копирование: Автоматические бэкапы<br>
+              • Валидация: Проверка всех входящих данных<br>
+              • Аудит: История изменений
+            </div>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
 router.get('/logout', (req, res) => {
   const session = req.session as any;
   session.isAdmin = false;
