@@ -1441,7 +1441,7 @@ router.get('/', requireAdmin, async (req, res) => {
               case 'orders': sortBy.value = 'orders'; break;
               case 'activity': sortBy.value = 'activity'; break;
             }
-            applySorting();
+            // applySorting(); // ОТКЛЮЧЕНО
           }
           function applySorting() {
             var sortBy = document.getElementById('sortBy').value;
@@ -1765,10 +1765,10 @@ router.get('/', requireAdmin, async (req, res) => {
             }
           });
           
-          // Apply default sorting on page load
-          window.addEventListener('DOMContentLoaded', function() {
-            applySorting();
-          });
+          // Apply default sorting on page load - ОТКЛЮЧЕНО
+          // window.addEventListener('DOMContentLoaded', function() {
+          //   applySorting();
+          // });
 
           // Global functions for user actions
           window.showUserPartners = function(userId, userName) {
