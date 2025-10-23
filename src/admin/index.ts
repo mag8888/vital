@@ -132,6 +132,8 @@ export async function setupAdminPanel(app: Application) {
               isRequired: false,
               position: 4, // Позиция после description
               label: '📋 Инструкция по применению',
+              isSortable: false,
+              isArray: false,
             },
             price: {
               type: 'number',
