@@ -227,7 +227,16 @@ async function handleProductMore(ctx: Context, productId: string) {
 
   await logUserAction(ctx, 'shop:product-details', { productId });
   await ctx.answerCbQuery();
-  await ctx.reply(`ℹ️ ${product.title}\n\n${product.description}`);
+  
+  // Создаем кнопки для действий с товаром
+  const actionButtons = [
+    [
+      Markup.button.callback('🛒 В корзину', `${PRODUCT_CART_PREFIX}${product.id}`),
+      Markup.button.callback('💳 Купить', `${PRODUCT_BUY_PREFIX}${product.id}`)
+    ]
+  ];
+  
+  await ctx.reply(`ℹ️ ${product.title}\n\n${product.description}`, Markup.inlineKeyboard(actionButtons));
 }
 
 async function handleProductInstruction(ctx: Context, productId: string) {
@@ -239,7 +248,16 @@ async function handleProductInstruction(ctx: Context, productId: string) {
 
   await logUserAction(ctx, 'shop:product-instruction', { productId });
   await ctx.answerCbQuery();
-  await ctx.reply(`📋 Инструкция по применению\n\n${product.title}\n\n${product.instruction}`);
+  
+  // Создаем кнопки для действий с товаром
+  const actionButtons = [
+    [
+      Markup.button.callback('🛒 В корзину', `${PRODUCT_CART_PREFIX}${product.id}`),
+      Markup.button.callback('💳 Купить', `${PRODUCT_BUY_PREFIX}${product.id}`)
+    ]
+  ];
+  
+  await ctx.reply(`📋 Инструкция по применению\n\n${product.title}\n\n${product.instruction}`, Markup.inlineKeyboard(actionButtons));
 }
 
 async function handleBuy(ctx: Context, productId: string) {
