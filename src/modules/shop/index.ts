@@ -154,14 +154,24 @@ async function sendProductCards(ctx: Context, categoryId: string, region?: strin
       console.log(`🛍️ Product: ${product.title}, ImageUrl: ${product.imageUrl}`);
       
       const buttons = [];
+      
+      // Первая строка: Подробнее + Инструкция
+      const firstRow = [];
       if (product.description) {
-        buttons.push(Markup.button.callback('📖 Подробнее', `${PRODUCT_MORE_PREFIX}${product.id}`));
+        firstRow.push(Markup.button.callback('📖 Подробнее', `${PRODUCT_MORE_PREFIX}${product.id}`));
       }
       if (product.instruction) {
-        buttons.push(Markup.button.callback('📋 Инструкция', `${PRODUCT_INSTRUCTION_PREFIX}${product.id}`));
+        firstRow.push(Markup.button.callback('📋 Инструкция', `${PRODUCT_INSTRUCTION_PREFIX}${product.id}`));
       }
-      buttons.push(Markup.button.callback('🛒 В корзину', `${PRODUCT_CART_PREFIX}${product.id}`));
-      buttons.push(Markup.button.callback('💳 Купить', `${PRODUCT_BUY_PREFIX}${product.id}`));
+      if (firstRow.length > 0) {
+        buttons.push(firstRow);
+      }
+      
+      // Вторая строка: В корзину + Купить
+      const secondRow = [];
+      secondRow.push(Markup.button.callback('🛒 В корзину', `${PRODUCT_CART_PREFIX}${product.id}`));
+      secondRow.push(Markup.button.callback('💳 Купить', `${PRODUCT_BUY_PREFIX}${product.id}`));
+      buttons.push(secondRow);
 
       const message = formatProductMessage(product);
       
@@ -169,11 +179,11 @@ async function sendProductCards(ctx: Context, categoryId: string, region?: strin
         console.log(`🛍️ Sending product with image: ${product.imageUrl}`);
         await ctx.replyWithPhoto(product.imageUrl, {
           caption: message,
-          ...Markup.inlineKeyboard([buttons]),
+          ...Markup.inlineKeyboard(buttons),
         });
       } else {
         console.log(`🛍️ Sending product without image (no imageUrl)`);
-        await ctx.reply(message, Markup.inlineKeyboard([buttons]));
+        await ctx.reply(message, Markup.inlineKeyboard(buttons));
       }
       
       // Add 1 second delay between products (except for the last one)
