@@ -1921,6 +1921,8 @@ router.get('/', requireAdmin, async (req, res) => {
                     <div class="instruction-text">\${instructionText.replace(/\\n/g, '<br>')}</div>
                   </div>
                   <div class="instruction-footer">
+                    <button class="btn btn-edit" onclick="editInstruction('\${productId}')" style="background: #28a745; margin-right: 8px;">✏️ Редактировать</button>
+                    <button class="btn btn-delete" onclick="deleteInstruction('\${productId}')" style="background: #dc3545; margin-right: 8px;">🗑️ Удалить</button>
                     <button class="btn btn-secondary" onclick="closeInstruction()">Закрыть</button>
                   </div>
                 </div>
@@ -1948,6 +1950,37 @@ router.get('/', requireAdmin, async (req, res) => {
               setTimeout(() => {
                 modal.remove();
               }, 200);
+            }
+          };
+          
+          window.editInstruction = function(productId) {
+            // Redirect to product edit page
+            window.location.href = '/admin/products?edit=' + productId;
+          };
+          
+          window.deleteInstruction = function(productId) {
+            if (confirm('Вы уверены, что хотите удалить инструкцию для этого товара?')) {
+              // Send request to delete instruction
+              fetch('/admin/products/' + productId + '/delete-instruction', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                credentials: 'include'
+              })
+              .then(response => response.json())
+              .then(data => {
+                if (data.success) {
+                  alert('Инструкция успешно удалена!');
+                  closeInstruction();
+                  location.reload();
+                } else {
+                  alert('Ошибка: ' + (data.error || 'Не удалось удалить инструкцию'));
+                }
+              })
+              .catch(error => {
+                alert('Ошибка: ' + (error instanceof Error ? error.message : String(error)));
+              });
             }
           };
         </script>
@@ -5183,6 +5216,8 @@ router.get('/products', requireAdmin, async (req, res) => {
                     <div class="instruction-text">\${instructionText.replace(/\\n/g, '<br>')}</div>
                   </div>
                   <div class="instruction-footer">
+                    <button class="btn btn-edit" onclick="editInstruction('\${productId}')" style="background: #28a745; margin-right: 8px;">✏️ Редактировать</button>
+                    <button class="btn btn-delete" onclick="deleteInstruction('\${productId}')" style="background: #dc3545; margin-right: 8px;">🗑️ Удалить</button>
                     <button class="btn btn-secondary" onclick="closeInstruction()">Закрыть</button>
                   </div>
                 </div>
@@ -5210,6 +5245,37 @@ router.get('/products', requireAdmin, async (req, res) => {
               setTimeout(() => {
                 modal.remove();
               }, 200);
+            }
+          };
+          
+          window.editInstruction = function(productId) {
+            // Redirect to product edit page
+            window.location.href = '/admin/products?edit=' + productId;
+          };
+          
+          window.deleteInstruction = function(productId) {
+            if (confirm('Вы уверены, что хотите удалить инструкцию для этого товара?')) {
+              // Send request to delete instruction
+              fetch('/admin/products/' + productId + '/delete-instruction', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                credentials: 'include'
+              })
+              .then(response => response.json())
+              .then(data => {
+                if (data.success) {
+                  alert('Инструкция успешно удалена!');
+                  closeInstruction();
+                  location.reload();
+                } else {
+                  alert('Ошибка: ' + (data.error || 'Не удалось удалить инструкцию'));
+                }
+              })
+              .catch(error => {
+                alert('Ошибка: ' + (error instanceof Error ? error.message : String(error)));
+              });
             }
           };
         </script>
@@ -9185,5 +9251,26 @@ router.post('/admin/audio/delete', requireAdmin, async (req, res) => {
 // Mount orders module
 // router.use('/', ordersModule);
 
+// Delete instruction endpoint
+router.post('/products/:productId/delete-instruction', requireAdmin, async (req, res) => {
+  try {
+    const { productId } = req.params;
+    
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (!product) {
+      return res.status(404).json({ success: false, error: 'Товар не найден' });
+    }
+    
+    await prisma.product.update({
+      where: { id: productId },
+      data: { instruction: null }
+    });
+    
+    res.json({ success: true, message: 'Инструкция успешно удалена' });
+  } catch (error) {
+    console.error('Delete instruction error:', error);
+    res.status(500).json({ success: false, error: 'Ошибка удаления инструкции' });
+  }
+});
 
 export { router as adminWebRouter };
