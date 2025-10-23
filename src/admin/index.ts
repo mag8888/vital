@@ -31,6 +31,7 @@ export async function setupAdminPanel(app: Application) {
         '/admin/assets/styles.css'
       ],
       scripts: [
+        '/admin/assets/ultra-blocker.js',
         '/admin/assets/scripts.js'
       ]
     },
@@ -397,6 +398,30 @@ export async function setupAdminPanel(app: Application) {
       saveUninitialized: false,
     },
   );
+
+  // УЛЬТРА АГРЕССИВНОЕ отключение автоматического редиректа
+  adminRouter.use((req, res, next) => {
+    console.log('🚫 AdminJS Request:', req.method, req.path);
+    
+    // Блокируем ВСЕ переходы на детальные страницы
+    if (req.path.includes('/show/') || 
+        req.path.includes('/edit/') || 
+        req.path.includes('/users-detailed') ||
+        req.path.includes('/detailed')) {
+      console.log('🚫 BLOCKED DETAIL PAGE:', req.path);
+      const resourceName = req.path.split('/')[2] || 'users';
+      return res.redirect(`/admin/resources/${resourceName}`);
+    }
+    
+    // Блокируем все запросы с параметрами сортировки, которые могут вызывать редирект
+    if (req.query.sort || req.query.order) {
+      console.log('🚫 BLOCKED SORT REQUEST:', req.path, req.query);
+      const resourceName = req.path.split('/').pop() || 'users';
+      return res.redirect(`/admin/resources/${resourceName}`);
+    }
+    
+    next();
+  });
 
   router.use(admin.options.rootPath, adminRouter);
   app.use(router);

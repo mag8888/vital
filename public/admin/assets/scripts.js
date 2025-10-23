@@ -1,7 +1,50 @@
-// Отключение автоматического перехода на детальную страницу
+// АГРЕССИВНОЕ отключение автоматического перехода на детальную страницу
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('🚫 AdminJS redirect blocker loaded');
-  
+  console.log('🚫 AdminJS ULTRA AGGRESSIVE redirect blocker loaded');
+
+  // Полностью блокируем все переходы
+  function blockAllNavigation() {
+    // Блокируем все ссылки
+    const allLinks = document.querySelectorAll('a');
+    allLinks.forEach(link => {
+      link.onclick = function(e) {
+        console.log('🚫 BLOCKED LINK CLICK:', link.href);
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return false;
+      };
+      link.style.pointerEvents = 'none';
+      link.style.cursor = 'default';
+    });
+
+    // Блокируем все формы
+    const allForms = document.querySelectorAll('form');
+    allForms.forEach(form => {
+      form.onsubmit = function(e) {
+        console.log('🚫 BLOCKED FORM SUBMIT');
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return false;
+      };
+    });
+
+    // Блокируем все кнопки кроме action buttons
+    const allButtons = document.querySelectorAll('button');
+    allButtons.forEach(button => {
+      if (!button.classList.contains('adminjs-button')) {
+        button.onclick = function(e) {
+          console.log('🚫 BLOCKED BUTTON CLICK');
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          return false;
+        };
+      }
+    });
+  }
+
   // Функция для отключения клика по строкам
   function disableRowClicks() {
     const tableRows = document.querySelectorAll('.adminjs-table tbody tr');
@@ -10,14 +53,14 @@ document.addEventListener('DOMContentLoaded', function() {
       row.onclick = null;
       row.style.cursor = 'default';
       row.style.pointerEvents = 'none';
-      
+
       // Убираем обработчики с ячеек
       const cells = row.querySelectorAll('td');
       cells.forEach(cell => {
         cell.onclick = null;
         cell.style.cursor = 'default';
         cell.style.pointerEvents = 'none';
-        
+
         // Убираем все ссылки в ячейках
         const links = cell.querySelectorAll('a');
         links.forEach(link => {
@@ -35,6 +78,9 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Отключаем клики сразу
   disableRowClicks();
+  
+  // Блокируем всю навигацию
+  blockAllNavigation();
   
   // Более агрессивное отключение
   const observer = new MutationObserver(function(mutations) {
