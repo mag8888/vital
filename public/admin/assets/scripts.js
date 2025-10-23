@@ -6,14 +6,43 @@ document.addEventListener('DOMContentLoaded', function() {
     // Убираем все обработчики событий
     row.onclick = null;
     row.style.cursor = 'default';
+    row.style.pointerEvents = 'none';
     
     // Убираем обработчики с ячеек
     const cells = row.querySelectorAll('td');
     cells.forEach(cell => {
       cell.onclick = null;
       cell.style.cursor = 'default';
+      cell.style.pointerEvents = 'none';
     });
   });
+  
+  // Более агрессивное отключение
+  const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      if (mutation.type === 'childList') {
+        const newRows = document.querySelectorAll('.adminjs-table tbody tr');
+        newRows.forEach(row => {
+          row.onclick = null;
+          row.style.cursor = 'default';
+          row.style.pointerEvents = 'none';
+          
+          const cells = row.querySelectorAll('td');
+          cells.forEach(cell => {
+            cell.onclick = null;
+            cell.style.cursor = 'default';
+            cell.style.pointerEvents = 'none';
+          });
+        });
+      }
+    });
+  });
+  
+  // Наблюдаем за изменениями в DOM
+  const tableContainer = document.querySelector('.adminjs-table');
+  if (tableContainer) {
+    observer.observe(tableContainer, { childList: true, subtree: true });
+  }
   
   // Добавляем обработчики только для кнопок действий
   const actionButtons = document.querySelectorAll('.adminjs-button');

@@ -1,6 +1,7 @@
 /* Отключение автоматического перехода на детальную страницу */
 .adminjs-table-row {
   cursor: default !important;
+  pointer-events: none !important;
 }
 
 .adminjs-table-row:hover {
@@ -10,6 +11,18 @@
 /* Убираем pointer cursor с строк таблицы */
 .adminjs-table-row td {
   cursor: default !important;
+  pointer-events: none !important;
+}
+
+/* Отключение всех ссылок в строках */
+.adminjs-table tbody tr a {
+  pointer-events: none !important;
+  cursor: default !important;
+}
+
+/* Отключение клика по всему содержимому строк */
+.adminjs-table tbody tr * {
+  pointer-events: none !important;
 }
 
 /* Стили для кнопок действий */

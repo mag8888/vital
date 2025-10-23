@@ -37,6 +37,11 @@ export async function setupAdminPanel(app: Application) {
     dashboard: {
       component: 'Dashboard'
     },
+    pages: {
+      dashboard: {
+        component: 'Dashboard'
+      }
+    },
     resources: [
       {
         resource: { model: prisma.category, client: prisma },
@@ -162,6 +167,28 @@ export async function setupAdminPanel(app: Application) {
             sortBy: 'createdAt',
             direction: 'desc',
           },
+          actions: {
+            list: {
+              isAccessible: true,
+              isVisible: true,
+            },
+            show: {
+              isAccessible: false,
+              isVisible: false,
+            },
+            edit: {
+              isAccessible: true,
+              isVisible: true,
+            },
+            delete: {
+              isAccessible: true,
+              isVisible: true,
+            },
+            new: {
+              isAccessible: true,
+              isVisible: true,
+            },
+          },
           properties: {
             telegramId: {
               isTitle: true, // Делаем telegramId заголовком
@@ -258,8 +285,8 @@ export async function setupAdminPanel(app: Application) {
               isVisible: true,
             },
             show: {
-              isAccessible: true,
-              isVisible: true,
+              isAccessible: false,
+              isVisible: false,
             },
             edit: {
               isAccessible: true,
