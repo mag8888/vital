@@ -67,6 +67,7 @@ model Product {
   title            String
   summary          String
   description      String?
+  instruction      String?    // Инструкция по применению товара
   imageUrl         String?
   price            Float
   stock            Int        @default(999)

@@ -728,6 +728,46 @@ function showProductsSection(content) {
     }, 10);
 }
 
+// Show instruction modal
+function showInstruction(productId, instructionText) {
+    const modal = document.createElement('div');
+    modal.className = 'instruction-modal';
+    modal.innerHTML = `
+        <div class="instruction-overlay" onclick="closeInstruction()">
+            <div class="instruction-content" onclick="event.stopPropagation()">
+                <div class="instruction-header">
+                    <h3>📋 Инструкция по применению</h3>
+                    <button class="btn-close" onclick="closeInstruction()">×</button>
+                </div>
+                <div class="instruction-body">
+                    <div class="instruction-text">${instructionText.replace(/\n/g, '<br>')}</div>
+                </div>
+                <div class="instruction-footer">
+                    <button class="btn btn-secondary" onclick="closeInstruction()">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Add animation
+    setTimeout(() => {
+        modal.querySelector('.instruction-content').style.transform = 'scale(1)';
+    }, 10);
+}
+
+// Close instruction modal
+function closeInstruction() {
+    const modal = document.querySelector('.instruction-modal');
+    if (modal) {
+        modal.querySelector('.instruction-content').style.transform = 'scale(0.8)';
+        setTimeout(() => {
+            modal.remove();
+        }, 200);
+    }
+}
+
 // Show category products
 async function showCategoryProducts(categoryId) {
     try {
@@ -759,6 +799,7 @@ async function showCategoryProducts(categoryId) {
                             <button class="btn-buy" onclick="buyProduct('${product.id}')">
                                 🛍 Купить
                             </button>
+                            ${product.instruction ? `<button class="btn-instruction" onclick="showInstruction('${product.id}', \`${product.instruction.replace(/`/g, '\\`')}\`)">📋 Инструкция</button>` : ''}
                         </div>
                     </div>
                 `;

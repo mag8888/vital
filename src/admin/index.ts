@@ -103,8 +103,8 @@ export async function setupAdminPanel(app: Application) {
             icon: 'Package',
           },
           listProperties: ['title', 'categoryId', 'price', 'isActive'],
-          showProperties: ['title', 'summary', 'description', 'imageUrl', 'price', 'stock', 'isActive', 'availableInRussia', 'availableInBali', 'categoryId', 'createdAt', 'updatedAt'],
-          editProperties: ['title', 'summary', 'description', 'imageUrl', 'price', 'stock', 'isActive', 'availableInRussia', 'availableInBali', 'categoryId'],
+          showProperties: ['title', 'summary', 'description', 'instruction', 'imageUrl', 'price', 'stock', 'isActive', 'availableInRussia', 'availableInBali', 'categoryId', 'createdAt', 'updatedAt'],
+          editProperties: ['title', 'summary', 'description', 'instruction', 'imageUrl', 'price', 'stock', 'isActive', 'availableInRussia', 'availableInBali', 'categoryId'],
           filterProperties: ['title', 'isActive', 'availableInRussia', 'availableInBali'],
           sort: {
             sortBy: 'title',
@@ -116,6 +116,12 @@ export async function setupAdminPanel(app: Application) {
             },
             description: {
               type: 'richtext',
+            },
+            instruction: {
+              type: 'textarea',
+              props: {
+                rows: 6,
+              },
             },
             price: {
               type: 'number',
