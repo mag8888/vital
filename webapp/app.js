@@ -401,35 +401,91 @@ async function buyProduct(productId) {
 
 async function activatePartnerProgram(type) {
     try {
-        console.log('🤝 Activating partner program:', type);
+        console.log('🤝 Showing partner program info:', type);
         
-        const response = await fetch(`${API_BASE}/partner/activate`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ type })
-        });
+        // Генерируем простой реферальный код для демонстрации
+        const referralCode = 'PLAZMA' + Math.random().toString(36).substr(2, 6).toUpperCase();
         
-        if (response.ok) {
-            const data = await response.json();
-            console.log('✅ Partner program activated:', data);
-            showSuccess(data.message || 'Партнёрская программа активирована!');
+        // Создаем реферальную ссылку
+        const referralLink = `https://t.me/plazma_water_bot?start=${referralCode}`;
+        
+        // Текст как в боте
+        let message = '';
+        let shareText = '';
+        
+        if (type === 'DIRECT') {
+            message = `💰 Прямая комиссия — 25%
+Делитесь ссылкой → получаете 25% от всех покупок друзей.
+
+💡 Условия бонуса:
+• Ваш бонус 10%
+• Бонус 25% начнет действовать при Вашей активности 120PZ в месяц
+
+📲 Выбирайте удобный формат и начинайте зарабатывать уже сегодня!`;
             
-            // If we have a referral code, show it
-            if (data.referralCode) {
-                setTimeout(() => {
-                    showSuccess(`Ваш реферальный код: ${data.referralCode}`);
-                }, 1000);
-            }
+            shareText = `Дружище 🌟
+Я желаю тебе энергии, здоровья и внутренней силы, поэтому делюсь с тобой этим ботом 💧
+Попробуй PLAZMA Water — технология будущего, которая реально меняет состояние ⚡️
+🔗 Твоя ссылка:
+${referralLink}`;
         } else {
-            const errorData = await response.json();
-            console.error('Partner activation failed:', errorData);
-            showError(`Ошибка активации программы: ${errorData.error || 'Неизвестная ошибка'}`);
+            message = `📈 Многоуровневая система — 15% + 5% + 5%
+• 15% с покупок ваших друзей (1-й уровень)
+• 5% с покупок их друзей (2-й уровень)
+• 5% с покупок следующего уровня (3-й уровень)
+
+💡 Условия бонуса:
+• Ваш бонус 10%
+• Бонус 15%+5%+5% начнет действовать при Вашей активности 120PZ в месяц
+
+📲 Выбирайте удобный формат и начинайте зарабатывать уже сегодня!`;
+            
+            shareText = `Дружище 🌟
+Я желаю тебе энергии, здоровья и внутренней силы, поэтому делюсь с тобой этим ботом 💧
+Попробуй PLAZMA Water — технология будущего, которая реально меняет состояние ⚡️
+🔗 Твоя ссылка (сеть 15% + 5% + 5%):
+${referralLink}`;
         }
+        
+        // Показываем информацию о программе
+        showSuccess('Партнёрская программа активирована!');
+        
+        // Показываем реферальную ссылку
+        setTimeout(() => {
+            const content = `
+                <div class="content-section">
+                    <h3>🎉 Партнёрская программа активирована!</h3>
+                    <p>${message}</p>
+                    
+                    <div style="background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%); 
+                                border: 1px solid rgba(255, 255, 255, 0.1); 
+                                border-radius: 12px; 
+                                padding: 16px; 
+                                margin: 20px 0;">
+                        <h4 style="color: #ffffff; margin-bottom: 8px;">🔗 Ваша реферальная ссылка:</h4>
+                        <p style="color: #cccccc; word-break: break-all; font-family: monospace;">${referralLink}</p>
+                    </div>
+                    
+                    <div style="margin: 20px 0;">
+                        <button class="btn" onclick="copyReferralLink('${referralLink}')">
+                            📋 Скопировать ссылку
+                        </button>
+                    </div>
+                    
+                    <div style="margin: 20px 0;">
+                        <button class="btn btn-secondary" onclick="showShareText('${shareText.replace(/'/g, "\\'")}')">
+                            📤 Показать текст для отправки
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            showProductsSection(content);
+        }, 1000);
+        
     } catch (error) {
-        console.error('Error activating partner program:', error);
-        showError('Ошибка активации программы');
+        console.error('Error showing partner program:', error);
+        showError('Ошибка отображения программы');
     }
 }
 
@@ -531,6 +587,105 @@ function openTelegram() {
         // Fallback - открываем в новом окне/вкладке
         window.open(telegramUrl, '_blank');
     }
+}
+
+// Функции для партнёрской программы
+function copyReferralLink(link) {
+    try {
+        navigator.clipboard.writeText(link).then(() => {
+            showSuccess('Ссылка скопирована в буфер обмена!');
+        }).catch(() => {
+            // Fallback для старых браузеров
+            const textArea = document.createElement('textarea');
+            textArea.value = link;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            showSuccess('Ссылка скопирована!');
+        });
+    } catch (error) {
+        console.error('Error copying link:', error);
+        showError('Не удалось скопировать ссылку');
+    }
+}
+
+function showShareText(text) {
+    const content = `
+        <div class="content-section">
+            <h3>📤 Текст для отправки друзьям</h3>
+            <div style="background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%); 
+                        border: 1px solid rgba(255, 255, 255, 0.1); 
+                        border-radius: 12px; 
+                        padding: 16px; 
+                        margin: 20px 0;">
+                <p style="color: #ffffff; white-space: pre-line; line-height: 1.5;">${text}</p>
+            </div>
+            
+            <div style="margin: 20px 0;">
+                <button class="btn" onclick="copyShareText('${text.replace(/'/g, "\\'")}')">
+                    📋 Скопировать текст
+                </button>
+            </div>
+            
+            <div style="margin: 20px 0;">
+                <button class="btn btn-secondary" onclick="showPartnerProgram()">
+                    ← Назад к программе
+                </button>
+            </div>
+        </div>
+    `;
+    
+    showProductsSection(content);
+}
+
+function copyShareText(text) {
+    try {
+        navigator.clipboard.writeText(text).then(() => {
+            showSuccess('Текст скопирован в буфер обмена!');
+        }).catch(() => {
+            // Fallback для старых браузеров
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            showSuccess('Текст скопирован!');
+        });
+    } catch (error) {
+        console.error('Error copying text:', error);
+        showError('Не удалось скопировать текст');
+    }
+}
+
+function showPartnerProgram() {
+    const content = `
+        <div class="content-section">
+            <h3>Партнёрская программа</h3>
+            <p>Станьте партнёром Plazma Water и получайте до 25% от каждой покупки по вашей ссылке!</p>
+            
+            <div style="margin: 20px 0;">
+                <button class="btn" onclick="activatePartnerProgram('DIRECT')">
+                    💰 Прямая комиссия 25%
+                </button>
+            </div>
+            
+            <div style="margin: 20px 0;">
+                <button class="btn btn-secondary" onclick="activatePartnerProgram('MULTI_LEVEL')">
+                    📈 Многоуровневая 15% + 5% + 5%
+                </button>
+            </div>
+            
+            <div style="margin: 20px 0;">
+                <button class="btn btn-secondary" onclick="showPartnerDashboard()">
+                    📊 Личный кабинет
+                </button>
+            </div>
+        </div>
+    `;
+    
+    showProductsSection(content);
 }
 
 function sendMessage() {
