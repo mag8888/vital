@@ -26,6 +26,17 @@ export async function setupAdminPanel(app: Application) {
     branding: {
       companyName: 'Plazma Water MM',
     },
+    assets: {
+      styles: [
+        '/admin/assets/styles.css'
+      ],
+      scripts: [
+        '/admin/assets/scripts.js'
+      ]
+    },
+    dashboard: {
+      component: 'Dashboard'
+    },
     resources: [
       {
         resource: { model: prisma.category, client: prisma },
@@ -240,6 +251,28 @@ export async function setupAdminPanel(app: Application) {
           sort: {
             sortBy: 'updatedAt',
             direction: 'desc',
+          },
+          actions: {
+            list: {
+              isAccessible: true,
+              isVisible: true,
+            },
+            show: {
+              isAccessible: true,
+              isVisible: true,
+            },
+            edit: {
+              isAccessible: true,
+              isVisible: true,
+            },
+            delete: {
+              isAccessible: true,
+              isVisible: true,
+            },
+            new: {
+              isAccessible: true,
+              isVisible: true,
+            },
           },
           properties: {
             key: {
