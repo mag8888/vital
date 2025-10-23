@@ -122,9 +122,42 @@ export async function setupAdminPanel(app: Application) {
               props: {
                 rows: 6,
               },
+              isVisible: {
+                list: false,
+                edit: true,
+                show: true,
+                filter: false,
+              },
             },
             price: {
               type: 'number',
+            },
+            isActive: {
+              type: 'boolean',
+              isVisible: {
+                list: true,
+                edit: true,
+                show: true,
+                filter: true,
+              },
+            },
+            availableInRussia: {
+              type: 'boolean',
+              isVisible: {
+                list: true,
+                edit: true,
+                show: true,
+                filter: true,
+              },
+            },
+            availableInBali: {
+              type: 'boolean',
+              isVisible: {
+                list: true,
+                edit: true,
+                show: true,
+                filter: true,
+              },
             },
           },
         },
