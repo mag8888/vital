@@ -415,6 +415,10 @@ export const navigationModule: BotModule = {
     // Handle app command - open webapp directly
     bot.command('app', async (ctx) => {
       await logUserAction(ctx, 'command:app');
+      
+      const webappUrl = `${env.webappUrl}/webapp`;
+      console.log('🌐 WebApp URL:', webappUrl);
+      
       await ctx.reply(
         '🌐 <b>Открываю веб-приложение Plazma Water...</b>',
         {
@@ -424,7 +428,7 @@ export const navigationModule: BotModule = {
               [
                 {
                   text: '🚀 Открыть приложение',
-                  web_app: { url: `${env.webappUrl}/webapp` }
+                  web_app: { url: webappUrl }
                 }
               ]
             ]
