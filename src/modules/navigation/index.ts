@@ -412,12 +412,11 @@ export const navigationModule: BotModule = {
       await showSupport(ctx);
     });
 
-    // Handle app command - open webapp
+    // Handle app command - open webapp directly
     bot.command('app', async (ctx) => {
       await logUserAction(ctx, 'command:app');
       await ctx.reply(
-        '🌐 <b>Веб-приложение Plazma Water</b>\n\n' +
-        'Откройте веб-приложение для удобного просмотра товаров и оформления заказов:',
+        '🌐 <b>Открываю веб-приложение Plazma Water...</b>',
         {
           parse_mode: 'HTML',
           reply_markup: {
@@ -426,12 +425,6 @@ export const navigationModule: BotModule = {
                 {
                   text: '🚀 Открыть приложение',
                   web_app: { url: `${env.webappUrl}/webapp` }
-                }
-              ],
-              [
-                {
-                  text: '📱 Как пользоваться',
-                  callback_data: 'nav:app:help'
                 }
               ]
             ]
