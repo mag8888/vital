@@ -112,7 +112,12 @@ class LavaService {
    * Проверка webhook подписи
    */
   verifyWebhookSignature(payload: string, signature: string): boolean {
-    const expectedSignature = this.createSignature(payload);
+    const webhookSecret = process.env.LAVA_WEBHOOK_SECRET || this.config.secretKey;
+    const expectedSignature = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(payload)
+      .digest('hex');
+    
     return crypto.timingSafeEqual(
       Buffer.from(signature, 'hex'),
       Buffer.from(expectedSignature, 'hex')

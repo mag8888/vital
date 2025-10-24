@@ -23,9 +23,41 @@ Lava.top - это платежный сервис для Telegram ботов, к
 # Lava.top Integration
 LAVA_PROJECT_ID=your_project_id_here
 LAVA_SECRET_KEY=your_secret_key_here
-LAVA_WEBHOOK_SECRET=your_webhook_secret_here
+LAVA_WEBHOOK_SECRET=your_custom_webhook_secret_here
 LAVA_BASE_URL=https://api.lava.top
 ```
+
+**⚠️ ВАЖНО**: `LAVA_WEBHOOK_SECRET` - это **ваш собственный** секретный ключ, который вы создаете для подписи webhook'ов. Это НЕ ключ от Lava.top!
+
+#### Генерация LAVA_WEBHOOK_SECRET:
+
+```bash
+# Способ 1: Через OpenSSL (рекомендуется)
+openssl rand -hex 32
+
+# Способ 2: Через Node.js
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# Способ 3: Через Python
+python3 -c "import secrets; print(secrets.token_hex(32))"
+
+# Способ 4: Простая строка (менее безопасно)
+echo "plazma-water-webhook-$(date +%s)"
+```
+
+**Пример результата:**
+```
+a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456
+```
+
+#### Автоматическая генерация:
+
+```bash
+# Используйте готовый скрипт
+node scripts/generate-webhook-secret.js
+```
+
+Этот скрипт автоматически сгенерирует безопасный ключ и покажет инструкции по настройке.
 
 ### 3. Установка зависимостей
 
