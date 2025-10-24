@@ -961,6 +961,15 @@ async function requestDeliveryAddress() {
                     ✏️ Ввести свой вариант
                 </button>
             </div>
+            
+            <div style="margin: 30px 0; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                <button class="btn btn-outline" onclick="skipAddress()" style="margin-right: 10px;">
+                    ⏭️ Пропустить
+                </button>
+                <button class="btn btn-outline" onclick="closeSection()">
+                    ❌ Отмена
+                </button>
+            </div>
         </div>
     `;
     
@@ -983,13 +992,19 @@ async function showAddressConfirmation(address) {
             
             <div style="margin: 20px 0;">
                 <button class="btn" onclick="confirmAddress('${address}')">
-                    ✅ Да, доставить сюда
+                    💾 Сохранить и продолжить
                 </button>
             </div>
             
             <div style="margin: 20px 0;">
                 <button class="btn btn-secondary" onclick="changeAddress()">
                     ✏️ Изменить адрес
+                </button>
+            </div>
+            
+            <div style="margin: 20px 0;">
+                <button class="btn btn-outline" onclick="skipAddress()">
+                    ⏭️ Пропустить адрес
                 </button>
             </div>
         </div>
@@ -1050,23 +1065,83 @@ async function savePhoneNumber(phone) {
 
 // Address functions
 async function selectAddressType(type) {
-    let promptText = '';
+    let title = '';
+    let placeholder = '';
+    let example = '';
+    
     switch (type) {
         case 'bali':
-            promptText = 'Укажите адрес для Бали:\nНапишите район и название виллы (например: "Семиньяк, Villa Seminyak Resort")';
+            title = '🇮🇩 Адрес для Бали';
+            placeholder = 'Например: Семиньяк, Villa Seminyak Resort';
+            example = 'Укажите район и название виллы';
             break;
         case 'russia':
-            promptText = 'Укажите адрес для России:\nНапишите ваш город и точный адрес (например: "Москва, ул. Тверская, д. 10, кв. 5")';
+            title = '🇷🇺 Адрес для России';
+            placeholder = 'Например: Москва, ул. Тверская, д. 10, кв. 5';
+            example = 'Укажите город и точный адрес';
             break;
         case 'custom':
-            promptText = 'Введите свой вариант адреса:\nНапишите полный адрес доставки в произвольной форме.';
+            title = '✏️ Ваш адрес';
+            placeholder = 'Введите полный адрес доставки';
+            example = 'Укажите адрес в произвольной форме';
             break;
     }
     
-    const address = prompt(promptText);
-    if (address) {
-        await saveDeliveryAddress(type, address);
+    const content = `
+        <div class="content-section">
+            <h3>${title}</h3>
+            <p>${example}:</p>
+            
+            <div style="margin: 20px 0;">
+                <input type="text" id="addressInput" placeholder="${placeholder}" 
+                       style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2); 
+                              background: rgba(255, 255, 255, 0.1); color: white; font-size: 16px;">
+            </div>
+            
+            <div style="margin: 20px 0;">
+                <button class="btn" onclick="saveAddressFromInput('${type}')">
+                    💾 Сохранить адрес
+                </button>
+            </div>
+            
+            <div style="margin: 20px 0;">
+                <button class="btn btn-outline" onclick="requestDeliveryAddress()">
+                    ← Назад к выбору
+                </button>
+            </div>
+        </div>
+    `;
+    
+    showProductsSection(content);
+    
+    // Focus on input
+    setTimeout(() => {
+        const input = document.getElementById('addressInput');
+        if (input) {
+            input.focus();
+        }
+    }, 100);
+}
+
+async function saveAddressFromInput(type) {
+    const input = document.getElementById('addressInput');
+    const address = input ? input.value.trim() : '';
+    
+    if (!address) {
+        showError('Пожалуйста, введите адрес');
+        return;
     }
+    
+    await saveDeliveryAddress(type, address);
+}
+
+async function skipAddress() {
+    showSuccess('Адрес пропущен. Заказ будет обработан без указания адреса.');
+    closeSection();
+}
+
+async function changeAddress() {
+    await requestDeliveryAddress();
 }
 
 async function saveDeliveryAddress(type, address) {
