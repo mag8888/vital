@@ -790,9 +790,9 @@ async function showCategoryProducts(categoryId) {
             products.forEach(product => {
                 content += `
                     <div class="product-tile">
-                        ${product.imageUrl ? `<div class="product-image"><img src="${product.imageUrl}" alt="${product.title}" onerror="this.style.display='none'"></div>` : '<div class="product-image-placeholder">📦</div>'}
-                        <h4>${product.title}</h4>
-                        <div class="product-description">${product.summary || product.description || 'Описание товара'}</div>
+                        ${product.imageUrl ? `<div class="product-image" onclick="showProductDetails('${product.id}')"><img src="${product.imageUrl}" alt="${product.title}" onerror="this.style.display='none'"></div>` : '<div class="product-image-placeholder" onclick="showProductDetails(\'' + product.id + '\')">📦</div>'}
+                        <h4 onclick="showProductDetails('${product.id}')">${product.title}</h4>
+                        <div class="product-description" onclick="showProductDetails('${product.id}')">${product.summary || product.description || 'Описание товара'}</div>
                         <div class="product-actions">
                             <button class="btn-add-to-cart" onclick="addToCart('${product.id}')">
                                 🛒 В корзину
@@ -1213,3 +1213,61 @@ window.addEventListener('popstate', function(e) {
         closeSection();
     }
 });
+
+// Show product details function
+async function showProductDetails(productId) {
+    try {
+        console.log('📖 Showing product details for:', productId);
+        
+        const response = await fetch(`${API_BASE}/products/${productId}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch product details');
+        }
+        
+        const product = await response.json();
+        
+        // Create detailed product view
+        let content = `
+            <div class="product-details">
+                <div class="product-details-header">
+                    <button class="btn-back" onclick="showCategoryProducts('${product.categoryId}')">
+                        ← Назад к товарам
+                    </button>
+                    <h2>${product.title}</h2>
+                </div>
+                
+                <div class="product-details-content">
+                    ${product.imageUrl ? `<div class="product-details-image"><img src="${product.imageUrl}" alt="${product.title}" onerror="this.style.display='none'"></div>` : ''}
+                    
+                    <div class="product-details-info">
+                        <div class="product-price">💰 Цена: ${product.price}₽</div>
+                        <div class="product-stock">📦 В наличии: ${product.stock} шт.</div>
+                        
+                        ${product.summary ? `<div class="product-summary"><h4>Краткое описание:</h4><p>${product.summary}</p></div>` : ''}
+                        
+                        ${product.description ? `<div class="product-description-full"><h4>Подробное описание:</h4><p>${product.description}</p></div>` : ''}
+                        
+                        ${product.instruction ? `<div class="product-instruction"><h4>📋 Инструкция по применению:</h4><p>${product.instruction}</p></div>` : ''}
+                    </div>
+                    
+                    <div class="product-details-actions">
+                        <button class="btn-add-to-cart" onclick="addToCart('${product.id}')">
+                            🛒 В корзину
+                        </button>
+                        <button class="btn-buy" onclick="buyProduct('${product.id}')">
+                            🛍 Купить
+                        </button>
+                        ${product.instruction ? `<button class="btn-instruction" onclick="showInstruction('${product.id}', \`${product.instruction.replace(/`/g, '\\`')}\`)">📋 Инструкция</button>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Show the product details section
+        showProductsSection(content);
+        
+    } catch (error) {
+        console.error('Error loading product details:', error);
+        showError('Ошибка загрузки подробной информации о товаре');
+    }
+}

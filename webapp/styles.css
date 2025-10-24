@@ -982,3 +982,120 @@ body {
     overflow: visible;
     width: 100%;
 }
+
+/* Product details styles */
+.product-details {
+    width: 100%;
+    max-width: 100%;
+}
+
+.product-details-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.product-details-header h2 {
+    color: var(--text-primary);
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.product-details-content {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.product-details-image {
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.product-details-image img {
+    width: 100%;
+    height: auto;
+    object-fit: cover;
+}
+
+.product-details-info {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.product-price,
+.product-stock {
+    color: var(--text-primary);
+    font-size: 16px;
+    font-weight: 600;
+    padding: 12px 16px;
+    background: var(--accent-soft);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+}
+
+.product-summary,
+.product-description-full,
+.product-instruction {
+    background: rgba(9, 18, 36, 0.85);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 20px;
+}
+
+.product-summary h4,
+.product-description-full h4,
+.product-instruction h4 {
+    color: var(--text-primary);
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 12px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.product-summary p,
+.product-description-full p,
+.product-instruction p {
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.product-details-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 24px;
+}
+
+/* Make product image and description clickable */
+.product-image,
+.product-image-placeholder,
+.product-tile h4,
+.product-description {
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.product-image:hover,
+.product-image-placeholder:hover,
+.product-tile h4:hover,
+.product-description:hover {
+    opacity: 0.8;
+    transform: scale(1.02);
+}
