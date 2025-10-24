@@ -390,7 +390,7 @@ async function addToCart(productId) {
         
         if (response.ok) {
             showSuccess('Товар добавлен в корзину!');
-            loadCartItems(); // This will call updateCartBadge()
+            loadCartItems(); // This will refresh cart items
         } else {
             showError('Ошибка добавления в корзину');
         }
@@ -853,7 +853,7 @@ async function addToCart(productId) {
         
         if (response.ok) {
             showSuccess('Товар добавлен в корзину!');
-            loadCartItems(); // This will call updateCartBadge()
+            loadCartItems(); // This will refresh cart items
         } else {
             const errorData = await response.json();
             console.error('Cart add failed:', errorData);
@@ -1205,28 +1205,35 @@ async function loadCartItems() {
       cartItems = [];
     }
     
-    // Update cart badge after loading items
-    updateCartBadge();
+    // Don't update cart badge here - it should show product count, not cart sum
+    console.log(`🛒 Cart items: ${cartItems.length} items`);
   } catch (error) {
     console.error('Error loading cart items:', error);
     cartItems = [];
-    updateCartBadge();
+    console.log('🛒 Cart items: 0 items (error)');
   }
 }
 
 // Load product count for shop badge
 async function loadProductCount() {
     try {
+        console.log('📦 Loading product count...');
         const response = await fetch(`${API_BASE}/products/count`);
         if (response.ok) {
             const data = await response.json();
+            console.log('✅ Product count data:', data);
             const shopBadge = document.getElementById('shop-badge');
             if (shopBadge) {
                 shopBadge.textContent = data.totalProducts || '0';
+                console.log(`📦 Shop badge updated: ${data.totalProducts || '0'} products`);
+            } else {
+                console.log('❌ Shop badge element not found');
             }
+        } else {
+            console.error('❌ Failed to load product count:', response.status);
         }
     } catch (error) {
-        console.error('Error loading product count:', error);
+        console.error('❌ Error loading product count:', error);
     }
 }
 
@@ -1275,8 +1282,8 @@ function updateCartBadge() {
 }
 
 function updateBadges() {
-    // Update shop badge with cart total sum
-    updateCartBadge();
+    // Update shop badge with total products count (not cart sum)
+    loadProductCount();
     
     // Update reviews badge with total reviews count
     loadReviewsCount();
