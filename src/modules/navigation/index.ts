@@ -60,6 +60,48 @@ async function showSupport(ctx: Context) {
   );
 }
 
+async function handleSupportMessage(ctx: Context) {
+  const user = await ensureUser(ctx);
+  if (!user) return;
+
+  const messageText = (ctx.message as any)?.text;
+  if (!messageText) return;
+
+  // Skip if it's a command
+  if (messageText.startsWith('/')) return;
+
+  // Skip if it's a button press (common button texts)
+  const buttonTexts = ['🛒 Магазин', '💰 Партнёрка', '🎵 Звуковые матрицы Гаряева', '⭐ Отзывы', 'ℹ️ О PLASMA', 'Меню', 'Главное меню', 'Назад'];
+  if (buttonTexts.includes(messageText)) return;
+
+  // Log the support message
+  await logUserAction(ctx, 'support:message_sent', { messageLength: messageText.length });
+
+  // Send to admins
+  const { sendToAllAdmins } = await import('../../config/env.js');
+  const { getBotInstance } = await import('../../lib/bot-instance.js');
+  
+  const bot = getBotInstance();
+  if (bot) {
+    const adminMessage = `📨 <b>Сообщение в поддержку</b>\n\n` +
+      `👤 <b>Пользователь:</b> ${user.firstName || 'Не указано'} ${user.lastName || ''}\n` +
+      `🆔 <b>ID:</b> <code>${user.telegramId}</code>\n` +
+      `📱 <b>Username:</b> @${user.username || 'не указан'}\n\n` +
+      `💬 <b>Сообщение:</b>\n${messageText}\n\n` +
+      `⏰ <b>Время:</b> ${new Date().toLocaleString('ru-RU')}`;
+
+    try {
+      await sendToAllAdmins(bot, adminMessage);
+      
+      // Confirm to user
+      await ctx.reply('✅ Ваше сообщение отправлено в службу поддержки. Мы ответим как можно скорее!');
+    } catch (error) {
+      console.error('Failed to send support message to admins:', error);
+      await ctx.reply('❌ Произошла ошибка при отправке сообщения. Попробуйте позже.');
+    }
+  }
+}
+
 async function showGiftMessage(ctx: Context) {
   const giftMessage = `🔥 Для Вас уникальный материал.
 
@@ -621,7 +663,23 @@ export const navigationModule: BotModule = {
       );
     });
 
+    // Handle text messages for support
+    bot.on('text', async (ctx) => {
+      // Only process if user is in support mode or sent a support message
+      const messageText = (ctx.message as any)?.text;
+      if (!messageText) return;
 
+      // Skip commands and button texts
+      if (messageText.startsWith('/')) return;
+      
+      const buttonTexts = ['🛒 Магазин', '💰 Партнёрка', '🎵 Звуковые матрицы Гаряева', '⭐ Отзывы', 'ℹ️ О PLASMA', 'Меню', 'Главное меню', 'Назад'];
+      if (buttonTexts.includes(messageText)) return;
+
+      // Check if this looks like a support message (not a short response to bot)
+      if (messageText.length > 3) {
+        await handleSupportMessage(ctx);
+      }
+    });
 
   },
 };
