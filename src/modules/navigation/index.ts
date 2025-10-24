@@ -416,7 +416,8 @@ export const navigationModule: BotModule = {
     bot.command('app', async (ctx) => {
       await logUserAction(ctx, 'command:app');
       
-      const webappUrl = `${env.webappUrl}/webapp`;
+      // Force HTTPS URL for Railway
+      const webappUrl = 'https://plazma-production.up.railway.app/webapp';
       console.log('🌐 WebApp URL:', webappUrl);
       
       await ctx.reply(
