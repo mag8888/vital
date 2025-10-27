@@ -271,9 +271,31 @@ export function registerCartActions(bot: Telegraf<Context>) {
       
       const orderText = `🛍️ Новый заказ от ${ctx.from?.first_name || 'Пользователь'}\n\n${cartText}\n\n${contactInfo}`;
 
-      // Send order to all admins
-      const { sendToAllAdmins } = await import('../../config/env.js');
-      await sendToAllAdmins(ctx, orderText);
+      // Send order to specific admin with contact button
+      const { getBotInstance } = await import('../../lib/bot-instance.js');
+      const bot = await getBotInstance();
+      
+      if (bot) {
+        const aureliaAdminId = '7077195545'; // @Aurelia_8888
+        
+        try {
+          await bot.telegram.sendMessage(aureliaAdminId, orderText, {
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: '💬 Написать пользователю',
+                    url: ctx.from?.username ? `https://t.me/${ctx.from.username}` : `tg://user?id=${ctx.from?.id}`
+                  }
+                ]
+              ]
+            }
+          });
+        } catch (error) {
+          console.error('Failed to send order notification to admin:', error);
+        }
+      }
       
       // Clear cart after successful order
       await clearCart(userId);

@@ -327,9 +327,32 @@ async function handleBuy(ctx: Context, productId: string) {
 
   await logUserAction(ctx, 'shop:buy', { productId });
 
-  // Send order to all admins
-  const { sendToAllAdmins } = await import('../../config/env.js');
-  await sendToAllAdmins(ctx, `${message}\n\nЗдравствуйте, хочу приобрести товар…`);
+  // Send order to specific admin with contact button
+  const { getBotInstance } = await import('../../lib/bot-instance.js');
+  const bot = await getBotInstance();
+  
+  if (bot) {
+    const aureliaAdminId = '7077195545'; // @Aurelia_8888
+    const fullMessage = `${message}\n\nЗдравствуйте, хочу приобрести товар…`;
+    
+    try {
+      await bot.telegram.sendMessage(aureliaAdminId, fullMessage, {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '💬 Написать пользователю',
+                url: user.username ? `https://t.me/${user.username}` : `tg://user?id=${user.telegramId}`
+              }
+            ]
+          ]
+        }
+      });
+    } catch (error) {
+      console.error('Failed to send order notification to admin:', error);
+    }
+  }
 
   await ctx.answerCbQuery();
   
