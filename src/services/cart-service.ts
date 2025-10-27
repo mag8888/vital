@@ -120,5 +120,19 @@ export function cartItemsToText(items: Array<{ product: { title: string; price: 
     return `• ${item.product.title} — ${item.quantity} шт. × ${rubPrice} ₽ = ${totalRub} ₽ / ${totalPz} PZ`;
   });
 
+  // Calculate total sum
+  let totalPzSum = 0;
+  let totalRubSum = 0;
+  
+  items.forEach((item) => {
+    const pzPrice = Number(item.product.price);
+    totalPzSum += pzPrice * item.quantity;
+    totalRubSum += pzPrice * item.quantity * 100;
+  });
+
+  // Add total sum line
+  lines.push('');
+  lines.push(`💰 Общая сумма: ${totalRubSum.toFixed(2)} ₽ / ${totalPzSum.toFixed(2)} PZ`);
+
   return lines.join('\n');
 }

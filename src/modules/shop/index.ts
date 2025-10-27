@@ -275,22 +275,29 @@ async function handleBuy(ctx: Context, productId: string) {
   }
 
   const cartItems = await getCartItems(user.id);
-  const summaryText = cartItemsToText(cartItems);
+  
+  // Create full items list including main product
+  const allItems = [...cartItems];
+  allItems.push({
+    product: {
+      title: product.title,
+      price: Number(product.price)
+    },
+    quantity: 1
+  });
+  
+  const summaryText = cartItemsToText(allItems);
 
   const lines = [
     '🛒 Запрос на покупку',
     `Пользователь: ${user.firstName ?? ''} ${user.lastName ?? ''}`.trim(),
     user.username ? `@${user.username}` : undefined,
     `Telegram ID: ${user.telegramId}`,
-    '',
     `Основной товар: ${product.title}`,
+    '',
+    'Корзина:',
+    summaryText
   ].filter(Boolean);
-
-  if (cartItems.length > 0) {
-    lines.push('', 'Корзина:', summaryText);
-  } else {
-    lines.push('', 'Корзина: пока пусто.');
-  }
 
   const message = lines.join('\n');
 
