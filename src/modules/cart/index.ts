@@ -287,6 +287,10 @@ export function registerCartActions(bot: Telegraf<Context>) {
                   {
                     text: '💬 Написать пользователю',
                     url: ctx.from?.username ? `https://t.me/${ctx.from.username}` : `tg://user?id=${ctx.from?.id}`
+                  },
+                  {
+                    text: '🤖 Писать через бот',
+                    callback_data: `admin_reply:${ctx.from?.id}:${ctx.from?.first_name || 'Пользователь'}`
                   }
                 ]
               ]
