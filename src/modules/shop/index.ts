@@ -216,7 +216,26 @@ async function handleAddToCart(ctx: Context, productId: string) {
   await addProductToCart(user.id, product.id);
   await logUserAction(ctx, 'shop:add-to-cart', { productId: product.id });
   await ctx.answerCbQuery('Добавлено в корзину ✅');
-  await ctx.reply(`«${product.title}» добавлен(а) в корзину.`);
+  
+  // Get updated cart info for button
+  const cartItems = await getCartItems(user.id);
+  const totalQuantity = cartItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+  const totalSum = cartItems.reduce((sum, item) => sum + ((item.product?.price || 0) * (item.quantity || 0)), 0);
+  
+  const cartButtonText = `🛒 Корзина (${totalQuantity} товар${totalQuantity > 1 ? (totalQuantity > 4 ? 'ов' : 'а') : ''}, ${totalSum.toFixed(2)} PZ)`;
+  
+  await ctx.reply(`«${product.title}» добавлен(а) в корзину.`, {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: cartButtonText,
+            callback_data: 'shop:cart'
+          }
+        ]
+      ]
+    }
+  });
 }
 
 async function handleProductMore(ctx: Context, productId: string) {
