@@ -99,7 +99,6 @@ export async function showCategories(ctx: Context, region?: string) {
     ];
 
     // Получаем баланс пользователя
-    const user = await ensureUser(ctx);
     const userBalance = Number((user as any)?.balance || 0);
     
     await ctx.reply(`🛍️ Каталог товаров Plazma Water\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ\n📍 Регион: ${regionEmoji} ${regionText}\n\nВыберите категорию:`, {
