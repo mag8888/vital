@@ -366,11 +366,11 @@ async function collectMenuStats(ctx: Context): Promise<MenuStats> {
     try {
       const user = await ensureUser(ctx);
       if (user) {
-        const { getCartItems } = await import('../../services/cart-service.js');
+      const { getCartItems } = await import('../../services/cart-service.js');
         const cartItems = await getCartItems(user.id);
-        const totalQuantity = cartItems.reduce((sum, item) => sum + (item.quantity ?? 0), 0);
-        if (totalQuantity > 0) {
-          stats.cart = String(totalQuantity);
+      const totalQuantity = cartItems.reduce((sum, item) => sum + (item.quantity ?? 0), 0);
+      if (totalQuantity > 0) {
+        stats.cart = String(totalQuantity);
         }
       }
     } catch (error) {
@@ -722,16 +722,25 @@ export const navigationModule: BotModule = {
     });
 
     // Handle text messages for support
-    bot.on('text', async (ctx) => {
+    bot.on('text', async (ctx, next) => {
       // Only process if user is in support mode or sent a support message
       const messageText = (ctx.message as any)?.text;
-      if (!messageText) return;
+      if (!messageText) {
+        await next();
+        return;
+      }
 
       // Skip commands and button texts
-      if (messageText.startsWith('/')) return;
+      if (messageText.startsWith('/')) {
+        await next();
+        return;
+      }
       
       const buttonTexts = ['🛒 Магазин', '💰 Партнёрка', '🎵 Звуковые матрицы Гаряева', '⭐ Отзывы', 'ℹ️ О PLASMA', 'Меню', 'Главное меню', 'Назад'];
-      if (buttonTexts.includes(messageText)) return;
+      if (buttonTexts.includes(messageText)) {
+        await next();
+        return;
+      }
 
       // Check if this is admin @Aurelia_8888 replying to a user
       const aureliaAdminId = '7077195545';
@@ -765,7 +774,10 @@ export const navigationModule: BotModule = {
       // Check if this looks like a support message (not a short response to bot)
       if (messageText.length > 3) {
         await handleSupportMessage(ctx);
+        return;
       }
+
+      await next();
     });
 
   },
