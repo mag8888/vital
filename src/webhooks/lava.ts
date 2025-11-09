@@ -41,27 +41,68 @@ router.post('/webhook/lava', express.raw({ type: 'application/json' }), async (r
           data: { status: 'PAID' }
         });
 
-        // Обновляем статус заказа
-        await prisma.orderRequest.updateMany({
-          where: { id: payment.orderId },
-          data: { status: 'COMPLETED' }
-        });
+        const isBalanceTopUp = payment.orderId.startsWith('BALANCE-');
 
-        // Отправляем уведомление пользователю
+        let userTelegramId: number | null = null;
+        let notificationText = '';
+
+        if (isBalanceTopUp) {
+          const updatedUser = await prisma.user.update({
+            where: { id: payment.userId },
+            data: {
+              balance: {
+                increment: payment.amount,
+              },
+            },
+            select: {
+              telegramId: true,
+              balance: true,
+              firstName: true,
+            },
+          });
+
+          if (updatedUser?.telegramId) {
+            userTelegramId = Number(updatedUser.telegramId);
+          }
+
+          notificationText =
+            '🎉 <b>Баланс пополнен!</b>\n\n' +
+            `💰 Сумма: ${payment.amount.toFixed(2)} ₽\n` +
+            `💳 Текущий баланс: ${updatedUser.balance.toFixed(2)} ₽`;
+        } else {
+          // Обновляем статус заказа
+          await prisma.orderRequest.updateMany({
+            where: { id: payment.orderId },
+            data: { status: 'COMPLETED' }
+          });
+
+          const user = await prisma.user.findUnique({
+            where: { id: payment.userId },
+            select: { telegramId: true }
+          });
+
+          if (user?.telegramId) {
+            userTelegramId = Number(user.telegramId);
+          }
+
+          notificationText =
+            '🎉 <b>Платеж успешно оплачен!</b>\n\n' +
+            `💰 Сумма: ${payment.amount} ₽\n` +
+            `📋 Заказ: #${payment.orderId}\n\n` +
+            'Ваш заказ будет обработан в ближайшее время.';
+        }
+
         const { getBotInstance } = await import('../lib/bot-instance.js');
         const bot = await getBotInstance();
         
-        if (bot) {
+        if (bot && userTelegramId) {
           try {
             await bot.telegram.sendMessage(
-              payment.userId,
-              '🎉 <b>Платеж успешно оплачен!</b>\n\n' +
-              `💰 Сумма: ${payment.amount} ₽\n` +
-              `📋 Заказ: #${payment.orderId}\n\n` +
-              'Ваш заказ будет обработан в ближайшее время.',
+              userTelegramId,
+              notificationText,
               { parse_mode: 'HTML' }
             );
-            console.log(`📱 Notification sent to user ${payment.userId}`);
+            console.log(`📱 Notification sent to user ${userTelegramId}`);
           } catch (error) {
             console.error('❌ Failed to send notification:', error);
           }

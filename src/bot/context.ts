@@ -8,6 +8,9 @@ export interface SessionData {
     userTelegramId: string;
     userName: string;
   };
+  addBalanceFlow?: {
+    awaitingAmount: boolean;
+  };
 }
 
 export interface Context extends TelegrafContext {

@@ -9,10 +9,12 @@ import { aboutModule } from '../modules/about/index.js';
 import { adminModule } from '../modules/admin/index.js';
 import { cartModule } from '../modules/cart/index.js';
 import { audioModule } from '../modules/audio/index.js';
+import { balanceModule } from '../modules/balance/index.js';
 
 const modules: BotModule[] = [
   shopModule,        // Register shop module first to handle shop button
   cartModule,        // Register cart module to handle cart button
+  balanceModule,     // Пополнение баланса
   audioModule,       // Register audio module to handle audio uploads
   navigationModule,
   partnerModule,

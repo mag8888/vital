@@ -107,6 +107,7 @@ async function bootstrap() {
         { command: 'audio', description: 'Звуковые матрицы' },
         { command: 'reviews', description: 'Отзывы клиентов' },
         { command: 'about', description: 'О PLASMA Water' },
+        { command: 'add_balance', description: 'Пополнить баланс через Lava' },
         { command: 'support', description: 'Поддержка 24/7' },
         { command: 'app', description: 'Открыть веб-приложение' }
       ]);
