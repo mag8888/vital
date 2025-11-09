@@ -65,7 +65,8 @@ class LavaService {
         {
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.config.projectId}`,
+            'Authorization': `Bearer ${this.config.secretKey}`,
+            'X-Project-Id': this.config.projectId,
             'X-Signature': signature,
             'X-Timestamp': timestamp.toString()
           }
@@ -94,7 +95,8 @@ class LavaService {
         {
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.config.projectId}`,
+            'Authorization': `Bearer ${this.config.secretKey}`,
+            'X-Project-Id': this.config.projectId,
             'X-Signature': signature,
             'X-Timestamp': timestamp.toString()
           }
