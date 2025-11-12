@@ -2,14 +2,19 @@ import crypto from 'crypto';
 import axios from 'axios';
 
 interface LavaConfig {
-  projectId: string;
-  secretKey: string;
+  apiKey: string;
   baseUrl: string;
 }
 
 interface CreateInvoiceRequest {
-  sum: number;
+  email: string;
+  offerId?: string; // Для подписок
+  sum?: number; // Для одноразовых платежей
   orderId: string;
+  periodicity?: string; // Для подписок (например, 'PERIOD_90_DAYS')
+  currency: string; // 'RUB', 'USD', 'EUR'
+  paymentMethod?: string; // Например, 'BANK131'
+  buyerLanguage?: string; // 'RU', 'EN'
   hookUrl?: string;
   successUrl?: string;
   failUrl?: string;
@@ -34,158 +39,125 @@ class LavaService {
 
   constructor() {
     this.config = {
-      projectId: process.env.LAVA_PROJECT_ID || '',
-      secretKey: process.env.LAVA_SECRET_KEY || '',
-      baseUrl: process.env.LAVA_BASE_URL || 'https://api.lava.top'
+      apiKey: process.env.LAVA_SECRET_KEY || process.env.LAVA_API_KEY || '',
+      baseUrl: process.env.LAVA_BASE_URL || 'https://gate.lava.top'
     };
     
     // Проверка наличия обязательных переменных
     const missingVars: string[] = [];
-    if (!this.config.projectId) missingVars.push('LAVA_PROJECT_ID');
-    if (!this.config.secretKey) missingVars.push('LAVA_SECRET_KEY');
+    if (!this.config.apiKey) missingVars.push('LAVA_SECRET_KEY или LAVA_API_KEY');
     
     if (missingVars.length > 0) {
       console.error('❌ Lava Service: Missing required environment variables:', missingVars);
     }
     
     console.log('🔥 Lava Service Config:', {
-      projectId: this.config.projectId ? `${this.config.projectId.substring(0, 4)}...` : 'MISSING',
-      secretKeyLength: this.config.secretKey.length,
+      apiKeyLength: this.config.apiKey.length,
       baseUrl: this.config.baseUrl,
-      hasProjectId: !!this.config.projectId,
-      hasSecretKey: !!this.config.secretKey,
+      hasApiKey: !!this.config.apiKey,
       webhookSecret: process.env.LAVA_WEBHOOK_SECRET ? 'SET' : 'MISSING',
       publicBaseUrl: process.env.PUBLIC_BASE_URL || 'NOT SET'
     });
   }
 
   /**
-   * Создание подписи для запроса
-   */
-  private createSignature(data: string): string {
-    return crypto
-      .createHmac('sha256', this.config.secretKey)
-      .update(data)
-      .digest('hex');
-  }
-
-  /**
    * Создание инвойса
+   * Использует правильный endpoint согласно документации: POST /api/v2/invoice
+   * Документация: https://gate.lava.top/docs
    */
   async createInvoice(request: CreateInvoiceRequest): Promise<CreateInvoiceResponse> {
-    const timestamp = Math.floor(Date.now() / 1000);
-    const data = JSON.stringify(request);
-    const signature = this.createSignature(data);
-
     // Убираем trailing slash из baseUrl
     const baseUrl = this.config.baseUrl.replace(/\/$/, '');
     
-    // Пробуем разные варианты endpoint'ов
-    const endpoints = [
-      '/invoice/create',           // Стандартный
-      '/v2/invoice/create',        // С версией без /api
-      '/business/invoice/create',  // Business API
-      '/api/invoice/create',       // С /api
-    ];
+    // Правильный endpoint согласно документации Lava: /api/v2/invoice
+    const url = `${baseUrl}/api/v2/invoice`;
     
-    // Если baseUrl уже содержит /api/v2, пробуем без добавления /api
-    let baseUrlToUse = baseUrl;
-    if (baseUrl.includes('/api/v2')) {
-      baseUrlToUse = baseUrl.replace('/api/v2', '');
-      endpoints.unshift('/api/v2/invoice/create'); // Добавляем в начало
-    } else if (baseUrl.includes('/api')) {
-      baseUrlToUse = baseUrl.replace('/api', '');
-      endpoints.unshift('/api/invoice/create');
-    }
-    
+    // Согласно документации, используется X-Api-Key для авторизации
     const headers = {
+      'accept': 'application/json',
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.config.secretKey}`,
-      'X-Project-Id': this.config.projectId,
-      'X-Signature': signature,
-      'X-Timestamp': timestamp.toString()
+      'X-Api-Key': this.config.apiKey
     };
     
-    // Пробуем каждый endpoint
-    for (const endpoint of endpoints) {
-      const url = `${baseUrlToUse}${endpoint}`;
-      
-      console.log(`🔥 Lava API Request (trying ${endpoint}):`, {
+    console.log('🔥 Lava API Request:', {
+      url,
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'Content-Type': 'application/json',
+        'X-Api-Key': this.config.apiKey.substring(0, 10) + '...'
+      },
+      body: request
+    });
+
+    try {
+      const response = await axios.post(
         url,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.config.secretKey.substring(0, 10)}...`,
-          'X-Project-Id': this.config.projectId,
-          'X-Signature': signature.substring(0, 20) + '...',
-          'X-Timestamp': timestamp.toString()
-        },
-        body: request
+        request,
+        { headers }
+      );
+
+      console.log('✅ Lava API Response:', {
+        status: response.status,
+        data: response.data
       });
 
-      try {
-        const response = await axios.post(
-          url,
-          request,
-          { headers }
-        );
-
-        console.log('✅ Lava API Response:', {
-          status: response.status,
-          data: response.data,
-          endpoint: endpoint
-        });
-
-        return response.data;
-      } catch (error: any) {
-        // Если это не 404, сразу выбрасываем ошибку
-        if (error.response?.status !== 404) {
-          console.error('❌ Lava API Error (non-404):', {
-            url,
-            status: error.response?.status,
-            statusText: error.response?.statusText,
-            data: error.response?.data
-          });
-          throw new Error(`Failed to create invoice: ${error.response?.data || error.message}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Lava API Error Details:', {
+        url,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        headers: error.response?.headers,
+        request: {
+          method: error.config?.method,
+          url: error.config?.url,
+          headers: {
+            ...error.config?.headers,
+            'X-Api-Key': error.config?.headers?.['X-Api-Key']?.substring(0, 10) + '...'
+          }
         }
-        
-        // Если 404, пробуем следующий endpoint
-        console.log(`⚠️ Endpoint ${endpoint} returned 404, trying next...`);
-        continue;
-      }
+      });
+      throw new Error(`Failed to create invoice: ${error.response?.data || error.message}`);
     }
-    
-    // Если все endpoint'ы вернули 404
-    throw new Error('Failed to create invoice: All endpoints returned 404. Please check LAVA_BASE_URL and Lava API documentation.');
   }
 
   /**
    * Получение статуса инвойса
+   * Использует GET /api/v1/invoices для получения списка инвойсов
    */
   async getInvoiceStatus(invoiceId: string): Promise<any> {
-    const timestamp = Math.floor(Date.now() / 1000);
-    const data = JSON.stringify({ invoiceId });
-    const signature = this.createSignature(data);
-
+    const baseUrl = this.config.baseUrl.replace(/\/$/, '');
+    
     try {
-      const response = await axios.post(
-        `${this.config.baseUrl}/invoice/status`,
-        { invoiceId },
+      // Получаем список инвойсов и ищем нужный по orderId
+      const response = await axios.get(
+        `${baseUrl}/api/v1/invoices`,
         {
+          params: {
+            // Можно фильтровать по различным параметрам
+          },
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.config.secretKey}`,
-            'X-Project-Id': this.config.projectId,
-            'X-Signature': signature,
-            'X-Timestamp': timestamp.toString()
+            'accept': 'application/json',
+            'X-Api-Key': this.config.apiKey
           }
         }
       );
 
-      return response.data;
-    } catch (error) {
-      console.error('Lava API Error:', error);
-      throw new Error('Failed to get invoice status');
+      // Ищем нужный инвойс в списке
+      const invoices = response.data?.data || response.data || [];
+      const invoice = Array.isArray(invoices) 
+        ? invoices.find((inv: any) => inv.id === invoiceId || inv.orderId === invoiceId)
+        : null;
+
+      return invoice ? { data: invoice } : response.data;
+    } catch (error: any) {
+      console.error('❌ Lava API Error (getInvoiceStatus):', {
+        status: error.response?.status,
+        data: error.response?.data
+      });
+      throw new Error(`Failed to get invoice status: ${error.response?.data || error.message}`);
     }
   }
 
@@ -193,7 +165,7 @@ class LavaService {
    * Проверка webhook подписи
    */
   verifyWebhookSignature(payload: string, signature: string): boolean {
-    const webhookSecret = process.env.LAVA_WEBHOOK_SECRET || this.config.secretKey;
+    const webhookSecret = process.env.LAVA_WEBHOOK_SECRET || this.config.apiKey;
     const expectedSignature = crypto
       .createHmac('sha256', webhookSecret)
       .update(payload)

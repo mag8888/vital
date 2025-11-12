@@ -46,9 +46,17 @@ export async function createPayment(ctx: Context, amount: number, orderId: strin
     console.log(`📝 Payment record created: ${payment.id}`);
 
     // Создаем инвойс в Lava
+    // Согласно документации Lava API, нужны обязательные параметры
+    const userEmail = (user as any).phone 
+      ? `${user.telegramId}@plazma.temp` 
+      : `user_${user.telegramId}@plazma.temp`;
+
     const invoice = await lavaService.createInvoice({
+      email: userEmail,
       sum: amount,
       orderId: payment.id,
+      currency: 'RUB',
+      buyerLanguage: 'RU',
       hookUrl: `${process.env.PUBLIC_BASE_URL}/webhook/lava`,
       successUrl: `${process.env.PUBLIC_BASE_URL}/payment/success`,
       failUrl: `${process.env.PUBLIC_BASE_URL}/payment/fail`,
@@ -111,9 +119,19 @@ export async function createBalanceTopUp(ctx: Context, amount: number) {
       },
     });
 
+    // Согласно документации Lava API, нужны обязательные параметры:
+    // email, currency, orderId, sum (для одноразовых платежей)
+    // Генерируем временный email, если у пользователя нет email
+    const userEmail = (user as any).phone 
+      ? `${user.telegramId}@plazma.temp` 
+      : `user_${user.telegramId}@plazma.temp`;
+
     const invoice = await lavaService.createInvoice({
+      email: userEmail,
       sum: amount,
       orderId: payment.id,
+      currency: 'RUB',
+      buyerLanguage: 'RU',
       hookUrl: `${process.env.PUBLIC_BASE_URL}/webhook/lava`,
       successUrl: `${process.env.PUBLIC_BASE_URL}/payment/success`,
       failUrl: `${process.env.PUBLIC_BASE_URL}/payment/fail`,
