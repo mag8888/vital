@@ -147,9 +147,28 @@ export async function createBalanceTopUp(ctx: Context, amount: number) {
         `Нажмите кнопку ниже, чтобы перейти к оплате:`,
       { ...keyboard, parse_mode: 'HTML' }
     );
-  } catch (error) {
-    console.error('❌ Balance top-up creation error:', error);
-    await ctx.reply('❌ Не удалось создать платеж на пополнение. Попробуйте позже.');
+  } catch (error: any) {
+    console.error('❌ Balance top-up creation error:', {
+      message: error.message,
+      stack: error.stack,
+      response: error.response?.data,
+      status: error.response?.status,
+      config: {
+        url: error.config?.url,
+        method: error.config?.method,
+        headers: error.config?.headers
+      }
+    });
+    
+    // Более информативное сообщение об ошибке
+    let errorMessage = '❌ Не удалось создать платеж на пополнение. Попробуйте позже.';
+    if (error.response?.status === 404) {
+      errorMessage += '\n\n⚠️ Проблема с API Lava. Проверьте настройки endpoint.';
+    } else if (error.response?.status === 401) {
+      errorMessage += '\n\n⚠️ Ошибка авторизации. Проверьте API ключи.';
+    }
+    
+    await ctx.reply(errorMessage);
   }
 }
 

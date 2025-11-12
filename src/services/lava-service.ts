@@ -39,12 +39,23 @@ class LavaService {
       baseUrl: process.env.LAVA_BASE_URL || 'https://api.lava.top'
     };
     
+    // Проверка наличия обязательных переменных
+    const missingVars: string[] = [];
+    if (!this.config.projectId) missingVars.push('LAVA_PROJECT_ID');
+    if (!this.config.secretKey) missingVars.push('LAVA_SECRET_KEY');
+    
+    if (missingVars.length > 0) {
+      console.error('❌ Lava Service: Missing required environment variables:', missingVars);
+    }
+    
     console.log('🔥 Lava Service Config:', {
-      projectId: this.config.projectId,
+      projectId: this.config.projectId ? `${this.config.projectId.substring(0, 4)}...` : 'MISSING',
       secretKeyLength: this.config.secretKey.length,
       baseUrl: this.config.baseUrl,
       hasProjectId: !!this.config.projectId,
-      hasSecretKey: !!this.config.secretKey
+      hasSecretKey: !!this.config.secretKey,
+      webhookSecret: process.env.LAVA_WEBHOOK_SECRET ? 'SET' : 'MISSING',
+      publicBaseUrl: process.env.PUBLIC_BASE_URL || 'NOT SET'
     });
   }
 
@@ -66,7 +77,9 @@ class LavaService {
     const data = JSON.stringify(request);
     const signature = this.createSignature(data);
 
-    const url = `${this.config.baseUrl}/invoice/create`;
+    // Убираем trailing slash из baseUrl и добавляем endpoint
+    const baseUrl = this.config.baseUrl.replace(/\/$/, '');
+    const url = `${baseUrl}/invoice/create`;
     
     console.log('🔥 Lava API Request:', {
       url,
