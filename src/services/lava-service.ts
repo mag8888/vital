@@ -38,6 +38,14 @@ class LavaService {
       secretKey: process.env.LAVA_SECRET_KEY || '',
       baseUrl: process.env.LAVA_BASE_URL || 'https://api.lava.top'
     };
+    
+    console.log('🔥 Lava Service Config:', {
+      projectId: this.config.projectId,
+      secretKeyLength: this.config.secretKey.length,
+      baseUrl: this.config.baseUrl,
+      hasProjectId: !!this.config.projectId,
+      hasSecretKey: !!this.config.secretKey
+    });
   }
 
   /**
@@ -58,9 +66,24 @@ class LavaService {
     const data = JSON.stringify(request);
     const signature = this.createSignature(data);
 
+    const url = `${this.config.baseUrl}/invoice/create`;
+    
+    console.log('🔥 Lava API Request:', {
+      url,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.config.secretKey.substring(0, 10)}...`,
+        'X-Project-Id': this.config.projectId,
+        'X-Signature': signature.substring(0, 20) + '...',
+        'X-Timestamp': timestamp.toString()
+      },
+      body: request
+    });
+
     try {
       const response = await axios.post(
-        `${this.config.baseUrl}/invoice/create`,
+        url,
         request,
         {
           headers: {
@@ -73,10 +96,26 @@ class LavaService {
         }
       );
 
+      console.log('✅ Lava API Response:', {
+        status: response.status,
+        data: response.data
+      });
+
       return response.data;
-    } catch (error) {
-      console.error('Lava API Error:', error);
-      throw new Error('Failed to create invoice');
+    } catch (error: any) {
+      console.error('❌ Lava API Error Details:', {
+        url,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        headers: error.response?.headers,
+        request: {
+          method: error.config?.method,
+          url: error.config?.url,
+          headers: error.config?.headers
+        }
+      });
+      throw new Error(`Failed to create invoice: ${error.response?.data || error.message}`);
     }
   }
 
