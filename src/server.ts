@@ -46,21 +46,7 @@ async function bootstrap() {
       cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 } // 24 hours
     }));
 
-    // Root redirect to webapp
-    app.get('/', (req, res) => {
-      res.redirect('/webapp');
-    });
-
-    // Web admin panel
-    app.use('/admin', adminWebRouter);
-    
-    // Webapp routes
-    app.use('/webapp', webappRouter);
-    
-    // Lava webhook routes
-    app.use('/webhook', lavaWebhook);
-
-    const port = Number(process.env.PORT ?? 3000);
+    // Health check endpoints (must be before other routes for Railway)
     app.get('/health', (_req, res) => {
       res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
     });
@@ -74,7 +60,28 @@ async function bootstrap() {
       });
     });
 
-    app.listen(port, () => {
+    // Root - health check for Railway (returns 200, not redirect)
+    app.get('/', (req, res) => {
+      // Railway healthcheck expects 200 OK, not redirect
+      if (req.headers['user-agent']?.includes('Railway') || req.query.healthcheck) {
+        res.status(200).json({ status: 'ok', service: 'plazma-bot' });
+      } else {
+        res.redirect('/webapp');
+      }
+    });
+
+    // Web admin panel
+    app.use('/admin', adminWebRouter);
+    
+    // Webapp routes
+    app.use('/webapp', webappRouter);
+    
+    // Lava webhook routes
+    app.use('/webhook', lavaWebhook);
+
+    const port = Number(process.env.PORT ?? 3000);
+    // Listen on 0.0.0.0 to accept connections from Railway
+    app.listen(port, '0.0.0.0', () => {
       console.log(`Server is running on port ${port}`);
     });
 
