@@ -2531,8 +2531,8 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
           <div class="header">
             <div style="display: flex; align-items: center; justify-content: space-between;">
               <div>
-                <h1>👥 Детальная информация о пользователях</h1>
-                <p>Полная статистика, балансы, партнёры и заказы</p>
+            <h1>👥 Детальная информация о пользователях</h1>
+            <p>Полная статистика, балансы, партнёры и заказы</p>
               </div>
               <a href="/admin" class="back-btn" style="background: rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; border: 1px solid rgba(255,255,255,0.3); transition: all 0.3s ease;">
                 ← Назад к панели
@@ -2607,6 +2607,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                       <input type="checkbox" id="selectAllUsers" onchange="toggleAllUsers(this.checked)" style="margin-right: 5px;">
                       <button onclick="openMessageModal()" class="action-btn" style="font-size: 10px; padding: 2px 6px;">📧</button>
                     </th>
+                    <th class="compact-cell">Партнерская программа</th>
                     <th class="compact-cell">Баланс</th>
                     <th class="compact-cell">Заказы</th>
                     <th class="compact-cell">Пригласитель</th>
@@ -2634,10 +2635,20 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                   const level2Partners = user.level2Partners || 0;
                   const level3Partners = user.level3Partners || 0;
                   
+                  const isPartnerActive = partnerProfile?.isActive || false;
+                  
                   return `
                   <tr>
                     <td class="compact-cell">
                       <input type="checkbox" class="user-checkbox" value="${user.id}" onchange="updateSelectedUsers()" style="margin-right: 5px;">
+                    </td>
+                    <td class="compact-cell cell-tooltip" data-tooltip="Партнерская программа: ${isPartnerActive ? 'Активирована' : 'Не активирована'}">
+                      <input type="checkbox" 
+                             class="partner-program-checkbox" 
+                             ${isPartnerActive ? 'checked' : ''} 
+                             onchange="togglePartnerProgram('${user.id}', this.checked, this)"
+                             style="cursor: pointer; width: 18px; height: 18px;"
+                             title="${isPartnerActive ? 'Партнерская программа активирована' : 'Партнерская программа не активирована'}">
                     </td>
                     <td class="compact-cell cell-tooltip" data-tooltip="Баланс: ${user.balance.toFixed(2)} PZ${user.bonus > 0 ? ', Бонусы: ' + user.bonus.toFixed(2) + ' PZ' : ''}">
                       <div class="balance ${user.balance > 0 ? 'positive' : 'zero'}">
@@ -2798,6 +2809,60 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             const modal = document.getElementById('partnersModal');
             if (modal) {
               modal.remove();
+            }
+          };
+          
+          // Функция для переключения статуса партнерской программы
+          window.togglePartnerProgram = async function(userId, isActive, checkboxElement) {
+            const checkbox = checkboxElement || (window.event && window.event.target);
+            const originalChecked = !isActive; // Сохраняем исходное состояние
+            
+            try {
+              const response = await fetch('/admin/users/' + userId + '/toggle-partner-program', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({ isActive: isActive })
+              });
+              
+              if (!response.ok) {
+                throw new Error('Ошибка обновления статуса партнерской программы');
+              }
+              
+              const result = await response.json();
+              
+              if (result.success) {
+                // Обновляем tooltip
+                if (checkbox) {
+                  const cell = checkbox.closest('td');
+                  if (cell) {
+                    cell.setAttribute('data-tooltip', 'Партнерская программа: ' + (isActive ? 'Активирована' : 'Не активирована'));
+                    checkbox.setAttribute('title', isActive ? 'Партнерская программа активирована' : 'Партнерская программа не активирована');
+                  }
+                }
+                
+                // Показываем уведомление
+                const notification = document.createElement('div');
+                notification.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #28a745; color: white; padding: 12px 20px; border-radius: 4px; z-index: 10000; box-shadow: 0 2px 8px rgba(0,0,0,0.2);';
+                notification.textContent = isActive ? '✅ Партнерская программа активирована' : '❌ Партнерская программа деактивирована';
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                  notification.remove();
+                }, 3000);
+              } else {
+                throw new Error(result.error || 'Ошибка обновления статуса');
+              }
+            } catch (error) {
+              console.error('Error toggling partner program:', error);
+              alert('Ошибка обновления статуса партнерской программы: ' + error.message);
+              
+              // Откатываем изменение чекбокса
+              if (checkbox) {
+                checkbox.checked = originalChecked;
+              }
             }
           };
           
@@ -6731,6 +6796,75 @@ router.post('/users/:userId/delivery-address', requireAdmin, async (req, res) =>
 });
 
 // Update user balance
+router.post('/users/:userId/toggle-partner-program', requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { isActive } = req.body;
+    
+    console.log('🔄 Toggle partner program request:', { userId, isActive });
+    
+    if (typeof isActive !== 'boolean') {
+      return res.json({ success: false, error: 'Неверный параметр isActive' });
+    }
+    
+    // Get user
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { partner: true }
+    });
+    
+    if (!user) {
+      return res.json({ success: false, error: 'Пользователь не найден' });
+    }
+    
+    // Если у пользователя нет партнерского профиля, создаем его
+    if (!user.partner) {
+      // Генерируем уникальный referral code
+      let referralCode = '';
+      let isUnique = false;
+      while (!isUnique) {
+        referralCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+        const existing = await prisma.partnerProfile.findUnique({
+          where: { referralCode }
+        });
+        if (!existing) {
+          isUnique = true;
+        }
+      }
+      
+      await prisma.partnerProfile.create({
+        data: {
+          userId: user.id,
+          isActive: isActive,
+          activatedAt: isActive ? new Date() : null,
+          activationType: 'ADMIN',
+          referralCode: referralCode,
+          programType: 'DIRECT'
+        }
+      });
+      
+      console.log(`✅ Partner profile created and ${isActive ? 'activated' : 'deactivated'}: ${userId}`);
+    } else {
+      // Обновляем существующий профиль
+      await prisma.partnerProfile.update({
+        where: { userId: user.id },
+        data: {
+          isActive: isActive,
+          activatedAt: isActive && !user.partner.activatedAt ? new Date() : user.partner.activatedAt,
+          activationType: 'ADMIN'
+        }
+      });
+      
+      console.log(`✅ Partner program ${isActive ? 'activated' : 'deactivated'}: ${userId}`);
+    }
+    
+    return res.json({ success: true, isActive: isActive });
+  } catch (error: any) {
+    console.error('❌ Error toggling partner program:', error);
+    return res.json({ success: false, error: error.message || 'Ошибка обновления статуса партнерской программы' });
+  }
+});
+
 router.post('/users/:userId/update-balance', requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
