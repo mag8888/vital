@@ -3580,6 +3580,9 @@ router.get('/users/:userId', requireAdmin, async (req, res) => {
           .back-btn { background: #6c757d; color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; display: inline-block; margin-bottom: 20px; }
           .back-btn:hover { background: #5a6268; }
           .empty-state { text-align: center; padding: 40px; color: #6c757d; }
+          .empty-state .add-order-btn {
+            margin-top: 15px;
+          }
           
           /* Instruction modal styles */
           .instruction-modal {
@@ -6687,6 +6690,20 @@ router.get('/users/:userId/partners-page', requireAdmin, async (req, res) => {
           <div class="content">
             <a href="/admin" class="back-btn">← Назад к админ-панели</a>
             
+            ${req.query && req.query.success === 'order_created' ? `
+              <div class="alert alert-success">✅ Заказ успешно создан</div>
+            ` : ''}
+            ${req.query && req.query.error === 'order_no_items' ? `
+              <div class="alert alert-error">❌ Добавьте хотя бы один товар в заказ</div>
+            ` : ''}
+            ${req.query && req.query.error === 'order_create_failed' ? `
+              <div class="alert alert-error">❌ Не удалось создать заказ. Попробуйте позже.</div>
+            ` : ''}
+            
+            <div class="actions-bar">
+              <button class="add-order-btn" onclick="openAddOrderModal()">➕ Добавить заказ</button>
+            </div>
+            
             <div class="stats">
               <div class="stat-card">
                 <div class="stat-number">${directPartners.length}</div>
@@ -7813,6 +7830,10 @@ function getStatusDisplayName(status: string) {
       CANCELLED: orders.filter(order => order.status === 'CANCELLED')
     };
     
+    const escapeHtmlAttr = (value = '') => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+    const defaultContact = user.deliveryAddress || (user.username ? `@${user.username}` : user.firstName || '');
+    const defaultMessage = 'Заказ создан администратором';
+    
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -7877,6 +7898,38 @@ function getStatusDisplayName(status: string) {
             display: inline-block; margin-bottom: 20px; 
           }
           .back-btn:hover { background: #5a6268; }
+          .actions-bar {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+          }
+          .add-order-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(32, 201, 151, 0.3);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+          }
+          .add-order-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 14px rgba(32, 201, 151, 0.4);
+          }
+          .add-order-btn.ghost {
+            background: transparent;
+            border: 2px dashed #764ba2;
+            color: #764ba2;
+            box-shadow: none;
+          }
+          .add-order-btn.ghost:hover {
+            border-style: solid;
+          }
           .content { padding: 30px; }
           
           .status-section { margin-bottom: 30px; }
@@ -7948,6 +8001,22 @@ function getStatusDisplayName(status: string) {
           .order-actions {
             margin-top: 20px; padding-top: 20px; 
             border-top: 1px solid #e9ecef; 
+          }
+          .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+          }
+          .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+          }
+          .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
           }
           
           .status-buttons {
@@ -8074,6 +8143,16 @@ function getStatusDisplayName(status: string) {
           .order-items-edit {
             margin-bottom: 20px;
           }
+          .new-order-summary {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: #f1f3f5;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-weight: 600;
+          }
           
           .order-item-edit {
             display: flex;
@@ -8123,6 +8202,16 @@ function getStatusDisplayName(status: string) {
             gap: 10px;
             align-items: end;
             flex-wrap: wrap;
+          }
+          .custom-product-form {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            margin-top: 10px;
+          }
+          .custom-product-form input {
+            min-width: 160px;
           }
           
           .form-group {
@@ -8390,6 +8479,7 @@ function getStatusDisplayName(status: string) {
               <div class="empty-state">
                 <h3>📭 Нет заказов</h3>
                 <p>У этого пользователя пока нет заказов</p>
+                <button class="add-order-btn ghost" onclick="openAddOrderModal()">➕ Добавить заказ</button>
               </div>
             ` : ''}
           </div>
@@ -8447,6 +8537,36 @@ function getStatusDisplayName(status: string) {
           // Переменные для редактирования заказа
           let currentEditOrderId = null;
           let currentEditItems = [];
+          let newOrderItems = [];
+          
+          function openAddOrderModal() {
+            newOrderItems = [];
+            renderNewOrderItems();
+            const form = document.getElementById('addOrderForm');
+            if (form) {
+              form.reset();
+              const defaultMessage = form.dataset.defaultMessage;
+              if (defaultMessage) {
+                const messageField = document.getElementById('addOrderMessage');
+                if (messageField) {
+                  messageField.value = defaultMessage;
+                }
+              }
+            }
+            const modal = document.getElementById('addOrderModal');
+            if (modal) {
+              modal.style.display = 'block';
+            }
+            loadProducts('addProductSelect');
+          }
+          
+          function closeAddOrderModal() {
+            const modal = document.getElementById('addOrderModal');
+            if (modal) {
+              modal.style.display = 'none';
+            }
+            newOrderItems = [];
+          }
           
           // Открыть модальное окно редактирования заказа
           async function openEditOrderModal(orderId) {
@@ -8481,7 +8601,7 @@ function getStatusDisplayName(status: string) {
           }
           
           // Загрузить список товаров в выпадающий список
-          async function loadProducts() {
+          async function loadProducts(selectId = 'productSelect') {
             try {
               const response = await fetch('/admin/api/products', {
                 method: 'GET',
@@ -8492,7 +8612,8 @@ function getStatusDisplayName(status: string) {
               const result = await response.json();
               
               if (result.success) {
-                const productSelect = document.getElementById('productSelect');
+                const productSelect = document.getElementById(selectId);
+                if (!productSelect) return;
                 productSelect.innerHTML = '<option value="">-- Выберите товар --</option>';
                 
                 result.data.forEach(product => {
@@ -8509,6 +8630,123 @@ function getStatusDisplayName(status: string) {
             } catch (error) {
               console.error('Error loading products:', error);
             }
+          }
+          
+          function addProductFromSelect() {
+            const select = document.getElementById('addProductSelect');
+            const quantityInput = document.getElementById('addProductQuantity');
+            if (!select || !quantityInput) return;
+            
+            const selectedOption = select.options[select.selectedIndex];
+            if (!selectedOption || !selectedOption.value) {
+              alert('Выберите товар');
+              return;
+            }
+            
+            const title = selectedOption.textContent || 'Товар';
+            const price = parseFloat(selectedOption.dataset.price || '0');
+            const productId = selectedOption.value;
+            const quantity = Math.max(1, parseInt(quantityInput.value, 10) || 1);
+            
+            newOrderItems.push({
+              productId,
+              title,
+              price,
+              quantity
+            });
+            
+            renderNewOrderItems();
+            select.selectedIndex = 0;
+            quantityInput.value = 1;
+          }
+          
+          function addCustomProduct() {
+            const nameInput = document.getElementById('customProductName');
+            const priceInput = document.getElementById('customProductPrice');
+            const quantityInput = document.getElementById('customProductQuantity');
+            
+            if (!nameInput || !priceInput || !quantityInput) return;
+            
+            const title = nameInput.value.trim();
+            if (!title) {
+              alert('Введите название товара');
+              return;
+            }
+            
+            const price = parseFloat(priceInput.value);
+            if (isNaN(price)) {
+              alert('Введите корректную цену');
+              return;
+            }
+            
+            const quantity = Math.max(1, parseInt(quantityInput.value, 10) || 1);
+            
+            newOrderItems.push({
+              productId: null,
+              title,
+              price,
+              quantity
+            });
+            
+            renderNewOrderItems();
+            nameInput.value = '';
+            priceInput.value = '';
+            quantityInput.value = 1;
+          }
+          
+          function renderNewOrderItems() {
+            const container = document.getElementById('newOrderItemsList');
+            const totalElement = document.getElementById('newOrderTotal');
+            
+            if (!container) return;
+            
+            if (newOrderItems.length === 0) {
+              container.innerHTML = '<p style="text-align: center; color: #6c757d; padding: 20px;">Товары не добавлены</p>';
+              if (totalElement) {
+                totalElement.textContent = '0.00';
+              }
+              return;
+            }
+            
+            container.innerHTML = newOrderItems.map((item, index) => \`
+              <div class="order-item-edit">
+                <div class="order-item-info">
+                  <strong>\${item.title}</strong>
+                  <div style="font-size: 12px; color: #6c757d;">
+                    \${item.quantity} шт. × \${item.price.toFixed(2)} PZ
+                  </div>
+                </div>
+                <div class="order-item-price">
+                  \${(item.price * item.quantity).toFixed(2)} PZ
+                </div>
+                <button type="button" class="remove-item-btn" onclick="removeNewOrderItem(\${index})">Удалить</button>
+              </div>
+            \`).join('');
+            
+            if (totalElement) {
+              const total = newOrderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+              totalElement.textContent = total.toFixed(2);
+            }
+          }
+          
+          function removeNewOrderItem(index) {
+            newOrderItems.splice(index, 1);
+            renderNewOrderItems();
+          }
+          
+          function submitAddOrderForm(event) {
+            if (newOrderItems.length === 0) {
+              event.preventDefault();
+              alert('Добавьте хотя бы один товар в заказ');
+              return false;
+            }
+            
+            const hiddenInput = document.getElementById('newOrderItemsInput');
+            if (hiddenInput) {
+              hiddenInput.value = JSON.stringify(newOrderItems);
+            }
+            
+            return true;
           }
           
           // Закрыть модальное окно редактирования заказа
@@ -8682,6 +8920,90 @@ function getStatusDisplayName(status: string) {
           }
         </script>
         
+        <!-- Модальное окно добавления заказа -->
+        <div id="addOrderModal" class="edit-order-modal">
+          <div class="edit-order-modal-content">
+            <div class="edit-order-header">
+              <h2>➕ Новый заказ</h2>
+              <span class="edit-order-close" onclick="closeAddOrderModal()">&times;</span>
+            </div>
+            
+            <form id="addOrderForm" method="POST" action="/admin/users/${userId}/orders" data-default-message="${escapeHtmlAttr(defaultMessage)}" onsubmit="return submitAddOrderForm(event)">
+              <div class="form-group">
+                <label for="addOrderContact">Контакт пользователя</label>
+                <input type="text" id="addOrderContact" name="contact" placeholder="Телефон или @username" value="${escapeHtmlAttr(defaultContact)}">
+              </div>
+              
+              <div class="form-group">
+                <label for="addOrderMessage">Комментарий</label>
+                <textarea id="addOrderMessage" name="message" rows="3" placeholder="Комментарий к заказу">${defaultMessage}</textarea>
+              </div>
+              
+              <div class="form-group">
+                <label for="addOrderStatus">Статус заказа</label>
+                <select id="addOrderStatus" name="status">
+                  <option value="NEW">🔴 Новый</option>
+                  <option value="PROCESSING">🟡 В обработке</option>
+                  <option value="COMPLETED">🟢 Завершен</option>
+                  <option value="CANCELLED">⚫ Отменен</option>
+                </select>
+              </div>
+              
+              <div class="order-items-edit" id="newOrderItemsList">
+                <p style="text-align: center; color: #6c757d; padding: 20px;">Товары не добавлены</p>
+              </div>
+              
+              <div class="new-order-summary">
+                <span>Итого:</span>
+                <span><strong id="newOrderTotal">0.00</strong> PZ</span>
+              </div>
+              
+              <div class="add-product-section">
+                <h3>➕ Добавить товар из каталога</h3>
+                <div class="add-product-form">
+                  <div class="form-group">
+                    <label for="addProductSelect">Выберите товар:</label>
+                    <select id="addProductSelect">
+                      <option value="">-- Выберите товар --</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="addProductQuantity">Количество:</label>
+                    <input type="number" id="addProductQuantity" value="1" min="1">
+                  </div>
+                  <button type="button" class="add-product-btn" onclick="addProductFromSelect()">Добавить</button>
+                </div>
+              </div>
+              
+              <div class="add-product-section">
+                <h3>✏️ Добавить товар вручную</h3>
+                <div class="custom-product-form">
+                  <div class="form-group">
+                    <label for="customProductName">Название</label>
+                    <input type="text" id="customProductName" placeholder="Например: Набор №1">
+                  </div>
+                  <div class="form-group">
+                    <label for="customProductPrice">Цена (PZ)</label>
+                    <input type="number" id="customProductPrice" placeholder="0.00" step="0.01" min="0">
+                  </div>
+                  <div class="form-group">
+                    <label for="customProductQuantity">Количество</label>
+                    <input type="number" id="customProductQuantity" value="1" min="1">
+                  </div>
+                  <button type="button" class="add-product-btn" onclick="addCustomProduct()">Добавить вручную</button>
+                </div>
+              </div>
+              
+              <input type="hidden" name="items" id="newOrderItemsInput">
+              
+              <div class="edit-order-actions">
+                <button type="button" class="cancel-edit-btn" onclick="closeAddOrderModal()">❌ Отмена</button>
+                <button type="submit" class="save-order-btn">💾 Создать заказ</button>
+              </div>
+            </form>
+          </div>
+        </div>
+        
         <!-- Модальное окно редактирования заказа -->
         <div id="editOrderModal" class="edit-order-modal">
           <div class="edit-order-modal-content">
@@ -8759,6 +9081,59 @@ function getStatusDisplayName(status: string) {
     res.status(500).send('Ошибка загрузки заказов пользователя');
   }
 });
+
+  router.post('/users/:userId/orders', requireAdmin, async (req, res) => {
+    const { userId } = req.params;
+    const { contact, message, status, items } = req.body;
+    
+    const allowedStatuses = ['NEW', 'PROCESSING', 'COMPLETED', 'CANCELLED'];
+    const targetStatus = allowedStatuses.includes((status || '').toUpperCase()) ? status.toUpperCase() : 'NEW';
+    
+    try {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        return res.redirect(`/admin/users/${userId}/orders?error=order_create_failed`);
+      }
+      
+      let parsedItems: any[] = [];
+      try {
+        parsedItems = JSON.parse(items || '[]');
+      } catch (error) {
+        console.error('❌ Failed to parse items JSON:', error);
+      }
+      
+      if (!Array.isArray(parsedItems) || parsedItems.length === 0) {
+        return res.redirect(`/admin/users/${userId}/orders?error=order_no_items`);
+      }
+      
+      const sanitizedItems = parsedItems.map((item) => {
+        const quantity = Math.max(1, parseInt(item.quantity, 10) || 1);
+        const price = Math.max(0, parseFloat(item.price) || 0);
+        return {
+          productId: item.productId || null,
+          title: (item.title || 'Товар').toString().trim() || 'Товар',
+          quantity,
+          price,
+          total: Number((price * quantity).toFixed(2))
+        };
+      });
+      
+      await prisma.orderRequest.create({
+        data: {
+          userId,
+          contact: contact?.toString().trim() || null,
+          message: message?.toString().trim() || 'Заказ создан администратором',
+          itemsJson: sanitizedItems,
+          status: targetStatus
+        }
+      });
+      
+      res.redirect(`/admin/users/${userId}/orders?success=order_created`);
+    } catch (error) {
+      console.error('❌ Error creating manual order:', error);
+      res.redirect(`/admin/users/${userId}/orders?error=order_create_failed`);
+    }
+  });
 
 // Маршрут для получения списка партнеров пользователя
 router.get('/users/:userId/partners', requireAdmin, async (req, res) => {
