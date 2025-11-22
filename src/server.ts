@@ -125,8 +125,13 @@ async function bootstrap() {
         { command: 'app', description: 'Открыть веб-приложение' }
       ]);
       console.log('Bot commands registered successfully');
-    } catch (error) {
-      console.error('Failed to register bot commands:', error);
+    } catch (error: any) {
+      // Telegram API timeout is common on Railway - continue anyway
+      if (error.code === 'ETIMEDOUT' || error.errno === 'ETIMEDOUT') {
+        console.warn('⚠️  Telegram API timeout when registering commands - continuing anyway');
+      } else {
+        console.error('Failed to register bot commands:', error.message || error);
+      }
     }
 
     console.log('Starting bot in long polling mode...');
@@ -135,16 +140,25 @@ async function bootstrap() {
     try {
       await bot.telegram.deleteWebhook();
       console.log('Cleared existing webhook');
-    } catch (error) {
-      console.log('No webhook to clear or error clearing:', error instanceof Error ? error.message : String(error));
+    } catch (error: any) {
+      // Telegram API timeout is common on Railway - continue anyway
+      if (error.code === 'ETIMEDOUT' || error.errno === 'ETIMEDOUT') {
+        console.warn('⚠️  Telegram API timeout when clearing webhook - continuing anyway');
+      } else {
+        console.log('No webhook to clear or error clearing:', error instanceof Error ? error.message : String(error));
+      }
     }
     
     // Try to launch bot with error handling
     try {
       await bot.launch();
       console.log('Bot launched successfully');
-    } catch (error) {
-      console.error('Bot launch failed, but web server is running:', error);
+    } catch (error: any) {
+      if (error.code === 'ETIMEDOUT' || error.errno === 'ETIMEDOUT') {
+        console.warn('⚠️  Telegram API timeout when launching bot - will retry on next request');
+      } else {
+        console.error('Bot launch failed, but web server is running:', error instanceof Error ? error.message : String(error));
+      }
     }
 
     process.once('SIGINT', () => {

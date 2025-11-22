@@ -13,32 +13,12 @@ if (dbUrl) {
 function normalizeMongoUrl(url: string): string {
   let normalized = url.trim();
   
-  // Fix retrywrites -> retryWrites (case insensitive)
+  // Fix retrywrites -> retryWrites (case insensitive) - only fix this
   normalized = normalized.replace(/retrywrites=true/gi, 'retryWrites=true');
   
-  // MongoDB connection string format: mongodb://[user:pass@]host[:port]/[dbname][?options]
-  // Railway sometimes provides URLs without database name
-  // We need to ensure there's a slash and database name before query params
-  
-  // Find where the host/port ends (either / or ?)
-  const queryIndex = normalized.indexOf('?');
-  const pathStart = normalized.indexOf('/', 10); // Skip "mongodb://"
-  
-  // If no path separator found before query params, add one with default database
-  if (pathStart === -1 || (queryIndex !== -1 && pathStart > queryIndex)) {
-    const insertPos = queryIndex !== -1 ? queryIndex : normalized.length;
-    normalized = normalized.substring(0, insertPos) + '/vital' + (queryIndex !== -1 ? normalized.substring(insertPos) : '');
-  } else {
-    // Check if pathname is empty (just /)
-    const pathPart = queryIndex !== -1 
-      ? normalized.substring(pathStart, queryIndex)
-      : normalized.substring(pathStart);
-    
-    if (pathPart === '/' || pathPart === '') {
-      // Empty pathname, add database name
-      normalized = normalized.substring(0, pathStart + 1) + 'vital' + (queryIndex !== -1 ? normalized.substring(queryIndex) : '');
-    }
-  }
+  // Don't modify the connection string otherwise - Railway provides complete URLs
+  // MongoDB with Prisma doesn't require database name in connection string for most operations
+  // Prisma will use the database specified in schema or default one
   
   return normalized;
 }
