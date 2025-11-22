@@ -1,3 +1,9 @@
+# ⚡ БЫСТРАЯ НАСТРОЙКА
+
+**Для быстрой пошаговой инструкции см.:** [STORAGE_SETUP_QUICK.md](./STORAGE_SETUP_QUICK.md)
+
+---
+
 # Настройка Cloudinary для хранения файлов
 
 ## 1. Создайте аккаунт Cloudinary

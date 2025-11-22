@@ -21,9 +21,6 @@ export async function ensureUser(ctx: Context) {
   } as const;
 
   try {
-    // Test connection first
-    await prisma.$connect();
-    
     const user = await prisma.user.upsert({
       where: { telegramId: data.telegramId },
       update: {
