@@ -31,7 +31,7 @@ LAVA_SECRET_KEY=ваш_api_ключ_от_lava
 LAVA_WEBHOOK_SECRET=ваш_секретный_ключ_для_webhook
 
 # Общие
-PUBLIC_BASE_URL=https://plazma-production.up.railway.app
+PUBLIC_BASE_URL=https://vital-production.up.railway.app
 ```
 
 ## 📋 Что изменилось

@@ -48,8 +48,8 @@ export async function createPayment(ctx: Context, amount: number, orderId: strin
     // Создаем инвойс в Lava
     // Согласно документации Lava API, нужны обязательные параметры
     const userEmail = (user as any).phone 
-      ? `${user.telegramId}@plazma.temp` 
-      : `user_${user.telegramId}@plazma.temp`;
+      ? `${user.telegramId}@vital.temp` 
+      : `user_${user.telegramId}@vital.temp`;
 
     const invoice = await lavaService.createInvoice({
       email: userEmail,
@@ -123,8 +123,8 @@ export async function createBalanceTopUp(ctx: Context, amount: number) {
     // email, currency, orderId, sum (для одноразовых платежей)
     // Генерируем временный email, если у пользователя нет email
     const userEmail = (user as any).phone 
-      ? `${user.telegramId}@plazma.temp` 
-      : `user_${user.telegramId}@plazma.temp`;
+      ? `${user.telegramId}@vital.temp` 
+      : `user_${user.telegramId}@vital.temp`;
 
     const invoice = await lavaService.createInvoice({
       email: userEmail,

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Скрипт для замены "Plazma" на "Plazma Water" в описаниях
+ * Скрипт для замены "Plazma" на "Vital" в описаниях
  * в базе данных (BotContent)
  */
 
@@ -34,22 +34,22 @@ async function updatePlazmaToPlazmaWater() {
       let newTitle = content.title;
       let newDescription = content.description;
       
-      // Заменяем "Plazma" на "Plazma Water", но только если это не "Plazma Water" или "Plazma Bot"
-      // Используем регулярное выражение для замены слова "Plazma", которое не является частью "Plazma Water" или "Plazma Bot"
+      // Заменяем "Plazma" на "Vital", но только если это не "Vital" или "Vital Bot"
+      // Используем регулярное выражение для замены слова "Plazma", которое не является частью "Vital" или "Vital Bot"
       const plazmaRegex = /\bPlazma\b(?!\s+(?:Water|Bot|MM))/gi;
       
       if (newContent && plazmaRegex.test(newContent)) {
-        newContent = newContent.replace(plazmaRegex, 'Plazma Water');
+        newContent = newContent.replace(plazmaRegex, 'Vital');
         updated = true;
       }
       
       if (newTitle && plazmaRegex.test(newTitle)) {
-        newTitle = newTitle.replace(plazmaRegex, 'Plazma Water');
+        newTitle = newTitle.replace(plazmaRegex, 'Vital');
         updated = true;
       }
       
       if (newDescription && plazmaRegex.test(newDescription)) {
-        newDescription = newDescription.replace(plazmaRegex, 'Plazma Water');
+        newDescription = newDescription.replace(plazmaRegex, 'Vital');
         updated = true;
       }
       

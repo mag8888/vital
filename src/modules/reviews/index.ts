@@ -35,7 +35,7 @@ export async function showReviews(ctx: Context) {
 
     if (reviews.length === 0) {
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.url('💬 Оставить отзыв', 'https://iplazma.tilda.ws/comment')]
+        [Markup.button.url('💬 Оставить отзыв', 'https://ivital.tilda.ws/comment')]
       ]);
       await ctx.reply('Отзывов пока нет. Добавьте их в админке.', keyboard);
       return;
@@ -56,7 +56,7 @@ export async function showReviews(ctx: Context) {
 
     // Добавляем кнопку для оставления отзыва после всех отзывов
     const keyboard = Markup.inlineKeyboard([
-      [Markup.button.url('💬 Оставить отзыв', 'https://iplazma.tilda.ws/comment')]
+      [Markup.button.url('💬 Оставить отзыв', 'https://ivital.tilda.ws/comment')]
     ]);
     await ctx.reply('💬 Хотите оставить свой отзыв?', keyboard);
   } catch (error) {

@@ -1,6 +1,6 @@
 # 🚀 Развертывание на Railway
 
-## Настройка для домена plazma-production.up.railway.app
+## Настройка для домена vital-production.up.railway.app
 
 ### 1. Переменные окружения в Railway
 
@@ -8,8 +8,8 @@
 
 ```env
 BOT_TOKEN=your_bot_token_here
-PUBLIC_BASE_URL=https://plazma-production.up.railway.app
-WEBAPP_URL=https://plazma-production.up.railway.app/webapp
+PUBLIC_BASE_URL=https://vital-production.up.railway.app
+WEBAPP_URL=https://vital-production.up.railway.app/webapp
 DATABASE_URL=your_mongodb_connection_string
 SESSION_SECRET=your_session_secret_key
 ```
@@ -18,7 +18,7 @@ SESSION_SECRET=your_session_secret_key
 
 После развертывания веб-приложение будет доступно по адресу:
 ```
-https://plazma-production.up.railway.app/webapp
+https://vital-production.up.railway.app/webapp
 ```
 
 ### 3. Настройка кнопки в боте
@@ -34,7 +34,7 @@ npm run setup-webapp
 1. Откройте @BotFather в Telegram
 2. Выберите вашего бота
 3. Выберите "Menu Button"
-4. Введите URL: `https://plazma-production.up.railway.app/webapp`
+4. Введите URL: `https://vital-production.up.railway.app/webapp`
 5. Введите текст кнопки: `🌐 Веб-приложение`
 
 ### 4. Проверка работоспособности
@@ -43,17 +43,17 @@ npm run setup-webapp
 
 1. **Health Check:**
    ```
-   GET https://plazma-production.up.railway.app/health
+   GET https://vital-production.up.railway.app/health
    ```
 
 2. **Web App:**
    ```
-   GET https://plazma-production.up.railway.app/webapp
+   GET https://vital-production.up.railway.app/webapp
    ```
 
 3. **API Health:**
    ```
-   GET https://plazma-production.up.railway.app/webapp/api/health
+   GET https://vital-production.up.railway.app/webapp/api/health
    ```
 
 ### 5. Логи Railway
@@ -117,7 +117,7 @@ Railway предоставляет:
 ## 🎯 Результат
 
 После успешного развертывания:
-- ✅ Веб-приложение доступно по `https://plazma-production.up.railway.app/webapp`
+- ✅ Веб-приложение доступно по `https://vital-production.up.railway.app/webapp`
 - ✅ Кнопка "🌐 Веб-приложение" появится в боте
 - ✅ Все API endpoints работают
 - ✅ SSL сертификат активен

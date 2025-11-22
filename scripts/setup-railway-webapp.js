@@ -2,7 +2,7 @@
 
 /**
  * Скрипт для настройки Telegram Web App на Railway
- * Специально для домена plazma-production.up.railway.app
+ * Специально для домена vital-production.up.railway.app
  */
 
 import { config } from 'dotenv';
@@ -12,7 +12,7 @@ import https from 'https';
 config();
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const RAILWAY_URL = 'https://plazma-production.up.railway.app';
+const RAILWAY_URL = 'https://vital-production.up.railway.app';
 const WEBAPP_URL = `${RAILWAY_URL}/webapp`;
 
 async function setupRailwayWebApp() {
@@ -171,8 +171,8 @@ function checkRailwayVariables() {
   }
   
   console.log('\n🌐 Railway URL будет автоматически установлен как:');
-  console.log(`   PUBLIC_BASE_URL=https://plazma-production.up.railway.app`);
-  console.log(`   WEBAPP_URL=https://plazma-production.up.railway.app/webapp`);
+  console.log(`   PUBLIC_BASE_URL=https://vital-production.up.railway.app`);
+  console.log(`   WEBAPP_URL=https://vital-production.up.railway.app/webapp`);
 }
 
 // Запускаем настройку

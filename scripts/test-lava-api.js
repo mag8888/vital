@@ -25,7 +25,7 @@ async function testEndpoint(endpoint) {
   const requestData = {
     sum: 100,
     orderId: `TEST-${Date.now()}`,
-    hookUrl: 'https://plazma-production.up.railway.app/webhook/lava',
+    hookUrl: 'https://vital-production.up.railway.app/webhook/lava',
     comment: 'Test invoice'
   };
   

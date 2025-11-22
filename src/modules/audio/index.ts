@@ -431,7 +431,7 @@ export const audioModule: BotModule = {
             audioFile.fileId,
             {
               title: audioFile.title,
-              performer: audioFile.description || 'Plazma Water',
+              performer: audioFile.description || 'Vital',
               duration: audioFile.duration || undefined,
               caption: `🎵 ${audioFile.title}\n📝 ${audioFile.description}`,
             }
@@ -460,7 +460,7 @@ export const audioModule: BotModule = {
           audioFile.fileId,
           {
             title: audioFile.title,
-            performer: audioFile.description || 'Plazma Water',
+            performer: audioFile.description || 'Vital',
             duration: audioFile.duration || undefined,
             caption: audioFile.description || undefined,
             reply_markup: {

@@ -1,4 +1,4 @@
-# Руководство по развертыванию Plazma Bot
+# Руководство по развертыванию Vital Bot
 
 ## 🚀 Развертывание на Railway
 
@@ -262,7 +262,7 @@ pg_dump -h localhost -U plazma_user plazma_bot > backup_$(date +%Y%m%d).sql
 ```javascript
 module.exports = {
   apps: [{
-    name: 'plazma-bot',
+    name: 'vital-bot',
     script: 'dist/server.js',
     instances: 1,
     autorestart: true,
@@ -355,7 +355,7 @@ pm2 status
 # Перезапуск сервисов
 sudo systemctl restart nginx
 sudo systemctl restart postgresql
-pm2 restart plazma-bot
+pm2 restart vital-bot
 
 # Проверка портов
 sudo netstat -tlnp | grep :3000

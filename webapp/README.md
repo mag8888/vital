@@ -1,6 +1,6 @@
-# Plazma Water Web App
+# Vital Web App
 
-Telegram мини-приложение для Plazma Water в стиле wireframe с темной темой.
+Telegram мини-приложение для Vital в стиле wireframe с темной темой.
 
 ## Особенности
 
@@ -35,7 +35,7 @@ Telegram мини-приложение для Plazma Water в стиле wirefra
 
 ### ℹ️ О PLASMA
 - Информация о продукте
-- Преимущества Plazma Water
+- Преимущества Vital
 - Социальные сети
 - Видео материалы
 

@@ -108,7 +108,7 @@ return false;
 
 ### 1. Откройте админ панель
 ```
-https://plazma-production.up.railway.app/admin
+https://vital-production.up.railway.app/admin
 ```
 
 ### 2. Проверьте консоль браузера

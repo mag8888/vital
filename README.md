@@ -1,6 +1,6 @@
-# Plazma Bot - Telegram Bot for Water Delivery Service
+# Vital Bot - Telegram Bot for Water Delivery Service
 
-🚀 **Plazma Bot** - это полнофункциональный Telegram бот для службы доставки воды с партнерской программой, админ-панелью и веб-приложением.
+🚀 **Vital Bot** - это полнофункциональный Telegram бот для службы доставки воды с партнерской программой, админ-панелью и веб-приложением.
 
 ## 🌟 Основные возможности
 
@@ -82,8 +82,8 @@ plazma/
 
 ### 1. Клонирование репозитория
 ```bash
-git clone https://github.com/arctur-dev/plazma.git
-cd plazma
+git clone https://github.com/arctur-dev/vital.git
+cd vital
 ```
 
 ### 2. Установка зависимостей
@@ -252,8 +252,8 @@ npm test
 
 Если у вас есть вопросы или проблемы:
 
-- 📧 Email: support@plazma-bot.com
-- 💬 Telegram: [@plazma_support](https://t.me/plazma_support)
+- 📧 Email: support@vital-bot.com
+- 💬 Telegram: [@vital_support](https://t.me/vital_support)
 - 🐛 Issues: [GitHub Issues](https://github.com/arctur-dev/plazma/issues)
 
 ## 🙏 Благодарности

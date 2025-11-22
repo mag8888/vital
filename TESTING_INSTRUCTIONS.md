@@ -4,7 +4,7 @@
 
 ### 1. Запуск сервера
 ```bash
-cd /Users/ADMIN/PLAZMA
+cd /Users/ADMIN/VITAL
 npm run build
 npm start
 ```

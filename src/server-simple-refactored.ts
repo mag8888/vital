@@ -46,7 +46,7 @@ async function bootstrap() {
 
     // Настройка сессий
     app.use(session({
-      secret: process.env.SESSION_SECRET || 'plazma-bot-secret-key-refactored-v2',
+      secret: process.env.SESSION_SECRET || 'vital-bot-secret-key-refactored-v2',
       resave: false,
       saveUninitialized: false,
       cookie: { 
@@ -127,7 +127,7 @@ async function bootstrap() {
           <!DOCTYPE html>
           <html>
           <head>
-            <title>Error - Plazma Bot v2.0</title>
+            <title>Error - Vital Bot v2.0</title>
             <style>
               body { 
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -212,7 +212,7 @@ async function bootstrap() {
           <!DOCTYPE html>
           <html>
           <head>
-            <title>404 - Plazma Bot v2.0</title>
+            <title>404 - Vital Bot v2.0</title>
             <style>
               body { 
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -304,7 +304,7 @@ async function bootstrap() {
       console.log(`📱 Webapp: http://localhost:${PORT}/webapp`);
       console.log(`🔧 Admin v2.0: http://localhost:${PORT}/admin`);
       console.log(`📊 API: http://localhost:${PORT}/api/health`);
-      console.log(`🤖 Bot: @${bot.botInfo?.username || 'plazma-bot'}`);
+      console.log(`🤖 Bot: @${bot.botInfo?.username || 'vital-bot'}`);
       console.log('');
       console.log('🎉 REFACTORING COMPLETED SUCCESSFULLY!');
       console.log('✨ Architecture improvements:');

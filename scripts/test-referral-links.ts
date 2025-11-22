@@ -51,8 +51,8 @@ async function testReferralLinks() {
   console.log('🔍 Testing link parsing...\n');
   
   const testLinks = [
-    'https://t.me/iplazmabot?start=ref_direct_TEST123',
-    'https://t.me/iplazmabot?start=ref_multi_TEST123'
+    'https://t.me/ivitalbot?start=ref_direct_TEST123',
+    'https://t.me/ivitalbot?start=ref_multi_TEST123'
   ];
   
   for (const link of testLinks) {

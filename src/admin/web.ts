@@ -37,7 +37,7 @@ router.get('/login', (req, res) => {
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Plazma Bot Admin Panel</title>
+      <title>Vital Bot Admin Panel</title>
       <meta charset="utf-8">
       <style>
         body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; background: #f5f5f5; }
@@ -53,7 +53,7 @@ router.get('/login', (req, res) => {
     </head>
     <body>
       <div class="login-container">
-        <h2>🔧 Plazma Bot Admin Panel</h2>
+        <h2>🔧 Vital Bot Admin Panel</h2>
         <form method="post" action="/admin/login">
           <div class="form-group">
             <label>Пароль:</label>
@@ -452,7 +452,7 @@ router.get('/', requireAdmin, async (req, res) => {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Админ-панель Plazma Bot v2.0</title>
+        <title>Админ-панель Vital Bot v2.0</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
@@ -740,7 +740,7 @@ router.get('/', requireAdmin, async (req, res) => {
       <body>
         <div class="container">
           <div class="header">
-            <h1>🚀 Админ-панель Plazma Bot v2.0</h1>
+            <h1>🚀 Админ-панель Vital Bot v2.0</h1>
             <p>Единое управление ботом, пользователями и партнёрами</p>
           </div>
           
@@ -2268,7 +2268,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Детальная информация о пользователях - Plazma Water Admin</title>
+        <title>Детальная информация о пользователях - Vital Admin</title>
         <meta charset="utf-8">
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
@@ -3470,7 +3470,7 @@ router.post('/api/products', requireAdmin, upload.single('image'), async (req, r
         // Upload to Cloudinary
         const result = await new Promise((resolve, reject) => {
           cloudinary.uploader.upload_stream(
-            { resource_type: 'auto', folder: 'plazma-products' },
+            { resource_type: 'auto', folder: 'vital-products' },
             (error, result) => {
               if (error) reject(error);
               else resolve(result);
@@ -5477,7 +5477,7 @@ router.post('/products/:productId/update', requireAdmin, upload.single('image'),
     if (req.file) {
       const result = await new Promise((resolve, reject) => {
         cloudinary.uploader.upload_stream(
-          { resource_type: 'auto', folder: 'plazma-bot/products' },
+          { resource_type: 'auto', folder: 'vital-bot/products' },
           (error, result) => {
             if (error) reject(error);
             else resolve(result);
@@ -5760,7 +5760,7 @@ router.get('/instructions', requireAdmin, (req, res) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Инструкции - Plazma Water Admin</title>
+      <title>Инструкции - Vital Admin</title>
       <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
         .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
@@ -5791,7 +5791,7 @@ router.get('/instructions', requireAdmin, (req, res) => {
       <div class="container">
         <div class="header">
           <h1>📋 Инструкции по работе с админ панелью</h1>
-          <p>Полное руководство по управлению Plazma Water</p>
+          <p>Полное руководство по управлению Vital</p>
           <a href="/admin" class="back-btn">← Назад к панели</a>
         </div>
         
@@ -5801,8 +5801,8 @@ router.get('/instructions', requireAdmin, (req, res) => {
             <div class="grid">
               <div class="card">
                 <h4>🔐 Доступ к админ панели</h4>
-                <p><strong>URL:</strong> <code>https://plazma-production.up.railway.app/admin</code></p>
-                <p><strong>Логин:</strong> admin@plazma.com</p>
+                <p><strong>URL:</strong> <code>https://vital-production.up.railway.app/admin</code></p>
+                <p><strong>Логин:</strong> admin@vital.com</p>
                 <p><strong>Пароль:</strong> admin123</p>
               </div>
               <div class="card">
@@ -5964,7 +5964,7 @@ router.get('/instructions', requireAdmin, (req, res) => {
               <div class="card">
                 <h4>📞 Контакты поддержки</h4>
                 <p><strong>Telegram:</strong> @diglukhov</p>
-                <p><strong>Email:</strong> support@plazma.com</p>
+                <p><strong>Email:</strong> support@vital.com</p>
                 <p><strong>Документация:</strong> Этот файл</p>
               </div>
             </div>
@@ -9722,7 +9722,7 @@ router.get('/admin/audio', requireAdmin, async (req, res) => {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Управление аудиофайлами - Plazma Bot Admin Panel</title>
+        <title>Управление аудиофайлами - Vital Bot Admin Panel</title>
         <meta charset="utf-8">
         <style>
           body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }

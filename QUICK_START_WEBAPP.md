@@ -23,7 +23,7 @@
 
 ### 1. Сборка проекта
 ```bash
-cd /Users/ADMIN/PLAZMA
+cd /Users/ADMIN/VITAL
 npm run build
 ```
 
@@ -41,7 +41,7 @@ npm run setup-webapp
 
 После запуска веб-приложение будет доступно по адресу:
 ```
-https://plazma-production.up.railway.app/webapp
+https://vital-production.up.railway.app/webapp
 ```
 
 В боте появится кнопка "🌐 Веб-приложение" в меню.

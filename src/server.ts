@@ -40,7 +40,7 @@ async function bootstrap() {
 
     // Configure session middleware
     app.use(session({
-      secret: process.env.SESSION_SECRET || 'plazma-bot-secret-key',
+      secret: process.env.SESSION_SECRET || 'vital-bot-secret-key',
       resave: false,
       saveUninitialized: false,
       cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 } // 24 hours
@@ -64,7 +64,7 @@ async function bootstrap() {
     app.get('/', (req, res) => {
       // Railway healthcheck expects 200 OK, not redirect
       if (req.headers['user-agent']?.includes('Railway') || req.query.healthcheck) {
-        res.status(200).json({ status: 'ok', service: 'plazma-bot' });
+        res.status(200).json({ status: 'ok', service: 'vital-bot' });
       } else {
         res.redirect('/webapp');
       }

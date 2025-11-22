@@ -9,7 +9,7 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-const newAboutText = `🌟 Plazma Water - это революционная технология структурирования воды!
+const newAboutText = `🌟 Vital - это революционная технология структурирования воды!
 
 💧 Наша вода проходит специальную обработку, которая:
 • Улучшает структуру молекул воды
@@ -41,7 +41,7 @@ async function updateAboutText() {
         key: 'about_text',
         title: 'О проекте',
         content: newAboutText,
-        description: 'Текст о проекте Plazma Water',
+        description: 'Текст о проекте Vital',
         category: 'descriptions',
         language: 'ru',
         isActive: true

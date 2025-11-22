@@ -4,7 +4,7 @@ import fetch from 'node-fetch';
 import { env } from '../dist/config/env.js';
 
 const BOT_TOKEN = env.botToken;
-const WEBAPP_URL = 'https://plazma-production.up.railway.app/webapp';
+const WEBAPP_URL = 'https://vital-production.up.railway.app/webapp';
 
 async function setupTelegramWebApp() {
   console.log('🤖 Настройка Telegram Web App...');

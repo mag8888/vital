@@ -75,7 +75,7 @@ LAVA_PROJECT_ID=2304615369
 LAVA_SECRET_KEY=zhwuUbNCgEhmBYHvzSIF0jPbFH1sVkb6iRsp8gMA0uhqXvTWqBUFdqJagkvpLw6Z
 LAVA_BASE_URL=https://api.lava.top/api/v2
 LAVA_WEBHOOK_SECRET=627e791c317c818b579c341f935953a83d7b5f42c2e9026a357ab0b4f790b762
-PUBLIC_BASE_URL=https://plazma-production.up.railway.app
+PUBLIC_BASE_URL=https://vital-production.up.railway.app
 ```
 
 ## Логи для диагностики

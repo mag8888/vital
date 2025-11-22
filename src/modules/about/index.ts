@@ -5,9 +5,9 @@ import { logUserAction } from '../../services/user-history.js';
 import { getBotContent } from '../../services/bot-content-service.js';
 
 // Fallback текст, если контент не найден в БД
-const fallbackAboutText = `💧 <b>О PLAZMA WATER</b>
+const fallbackAboutText = `💧 <b>О VITAL</b>
 
-✨ <b>Plazma Water</b> — это революционная форма витаминов и микроэлементов в плазменной наноформе.
+✨ <b>Vital</b> — это революционная форма витаминов и микроэлементов в плазменной наноформе.
 
 🚀 <b>Преимущества:</b>
 • Усвоение до 99,9% (в отличие от таблеток 1-10%)
@@ -30,7 +30,7 @@ export const aboutModule: BotModule = {
       }
     });
 
-    bot.hears(['ℹ️ О PLAZMA'], async (ctx) => {
+    bot.hears(['ℹ️ О VITAL'], async (ctx) => {
       try {
         await logUserAction(ctx, 'menu:about');
         await showAbout(ctx);
@@ -48,15 +48,15 @@ export async function showAbout(ctx: Context) {
     
     const keyboard = Markup.inlineKeyboard([
       [
-        Markup.button.url('📱 VK', 'https://vk.com/iplazma'),
-        Markup.button.url('📸 Instagram', 'https://www.instagram.com/iplazmanano/')
+        Markup.button.url('📱 VK', 'https://vk.com/ivital'),
+        Markup.button.url('📸 Instagram', 'https://www.instagram.com/ivitalnano/')
       ],
       [
-        Markup.button.url('🆘 Поддержка', 'https://t.me/diglukhov?text=Здрасвуйте у меня вопрос по PLAZMA')
+        Markup.button.url('🆘 Поддержка', 'https://t.me/diglukhov?text=Здрасвуйте у меня вопрос по VITAL')
       ],
       [
-        Markup.button.url('🌐 Каталог', 'https://iplazma.tilda.ws/'),
-        Markup.button.url('💬 Telegram', 'https://t.me/iplazmabot')
+        Markup.button.url('🌐 Каталог', 'https://ivital.tilda.ws/'),
+        Markup.button.url('💬 Telegram', 'https://t.me/ivitalbot')
       ]
     ]);
 

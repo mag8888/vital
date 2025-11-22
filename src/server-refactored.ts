@@ -46,7 +46,7 @@ async function bootstrap() {
 
     // Настройка сессий
     app.use(session({
-      secret: process.env.SESSION_SECRET || 'plazma-bot-secret-key-refactored',
+      secret: process.env.SESSION_SECRET || 'vital-bot-secret-key-refactored',
       resave: false,
       saveUninitialized: false,
       cookie: { 
@@ -90,7 +90,7 @@ async function bootstrap() {
           <!DOCTYPE html>
           <html>
           <head>
-            <title>Error - Plazma Bot</title>
+            <title>Error - Vital Bot</title>
             <style>
               body { 
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -164,7 +164,7 @@ async function bootstrap() {
           <!DOCTYPE html>
           <html>
           <head>
-            <title>404 - Plazma Bot</title>
+            <title>404 - Vital Bot</title>
             <style>
               body { 
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -245,7 +245,7 @@ async function bootstrap() {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📱 Webapp: http://localhost:${PORT}/webapp`);
       console.log(`🔧 Admin: http://localhost:${PORT}/admin`);
-      console.log(`🤖 Bot: @${bot.botInfo?.username || 'plazma-bot'}`);
+      console.log(`🤖 Bot: @${bot.botInfo?.username || 'vital-bot'}`);
     });
 
   } catch (error) {

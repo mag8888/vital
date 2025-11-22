@@ -5,7 +5,7 @@
 Добавьте следующие переменные в Railway Dashboard:
 
 ### 1. Откройте Railway Dashboard
-- Перейдите в ваш проект `plazma-production`
+- Перейдите в ваш проект `vital-production`
 - Откройте раздел "Settings" → "Variables"
 
 ### 2. Добавьте переменные
@@ -14,8 +14,8 @@
 BOT_TOKEN=your_bot_token_from_botfather
 DATABASE_URL=your_mongodb_connection_string
 SESSION_SECRET=your_random_session_secret_key
-PUBLIC_BASE_URL=https://plazma-production.up.railway.app
-WEBAPP_URL=https://plazma-production.up.railway.app/webapp
+PUBLIC_BASE_URL=https://vital-production.up.railway.app
+WEBAPP_URL=https://vital-production.up.railway.app/webapp
 ```
 
 ### 3. Автоматические переменные Railway
@@ -73,7 +73,7 @@ railway run npm run setup-railway
 
 ### 1. Health Check
 ```
-GET https://plazma-production.up.railway.app/health
+GET https://vital-production.up.railway.app/health
 ```
 
 Ожидаемый ответ:
@@ -86,14 +86,14 @@ GET https://plazma-production.up.railway.app/health
 
 ### 2. Web App
 ```
-GET https://plazma-production.up.railway.app/webapp
+GET https://vital-production.up.railway.app/webapp
 ```
 
 Должна загрузиться главная страница веб-приложения.
 
 ### 3. API Health
 ```
-GET https://plazma-production.up.railway.app/webapp/api/health
+GET https://vital-production.up.railway.app/webapp/api/health
 ```
 
 Ожидаемый ответ:
@@ -160,4 +160,4 @@ Railway автоматически создает снимки состояни�
 ---
 
 **🎉 После настройки ваше Web App будет доступно по адресу:**
-**`https://plazma-production.up.railway.app/webapp`**
+**`https://vital-production.up.railway.app/webapp`**

@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient({
   datasources: {
     db: {
-      url: "mongodb+srv://PLAZMA:s8eH4N8JRM4xIPbd@cluster1.pgqk3k.mongodb.net/plazma_bot?retryWrites=true&w=majority&appName=Cluster1"
+      url: "mongodb+srv://VITAL:s8eH4N8JRM4xIPbd@cluster1.pgqk3k.mongodb.net/plazma_bot?retryWrites=true&w=majority&appName=Cluster1"
     }
   }
 });

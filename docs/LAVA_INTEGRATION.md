@@ -42,7 +42,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 python3 -c "import secrets; print(secrets.token_hex(32))"
 
 # Способ 4: Простая строка (менее безопасно)
-echo "plazma-water-webhook-$(date +%s)"
+echo "vital-webhook-$(date +%s)"
 ```
 
 **Пример результата:**

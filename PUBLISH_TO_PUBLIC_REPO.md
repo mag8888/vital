@@ -45,7 +45,7 @@ git push public public-release
 gh auth login
 
 # Создание репозитория (если нужно)
-gh repo create arctur-dev/plazma --public --description "Plazma Bot - Telegram Bot for Water Delivery Service"
+gh repo create arctur-dev/plazma --public --description "Vital Bot - Telegram Bot for Water Delivery Service"
 
 # Загрузка кода
 git remote add public https://github.com/arctur-dev/plazma.git
@@ -69,7 +69,7 @@ git push public main
 # Создаем ветку для GitHub Pages
 git checkout --orphan gh-pages
 git rm -rf .
-echo "# Plazma Bot Documentation" > README.md
+echo "# Vital Bot Documentation" > README.md
 git add README.md
 git commit -m "Initial documentation"
 git push public gh-pages
