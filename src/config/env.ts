@@ -8,12 +8,31 @@ function requireEnv(key: string): string {
   return value;
 }
 
+function getDatabaseUrl(): string {
+  // Проверяем различные варианты имен переменных для Railway MongoDB
+  return (
+    process.env.DATABASE_URL ||
+    process.env.MONGO_PUBLIC_URL ||
+    process.env.MONGO_URL ||
+    process.env.MONGODB_URL ||
+    ''
+  );
+}
+
 export const env = {
   botToken: requireEnv('BOT_TOKEN'),
   botWebhookUrl: process.env.BOT_WEBHOOK_URL,
   botWebhookSecret: process.env.BOT_WEBHOOK_SECRET,
   adminChatId: process.env.ADMIN_CHAT_ID,
-  databaseUrl: requireEnv('DATABASE_URL'),
+  databaseUrl: (() => {
+    const dbUrl = getDatabaseUrl();
+    if (!dbUrl) {
+      throw new Error(
+        'Database URL is required. Please set one of: DATABASE_URL, MONGO_PUBLIC_URL, MONGO_URL, or MONGODB_URL'
+      );
+    }
+    return dbUrl;
+  })(),
   adminEmail: requireEnv('ADMIN_EMAIL'),
   adminPassword: requireEnv('ADMIN_PASSWORD'),
   publicBaseUrl: process.env.PUBLIC_BASE_URL || 'http://localhost:3000',

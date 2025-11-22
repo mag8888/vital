@@ -1,7 +1,8 @@
 import { PrismaClient } from '@prisma/client';
+import { env } from '../config/env.js';
 
 // Log database URL for debugging (without sensitive info)
-const dbUrl = process.env.DATABASE_URL;
+const dbUrl = env.databaseUrl;
 if (dbUrl) {
   console.log('Database URL configured:', dbUrl.substring(0, 20) + '...');
 } else {

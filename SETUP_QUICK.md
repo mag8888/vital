@@ -65,3 +65,4 @@ SESSION_SECRET=your-random-secret-string-here
 
 📚 **Подробная инструкция:** см. файл `ENV_SETUP.md`
 
+
