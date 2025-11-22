@@ -76,8 +76,14 @@ async function bootstrap() {
     // Webapp routes
     app.use('/webapp', webappRouter);
     
-    // Lava webhook routes
-    app.use('/webhook', lavaWebhook);
+    // Lava webhook routes (only if Lava is enabled)
+    const { lavaService } = await import('./services/lava-service.js');
+    if (lavaService.isEnabled()) {
+      app.use('/webhook', lavaWebhook);
+      console.log('✅ Lava webhook routes enabled');
+    } else {
+      console.log('ℹ️  Lava webhook routes disabled (Lava service not configured)');
+    }
 
     const port = Number(process.env.PORT ?? 3000);
     // Listen on 0.0.0.0 to accept connections from Railway

@@ -43,21 +43,21 @@ class LavaService {
       baseUrl: process.env.LAVA_BASE_URL || 'https://gate.lava.top'
     };
     
-    // Проверка наличия обязательных переменных
-    const missingVars: string[] = [];
-    if (!this.config.apiKey) missingVars.push('LAVA_SECRET_KEY или LAVA_API_KEY');
+    // Lava сервис опционален - проверяем только если нужно
+    const isEnabled = !!this.config.apiKey;
     
-    if (missingVars.length > 0) {
-      console.error('❌ Lava Service: Missing required environment variables:', missingVars);
+    if (!isEnabled) {
+      console.log('ℹ️  Lava Service: Disabled (no API key provided)');
+    } else {
+      console.log('✅ Lava Service: Enabled');
     }
-    
-    console.log('🔥 Lava Service Config:', {
-      apiKeyLength: this.config.apiKey.length,
-      baseUrl: this.config.baseUrl,
-      hasApiKey: !!this.config.apiKey,
-      webhookSecret: process.env.LAVA_WEBHOOK_SECRET ? 'SET' : 'MISSING',
-      publicBaseUrl: process.env.PUBLIC_BASE_URL || 'NOT SET'
-    });
+  }
+
+  /**
+   * Проверка доступности сервиса
+   */
+  isEnabled(): boolean {
+    return !!this.config.apiKey;
   }
 
   /**
@@ -66,6 +66,9 @@ class LavaService {
    * Документация: https://gate.lava.top/docs
    */
   async createInvoice(request: CreateInvoiceRequest): Promise<CreateInvoiceResponse> {
+    if (!this.isEnabled()) {
+      throw new Error('Lava Service is disabled. Please provide LAVA_SECRET_KEY or LAVA_API_KEY environment variable.');
+    }
     // Убираем trailing slash из baseUrl
     let baseUrl = this.config.baseUrl.replace(/\/$/, '');
     
@@ -139,6 +142,10 @@ class LavaService {
    * Использует GET /api/v1/invoices для получения списка инвойсов
    */
   async getInvoiceStatus(invoiceId: string): Promise<any> {
+    if (!this.isEnabled()) {
+      throw new Error('Lava Service is disabled. Please provide LAVA_SECRET_KEY or LAVA_API_KEY environment variable.');
+    }
+    
     const baseUrl = this.config.baseUrl.replace(/\/$/, '');
     
     try {
