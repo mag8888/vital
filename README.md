@@ -118,25 +118,53 @@ npm start
 
 ### Переменные окружения (.env)
 
-```env
-# Telegram Bot
-BOT_TOKEN=your_bot_token_here
-BOT_WEBHOOK_URL=https://yourdomain.com/bot/webhook
-BOT_WEBHOOK_SECRET=your_secret_here
+**⚠️ ВАЖНО:** Все переменные окружения должны быть настроены перед запуском приложения!
 
-# База данных
+Скопируйте файл `.env.example` в `.env` и заполните все обязательные переменные:
+
+```bash
+cp .env.example .env
+```
+
+#### Обязательные переменные:
+
+```env
+# Telegram Bot Token (получить у @BotFather)
+BOT_TOKEN=your_bot_token_here
+
+# База данных PostgreSQL
 DATABASE_URL=postgresql://user:password@host:port/database
 
 # Админ-панель
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=secure_password
+ADMIN_EMAIL=admin@vital.com
+ADMIN_PASSWORD=your_secure_password_here
+```
 
-# Веб-приложение
+#### Опциональные переменные:
+
+```env
+# Базовый URL приложения
 PUBLIC_BASE_URL=https://yourdomain.com
 
-# Уведомления
+# Telegram Chat ID администратора (для уведомлений)
 ADMIN_CHAT_ID=your_telegram_chat_id
+
+# Webhook настройки (если используете webhook)
+BOT_WEBHOOK_URL=https://yourdomain.com/bot/webhook
+BOT_WEBHOOK_SECRET=your_webhook_secret
+
+# Lava Payment (для оплаты)
+LAVA_SECRET_KEY=your_lava_secret_key
+LAVA_WEBHOOK_SECRET=your_lava_webhook_secret
+
+# Секрет для сессий
+SESSION_SECRET=vital-bot-secret-key-change-in-production
+
+# Порт сервера
+PORT=3000
 ```
+
+**Полный список переменных смотрите в файле `.env.example`**
 
 ### Настройка Telegram Bot
 
