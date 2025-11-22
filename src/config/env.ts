@@ -38,6 +38,10 @@ export const env = {
   publicBaseUrl: process.env.PUBLIC_BASE_URL || 'http://localhost:3000',
   webappUrl: process.env.WEBAPP_URL || process.env.PUBLIC_BASE_URL || 'https://vital-production.up.railway.app',
   videoUrl: process.env.VIDEO_URL || 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', // Ссылка на видео по умолчанию
+  // Cloudinary configuration (optional)
+  cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
+  cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
+  cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
 };
 
 // Helper function to get all admin chat IDs

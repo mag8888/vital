@@ -58,9 +58,20 @@ export class ProductServiceImpl implements ProductService {
   }
 
   async uploadImage(productId: string, imageFile: Buffer): Promise<string> {
-    // Здесь должна быть логика загрузки изображения в Cloudinary или другое хранилище
-    // Пока возвращаем заглушку
-    throw new Error('Image upload not implemented yet');
+    const { uploadImage } = await import('../cloudinary-service.js');
+    
+    try {
+      const result = await uploadImage(imageFile, {
+        folder: 'vital/products',
+        publicId: `product-${productId}`,
+        resourceType: 'image',
+      });
+      
+      return result.secureUrl;
+    } catch (error) {
+      console.error('Failed to upload product image:', error);
+      throw new Error(`Image upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   validateProductData(data: Partial<ProductApiResponse>): ValidationResult {

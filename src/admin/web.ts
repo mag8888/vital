@@ -1,24 +1,25 @@
 import express from 'express';
 import multer from 'multer';
 import session from 'express-session';
-import { v2 as cloudinary } from 'cloudinary';
 import { prisma } from '../lib/prisma.js';
 import { recalculatePartnerBonuses, activatePartnerProfile, checkPartnerActivation, calculateDualSystemBonuses } from '../services/partner-service.js';
 import { ordersModule } from './orders-module.js';
-
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dt4r1tigf',
-  api_key: process.env.CLOUDINARY_API_KEY || '579625698851834',
-  api_secret: process.env.CLOUDINARY_API_SECRET || '3tqNb1QPMICBTW0bTLus5HFHGQI',
-});
+import { uploadImage, isCloudinaryConfigured } from '../services/cloudinary-service.js';
 
 const router = express.Router();
 
 // Configure multer for file uploads
 const upload = multer({ 
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit for images
+  fileFilter: (req, file, cb) => {
+    // Accept only image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Только файлы изображений разрешены'));
+    }
+  }
 });
 
 // Middleware to check admin access
@@ -3467,21 +3468,21 @@ router.post('/api/products', requireAdmin, upload.single('image'), async (req, r
     let imageUrl = '';
     if (req.file) {
       try {
-        // Upload to Cloudinary
-        const result = await new Promise((resolve, reject) => {
-          cloudinary.uploader.upload_stream(
-            { resource_type: 'auto', folder: 'vital-products' },
-            (error, result) => {
-              if (error) reject(error);
-              else resolve(result);
-            }
-          ).end(req.file!.buffer);
+        if (!isCloudinaryConfigured()) {
+          return res.status(500).json({ success: false, error: 'Cloudinary не настроен. Установите переменные окружения CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET' });
+        }
+        
+        // Upload to Cloudinary using service
+        const result = await uploadImage(req.file.buffer, {
+          folder: 'vital/products',
+          resourceType: 'image',
         });
         
-        imageUrl = (result as any).secure_url;
-      } catch (error) {
+        imageUrl = result.secureUrl;
+        console.log('✅ Image uploaded successfully:', imageUrl);
+      } catch (error: any) {
         console.error('Image upload error:', error);
-        return res.status(500).json({ success: false, error: 'Ошибка загрузки изображения' });
+        return res.status(500).json({ success: false, error: `Ошибка загрузки изображения: ${error.message || 'Неизвестная ошибка'}` });
       }
     }
     
@@ -5475,16 +5476,23 @@ router.post('/products/:productId/update', requireAdmin, upload.single('image'),
     
     let imageUrl = undefined;
     if (req.file) {
-      const result = await new Promise((resolve, reject) => {
-        cloudinary.uploader.upload_stream(
-          { resource_type: 'auto', folder: 'vital-bot/products' },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
-          }
-        ).end(req.file!.buffer);
-      });
-      imageUrl = (result as any).secure_url;
+      try {
+        if (!isCloudinaryConfigured()) {
+          return res.status(500).json({ success: false, error: 'Cloudinary не настроен' });
+        }
+        
+        const result = await uploadImage(req.file.buffer, {
+          folder: 'vital/products',
+          publicId: `product-${productId}`,
+          resourceType: 'image',
+        });
+        
+        imageUrl = result.secureUrl;
+        console.log('✅ Product image updated:', imageUrl);
+      } catch (error: any) {
+        console.error('Image upload error:', error);
+        return res.status(500).json({ success: false, error: `Ошибка загрузки изображения: ${error.message || 'Неизвестная ошибка'}` });
+      }
     }
 
     const updateData: any = {};
@@ -5511,6 +5519,80 @@ router.post('/products/:productId/update', requireAdmin, upload.single('image'),
     res.status(500).json({ success: false, error: 'Ошибка обновления товара' });
   }
 });
+
+// Upload product image
+router.post('/products/:productId/upload-image', requireAdmin, upload.single('image'), async (req, res) => {
+  try {
+    const { productId } = req.params;
+    
+    if (!req.file) {
+      return res.redirect(`/admin?error=no_image`);
+    }
+    
+    if (!isCloudinaryConfigured()) {
+      return res.redirect(`/admin?error=cloudinary_not_configured`);
+    }
+    
+    try {
+      const result = await uploadImage(req.file.buffer, {
+        folder: 'vital/products',
+        publicId: `product-${productId}`,
+        resourceType: 'image',
+      });
+      
+      await prisma.product.update({
+        where: { id: productId },
+        data: { imageUrl: result.secureUrl },
+      });
+      
+      console.log('✅ Product image uploaded:', result.secureUrl);
+      res.redirect(`/admin?success=image_updated`);
+    } catch (error: any) {
+      console.error('Image upload error:', error);
+      res.redirect(`/admin?error=image_upload`);
+    }
+  } catch (error) {
+    console.error('Upload product image error:', error);
+    res.redirect(`/admin?error=image_upload`);
+  }
+});
+// Upload review image
+router.post('/reviews/:reviewId/upload-image', requireAdmin, upload.single('image'), async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    
+    if (!req.file) {
+      return res.redirect(`/admin/reviews?error=no_image`);
+    }
+    
+    if (!isCloudinaryConfigured()) {
+      return res.redirect(`/admin/reviews?error=cloudinary_not_configured`);
+    }
+    
+    try {
+      const result = await uploadImage(req.file.buffer, {
+        folder: 'vital/reviews',
+        publicId: `review-${reviewId}`,
+        resourceType: 'image',
+      });
+      
+      await prisma.review.update({
+        where: { id: reviewId },
+        data: { photoUrl: result.secureUrl },
+      });
+      
+      console.log('✅ Review image uploaded:', result.secureUrl);
+      res.redirect(`/admin/reviews?success=image_updated`);
+    } catch (error: any) {
+      console.error('Image upload error:', error);
+      res.redirect(`/admin/reviews?error=image_upload`);
+    }
+  } catch (error) {
+    console.error('Upload review image error:', error);
+    res.redirect(`/admin/reviews?error=image_upload`);
+  }
+});
+
 router.get('/reviews', requireAdmin, async (req, res) => {
   try {
     const reviews = await prisma.review.findMany({
