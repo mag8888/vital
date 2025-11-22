@@ -20,24 +20,29 @@ function normalizeMongoUrl(url: string): string {
   // Railway sometimes provides URLs like: mongodb://user:pass@host:port?options
   // Error: "Missing delimiting slash between hosts and options" means we need /dbname before ?
   
+  const protocolIndex = normalized.indexOf('://');
+  if (protocolIndex === -1) {
+    return normalized; // Invalid URL, return as is
+  }
+  
   const queryIndex = normalized.indexOf('?');
+  const afterProtocol = normalized.substring(protocolIndex + 3);
   
   if (queryIndex !== -1) {
-    // There are query parameters - check if there's a slash before them
+    // There are query parameters
     const beforeQuery = normalized.substring(0, queryIndex);
-    const lastSlashIndex = beforeQuery.lastIndexOf('/');
+    const afterProtocolPart = beforeQuery.substring(protocolIndex + 3);
     
-    // Check if the slash is part of the protocol (mongodb://)
-    const protocolIndex = normalized.indexOf('://');
-    const isSlashInProtocol = lastSlashIndex <= protocolIndex + 2;
+    // Find first slash after protocol (should be after host:port)
+    const slashIndex = afterProtocolPart.indexOf('/');
     
-    if (lastSlashIndex === -1 || isSlashInProtocol) {
-      // No slash found or slash is only in protocol - need to add /database before ?
+    if (slashIndex === -1) {
+      // No slash found before ? - need to add /database before ?
       normalized = beforeQuery + '/vital' + normalized.substring(queryIndex);
     } else {
       // Slash exists - check if database name is empty
-      const afterSlash = beforeQuery.substring(lastSlashIndex + 1);
-      if (afterSlash === '' || afterSlash.trim() === '') {
+      const afterSlash = afterProtocolPart.substring(slashIndex + 1);
+      if (!afterSlash || afterSlash.trim() === '') {
         // Empty database name - add it
         normalized = beforeQuery + 'vital' + normalized.substring(queryIndex);
       }
@@ -45,23 +50,19 @@ function normalizeMongoUrl(url: string): string {
     }
   } else {
     // No query parameters - check if database name exists
-    const protocolIndex = normalized.indexOf('://');
-    if (protocolIndex !== -1) {
-      const afterProtocol = normalized.substring(protocolIndex + 3);
-      const slashIndex = afterProtocol.indexOf('/');
-      
-      if (slashIndex === -1) {
-        // No slash at all - add /database
-        normalized = normalized + '/vital';
-      } else if (slashIndex === afterProtocol.length - 1) {
-        // Slash is at the end - add database name
-        normalized = normalized + 'vital';
-      } else {
-        // Check if database name is empty
-        const afterSlash = afterProtocol.substring(slashIndex + 1);
-        if (afterSlash === '' || afterSlash.trim() === '') {
-          normalized = normalized.substring(0, normalized.length - 1) + 'vital';
-        }
+    const slashIndex = afterProtocol.indexOf('/');
+    
+    if (slashIndex === -1) {
+      // No slash at all - add /database
+      normalized = normalized + '/vital';
+    } else if (slashIndex === afterProtocol.length - 1) {
+      // Slash is at the end - add database name
+      normalized = normalized + 'vital';
+    } else {
+      // Check if database name is empty
+      const afterSlash = afterProtocol.substring(slashIndex + 1);
+      if (!afterSlash || afterSlash.trim() === '') {
+        normalized = normalized.substring(0, normalized.length - 1) + 'vital';
       }
     }
   }
