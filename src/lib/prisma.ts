@@ -4,73 +4,84 @@ import { env } from '../config/env.js';
 // Log database URL for debugging (without sensitive info)
 const dbUrl = env.databaseUrl;
 if (dbUrl) {
-  console.log('Database URL configured:', dbUrl.substring(0, 20) + '...');
+  // Extract just the protocol and host part for logging
+  const match = dbUrl.match(/^mongodb:\/\/([^:@]+(@[^/]+)?)(:[^@]+)?/);
+  if (match) {
+    const hostPart = match[0];
+    console.log('Database URL configured:', hostPart + '...');
+  } else {
+    console.log('Database URL configured:', dbUrl.substring(0, 30) + '...');
+  }
+  
+  // Log if database name is present
+  const hasDbName = dbUrl.match(/\/[^/?]+(\?|$)/);
+  if (!hasDbName) {
+    console.warn('⚠️  Database name not found in connection string, will be added automatically');
+  }
 } else {
   console.error('DATABASE_URL not found in environment variables');
 }
 
 // Normalize MongoDB connection string for Railway
+// Be very careful not to break credentials or special characters in password
 function normalizeMongoUrl(url: string): string {
   let normalized = url.trim();
   
-  // Fix retrywrites -> retryWrites (case insensitive)
-  normalized = normalized.replace(/retrywrites=true/gi, 'retryWrites=true');
-  
-  // MongoDB connection string format: mongodb://[user:pass@]host[:port]/[dbname][?options]
-  // Railway sometimes provides URLs like: mongodb://user:pass@host:port?options
-  // Error: "Missing delimiting slash between hosts and options" means we need /dbname before ?
-  
-  const protocolIndex = normalized.indexOf('://');
-  if (protocolIndex === -1) {
-    return normalized; // Invalid URL, return as is
+  // First, fix retrywrites -> retryWrites (case insensitive) in query params only
+  if (normalized.includes('?')) {
+    const [base, query] = normalized.split('?', 2);
+    const fixedQuery = query.replace(/retrywrites=true/gi, 'retryWrites=true');
+    normalized = base + '?' + fixedQuery;
+  } else {
+    normalized = normalized.replace(/retrywrites=true/gi, 'retryWrites=true');
   }
   
-  const queryIndex = normalized.indexOf('?');
-  const afterProtocol = normalized.substring(protocolIndex + 3);
+  // Check if database name is already present
+  // Look for pattern: /dbname or /dbname?options
+  // Be careful - don't match / in credentials part (username:password)
   
-  if (queryIndex !== -1) {
-    // There are query parameters
-    const beforeQuery = normalized.substring(0, queryIndex);
-    const afterProtocolPart = beforeQuery.substring(protocolIndex + 3);
-    
-    // Find first slash after protocol (should be after host:port)
-    const slashIndex = afterProtocolPart.indexOf('/');
-    
-    if (slashIndex === -1) {
-      // No slash found before ? - need to add /database before ?
-      normalized = beforeQuery + '/vital' + normalized.substring(queryIndex);
-    } else {
-      // Slash exists - check if database name is empty
-      const afterSlash = afterProtocolPart.substring(slashIndex + 1);
-      if (!afterSlash || afterSlash.trim() === '') {
-        // Empty database name - add it
-        normalized = beforeQuery + 'vital' + normalized.substring(queryIndex);
-      }
-      // Otherwise keep as is - database name already exists
-    }
+  // Split by query params first
+  const queryIndex = normalized.indexOf('?');
+  const urlPart = queryIndex !== -1 ? normalized.substring(0, queryIndex) : normalized;
+  const queryPart = queryIndex !== -1 ? '?' + normalized.substring(queryIndex + 1) : '';
+  
+  // Check if there's a database name after the host:port part
+  // Format: mongodb://[user:pass@]host[:port]/dbname
+  // Find the last / that comes after @ or : (which indicates it's after host:port)
+  
+  // Find position after credentials (after @ if exists)
+  const atIndex = urlPart.indexOf('@');
+  const hostStart = atIndex !== -1 ? atIndex + 1 : (urlPart.indexOf('://') + 3);
+  
+  // Look for / after host part
+  const hostPart = urlPart.substring(hostStart);
+  const slashAfterHost = hostPart.indexOf('/');
+  
+  if (slashAfterHost === -1) {
+    // No slash after host - need to add /vital
+    normalized = urlPart + '/vital' + queryPart;
   } else {
-    // No query parameters - check if database name exists
-    const slashIndex = afterProtocol.indexOf('/');
-    
-    if (slashIndex === -1) {
-      // No slash at all - add /database
-      normalized = normalized + '/vital';
-    } else if (slashIndex === afterProtocol.length - 1) {
-      // Slash is at the end - add database name
-      normalized = normalized + 'vital';
-    } else {
-      // Check if database name is empty
-      const afterSlash = afterProtocol.substring(slashIndex + 1);
-      if (!afterSlash || afterSlash.trim() === '') {
-        normalized = normalized.substring(0, normalized.length - 1) + 'vital';
-      }
+    // Has slash - check if database name is empty
+    const afterSlash = hostPart.substring(slashAfterHost + 1);
+    if (!afterSlash || afterSlash.trim() === '') {
+      // Empty database name - add vital
+      normalized = urlPart + 'vital' + queryPart;
     }
+    // Otherwise database name exists, keep as is
   }
   
   return normalized;
 }
 
-const fixedDbUrl = dbUrl ? normalizeMongoUrl(dbUrl) : undefined;
+let fixedDbUrl = dbUrl ? normalizeMongoUrl(dbUrl) : undefined;
+
+// Log normalized URL (without credentials)
+if (fixedDbUrl && fixedDbUrl !== dbUrl) {
+  const normalizedMatch = fixedDbUrl.match(/^mongodb:\/\/([^:@]+(@[^/]+)?)(:[^@]+)?/);
+  if (normalizedMatch) {
+    console.log('✅ Database URL normalized:', normalizedMatch[0] + '...');
+  }
+}
 
 // Optimize connection string for better performance
 function optimizeConnectionString(url: string): string {
@@ -84,12 +95,27 @@ function optimizeConnectionString(url: string): string {
   
   // Add connection timeout options
   if (!optimized.includes('connectTimeoutMS')) {
-    optimized = `${optimized}&connectTimeoutMS=5000&socketTimeoutMS=10000`;
+    optimized = `${optimized}&connectTimeoutMS=10000&socketTimeoutMS=30000`;
   }
   
   // Enable keepalive for persistent connections
   if (!optimized.includes('serverSelectionTimeoutMS')) {
-    optimized = `${optimized}&serverSelectionTimeoutMS=5000`;
+    optimized = `${optimized}&serverSelectionTimeoutMS=10000`;
+  }
+  
+  // Add authSource if not present (important for Railway MongoDB)
+  // Railway MongoDB often needs authSource to match the database name
+  if (!optimized.includes('authSource')) {
+    // Extract database name from connection string
+    // Look for pattern: /dbname or /dbname?options
+    const dbMatch = optimized.match(/\/([^/?]+)(\?|$)/);
+    if (dbMatch) {
+      const dbName = dbMatch[1];
+      // Only add authSource if we found a database name
+      if (dbName && dbName !== '') {
+        optimized = `${optimized}${optimized.includes('?') ? '&' : '?'}authSource=${dbName}`;
+      }
+    }
   }
   
   return optimized;
