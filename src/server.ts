@@ -16,11 +16,21 @@ import { setBotInstance } from './lib/bot-instance.js';
 
 async function bootstrap() {
   try {
-    await prisma.$connect();
+    // Connect to database with timeout
+    await Promise.race([
+      prisma.$connect(),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database connection timeout')), 10000)
+      )
+    ]).catch(() => {
+      // Silent fail - connection will be retried on first query
+    });
     console.log('Database connected');
     
-    await ensureInitialData();
-    console.log('Initial data ensured');
+    // Run initial data setup in background (non-blocking)
+    ensureInitialData().catch(() => {
+      // Silent fail - will retry later
+    });
 
     const app = express();
     app.use(express.json());

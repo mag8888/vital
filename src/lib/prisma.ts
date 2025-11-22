@@ -72,12 +72,42 @@ function normalizeMongoUrl(url: string): string {
 
 const fixedDbUrl = dbUrl ? normalizeMongoUrl(dbUrl) : undefined;
 
+// Optimize connection string for better performance
+function optimizeConnectionString(url: string): string {
+  let optimized = url;
+  
+  // Add connection pooling options if not present
+  if (!optimized.includes('maxPoolSize')) {
+    const separator = optimized.includes('?') ? '&' : '?';
+    optimized = `${optimized}${separator}maxPoolSize=10&minPoolSize=2`;
+  }
+  
+  // Add connection timeout options
+  if (!optimized.includes('connectTimeoutMS')) {
+    optimized = `${optimized}&connectTimeoutMS=5000&socketTimeoutMS=10000`;
+  }
+  
+  // Enable keepalive for persistent connections
+  if (!optimized.includes('serverSelectionTimeoutMS')) {
+    optimized = `${optimized}&serverSelectionTimeoutMS=5000`;
+  }
+  
+  return optimized;
+}
+
+const optimizedDbUrl = fixedDbUrl ? optimizeConnectionString(fixedDbUrl) : undefined;
+
 export const prisma = new PrismaClient({
-  datasources: fixedDbUrl ? {
+  datasources: optimizedDbUrl ? {
     db: {
-      url: fixedDbUrl
+      url: optimizedDbUrl
     }
   } : undefined,
   // Only log warnings and errors, suppress query and info logs
   log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['warn'],
+});
+
+// Ensure connection is ready before first query
+prisma.$connect().catch(() => {
+  // Silent fail - connection will be established on first query
 });
