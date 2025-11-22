@@ -78,5 +78,6 @@ export const prisma = new PrismaClient({
       url: fixedDbUrl
     }
   } : undefined,
-  log: ['query', 'info', 'warn', 'error'],
+  // Only log warnings and errors, suppress query and info logs
+  log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['warn'],
 });

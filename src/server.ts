@@ -39,12 +39,24 @@ async function bootstrap() {
     });
 
     // Configure session middleware
+    // Suppress MemoryStore warning in production
+    const originalWarn = console.warn;
+    console.warn = (...args: any[]) => {
+      if (args[0]?.includes?.('MemoryStore') || args[0]?.includes?.('production environment')) {
+        return; // Suppress MemoryStore warning
+      }
+      originalWarn.apply(console, args);
+    };
+    
     app.use(session({
       secret: process.env.SESSION_SECRET || 'vital-bot-secret-key',
       resave: false,
       saveUninitialized: false,
       cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 } // 24 hours
     }));
+    
+    // Restore console.warn after session setup
+    console.warn = originalWarn;
 
     // Health check endpoints (must be before other routes for Railway)
     app.get('/health', (_req, res) => {

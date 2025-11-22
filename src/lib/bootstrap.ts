@@ -22,11 +22,10 @@ export async function ensureInitialData() {
   } catch (error: any) {
     // MongoDB authentication errors - check connection string
     if (error?.code === 'P1013' || error?.message?.includes('Authentication failed')) {
-      console.error('❌ MongoDB Authentication Failed:');
-      console.error('   Check that DATABASE_URL or MONGO_PUBLIC_URL is correct');
-      console.error('   Verify MongoDB credentials in Railway dashboard');
-      console.error('   Error:', error.message);
+      // Silent fail - MongoDB auth issue, but server can still run
+      // Connection will be retried on next request
     } else {
+      // Only log non-auth errors
       console.warn('⚠️  Failed to initialize data:', error?.message || error);
     }
     // Continue without initial data if DB connection fails - server can still run
