@@ -6,9 +6,36 @@ if (tg) {
     tg.ready();
     tg.expand();
     
-    // Set theme
-    tg.setHeaderColor('#1a1a1a');
-    tg.setBackgroundColor('#1a1a1a');
+    // Use Telegram theme colors
+    const themeParams = tg.themeParams || {};
+    const bgColor = themeParams.bg_color || '#1a1a1a';
+    const textColor = themeParams.text_color || '#ffffff';
+    
+    // Set theme colors
+    tg.setHeaderColor(bgColor);
+    tg.setBackgroundColor(bgColor);
+    
+    // Update CSS variables based on Telegram theme
+    document.documentElement.style.setProperty('--tg-bg-color', bgColor);
+    document.documentElement.style.setProperty('--tg-text-color', textColor);
+    
+    // Enable closing confirmation
+    tg.enableClosingConfirmation();
+    
+    // Handle theme changes
+    tg.onEvent('themeChanged', () => {
+        const newBgColor = tg.themeParams?.bg_color || '#1a1a1a';
+        const newTextColor = tg.themeParams?.text_color || '#ffffff';
+        document.documentElement.style.setProperty('--tg-bg-color', newBgColor);
+        document.documentElement.style.setProperty('--tg-text-color', newTextColor);
+        tg.setHeaderColor(newBgColor);
+        tg.setBackgroundColor(newBgColor);
+    });
+    
+    // Handle viewport changes
+    tg.onEvent('viewportChanged', () => {
+        tg.expand();
+    });
 }
 
 // Global state
@@ -50,16 +77,35 @@ document.addEventListener('DOMContentLoaded', function() {
     loadCartItems();
     updateBadges();
     
-    // Add click animations to cards
-    document.querySelectorAll('.content-card').forEach(card => {
-        card.addEventListener('click', function(e) {
-            // Add click animation
-            this.style.transform = 'scale(0.95)';
-            setTimeout(() => {
-                this.style.transform = '';
-            }, 150);
+    // Apply Telegram theme colors on load
+    if (tg) {
+        const themeParams = tg.themeParams || {};
+        if (themeParams.bg_color) {
+            document.documentElement.style.setProperty('--tg-bg-color', themeParams.bg_color);
+        }
+        if (themeParams.text_color) {
+            document.documentElement.style.setProperty('--tg-text-color', themeParams.text_color);
+        }
+        if (themeParams.secondary_bg_color) {
+            document.documentElement.style.setProperty('--tg-secondary-bg-color', themeParams.secondary_bg_color);
+        }
+        if (themeParams.button_color) {
+            document.documentElement.style.setProperty('--tg-button-color', themeParams.button_color);
+            document.documentElement.style.setProperty('--accent', themeParams.button_color);
+        }
+    }
+    
+    // Add haptic feedback for buttons (if available)
+    function addHapticFeedback(element) {
+        element.addEventListener('click', function() {
+            if (tg && tg.HapticFeedback) {
+                tg.HapticFeedback.impactOccurred('light');
+            }
         });
-    });
+    }
+    
+    // Add haptic feedback to all buttons
+    document.querySelectorAll('.btn, .control-btn, .back-btn, .content-card, .nav-item').forEach(addHapticFeedback);
 });
 
 // Navigation functions

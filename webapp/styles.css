@@ -1,24 +1,34 @@
-/* Core palette & typography */
+/* Core palette & typography - Modern Telegram Mini App Style */
 :root {
-    --bg-primary: #04060d;
-    --bg-secondary: #0a1124;
-    --bg-overlay: rgba(12, 19, 39, 0.72);
-    --card-gradient: linear-gradient(140deg, rgba(16, 28, 58, 0.92) 0%, rgba(10, 22, 45, 0.88) 100%);
-    --card-hover-gradient: linear-gradient(140deg, rgba(25, 51, 102, 0.98) 0%, rgba(14, 30, 60, 0.9) 100%);
-    --accent: #3c6bff;
-    --accent-strong: #5c8bff;
-    --accent-soft: rgba(92, 139, 255, 0.12);
-    --text-primary: #f6f8ff;
-    --text-secondary: #9aa7c6;
-    --text-tertiary: #5c6b8c;
-    --border-color: rgba(92, 139, 255, 0.18);
-    --glass-border: rgba(255, 255, 255, 0.08);
-    --shadow-strong: 0 24px 60px rgba(12, 28, 66, 0.55);
-    --shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.35);
-    --radius-lg: 20px;
-    --radius-md: 14px;
-    --radius-sm: 10px;
-    --transition: all 0.3s ease;
+    /* Telegram Mini App inspired colors - dark theme */
+    --tg-bg-color: var(--tg-theme-bg-color, #1a1a1a);
+    --tg-text-color: var(--tg-theme-text-color, #ffffff);
+    --tg-hint-color: var(--tg-theme-hint-color, #999999);
+    --tg-link-color: var(--tg-theme-link-color, #3390ec);
+    --tg-button-color: var(--tg-theme-button-color, #3390ec);
+    --tg-button-text-color: var(--tg-theme-button-text-color, #ffffff);
+    --tg-secondary-bg-color: var(--tg-theme-secondary-bg-color, #2d2d2d);
+    
+    /* Enhanced palette */
+    --bg-primary: var(--tg-bg-color);
+    --bg-secondary: var(--tg-secondary-bg-color);
+    --bg-overlay: rgba(0, 0, 0, 0.85);
+    --card-gradient: linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+    --card-hover-gradient: linear-gradient(145deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%);
+    --accent: var(--tg-button-color);
+    --accent-strong: var(--tg-link-color);
+    --accent-soft: rgba(51, 144, 236, 0.15);
+    --text-primary: var(--tg-text-color);
+    --text-secondary: var(--tg-hint-color);
+    --text-tertiary: rgba(255, 255, 255, 0.4);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --glass-border: rgba(255, 255, 255, 0.12);
+    --shadow-strong: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.3);
+    --radius-lg: 16px;
+    --radius-md: 12px;
+    --radius-sm: 8px;
+    --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * {
@@ -28,13 +38,17 @@
 }
 
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: radial-gradient(circle at top right, #0d1a38 0%, #04060d 55%, #02030b 100%);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+    background: var(--tg-bg-color);
     color: var(--text-primary);
     min-height: 100vh;
     overflow-x: hidden;
     -webkit-user-select: none;
     user-select: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Smooth scrolling */
+    scroll-behavior: smooth;
 }
 
 .app-container {
@@ -46,39 +60,43 @@ body {
     isolation: isolate;
 }
 
+/* Subtle background effects */
 .app-container::before,
 .app-container::after {
     content: '';
     position: fixed;
-    width: 540px;
-    height: 540px;
-    background: radial-gradient(circle, rgba(76, 119, 255, 0.35) 0%, rgba(76, 119, 255, 0) 65%);
-    filter: blur(30px);
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(51, 144, 236, 0.15) 0%, rgba(51, 144, 236, 0) 70%);
+    filter: blur(40px);
     z-index: -2;
-    opacity: 0.65;
+    opacity: 0.5;
+    pointer-events: none;
 }
 
 .app-container::before {
-    top: -240px;
-    right: -200px;
+    top: -200px;
+    right: -150px;
 }
 
 .app-container::after {
-    bottom: -260px;
-    left: -220px;
+    bottom: -200px;
+    left: -150px;
 }
 
-/* Top bar & brand */
+/* Top bar & brand - Telegram Mini App style */
 .top-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 24px 24px 16px;
+    padding: 16px 16px 12px;
     position: sticky;
     top: 0;
     z-index: 50;
-    background: linear-gradient(180deg, rgba(4, 6, 13, 0.92) 0%, rgba(4, 6, 13, 0.68) 100%);
-    backdrop-filter: blur(18px);
+    background: var(--tg-bg-color);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .brand-cluster {
@@ -88,22 +106,27 @@ body {
 }
 
 .control-btn {
-    width: 42px;
-    height: 42px;
-    border-radius: 14px;
-    border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.06);
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    border: none;
+    background: var(--tg-secondary-bg-color);
     color: var(--text-primary);
     display: grid;
     place-items: center;
     cursor: pointer;
     transition: var(--transition);
-    box-shadow: inset 0 0 0 0 rgba(92, 139, 255, 0.35);
+    opacity: 0.9;
+}
+
+.control-btn:active {
+    transform: scale(0.95);
+    opacity: 0.7;
 }
 
 .control-btn:hover {
-    border-color: rgba(92, 139, 255, 0.4);
-    box-shadow: inset 0 0 12px rgba(92, 139, 255, 0.25);
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .control-btn.ghost {
@@ -118,38 +141,47 @@ body {
 }
 
 .brand-label {
-    font-size: 18px;
-    font-weight: 700;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
     color: var(--text-primary);
+    line-height: 1.2;
 }
 
 .brand-description {
     font-size: 13px;
-    font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-tertiary);
+    font-weight: 400;
+    letter-spacing: 0;
+    color: var(--text-secondary);
+    line-height: 1.3;
+    margin-top: 2px;
 }
 
 /* Search cluster */
 .search-container {
-    padding: 8px 24px 0;
+    padding: 12px 16px 0;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
 }
 
 .search-bar {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 14px 18px;
+    gap: 12px;
+    padding: 12px 16px;
     border-radius: var(--radius-lg);
-    border: 1px solid rgba(92, 139, 255, 0.25);
-    background: radial-gradient(140% 140% at 10% 10%, rgba(76, 119, 255, 0.12) 0%, rgba(10, 17, 36, 0.92) 56%, rgba(6, 10, 24, 0.96) 100%);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04), var(--shadow-soft);
+    border: 1px solid var(--border-color);
+    background: var(--tg-secondary-bg-color);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: var(--transition);
+}
+
+.search-bar:focus-within {
+    border-color: var(--accent);
+    background: rgba(255, 255, 255, 0.03);
+    box-shadow: 0 0 0 2px rgba(51, 144, 236, 0.2);
 }
 
 .search-icon {
@@ -179,30 +211,30 @@ body {
 }
 
 .meta-pill {
-    padding: 6px 14px;
-    border-radius: 999px;
-    border: 1px solid rgba(92, 139, 255, 0.25);
-    background: rgba(255, 255, 255, 0.02);
-    color: var(--text-tertiary);
+    padding: 6px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-secondary);
     font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0;
+    transition: var(--transition);
 }
 
 .meta-pill.accent {
-    color: var(--accent-strong);
-    background: rgba(92, 139, 255, 0.12);
-    border-color: rgba(92, 139, 255, 0.45);
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-color: var(--accent);
 }
 
-/* Card grid */
+/* Card grid - Telegram Mini App style */
 .content-grid {
     flex: 1;
-    padding: 24px;
+    padding: 16px;
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 18px;
+    gap: 12px;
     max-width: 720px;
     margin: 0 auto;
 }
@@ -210,12 +242,15 @@ body {
 .content-card {
     position: relative;
     border-radius: var(--radius-lg);
-    background: var(--card-gradient);
-    border: 1px solid rgba(255, 255, 255, 0.04);
+    background: var(--tg-secondary-bg-color);
+    border: 1px solid var(--border-color);
     overflow: hidden;
     cursor: pointer;
     transition: var(--transition);
-    box-shadow: var(--shadow-soft);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    /* Modern card styling */
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
 }
 
 .content-card::before {
@@ -241,9 +276,9 @@ body {
     z-index: 2;
     display: flex;
     flex-direction: column;
-    gap: 18px;
-    padding: 26px 22px 22px;
-    min-height: 200px;
+    gap: 16px;
+    padding: 20px 16px 16px;
+    min-height: 160px;
 }
 
 .card-top {
@@ -255,29 +290,30 @@ body {
 .card-icon {
     display: inline-flex;
     padding: 12px;
-    border-radius: 16px;
-    background: rgba(92, 139, 255, 0.12);
-    color: var(--accent-strong);
-    border: 1px solid rgba(92, 139, 255, 0.3);
-    box-shadow: 0 0 18px rgba(92, 139, 255, 0.25);
+    border-radius: var(--radius-md);
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid var(--border-color);
     transition: var(--transition);
+    width: 48px;
+    height: 48px;
+    align-items: center;
+    justify-content: center;
 }
 
 .card-badge {
-    min-width: 46px;
-    height: 46px;
-    border-radius: 14px;
+    min-width: 32px;
+    height: 32px;
+    border-radius: 16px;
     display: grid;
     place-items: center;
     font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    background: linear-gradient(140deg, rgba(92, 139, 255, 0.9) 0%, rgba(60, 94, 198, 0.9) 100%);
+    font-weight: 600;
     color: var(--text-primary);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    box-shadow: 0 18px 32px rgba(60, 107, 255, 0.35);
-    transition: all 0.3s ease;
+    background: var(--accent);
+    padding: 0 10px;
+    transition: var(--transition);
+    border: none;
 }
 
 /* Special styling for cart total badge */
@@ -311,68 +347,66 @@ body {
 }
 
 .card-title {
-    font-size: 18px;
-    font-weight: 800;
-    letter-spacing: 0.18em;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
     color: var(--text-primary);
-    text-transform: uppercase;
-    line-height: 1.25;
+    line-height: 1.3;
 }
 
 .card-action {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--accent-strong);
-    opacity: 0.85;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent);
+    opacity: 0.9;
+    margin-top: auto;
 }
 
 .card-action svg {
-    transition: transform 0.25s ease;
+    transition: transform 0.2s ease;
+    width: 16px;
+    height: 16px;
+}
+
+.content-card:active {
+    transform: scale(0.98);
 }
 
 .content-card:hover {
-    border-color: rgba(92, 139, 255, 0.38);
-    background: var(--card-hover-gradient);
-    box-shadow: var(--shadow-strong);
-    transform: translateY(-4px);
-}
-
-.content-card:hover::before {
-    opacity: 1;
-}
-
-.content-card:hover::after {
-    opacity: 0.7;
+    border-color: var(--accent);
+    box-shadow: 0 4px 16px rgba(51, 144, 236, 0.2);
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.03);
 }
 
 .content-card:hover .card-icon {
-    border-color: rgba(92, 139, 255, 0.6);
-    box-shadow: 0 0 28px rgba(92, 139, 255, 0.45);
+    transform: scale(1.05);
+    border-color: var(--accent);
 }
 
 .content-card:hover .card-action svg {
-    transform: translate(3px, -3px);
+    transform: translateX(4px);
 }
 
-/* Bottom navigation */
+/* Bottom navigation - Telegram Mini App style */
 .bottom-nav {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    padding: 14px 18px 18px;
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
     display: flex;
     justify-content: space-between;
-    gap: 12px;
-    background: linear-gradient(180deg, rgba(4, 6, 13, 0) 0%, rgba(4, 6, 13, 0.88) 45%, rgba(4, 6, 13, 0.94) 100%);
-    backdrop-filter: blur(20px);
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    gap: 4px;
+    background: var(--tg-bg-color);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-top: 1px solid var(--border-color);
     z-index: 60;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .nav-item {
@@ -380,17 +414,22 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 12px 8px;
+    gap: 6px;
+    padding: 8px 4px;
     border-radius: var(--radius-md);
-    color: var(--text-tertiary);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0;
     cursor: pointer;
     position: relative;
     transition: var(--transition);
+    opacity: 0.7;
+}
+
+.nav-item:active {
+    transform: scale(0.95);
+    opacity: 0.5;
 }
 
 .nav-item::before {
@@ -418,9 +457,14 @@ body {
 }
 
 .nav-item.active {
-    color: var(--accent-strong);
-    background: rgba(92, 139, 255, 0.12);
-    box-shadow: inset 0 0 0 1px rgba(92, 139, 255, 0.35), 0 16px 28px rgba(60, 107, 255, 0.25);
+    color: var(--accent);
+    opacity: 1;
+    background: var(--accent-soft);
+}
+
+.nav-item:hover {
+    opacity: 1;
+    color: var(--text-primary);
 }
 
 .nav-item.active::before {
@@ -436,11 +480,13 @@ body {
     bottom: 0;
     width: 100%;
     height: 100vh;
-    background: var(--bg-overlay);
-    backdrop-filter: blur(20px);
+    height: 100dvh; /* Dynamic viewport height for mobile */
+    background: var(--tg-bg-color);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
     z-index: 1000;
     transform: translateX(100%);
-    transition: transform 0.35s ease;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -461,38 +507,47 @@ body {
 .section-header {
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 20px 24px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    background: linear-gradient(180deg, rgba(4, 6, 13, 0.92) 0%, rgba(4, 6, 13, 0.65) 100%);
-    backdrop-filter: blur(16px);
+    gap: 12px;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--tg-bg-color);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    position: sticky;
+    top: 0;
+    z-index: 10;
 }
 
 .back-btn {
-    width: 44px;
-    height: 44px;
-    border-radius: 14px;
-    border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.04);
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    border: none;
+    background: var(--tg-secondary-bg-color);
     color: var(--text-primary);
     display: grid;
     place-items: center;
     cursor: pointer;
     transition: var(--transition);
+    flex-shrink: 0;
+}
+
+.back-btn:active {
+    transform: scale(0.95);
+    opacity: 0.7;
 }
 
 .back-btn:hover {
-    border-color: rgba(92, 139, 255, 0.35);
-    box-shadow: inset 0 0 12px rgba(92, 139, 255, 0.22);
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .section-header h2 {
-    font-size: 20px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
     color: var(--text-primary);
     flex: 1;
+    margin: 0;
 }
 
 .header-spacer {
@@ -501,17 +556,19 @@ body {
 
 .section-body {
     flex: 1;
-    padding: 28px 24px 120px;
+    padding: 16px;
     overflow-y: auto;
+    overflow-x: hidden;
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: stretch;
     max-width: 100%;
     margin: 0 auto;
     height: 100%;
     min-height: 0;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
 }
 
 .hidden {
@@ -520,27 +577,33 @@ body {
 
 /* Content & shared cards inside overlays */
 .content-section {
-    margin-bottom: 28px;
-    background: rgba(12, 21, 42, 0.6);
+    margin-bottom: 16px;
+    background: var(--tg-secondary-bg-color);
     border-radius: var(--radius-lg);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    padding: 22px 24px;
-    box-shadow: var(--shadow-soft);
+    border: 1px solid var(--border-color);
+    padding: 20px 16px;
+    width: 100%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .content-section h3 {
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
     color: var(--text-primary);
-    margin-bottom: 14px;
+    margin-bottom: 12px;
+    margin-top: 0;
 }
 
 .content-section p {
     color: var(--text-secondary);
-    line-height: 1.7;
-    font-size: 14px;
+    line-height: 1.6;
+    font-size: 15px;
+    margin: 0 0 12px 0;
+}
+
+.content-section p:last-child {
+    margin-bottom: 0;
 }
 
 .product-grid {
@@ -589,25 +652,27 @@ body {
     justify-content: center;
     align-items: center;
     width: 100%;
-    padding: 12px 18px;
+    padding: 14px 20px;
     border-radius: var(--radius-md);
-    border: 1px solid rgba(92, 139, 255, 0.45);
-    background: linear-gradient(130deg, rgba(92, 139, 255, 0.95) 0%, rgba(53, 91, 204, 0.95) 100%);
-    color: var(--text-primary);
-    font-size: 14px;
+    border: none;
+    background: var(--accent);
+    color: var(--tg-button-text-color);
+    font-size: 15px;
     font-weight: 600;
-    letter-spacing: 0.08em;
+    letter-spacing: 0;
     cursor: pointer;
     transition: var(--transition);
-}
-
-.btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 18px 35px rgba(60, 107, 255, 0.32);
+    box-shadow: 0 2px 8px rgba(51, 144, 236, 0.3);
 }
 
 .btn:active {
-    transform: translateY(0);
+    transform: scale(0.98);
+    box-shadow: 0 1px 4px rgba(51, 144, 236, 0.2);
+}
+
+.btn:hover {
+    opacity: 0.9;
+    box-shadow: 0 4px 12px rgba(51, 144, 236, 0.4);
 }
 
 .btn-secondary {
@@ -655,35 +720,41 @@ body {
 
 .shop-category,
 .product-tile {
-    background: rgba(9, 18, 36, 0.85);
-    border-radius: var(--radius-md);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    padding: 20px;
+    background: var(--tg-secondary-bg-color);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+    padding: 16px;
     transition: var(--transition);
+}
+
+.shop-category:active,
+.product-tile:active {
+    transform: scale(0.98);
 }
 
 .shop-category:hover,
 .product-tile:hover {
-    border-color: rgba(92, 139, 255, 0.35);
+    border-color: var(--accent);
     transform: translateY(-2px);
-    box-shadow: var(--shadow-soft);
+    box-shadow: 0 4px 12px rgba(51, 144, 236, 0.15);
 }
 
 .shop-category h4,
 .product-tile h4 {
     color: var(--text-primary);
-    font-size: 18px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    margin-bottom: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin-bottom: 8px;
+    margin-top: 0;
 }
 
 .shop-category p,
 .product-tile .product-description {
     color: var(--text-secondary);
-    font-size: 13px;
-    line-height: 1.6;
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0;
 }
 
 .shop-category button,
@@ -781,18 +852,77 @@ body {
     letter-spacing: 0.12em;
 }
 
-/* Responsive adjustments */
+/* Smooth animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.content-card {
+    animation: fadeIn 0.3s ease-out;
+}
+
+.content-card:nth-child(1) { animation-delay: 0.05s; }
+.content-card:nth-child(2) { animation-delay: 0.1s; }
+.content-card:nth-child(3) { animation-delay: 0.15s; }
+.content-card:nth-child(4) { animation-delay: 0.2s; }
+.content-card:nth-child(5) { animation-delay: 0.25s; }
+.content-card:nth-child(6) { animation-delay: 0.3s; }
+
+/* Ripple effect for buttons */
+@keyframes ripple {
+    0% {
+        transform: scale(0);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(4);
+        opacity: 0;
+    }
+}
+
+.btn, .control-btn, .back-btn {
+    position: relative;
+    overflow: hidden;
+}
+
+.btn:active::after, .control-btn:active::after, .back-btn:active::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    width: 100px;
+    height: 100px;
+    margin-top: -50px;
+    margin-left: -50px;
+    top: 50%;
+    left: 50%;
+    animation: ripple 0.6s;
+    pointer-events: none;
+}
+
+/* Responsive adjustments - Telegram Mini App style */
 @media (max-width: 540px) {
     .top-bar {
-        padding: 20px 20px 12px;
+        padding: 12px 16px;
     }
 
     .brand-label {
-        font-size: 16px;
+        font-size: 18px;
+    }
+
+    .brand-description {
+        font-size: 12px;
     }
 
     .search-container {
-        padding: 8px 20px 0;
+        padding: 12px 16px 0;
     }
 
     .search-meta {
@@ -801,35 +931,67 @@ body {
 
     .content-grid {
         grid-template-columns: repeat(2, 1fr);
-        padding: 20px;
-        gap: 16px;
+        padding: 12px;
+        gap: 10px;
     }
 
     .content-card .card-inner {
-        padding: 22px 20px 20px;
-        min-height: 170px;
+        padding: 16px 12px 12px;
+        min-height: 140px;
+        gap: 12px;
     }
 
     .card-title {
-        font-size: 16px;
-        letter-spacing: 0.14em;
+        font-size: 15px;
+    }
+
+    .card-icon {
+        width: 40px;
+        height: 40px;
+        padding: 10px;
+    }
+
+    .section-body {
+        padding: 12px;
     }
 }
 
 @media (max-width: 400px) {
     .content-grid {
         grid-template-columns: 1fr;
-        max-width: 360px;
+        max-width: 100%;
+    }
+
+    .content-card .card-inner {
+        min-height: 120px;
+        padding: 14px 12px 12px;
     }
 
     .bottom-nav {
-        padding: 12px 16px 18px;
-        gap: 8px;
+        padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+        gap: 2px;
     }
 
     .nav-item {
-        padding: 10px 6px;
-        font-size: 10px;
+        padding: 8px 2px;
+        font-size: 9px;
+        gap: 4px;
+    }
+
+    .nav-item svg {
+        width: 20px;
+        height: 20px;
+    }
+}
+
+/* Support for safe areas on mobile devices */
+@supports (padding: max(0px)) {
+    .app-container {
+        padding-bottom: max(96px, calc(96px + env(safe-area-inset-bottom, 0px)));
+    }
+
+    .bottom-nav {
+        padding-bottom: max(8px, calc(8px + env(safe-area-inset-bottom, 0px)));
     }
 }
 
