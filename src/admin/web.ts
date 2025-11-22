@@ -1317,7 +1317,7 @@ router.get('/', requireAdmin, async (req, res) => {
                 categories.forEach(category => {
                   const option = document.createElement('option');
                   option.value = category.id;
-                  option.textContent = category.name;
+                  option.textContent = category.icon ? category.icon + ' ' + category.name : category.name;
                   select.appendChild(option);
                 });
               }
@@ -1350,8 +1350,10 @@ router.get('/', requireAdmin, async (req, res) => {
             document.getElementById('productStock').value = '999';
             document.getElementById('productCategory').value = categoryId;
             document.getElementById('productStatus').checked = isActive;
-            document.getElementById('productRussia').checked = availableInRussia;
-            document.getElementById('productBali').checked = availableInBali;
+            const regionRussiaEl = document.getElementById('regionRussia');
+            const regionBaliEl = document.getElementById('regionBali');
+            if (regionRussiaEl) regionRussiaEl.checked = availableInRussia;
+            if (regionBaliEl) regionBaliEl.checked = availableInBali;
             
             // Set image preview
             const imagePreview = document.getElementById('imagePreview');
@@ -1400,43 +1402,68 @@ router.get('/', requireAdmin, async (req, res) => {
             const imageUrl = button.dataset.image;
             
             // Set hidden product ID field
-            document.getElementById('productId').value = productId;
+            const productIdEl = document.getElementById('productId');
+            if (productIdEl) productIdEl.value = productId;
             
             // Fill form fields
-            document.getElementById('productName').value = title;
-            document.getElementById('productShortDescription').value = summary;
-            document.getElementById('productFullDescription').value = description;
-            document.getElementById('productInstruction').value = button.dataset.instruction || '';
-            document.getElementById('productPrice').value = price;
-            document.getElementById('productPriceRub').value = (price * 100).toFixed(2);
-            document.getElementById('productStock').value = '999'; // Default stock
-            document.getElementById('productCategory').value = categoryId;
+            const productNameEl = document.getElementById('productName');
+            if (productNameEl) productNameEl.value = title;
+            
+            const productShortDescEl = document.getElementById('productShortDescription');
+            if (productShortDescEl) productShortDescEl.value = summary;
+            
+            const productFullDescEl = document.getElementById('productFullDescription');
+            if (productFullDescEl) productFullDescEl.value = description;
+            
+            const productInstructionEl = document.getElementById('productInstruction');
+            if (productInstructionEl) productInstructionEl.value = button.dataset.instruction || '';
+            
+            const productPriceEl = document.getElementById('productPrice');
+            if (productPriceEl) productPriceEl.value = price;
+            
+            const productPriceRubEl = document.getElementById('productPriceRub');
+            if (productPriceRubEl) productPriceRubEl.value = (price * 100).toFixed(2);
+            
+            const productStockEl = document.getElementById('productStock');
+            if (productStockEl) productStockEl.value = '999'; // Default stock
+            
+            const productCategoryEl = document.getElementById('productCategory');
+            if (productCategoryEl) productCategoryEl.value = categoryId;
             
             // Set status toggle
-            document.getElementById('productStatus').checked = isActive;
+            const productStatusEl = document.getElementById('productStatus');
+            if (productStatusEl) productStatusEl.checked = isActive;
             
             // Set region toggles
-            document.getElementById('productRussia').checked = availableInRussia;
-            document.getElementById('productBali').checked = availableInBali;
+            const productRussiaEl = document.getElementById('productRussia') || document.getElementById('regionRussia');
+            if (productRussiaEl) productRussiaEl.checked = availableInRussia;
+            
+            const productBaliEl = document.getElementById('productBali') || document.getElementById('regionBali');
+            if (productBaliEl) productBaliEl.checked = availableInBali;
             
             // Set image preview
             const imagePreview = document.getElementById('imagePreview');
-            if (imageUrl) {
-              imagePreview.src = imageUrl;
-              imagePreview.style.display = 'block';
-              imagePreview.nextElementSibling.style.display = 'none';
-            } else {
-              imagePreview.style.display = 'none';
-              imagePreview.nextElementSibling.style.display = 'flex';
+            if (imagePreview) {
+              if (imageUrl) {
+                imagePreview.style.backgroundImage = 'url(' + imageUrl + ')';
+                imagePreview.style.display = 'block';
+              } else {
+                imagePreview.style.backgroundImage = '';
+                imagePreview.style.display = 'none';
+              }
             }
             
-            // Update modal title and submit button
-            document.querySelector('.product-modal h2').textContent = 'Редактировать товар';
-            document.querySelector('#productModalSubmit').textContent = 'Обновить товар';
+            // Update modal title
+            const modalTitle = document.querySelector('.product-modal h2');
+            if (modalTitle) modalTitle.textContent = 'Редактировать товар';
             
             // Load categories and show modal
-            loadCategories();
-            document.getElementById('addProductModal').style.display = 'block';
+            if (window.loadCategories) {
+              window.loadCategories();
+            }
+            
+            const modal = document.getElementById('addProductModal');
+            if (modal) modal.style.display = 'block';
           };
           // Sorting: redirect to full users page with server-side sorting across ALL users
           function sortTable(column) {
@@ -1566,7 +1593,12 @@ router.get('/', requireAdmin, async (req, res) => {
             });
             
             // Load categories when product modal opens
-            document.getElementById('addProductModal').addEventListener('shown.bs.modal', loadCategories);
+            const addProductModalEl = document.getElementById('addProductModal');
+            if (addProductModalEl) {
+              addProductModalEl.addEventListener('shown.bs.modal', function() {
+                if (window.loadCategories) window.loadCategories();
+              });
+            }
             
             // Character counter for short description
             const shortDesc = document.getElementById('productShortDescription');
@@ -1593,107 +1625,73 @@ router.get('/', requireAdmin, async (req, res) => {
           });
           
           // Product modal functions
-          function openAddProductModal() {
+          window.openAddProductModal = function() {
             // Reset form for new product
-            document.getElementById('productId').value = '';
-            document.querySelector('.product-modal h2').textContent = 'Добавить товар';
-            document.querySelector('#productModalSubmit').textContent = 'Создать товар';
-            document.getElementById('addProductModal').style.display = 'block';
-            loadCategories();
-          }
-          
-          function closeAddProductModal() {
-            document.getElementById('addProductModal').style.display = 'none';
-            document.getElementById('addProductForm').reset();
-            document.getElementById('productId').value = '';
-            document.getElementById('shortDescCount').textContent = '0/200';
+            const modal = document.getElementById('addProductModal');
+            if (!modal) {
+              console.error('Modal addProductModal not found');
+              return;
+            }
             
-            // Reset modal title and submit button
-            document.querySelector('.product-modal h2').textContent = '➕ Добавить новый товар';
-            document.querySelector('#productModalSubmit').textContent = 'Создать товар';
+            const productIdEl = document.getElementById('productId');
+            if (productIdEl) productIdEl.value = '';
+            
+            const modalTitle = document.querySelector('.product-modal h2');
+            if (modalTitle) modalTitle.textContent = 'Добавить товар';
+            
+            modal.style.display = 'block';
+            
+            // Load categories if function exists
+            if (window.loadCategories) {
+              window.loadCategories();
+            } else {
+              console.error('loadCategories function not found');
+            }
           }
           
-          function openAddCategoryModal() {
-            document.getElementById('addCategoryModal').style.display = 'block';
+          window.closeAddProductModal = function() {
+            const modal = document.getElementById('addProductModal');
+            if (modal) modal.style.display = 'none';
+            
+            const form = document.getElementById('addProductForm');
+            if (form) form.reset();
+            
+            const productIdEl = document.getElementById('productId');
+            if (productIdEl) productIdEl.value = '';
+            
+            const shortDescCount = document.getElementById('shortDescCount');
+            if (shortDescCount) shortDescCount.textContent = '0/200';
+            
+            // Reset modal title
+            const modalTitle = document.querySelector('.product-modal h2');
+            if (modalTitle) modalTitle.textContent = '➕ Добавить новый товар';
+            
+            // Reset image preview
+            const imagePreview = document.getElementById('imagePreview');
+            if (imagePreview) {
+              imagePreview.style.backgroundImage = '';
+              imagePreview.innerHTML = '';
+            }
           }
           
-          function closeAddCategoryModal() {
-            document.getElementById('addCategoryModal').style.display = 'none';
-            document.getElementById('addCategoryForm').reset();
+          window.openAddCategoryModal = function() {
+            const modal = document.getElementById('addCategoryModal');
+            if (modal) modal.style.display = 'block';
+          }
+          
+          window.closeAddCategoryModal = function() {
+            const modal = document.getElementById('addCategoryModal');
+            if (modal) modal.style.display = 'none';
+            
+            const form = document.getElementById('addCategoryForm');
+            if (form) form.reset();
           }
           
           // Edit product using create modal
-          function editProductUsingCreateModal(button) {
-            const productId = button.dataset.id;
-            const title = button.dataset.title;
-            const summary = button.dataset.summary;
-            const description = button.dataset.description;
-            const price = button.dataset.price;
-            const categoryId = button.dataset.categoryId;
-            const isActive = button.dataset.active === 'true';
-            const availableInRussia = button.dataset.russia === 'true';
-            const availableInBali = button.dataset.bali === 'true';
-            const imageUrl = button.dataset.image;
-            
-            // Set hidden product ID field
-            document.getElementById('productId').value = productId;
-            
-            // Fill form fields
-            document.getElementById('productName').value = title;
-            document.getElementById('productShortDescription').value = summary;
-            document.getElementById('productFullDescription').value = description;
-            document.getElementById('productInstruction').value = button.dataset.instruction || '';
-            document.getElementById('productPrice').value = price;
-            document.getElementById('productPriceRub').value = (price * 100).toFixed(2);
-            document.getElementById('productStock').value = '999'; // Default stock
-            document.getElementById('productCategory').value = categoryId;
-            
-            // Set status toggle
-            document.getElementById('productStatus').checked = isActive;
-            
-            // Set region toggles
-            document.getElementById('productRussia').checked = availableInRussia;
-            document.getElementById('productBali').checked = availableInBali;
-            
-            // Set image preview
-            const imagePreview = document.getElementById('imagePreview');
-            if (imageUrl) {
-              imagePreview.src = imageUrl;
-              imagePreview.style.display = 'block';
-              imagePreview.nextElementSibling.style.display = 'none';
-            } else {
-              imagePreview.style.display = 'none';
-              imagePreview.nextElementSibling.style.display = 'flex';
-            }
-            
-            // Update modal title and submit button
-            document.querySelector('.product-modal h2').textContent = 'Редактировать товар';
-            document.querySelector('#productModalSubmit').textContent = 'Обновить товар';
-            
-            // Load categories and show modal
-            loadCategories();
-            document.getElementById('addProductModal').style.display = 'block';
-          }
+          // editProductUsingCreateModal is already defined as window.editProductUsingCreateModal above
           
           // Load categories for product form
-          async function loadCategories() {
-            try {
-              const response = await fetch('/admin/api/categories');
-              const categories = await response.json();
-              
-              const select = document.getElementById('productCategory');
-              select.innerHTML = '<option value="">Выберите категорию</option>';
-              
-              categories.forEach(category => {
-                const option = document.createElement('option');
-                option.value = category.id;
-                option.textContent = category.icon ? category.icon + ' ' + category.name : category.name;
-                select.appendChild(option);
-              });
-            } catch (error) {
-              console.error('Error loading categories:', error);
-            }
-          }
+          // loadCategories is already defined as window.loadCategories above
           
           // Handle product form submission
           document.getElementById('addProductForm').addEventListener('submit', async function(e) {
@@ -1713,8 +1711,10 @@ router.get('/', requireAdmin, async (req, res) => {
             formData.append('isActive', document.getElementById('productStatus').checked);
             
             // Regions
-            formData.append('availableInRussia', document.getElementById('productRussia').checked);
-            formData.append('availableInBali', document.getElementById('productBali').checked);
+            const regionRussiaEl = document.getElementById('regionRussia');
+            const regionBaliEl = document.getElementById('regionBali');
+            formData.append('availableInRussia', regionRussiaEl ? regionRussiaEl.checked : false);
+            formData.append('availableInBali', regionBaliEl ? regionBaliEl.checked : false);
             
             // Add image if selected
             const imageFile = document.getElementById('productImage').files[0];
@@ -1766,7 +1766,7 @@ router.get('/', requireAdmin, async (req, res) => {
                 alert('✅ Категория успешно создана!');
                 closeAddCategoryModal();
                 // Reload categories in product form
-                loadCategories();
+                window.loadCategories();
               } else {
                 alert('❌ Ошибка при создании категории: ' + result.error);
               }
