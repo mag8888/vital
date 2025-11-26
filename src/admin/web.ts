@@ -5553,6 +5553,56 @@ router.get('/products', requireAdmin, async (req, res) => {
               }
             }
           };
+          
+          // Import Siam Botanicals products
+          window.importSiamProducts = async function() {
+            if (!confirm('Запустить импорт продуктов из Siam Botanicals? Это может занять несколько минут.')) {
+              return;
+            }
+            
+            const btn = event?.target || document.querySelector('button[onclick*="importSiamProducts"]');
+            if (btn) {
+              const originalText = btn.textContent;
+              btn.disabled = true;
+              btn.textContent = '⏳ Импорт запущен...';
+              btn.style.opacity = '0.6';
+              
+              setTimeout(() => {
+                try {
+                  fetch('/admin/api/import-siam-products', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    credentials: 'include'
+                  })
+                  .then(response => response.json())
+                  .then(result => {
+                    if (result.success) {
+                      alert('✅ Импорт запущен! Продукты будут добавлены в течение нескольких минут. Проверьте логи сервера или обновите страницу через 3-5 минут.');
+                    } else {
+                      throw new Error(result.error || 'Ошибка запуска импорта');
+                    }
+                  })
+                  .catch(error => {
+                    console.error('Import error:', error);
+                    alert('❌ Ошибка: ' + (error.message || 'Не удалось запустить импорт'));
+                  })
+                  .finally(() => {
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                    btn.style.opacity = '1';
+                  });
+                } catch (error: any) {
+                  console.error('Import error:', error);
+                  alert('❌ Ошибка: ' + (error.message || 'Не удалось запустить импорт'));
+                  btn.disabled = false;
+                  btn.textContent = originalText;
+                  btn.style.opacity = '1';
+                }
+              }, 100);
+            }
+          };
         </script>
       </body>
       </html>
@@ -5683,11 +5733,17 @@ router.post('/products/:productId/upload-image', requireAdmin, upload.single('im
 // Import Siam Botanicals products endpoint
 router.post('/api/import-siam-products', requireAdmin, async (req, res) => {
   try {
-    // Запускаем импорт в фоне
+    console.log('🚀 Запуск импорта продуктов из Siam Botanicals...');
+    
+    // Запускаем импорт в фоне и возвращаем результат
     import('../services/siam-import-service.js').then(({ importSiamProducts }) => {
-      importSiamProducts().catch(error => {
-        console.error('❌ Ошибка импорта продуктов:', error);
-      });
+      importSiamProducts()
+        .then(result => {
+          console.log(`✅ Импорт завершён! Успешно: ${result.success}, Ошибок: ${result.errors}`);
+        })
+        .catch(error => {
+          console.error('❌ Ошибка импорта продуктов:', error);
+        });
     });
 
     // Возвращаем ответ немедленно
