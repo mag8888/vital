@@ -30,16 +30,11 @@ export async function showRegionSelection(ctx: Context) {
 }
 
 export async function showCategories(ctx: Context, region?: string) {
-  // If region not provided, try to get it from user
-  if (!region) {
-    const user = await ensureUser(ctx);
-    region = (user as any)?.selectedRegion || 'RUSSIA';
-  }
-  
-  await logUserAction(ctx, 'shop:open', { region });
+  // Регион больше не используется, всегда показываем все товары
+  await logUserAction(ctx, 'shop:open');
   
   try {
-    console.log('🛍️ Loading categories for region:', region);
+    console.log('🛍️ Loading categories...');
     const categories = await getActiveCategories();
     console.log('🛍️ Found active categories:', categories.length);
     
@@ -59,10 +54,6 @@ export async function showCategories(ctx: Context, region?: string) {
       await ctx.reply(`🛍️ Каталог товаров Vital\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ\n\nКаталог пока пуст. Добавьте категории и товары в админке.`);
       return;
     }
-
-    // Show catalog with products grouped by categories
-    const regionEmoji = region === 'RUSSIA' ? '🇷🇺' : region === 'BALI' ? '🇮🇩' : '🌍';
-    const regionText = region === 'RUSSIA' ? 'Россия' : region === 'BALI' ? 'Бали' : 'Все регионы';
     
     // Get cart items count
     const user = await ensureUser(ctx);
@@ -88,19 +79,13 @@ export async function showCategories(ctx: Context, region?: string) {
           text: `🛒 Корзина${cartItemsCount > 0 ? ` (${cartItemsCount})` : ''}`,
           callback_data: 'shop:cart',
         },
-      ],
-      [
-        {
-          text: `🔄 Сменить регион (${regionEmoji} ${regionText})`,
-          callback_data: `${REGION_SELECT_PREFIX}change`,
-        },
       ]
     ];
 
     // Получаем баланс пользователя
     const userBalance = Number((user as any)?.balance || 0);
     
-    await ctx.reply(`🛍️ Каталог товаров Vital\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ\n📍 Регион: ${regionEmoji} ${regionText}\n\nВыберите категорию:`, {
+    await ctx.reply(`🛍️ Каталог товаров Vital\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ\n\nВыберите категорию:`, {
       reply_markup: {
         inline_keyboard: keyboard,
       },
@@ -393,20 +378,14 @@ export const shopModule: BotModule = {
     // Handle shop command
     bot.command('shop', async (ctx) => {
       await logUserAction(ctx, 'command:shop');
-      await showRegionSelection(ctx);
+      // Сразу показываем категории без выбора региона
+      await showCategories(ctx, 'RUSSIA');
     });
 
     bot.hears(['Магазин', 'Каталог', '🛒 Магазин'], async (ctx) => {
       console.log('🛍️ Shop button pressed by user:', ctx.from?.id);
-      
-      const user = await ensureUser(ctx);
-      if (user && (user as any).selectedRegion) {
-        // User already has a region selected, show categories directly
-        await showCategories(ctx, (user as any).selectedRegion);
-      } else {
-        // User needs to select region first
-        await showRegionSelection(ctx);
-      }
+      // Сразу показываем категории без выбора региона
+      await showCategories(ctx, 'RUSSIA');
     });
 
     // Handle region selection
