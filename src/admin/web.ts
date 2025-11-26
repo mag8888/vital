@@ -963,7 +963,10 @@ router.get('/', requireAdmin, async (req, res) => {
                 <div class="product-grid three-columns">
                   <div class="form-group">
                     <label>Название товара *</label>
-                    <input type="text" id="productName" required placeholder="Введите название товара">
+                    <div style="display: flex; gap: 8px;">
+                      <input type="text" id="productName" required placeholder="Введите название товара" style="flex: 1;">
+                      <button type="button" class="btn-translate" onclick="translateProductField('productName', 'title')" title="Перевести с английского через AI">🤖 AI</button>
+                    </div>
                   </div>
                   <div class="form-group">
                     <label>Цена (₽) *</label>
@@ -1010,7 +1013,10 @@ router.get('/', requireAdmin, async (req, res) => {
                 <div class="product-grid media-layout">
                   <div class="form-group">
                     <label>Краткое описание *</label>
-                    <textarea id="productShortDescription" required placeholder="Краткое описание товара (до 200 символов)" maxlength="200"></textarea>
+                    <div style="position: relative;">
+                      <textarea id="productShortDescription" required placeholder="Краткое описание товара (до 200 символов)" maxlength="200" style="padding-right: 50px;"></textarea>
+                      <button type="button" class="btn-translate" onclick="translateProductField('productShortDescription', 'summary')" title="Перевести с английского через AI" style="position: absolute; top: 8px; right: 8px;">🤖 AI</button>
+                    </div>
                     <div class="char-count" id="shortDescCount">0/200</div>
                   </div>
                   <div class="form-group media-group">
@@ -1026,7 +1032,10 @@ router.get('/', requireAdmin, async (req, res) => {
                 </div>
                 <div class="form-group">
                   <label>Полное описание *</label>
-                  <textarea id="productFullDescription" required placeholder="Подробное описание товара"></textarea>
+                  <div style="position: relative;">
+                    <textarea id="productFullDescription" required placeholder="Подробное описание товара" style="padding-right: 50px;"></textarea>
+                    <button type="button" class="btn-translate" onclick="translateProductField('productFullDescription', 'description')" title="Перевести с английского через AI" style="position: absolute; top: 8px; right: 8px;">🤖 AI</button>
+                  </div>
                 </div>
                 <div class="form-group">
                   <label>📋 Инструкция по применению</label>
@@ -4742,6 +4751,34 @@ router.get('/products', requireAdmin, async (req, res) => {
           .form-group textarea { min-height: 80px; resize: vertical; }
           .form-group textarea.large { min-height: 120px; }
           
+          /* AI Translation button styles */
+          .btn-translate {
+            padding: 6px 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+            white-space: nowrap;
+          }
+          .btn-translate:hover {
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.4);
+          }
+          .btn-translate:active {
+            transform: translateY(0);
+          }
+          .btn-translate:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+          }
+          
           .price-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
           .price-input { position: relative; }
           .price-input::after { 
@@ -5429,6 +5466,92 @@ router.get('/products', requireAdmin, async (req, res) => {
           window.cancelInstruction = function() {
             closeInstruction();
           };
+          
+          // AI Translation function for product fields
+          window.translateProductField = async function(fieldId, type) {
+            const field = document.getElementById(fieldId);
+            if (!field) {
+              alert('Поле не найдено');
+              return;
+            }
+            
+            const originalText = field.value.trim();
+            if (!originalText) {
+              alert('Введите текст на английском языке для перевода');
+              field.focus();
+              return;
+            }
+            
+            // Show loading state
+            const translateBtn = field.parentElement?.querySelector('.btn-translate');
+            const originalBtnText = translateBtn ? translateBtn.textContent : '🤖 AI';
+            if (translateBtn) {
+              translateBtn.disabled = true;
+              translateBtn.textContent = '⏳...';
+              translateBtn.style.opacity = '0.6';
+              translateBtn.style.cursor = 'not-allowed';
+            }
+            
+            try {
+              const productName = document.getElementById('productName')?.value || '';
+              
+              const response = await fetch('/admin/api/products/translate', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                  text: originalText,
+                  type: type,
+                  productName: productName,
+                  productType: 'cosmetic'
+                })
+              });
+              
+              const result = await response.json();
+              
+              if (result.success && result.translated) {
+                field.value = result.translated;
+                
+                // Update character count if it's summary field
+                if (fieldId === 'productShortDescription') {
+                  const charCount = document.getElementById('shortDescCount');
+                  if (charCount) {
+                    charCount.textContent = result.translated.length + '/200';
+                  }
+                }
+                
+                // Trigger input event to update any listeners
+                field.dispatchEvent(new Event('input', { bubbles: true }));
+                
+                // Show success message
+                const successMsg = document.createElement('div');
+                successMsg.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #28a745; color: white; padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 10000; font-size: 14px;';
+                successMsg.textContent = '✅ Перевод выполнен успешно!';
+                document.body.appendChild(successMsg);
+                setTimeout(() => {
+                  successMsg.style.transition = 'opacity 0.3s';
+                  successMsg.style.opacity = '0';
+                  setTimeout(() => successMsg.remove(), 300);
+                }, 3000);
+              } else {
+                throw new Error(result.error || 'Ошибка при переводе');
+              }
+            } catch (error: any) {
+              console.error('Translation error:', error);
+              const errorMsg = error.message || 'Неизвестная ошибка. Убедитесь, что OPENAI_API_KEY настроен в переменных окружения.';
+              alert('Ошибка при переводе: ' + errorMsg);
+            } finally {
+              // Restore button state
+              if (translateBtn) {
+                translateBtn.disabled = false;
+                translateBtn.textContent = originalBtnText;
+                translateBtn.style.opacity = '1';
+                translateBtn.style.cursor = 'pointer';
+              }
+            }
+          };
         </script>
       </body>
       </html>
@@ -5556,6 +5679,72 @@ router.post('/products/:productId/upload-image', requireAdmin, upload.single('im
     res.redirect(`/admin?error=image_upload`);
   }
 });
+// AI Translation endpoint for products
+router.post('/api/products/translate', requireAdmin, async (req, res) => {
+  try {
+    const { text, type, productName, productType } = req.body as {
+      text: string;
+      type: 'title' | 'summary' | 'description';
+      productName?: string;
+      productType?: string;
+    };
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Текст для перевода не предоставлен' 
+      });
+    }
+
+    const { aiTranslationService } = await import('../services/ai-translation-service.js');
+
+    if (!aiTranslationService.isEnabled()) {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'AI Translation Service не настроен. Добавьте OPENAI_API_KEY в переменные окружения.' 
+      });
+    }
+
+    let translatedText: string;
+
+    try {
+      if (type === 'title') {
+        translatedText = await aiTranslationService.translateTitle(text);
+      } else if (type === 'summary') {
+        translatedText = await aiTranslationService.translateSummary(text, productName || '');
+      } else {
+        // description
+        translatedText = await aiTranslationService.translateProductDescription(
+          text,
+          productType || 'cosmetic',
+          {
+            preserveStyle: true,
+            targetAudience: 'natural',
+            enhanceDescription: true
+          }
+        );
+      }
+
+      return res.json({
+        success: true,
+        translated: translatedText
+      });
+    } catch (error: any) {
+      console.error('AI Translation error:', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message || 'Ошибка при переводе текста'
+      });
+    }
+  } catch (error) {
+    console.error('Translation endpoint error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Внутренняя ошибка сервера'
+    });
+  }
+});
+
 // Upload review image
 router.post('/reviews/:reviewId/upload-image', requireAdmin, upload.single('image'), async (req, res) => {
   try {

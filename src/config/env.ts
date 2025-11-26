@@ -42,6 +42,10 @@ export const env = {
   cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
   cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
   cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
+  // OpenAI configuration (optional, for AI translations)
+  openaiApiKey: process.env.OPENAI_API_KEY,
+  openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+  openaiBaseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
 };
 
 // Helper function to get all admin chat IDs
