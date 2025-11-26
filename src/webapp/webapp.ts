@@ -22,7 +22,30 @@ router.use('/static', express.static(path.join(__dirname, '../../webapp')));
 
 // Main webapp route
 router.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../../webapp/index.html'));
+  const indexPath = path.join(__dirname, '../../webapp/index.html');
+  console.log('📱 Serving webapp from:', indexPath);
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      console.error('❌ Error serving webapp:', err);
+      res.status(500).send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>WebApp Error</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 40px; text-align: center; }
+            .error { color: #e74c3c; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <h1>⚠️ WebApp Error</h1>
+          <p class="error">Не удалось загрузить веб-приложение.</p>
+          <p>Проверьте логи сервера для деталей.</p>
+        </body>
+        </html>
+      `);
+    }
+  });
 });
 
 // Middleware to extract user info from Telegram WebApp

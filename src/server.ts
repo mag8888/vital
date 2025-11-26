@@ -98,6 +98,14 @@ async function bootstrap() {
     // Webapp routes
     app.use('/webapp', webappRouter);
     
+    // Log route registration
+    console.log('✅ Routes registered:');
+    console.log('   - GET / → redirects to /webapp');
+    console.log('   - GET /health → health check');
+    console.log('   - GET /api/health → API health check');
+    console.log('   - /admin → admin panel');
+    console.log('   - /webapp → web application');
+    
     // Lava webhook routes (only if Lava is enabled)
     const { lavaService } = await import('./services/lava-service.js');
     if (lavaService.isEnabled()) {
@@ -107,10 +115,22 @@ async function bootstrap() {
       console.log('ℹ️  Lava webhook routes disabled (Lava service not configured)');
     }
 
+    // 404 handler for unknown routes
+    app.use((req, res) => {
+      console.log(`⚠️  404: ${req.method} ${req.path}`);
+      if (req.path.startsWith('/api')) {
+        res.status(404).json({ error: 'Not found', path: req.path });
+      } else {
+        // For non-API routes, redirect to webapp
+        res.redirect('/webapp');
+      }
+    });
+
     const port = Number(process.env.PORT ?? 3000);
     // Listen on 0.0.0.0 to accept connections from Railway
     app.listen(port, '0.0.0.0', () => {
-      console.log(`Server is running on port ${port}`);
+      console.log(`🌐 Server is running on port ${port}`);
+      console.log(`🔗 Webapp URL: ${env.webappUrl || `http://localhost:${port}/webapp`}`);
     });
 
     // Initialize bot separately
