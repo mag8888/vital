@@ -5,15 +5,24 @@ export async function ensureInitialData() {
   try {
     const reviewCount = await prisma.review.count();
     if (reviewCount === 0) {
-      await prisma.review.create({
-        data: {
-          name: 'Дмитрий',
-          content: 'Будущее наступило ребята\nЭто действительно биохакинг нового поколения. Мне было трудно поверить в такую эффективность. Я забыл что такое усталость!',
-          isActive: true,
-          isPinned: true,
-        },
-      });
-      console.log('✅ Initial review created');
+      try {
+        // Try to create review without transaction (to avoid replica set requirement)
+        await prisma.review.create({
+          data: {
+            name: 'Дмитрий',
+            content: 'Будущее наступило ребята\nЭто действительно биохакинг нового поколения. Мне было трудно поверить в такую эффективность. Я забыл что такое усталость!',
+            isActive: true,
+            isPinned: true,
+          },
+        });
+        console.log('✅ Initial review created');
+      } catch (error: any) {
+        if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
+          console.log('⚠️  MongoDB replica set not configured - skipping initial review creation');
+        } else {
+          throw error;
+        }
+      }
     }
 
     // Инициализируем контент бота

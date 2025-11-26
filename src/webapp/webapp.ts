@@ -152,14 +152,24 @@ router.get('/api/user/profile', async (req, res) => {
     });
 
     if (!user) {
-      user = await prisma.user.create({
-        data: {
-          telegramId: telegramUser.id.toString(),
-          firstName: telegramUser.first_name,
-          lastName: telegramUser.last_name,
-          username: telegramUser.username,
+      try {
+        user = await prisma.user.create({
+          data: {
+            telegramId: telegramUser.id.toString(),
+            firstName: telegramUser.first_name,
+            lastName: telegramUser.last_name,
+            username: telegramUser.username,
+          }
+        });
+      } catch (error: any) {
+        if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
+          console.warn('⚠️  MongoDB replica set not configured - user creation skipped');
+          return res.status(503).json({ 
+            error: 'Database temporarily unavailable. Please try again later.' 
+          });
         }
-      });
+        throw error;
+      }
     }
 
     res.json({
@@ -185,6 +195,20 @@ router.get('/api/categories', async (req, res) => {
     res.json(categories);
   } catch (error) {
     console.error('Error getting categories:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Total products count endpoint (must be before /api/products/:id)
+router.get('/api/products/count', async (req, res) => {
+  try {
+    const { prisma } = await import('../lib/prisma.js');
+    const count = await prisma.product.count({
+      where: { isActive: true }
+    });
+    res.json({ totalProducts: count });
+  } catch (error) {
+    console.error('Error fetching total product count:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -235,16 +259,26 @@ router.get('/api/cart/items', async (req, res) => {
 
     if (!user) {
       console.log('❌ User not found for telegramId:', telegramUser.id, '- creating user');
-      // Create user if not exists
-      user = await prisma.user.create({
-        data: {
-          telegramId: telegramUser.id.toString(),
-          firstName: telegramUser.first_name,
-          lastName: telegramUser.last_name,
-          username: telegramUser.username,
+      try {
+        // Create user if not exists
+        user = await prisma.user.create({
+          data: {
+            telegramId: telegramUser.id.toString(),
+            firstName: telegramUser.first_name,
+            lastName: telegramUser.last_name,
+            username: telegramUser.username,
+          }
+        });
+        console.log('✅ User created:', user.id);
+      } catch (error: any) {
+        if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
+          console.warn('⚠️  MongoDB replica set not configured - user creation failed');
+          return res.status(503).json({ 
+            error: 'Database temporarily unavailable. Please try again later.' 
+          });
         }
-      });
-      console.log('✅ User created:', user.id);
+        throw error;
+      }
     }
 
     console.log('✅ User found for cart items:', user.id);
@@ -289,16 +323,26 @@ router.post('/api/cart/add', async (req, res) => {
 
     if (!user) {
       console.log('❌ User not found for telegramId:', telegramUser.id, '- creating user');
-      // Create user if not exists
-      user = await prisma.user.create({
-        data: {
-          telegramId: telegramUser.id.toString(),
-          firstName: telegramUser.first_name,
-          lastName: telegramUser.last_name,
-          username: telegramUser.username,
+      try {
+        // Create user if not exists
+        user = await prisma.user.create({
+          data: {
+            telegramId: telegramUser.id.toString(),
+            firstName: telegramUser.first_name,
+            lastName: telegramUser.last_name,
+            username: telegramUser.username,
+          }
+        });
+        console.log('✅ User created:', user.id);
+      } catch (error: any) {
+        if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
+          console.warn('⚠️  MongoDB replica set not configured - user creation failed');
+          return res.status(503).json({ 
+            error: 'Database temporarily unavailable. Please try again later.' 
+          });
         }
-      });
-      console.log('✅ User created:', user.id);
+        throw error;
+      }
     }
 
     console.log('✅ User found for cart:', user.id);
@@ -366,16 +410,26 @@ router.post('/api/orders/create', async (req, res) => {
 
     if (!user) {
       console.log('❌ User not found for telegramId:', telegramUser.id, '- creating user');
-      // Create user if not exists
-      user = await prisma.user.create({
-        data: {
-          telegramId: telegramUser.id.toString(),
-          firstName: telegramUser.first_name,
-          lastName: telegramUser.last_name,
-          username: telegramUser.username,
+      try {
+        // Create user if not exists
+        user = await prisma.user.create({
+          data: {
+            telegramId: telegramUser.id.toString(),
+            firstName: telegramUser.first_name,
+            lastName: telegramUser.last_name,
+            username: telegramUser.username,
+          }
+        });
+        console.log('✅ User created:', user.id);
+      } catch (error: any) {
+        if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
+          console.warn('⚠️  MongoDB replica set not configured - user creation failed');
+          return res.status(503).json({ 
+            error: 'Database temporarily unavailable. Please try again later.' 
+          });
         }
-      });
-      console.log('✅ User created:', user.id);
+        throw error;
+      }
     }
 
     console.log('✅ User found:', user.id);
@@ -523,11 +577,16 @@ router.post('/api/partner/activate', async (req, res) => {
   }
 });
 
-// Get product by ID endpoint
+// Get product by ID endpoint (must be after /api/products/count)
 router.get('/api/products/:id', async (req, res) => {
   try {
     const { prisma } = await import('../lib/prisma.js');
     const productId = req.params.id;
+    
+    // Validate that ID is a valid MongoDB ObjectID format
+    if (!productId || productId.length !== 24 || !/^[0-9a-fA-F]{24}$/.test(productId)) {
+      return res.status(400).json({ error: 'Invalid product ID format' });
+    }
     
     const product = await prisma.product.findUnique({
       where: { id: productId },
@@ -541,22 +600,11 @@ router.get('/api/products/:id', async (req, res) => {
     }
     
     res.json(product);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching product:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Total products count endpoint
-router.get('/api/products/count', async (req, res) => {
-  try {
-    const { prisma } = await import('../lib/prisma.js');
-    const count = await prisma.product.count({
-      where: { isActive: true }
-    });
-    res.json({ totalProducts: count });
-  } catch (error) {
-    console.error('Error fetching total product count:', error);
+    if (error?.code === 'P2023') {
+      return res.status(400).json({ error: 'Invalid product ID format' });
+    }
     res.status(500).json({ error: 'Internal server error' });
   }
 });
