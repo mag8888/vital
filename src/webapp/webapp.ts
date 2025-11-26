@@ -720,4 +720,45 @@ router.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Trigger product import (simple endpoint to fill catalog)
+router.post('/api/import-products', async (req, res) => {
+  try {
+    console.log('🚀 Запрос на импорт продуктов через webapp API');
+    
+    const { prisma } = await import('../lib/prisma.js');
+    const productCount = await prisma.product.count();
+    
+    if (productCount > 0) {
+      return res.json({ 
+        success: false, 
+        message: `Каталог уже содержит ${productCount} товаров. Импорт не требуется.` 
+      });
+    }
+    
+    // Запускаем импорт в фоне
+    import('../services/siam-import-service.js').then(async (module) => {
+      try {
+        const { importSiamProducts } = module;
+        const result = await importSiamProducts();
+        console.log(`✅ Импорт завершен через webapp API: ${result.success} успешно, ${result.errors} ошибок`);
+      } catch (error: any) {
+        console.error('❌ Ошибка импорта через webapp API:', error?.message || error);
+      }
+    }).catch((error) => {
+      console.error('❌ Ошибка запуска импорта через webapp API:', error);
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Импорт продуктов запущен в фоновом режиме. Проверьте каталог через несколько минут.' 
+    });
+  } catch (error: any) {
+    console.error('❌ Ошибка при запуске импорта:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error?.message || 'Internal server error' 
+    });
+  }
+});
+
 export { router as webappRouter };
