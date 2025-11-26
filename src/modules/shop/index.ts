@@ -408,10 +408,6 @@ export const shopModule: BotModule = {
       const categoryId = match[1];
       await ctx.answerCbQuery();
       
-      // Get user's selected region
-      const user = await ensureUser(ctx);
-      const region = (user as any)?.selectedRegion || 'RUSSIA';
-      
       await logUserAction(ctx, 'shop:category', { categoryId });
       await sendProductCards(ctx, categoryId);
     });
