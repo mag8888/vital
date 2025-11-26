@@ -104,18 +104,11 @@ function optimizeConnectionString(url: string): string {
   }
   
   // Add authSource if not present (important for Railway MongoDB)
-  // Railway MongoDB often needs authSource to match the database name
+  // Railway MongoDB often needs authSource=admin for authentication
   if (!optimized.includes('authSource')) {
-    // Extract database name from connection string
-    // Look for pattern: /dbname or /dbname?options
-    const dbMatch = optimized.match(/\/([^/?]+)(\?|$)/);
-    if (dbMatch) {
-      const dbName = dbMatch[1];
-      // Only add authSource if we found a database name
-      if (dbName && dbName !== '') {
-        optimized = `${optimized}${optimized.includes('?') ? '&' : '?'}authSource=${dbName}`;
-      }
-    }
+    // Railway MongoDB typically uses 'admin' as authSource for root user
+    // Try 'admin' first, then fallback to database name
+    optimized = `${optimized}${optimized.includes('?') ? '&' : '?'}authSource=admin`;
   }
   
   return optimized;
