@@ -10,162 +10,78 @@
 <body>
     <div class="app-container">
         <header class="top-bar">
-            <div class="brand-cluster">
-                <button class="control-btn" onclick="closeApp()" aria-label="Закрыть">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
-                </button>
-                <div class="brand-badge">
-                    <span class="brand-label">Vital</span>
-                    <p class="brand-description">Навигация по экосистеме</p>
-                </div>
-            </div>
-            <button class="control-btn ghost" aria-label="Меню">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="5" r="2" fill="currentColor"/>
-                    <circle cx="12" cy="12" r="2" fill="currentColor"/>
-                    <circle cx="12" cy="19" r="2" fill="currentColor"/>
+            <button class="control-btn" onclick="closeApp()" aria-label="Меню">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M3 12H21M3 6H21M3 18H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </button>
+            <div class="brand-cluster">
+                <div class="brand-badge">
+                    <span class="brand-label">Vital</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="control-btn" aria-label="Поиск">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/>
+                        <path d="m21 21-4.35-4.35" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                </button>
+                <button class="control-btn" aria-label="Профиль">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                <button class="control-btn" aria-label="Корзина">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M3 3H5L5.4 5M7 13H17L21 5H5.4M7 13L5.4 5M7 13L4.7 15.3C4.3 15.7 4.6 16.5 5.1 16.5H17M17 13V17C17 18.1 16.1 19 15 19H9C7.9 19 7 18.1 7 17V13M17 13H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span class="cart-badge">0</span>
+                </button>
+            </div>
         </header>
-
-        <div class="search-container">
-            <div class="search-bar">
-                <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/>
-                    <path d="m21 21-4.35-4.35" stroke="currentColor" stroke-width="2"/>
-                </svg>
-                <input type="text" placeholder="Поиск..." class="search-input">
-            </div>
-            <div class="search-meta">
-                <span class="meta-pill">Пульс сообщества</span>
-                <span class="meta-pill">Актуальные направления</span>
-                <span class="meta-pill accent">Обновлено сегодня</span>
-            </div>
-        </div>
 
         <!-- Main Content Grid -->
         <main class="content-grid">
             <div class="content-card" onclick="openSection('shop')">
+                <div class="card-badge" id="shop-badge">0</div>
                 <div class="card-inner">
-                    <div class="card-top">
-                        <div class="card-icon shop-icon">
-                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-                                <path d="M3 3H5L5.4 5M7 13H17L21 5H5.4M7 13L5.4 5M7 13L4.7 15.3C4.3 15.7 4.6 16.5 5.1 16.5H17M17 13V17C17 18.1 16.1 19 15 19H9C7.9 19 7 18.1 7 17V13M17 13H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </div>
-                        <div class="card-badge" id="shop-badge">0</div>
-                    </div>
                     <div class="card-title">МАГАЗИН</div>
-                    <div class="card-action">
-                        <span>Перейти</span>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                            <path d="M5 19L19 5M19 5H8M19 5V16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </div>
                 </div>
             </div>
 
             <div class="content-card" onclick="openSection('partner')">
+                <div class="card-badge" id="partner-badge">25%</div>
                 <div class="card-inner">
-                    <div class="card-top">
-                        <div class="card-icon partner-icon">
-                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-                                <path d="M16 21V19C16 17.9 15.1 17 14 17H10C8.9 17 8 17.9 8 19V21M12 11C13.1 11 14 10.1 14 9C14 7.9 13.1 7 12 7C10.9 7 10 7.9 10 9C10 10.1 10.9 11 12 11ZM6 21V19C6 16.8 7.8 15 10 15H14C16.2 15 18 16.8 18 19V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </div>
-                        <div class="card-badge" id="partner-badge">25%</div>
-                    </div>
                     <div class="card-title">ПАРТНЁРКА</div>
-                    <div class="card-action">
-                        <span>Перейти</span>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                            <path d="M5 19L19 5M19 5H8M19 5V16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </div>
                 </div>
             </div>
 
             <div class="content-card" onclick="openSection('audio')">
+                <div class="card-badge" id="audio-badge">5</div>
                 <div class="card-inner">
-                    <div class="card-top">
-                        <div class="card-icon audio-icon">
-                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-                                <path d="M12 1C13.1 1 14 1.9 14 3V11C14 12.1 13.1 13 12 13C10.9 13 10 12.1 10 11V3C10 1.9 10.9 1 12 1ZM19 10V12C19 16.4 15.4 20 11 20C6.6 20 3 16.4 3 12V10H5V12C5 15.3 7.7 18 11 18C14.3 18 17 15.3 17 12V10H19ZM12 15C13.7 15 15 13.7 15 12V4C15 2.3 13.7 1 12 1C10.3 1 9 2.3 9 4V12C9 13.7 10.3 15 12 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </div>
-                        <div class="card-badge" id="audio-badge">5</div>
-                    </div>
                     <div class="card-title">ЗВУКОВЫЕ МАТРИЦЫ</div>
-                    <div class="card-action">
-                        <span>Перейти</span>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                            <path d="M5 19L19 5M19 5H8M19 5V16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </div>
                 </div>
             </div>
 
             <div class="content-card" onclick="openSection('reviews')">
+                <div class="card-badge" id="reviews-badge">0</div>
                 <div class="card-inner">
-                    <div class="card-top">
-                        <div class="card-icon reviews-icon">
-                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-                                <path d="M12 2L15.09 8.26L22 9L17 14.74L18.18 21.02Л12 17.77Л5.82 21.02L7 14.74L2 9L8.91 8.26L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </div>
-                        <div class="card-badge" id="reviews-badge">0</div>
-                    </div>
                     <div class="card-title">ОТЗЫВЫ</div>
-                    <div class="card-action">
-                        <span>Перейти</span>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                            <path d="M5 19L19 5M19 5H8M19 5V16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </div>
                 </div>
             </div>
 
             <div class="content-card" onclick="openSection('about')">
+                <div class="card-badge" id="about-badge">1</div>
                 <div class="card-inner">
-                    <div class="card-top">
-                        <div class="card-icon about-icon">
-                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-                                <path d="M12 16V12M12 8H12.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </div>
-                        <div class="card-badge" id="about-badge">1</div>
-                    </div>
                     <div class="card-title">О PLASMA</div>
-                    <div class="card-action">
-                        <span>Перейти</span>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                            <path d="M5 19L19 5M19 5H8M19 5V16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </div>
                 </div>
             </div>
 
             <div class="content-card" onclick="openSection('support')">
+                <div class="card-badge" id="support-badge">24/7</div>
                 <div class="card-inner">
-                    <div class="card-top">
-                        <div class="card-icon support-icon">
-                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-                                <path d="M21 15C21 15.5 20.6 16 20 16H4C3.4 16 3 15.5 3 15V5C3 4.5 3.4 4 4 4H20C20.6 4 21 4.5 21 5V15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                <path d="M7 8L12 13L17 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </div>
-                        <div class="card-badge" id="support-badge">24/7</div>
-                    </div>
                     <div class="card-title">ПОДДЕРЖКА</div>
-                    <div class="card-action">
-                        <span>Перейти</span>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                            <path d="M5 19L19 5M19 5H8M19 5V16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </div>
                 </div>
             </div>
         </main>
