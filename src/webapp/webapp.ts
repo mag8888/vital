@@ -7,7 +7,7 @@ import { Context } from '../bot/context.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import { ensureUser } from '../services/user-history.js';
-import { getActiveCategories, getCategoryById, getProductById, getProductsByCategory } from '../services/shop-service.js';
+import { getActiveCategories, getCategoryById, getProductById, getProductsByCategory, getAllActiveProducts } from '../services/shop-service.js';
 import { addProductToCart, getCartItems, cartItemsToText } from '../services/cart-service.js';
 import { createOrderRequest } from '../services/order-service.js';
 import { getActiveReviews } from '../services/review-service.js';
@@ -185,6 +185,17 @@ router.get('/api/categories', async (req, res) => {
     res.json(categories);
   } catch (error) {
     console.error('Error getting categories:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// All products endpoint
+router.get('/api/products', async (req, res) => {
+  try {
+    const products = await getAllActiveProducts();
+    res.json(products);
+  } catch (error) {
+    console.error('Error getting all products:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

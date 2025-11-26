@@ -25,3 +25,13 @@ export async function getProductById(productId: string) {
     where: { id: productId },
   });
 }
+
+export async function getAllActiveProducts() {
+  return prisma.product.findMany({
+    where: { isActive: true },
+    include: {
+      category: true
+    },
+    orderBy: { title: 'asc' },
+  });
+}

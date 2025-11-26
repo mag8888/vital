@@ -212,22 +212,35 @@ async function loadSectionContent(sectionName, container) {
     }
 }
 
-// Shop content
+// Shop content - показываем все товары сразу
 async function loadShopContent() {
     try {
-        const response = await fetch(`${API_BASE}/categories`);
-        const categories = await response.json();
+        const response = await fetch(`${API_BASE}/products`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const products = await response.json();
         
         let content = '<div class="content-section"><h3>Каталог товаров</h3>';
         
-        if (categories && categories.length > 0) {
-            content += '<div class="shop-categories">';
-            categories.forEach(category => {
+        if (products && products.length > 0) {
+            content += '<div class="products-grid">';
+            products.forEach(product => {
                 content += `
-                    <div class="shop-category" onclick="showCategoryProducts('${category.id}')">
-                        <h4>${category.name}</h4>
-                        <p>${category.description || 'Товары категории'}</p>
-                        <button onclick="event.stopPropagation(); showCategoryProducts('${category.id}')">Открыть</button>
+                    <div class="product-tile">
+                        ${product.imageUrl ? `<div class="product-image" onclick="showProductDetails('${product.id}')"><img src="${product.imageUrl}" alt="${product.title}" onerror="this.style.display='none'"></div>` : '<div class="product-image-placeholder" onclick="showProductDetails(\'' + product.id + '\')">📦</div>'}
+                        <h4 onclick="showProductDetails('${product.id}')">${product.title}</h4>
+                        <div class="product-description" onclick="showProductDetails('${product.id}')">${product.summary || product.description || 'Описание товара'}</div>
+                        <div class="product-price">💰 ${(product.price * 100).toFixed(2)} ₽ / ${product.price} PZ</div>
+                        <div class="product-actions">
+                            <button class="btn-add-to-cart" onclick="addToCart('${product.id}')">
+                                🛒 В корзину
+                            </button>
+                            <button class="btn-buy" onclick="buyProduct('${product.id}')">
+                                🛍 Купить
+                            </button>
+                            ${product.instruction ? `<button class="btn-instruction" onclick="showInstruction('${product.id}', \`${product.instruction.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)">📋 Инструкция</button>` : ''}
+                        </div>
                     </div>
                 `;
             });
@@ -239,6 +252,7 @@ async function loadShopContent() {
         content += '</div>';
         return content;
     } catch (error) {
+        console.error('Error loading shop content:', error);
         return '<div class="error-message"><h3>Ошибка загрузки каталога</h3><p>Попробуйте позже</p></div>';
     }
 }
@@ -1412,8 +1426,8 @@ async function showProductDetails(productId) {
                     ${product.imageUrl ? `<div class="product-details-image"><img src="${product.imageUrl}" alt="${product.title}" onerror="this.style.display='none'"></div>` : ''}
                     
                     <div class="product-details-info">
-                        <div class="product-price">💰 Цена: ${product.price}₽</div>
-                        <div class="product-stock">📦 В наличии: ${product.stock} шт.</div>
+                        <div class="product-price">💰 Цена: ${(product.price * 100).toFixed(2)} ₽ / ${product.price} PZ</div>
+                        <div class="product-stock">📦 В наличии: ${product.stock || 999} шт.</div>
                         
                         ${product.summary ? `<div class="product-summary"><h4>Краткое описание:</h4><p>${product.summary}</p></div>` : ''}
                         
@@ -1429,7 +1443,7 @@ async function showProductDetails(productId) {
                         <button class="btn-buy" onclick="buyProduct('${product.id}')">
                             🛍 Купить
                         </button>
-                        ${product.instruction ? `<button class="btn-instruction" onclick="showInstruction('${product.id}', \`${product.instruction.replace(/`/g, '\\`')}\`)">📋 Инструкция</button>` : ''}
+                        ${product.instruction ? `<button class="btn-instruction" onclick="showInstruction('${product.id}', \`${product.instruction.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)">📋 Инструкция</button>` : ''}
                     </div>
                 </div>
             </div>
