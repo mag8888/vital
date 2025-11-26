@@ -1416,8 +1416,8 @@ async function showProductDetails(productId) {
         let content = `
             <div class="product-details">
                 <div class="product-details-header">
-                    <button class="btn-back" onclick="showCategoryProducts('${product.categoryId}')">
-                        ← Назад к товарам
+                    <button class="btn-back" onclick="openSection('shop')">
+                        ← Назад к каталогу
                     </button>
                     <h2>${product.title}</h2>
                 </div>
