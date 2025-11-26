@@ -18,6 +18,29 @@ export async function ensureInitialData() {
 
     // Инициализируем контент бота
     await initializeBotContent();
+    
+    // Проверяем, пуст ли каталог, и если да - запускаем импорт в фоне
+    const productCount = await prisma.product.count();
+    if (productCount === 0) {
+      console.log('📦 Каталог пуст, запускаю импорт продуктов в фоне...');
+      // Запускаем импорт асинхронно, чтобы не блокировать запуск сервера
+      import('../services/siam-import-service.js').then(async (module) => {
+        try {
+          const { importSiamProducts } = module;
+          const result = await importSiamProducts();
+          console.log(`✅ Импорт завершен: ${result.success} успешно, ${result.errors} ошибок`);
+        } catch (error: any) {
+          if (error?.message?.includes('AI Translation Service не настроен')) {
+            console.log('⚠️  Импорт пропущен: OPENAI_API_KEY не настроен');
+          } else {
+            console.error('❌ Ошибка импорта:', error?.message || error);
+          }
+        }
+      }).catch(() => {
+        // Silent fail - импорт может не запуститься по разным причинам
+      });
+    }
+    
     console.log('✅ Initial data ensured');
   } catch (error: any) {
     // MongoDB authentication errors - check connection string
