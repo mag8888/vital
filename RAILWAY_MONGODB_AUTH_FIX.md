@@ -78,3 +78,11 @@ mongodb://username:password@host:port/database?options
 
 **После исправления connection string бот должен успешно подключиться к MongoDB!**
 
+
+
+
+
+
+
+
+

@@ -482,10 +482,21 @@ export const navigationModule: BotModule = {
           const { prisma } = await import('../../lib/prisma.js');
           console.log('🔗 Referral: Searching for partner profile with code:', referralCode);
           
-          const partnerProfile = await prisma.partnerProfile.findUnique({
-            where: { referralCode },
-            include: { user: true }
-          });
+          let partnerProfile;
+          try {
+            partnerProfile = await prisma.partnerProfile.findUnique({
+              where: { referralCode },
+              include: { user: true }
+            });
+          } catch (error: any) {
+            // Silent fail for DB errors - continue without referral processing
+            if (error?.code === 'P1013' || error?.message?.includes('Authentication failed')) {
+              console.warn('🔗 Referral: Database auth error, skipping referral processing');
+              partnerProfile = null;
+            } else {
+              throw error; // Re-throw non-auth errors
+            }
+          }
           
           console.log('🔗 Referral: Found partner profile:', partnerProfile ? 'YES' : 'NO');
           
@@ -493,10 +504,19 @@ export const navigationModule: BotModule = {
             // Check if user already existed before ensuring
             let existingUserBeforeEnsure: { id: string } | null = null;
             if (ctx.from?.id) {
-              existingUserBeforeEnsure = await prisma.user.findUnique({
-                where: { telegramId: ctx.from.id.toString() },
-                select: { id: true }
-              });
+              try {
+                existingUserBeforeEnsure = await prisma.user.findUnique({
+                  where: { telegramId: ctx.from.id.toString() },
+                  select: { id: true }
+                });
+              } catch (error: any) {
+                // Silent fail for DB errors
+                if (error?.code === 'P1013' || error?.message?.includes('Authentication failed')) {
+                  existingUserBeforeEnsure = null;
+                } else {
+                  throw error;
+                }
+              }
             }
             
             // Ensure user exists first

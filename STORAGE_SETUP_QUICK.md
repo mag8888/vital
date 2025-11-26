@@ -209,3 +209,11 @@ console.log('Image URL:', result.secureUrl);
 3. См. раздел "Решение проблем" выше
 4. См. подробную документацию: [CLOUDINARY_INTEGRATION.md](./CLOUDINARY_INTEGRATION.md)
 
+
+
+
+
+
+
+
+

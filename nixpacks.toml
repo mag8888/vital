@@ -10,3 +10,11 @@ cmds = ['npm run prisma:generate', 'npm run build']
 [start]
 cmd = 'npm start'
 
+
+
+
+
+
+
+
+

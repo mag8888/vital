@@ -169,3 +169,11 @@ WEBAPP_URL=https://your-project.up.railway.app/webapp
 
 **✅ После добавления `DATABASE_URL` бот должен успешно запуститься!**
 
+
+
+
+
+
+
+
+
