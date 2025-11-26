@@ -106,26 +106,18 @@ function formatProductMessage(product: { title: string; summary: string; price: 
   return `💧 ${product.title}\n${product.summary}\n\nЦена: ${rubPrice} ₽ / ${pzPrice} PZ`;
 }
 
-async function sendProductCards(ctx: Context, categoryId: string, region?: string) {
+async function sendProductCards(ctx: Context, categoryId: string) {
   try {
     const category = await getCategoryById(categoryId);
     if (!category) {
       await ctx.reply('❌ Категория не найдена.');
       return;
     }
-
-    let products = await getProductsByCategory(categoryId);
     
-    // Filter products by region
-    if (region === 'RUSSIA') {
-      products = products.filter((product: any) => product.availableInRussia);
-    } else if (region === 'BALI') {
-      products = products.filter((product: any) => product.availableInBali);
-    }
+    const products = await getProductsByCategory(categoryId);
     
     if (products.length === 0) {
-      const regionText = region === 'RUSSIA' ? 'России' : region === 'BALI' ? 'Бали' : '';
-      await ctx.reply(`📂 ${category.name}\n\nВ этой категории нет товаров для ${regionText}.`);
+      await ctx.reply(`📂 ${category.name}\n\nВ этой категории пока нет товаров.`);
       return;
     }
 
@@ -420,8 +412,8 @@ export const shopModule: BotModule = {
       const user = await ensureUser(ctx);
       const region = (user as any)?.selectedRegion || 'RUSSIA';
       
-      await logUserAction(ctx, 'shop:category', { categoryId, region });
-      await sendProductCards(ctx, categoryId, region);
+      await logUserAction(ctx, 'shop:category', { categoryId });
+      await sendProductCards(ctx, categoryId);
     });
 
     bot.action(new RegExp(`^${PRODUCT_MORE_PREFIX}(.+)$`), async (ctx) => {

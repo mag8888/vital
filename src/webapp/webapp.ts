@@ -170,8 +170,7 @@ router.get('/api/user/profile', async (req, res) => {
       username: user.username,
       phone: user.phone,
       deliveryAddress: user.deliveryAddress,
-      balance: (user as any).balance || 0,
-      selectedRegion: (user as any).selectedRegion || 'RUSSIA'
+      balance: (user as any).balance || 0
     });
   } catch (error) {
     console.error('Error getting user profile:', error);
@@ -194,19 +193,11 @@ router.get('/api/categories', async (req, res) => {
 router.get('/api/categories/:categoryId/products', async (req, res) => {
   try {
     const { categoryId } = req.params;
-    const region = req.query.region as string || 'RUSSIA';
     
+    // Получаем все активные товары без фильтрации по региону
     const products = await getProductsByCategory(categoryId);
     
-    // Filter by region
-    let filteredProducts = products;
-    if (region === 'RUSSIA') {
-      filteredProducts = products.filter((product: any) => product.availableInRussia);
-    } else if (region === 'BALI') {
-      filteredProducts = products.filter((product: any) => product.availableInBali);
-    }
-    
-    res.json(filteredProducts);
+    res.json(products);
   } catch (error) {
     console.error('Error getting products:', error);
     res.status(500).json({ error: 'Internal server error' });
