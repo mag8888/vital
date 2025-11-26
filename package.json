@@ -21,7 +21,8 @@
     "setup-railway": "node scripts/setup-railway-webapp.js",
     "check-video": "node scripts/check-video-size.js",
     "compress-video": "./scripts/compress-video.sh",
-    "refactor:test": "npm run build:refactored && npm run start:refactored"
+    "refactor:test": "npm run build:refactored && npm run start:refactored",
+    "import-siam": "npm run build && node --loader ts-node/esm scripts/import-siam-botanicals.ts"
   },
   "dependencies": {
     "@adminjs/express": "^6.1.1",
