@@ -5321,9 +5321,6 @@ router.get('/products', requireAdmin, async (req, res) => {
             }
           }
           
-          // Make function available globally
-          window.showInstructionSafe = showInstructionSafe;
-          
           // Simple function for editing products
           function editProduct(button) {
             const productId = button.dataset.id;
