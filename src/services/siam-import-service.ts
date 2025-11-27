@@ -404,26 +404,38 @@ async function importProduct(product: SiamProduct): Promise<any> {
   // Получаем или создаем категорию
   const category = await getOrCreateCategory(product.category, product.categorySlug);
 
-  // Переводим через AI
-  console.log('  🔄 Перевод названия...');
-  const translatedTitle = await aiTranslationService.translateTitle(product.englishTitle);
+  // Переводим через AI или используем английские версии
+  const aiEnabled = aiTranslationService.isEnabled();
+  let translatedTitle: string;
+  let translatedSummary: string;
+  let translatedDescription: string;
 
-  console.log('  🔄 Перевод краткого описания...');
-  const translatedSummary = await aiTranslationService.translateSummary(
-    product.englishSummary,
-    translatedTitle
-  );
+  if (aiEnabled) {
+    console.log('  🔄 Перевод названия...');
+    translatedTitle = await aiTranslationService.translateTitle(product.englishTitle);
 
-  console.log('  🔄 Перевод полного описания...');
-  const translatedDescription = await aiTranslationService.translateProductDescription(
-    product.englishDescription,
-    'cosmetic',
-    {
-      preserveStyle: true,
-      targetAudience: 'natural',
-      enhanceDescription: true
-    }
-  );
+    console.log('  🔄 Перевод краткого описания...');
+    translatedSummary = await aiTranslationService.translateSummary(
+      product.englishSummary,
+      translatedTitle
+    );
+
+    console.log('  🔄 Перевод полного описания...');
+    translatedDescription = await aiTranslationService.translateProductDescription(
+      product.englishDescription,
+      'cosmetic',
+      {
+        preserveStyle: true,
+        targetAudience: 'natural',
+        enhanceDescription: true
+      }
+    );
+  } else {
+    console.log('  ⚠️  AI Translation не доступен, используем английские названия');
+    translatedTitle = product.englishTitle;
+    translatedSummary = product.englishSummary;
+    translatedDescription = product.englishDescription;
+  }
 
   // Конвертируем цену
   const priceInPZ = convertTHBToPZ(product.price);
