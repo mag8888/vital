@@ -2998,10 +2998,10 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                       <button class="action-btn" onclick="if(typeof showUserDetails === 'function') { showUserDetails('${user.id}'); } else { console.error('showUserDetails not defined'); window.open('/admin/users/${user.id}', '_blank', 'width=600,height=400'); }" title="Подробная информация">
                         👁
                       </button>
-                      <button class="action-btn" onclick="openChangeInviter('${user.id}', '${user.firstName || 'Без имени'} ${user.lastName || ''}')" title="Сменить пригласителя">
+                      <button class="action-btn" onclick="openChangeInviter('${user.id}', ${JSON.stringify((user.firstName || 'Без имени') + ' ' + (user.lastName || ''))})" title="Сменить пригласителя">
                         🔄
                       </button>
-                      <button class="action-btn delete-user-btn" onclick="deleteSelectedUser('${user.id}', '${(user.firstName || 'Пользователь').replace(/'/g, "\\'")}')" title="Удалить пользователя" style="background: #dc3545; color: white;">
+                      <button class="action-btn delete-user-btn" onclick="deleteSelectedUser('${user.id}', ${JSON.stringify(user.firstName || 'Пользователь')})" title="Удалить пользователя" style="background: #dc3545; color: white;">
                         🗑️
                       </button>
                     </td>
@@ -3029,14 +3029,6 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
           };
           
           // Функции для массового выбора пользователей
-          window.toggleAllUsers = function(checked) {
-            const checkboxes = document.querySelectorAll('.user-checkbox');
-            checkboxes.forEach(checkbox => {
-              checkbox.checked = checked;
-            });
-            updateSelectedUsers();
-          };
-          
           window.updateSelectedUsers = function() {
             const checkboxes = document.querySelectorAll('.user-checkbox');
             const checkedCount = document.querySelectorAll('.user-checkbox:checked').length;
@@ -3045,6 +3037,106 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             if (selectAllCheckbox) {
               selectAllCheckbox.checked = checkedCount === checkboxes.length;
               selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+            }
+          };
+          
+          window.toggleAllUsers = function(checked) {
+            const checkboxes = document.querySelectorAll('.user-checkbox');
+            checkboxes.forEach(checkbox => {
+              checkbox.checked = checked;
+            });
+            if (typeof window.updateSelectedUsers === 'function') {
+              window.updateSelectedUsers();
+            }
+          };
+          
+          window.deleteSelectedUser = async function(userId, userName) {
+            if (!confirm('⚠️ ВНИМАНИЕ! Вы уверены, что хотите удалить пользователя "' + userName + '"?\n\nЭто действие удалит:\n- Пользователя\n- Партнерский профиль\n- Все рефералы\n- Все транзакции\n- Все заказы\n- Историю действий\n\nЭто действие НЕОБРАТИМО!')) {
+              return;
+            }
+            
+            const doubleCheck = prompt('Для подтверждения введите: УДАЛИТЬ');
+            if (doubleCheck !== 'УДАЛИТЬ') {
+              alert('Отмена удаления. Пользователь не был удален.');
+              return;
+            }
+            
+            try {
+              const response = await fetch('/admin/users/' + userId + '/delete', {
+                method: 'DELETE',
+                credentials: 'include',
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Ошибка при удалении пользователя');
+              }
+              
+              const result = await response.json();
+              
+              if (result.success) {
+                alert('✅ Пользователь "' + userName + '" успешно удален!');
+                window.location.reload();
+              } else {
+                throw new Error(result.error || 'Ошибка при удалении');
+              }
+            } catch (error) {
+              console.error('Error deleting user:', error);
+              alert('❌ Ошибка при удалении пользователя: ' + (error instanceof Error ? error.message : String(error)));
+            }
+          };
+          
+          window.deleteSelectedUsers = async function() {
+            const selectedCheckboxes = document.querySelectorAll('.user-checkbox:checked');
+            if (selectedCheckboxes.length === 0) {
+              alert('Выберите пользователей для удаления');
+              return;
+            }
+            
+            const selectedIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+            
+            if (!confirm('⚠️ ВНИМАНИЕ! Вы уверены, что хотите удалить ' + selectedIds.length + ' пользователей?\n\nЭто действие удалит:\n- Пользователей\n- Партнерские профили\n- Все рефералы\n- Все транзакции\n- Все заказы\n- Историю действий\n\nЭто действие НЕОБРАТИМО!')) {
+              return;
+            }
+            
+            const doubleCheck = prompt('Для подтверждения введите: УДАЛИТЬ ВСЕХ');
+            if (doubleCheck !== 'УДАЛИТЬ ВСЕХ') {
+              alert('Отмена удаления. Пользователи не были удалены.');
+              return;
+            }
+            
+            try {
+              let successCount = 0;
+              let failCount = 0;
+              
+              for (const userId of selectedIds) {
+                try {
+                  const response = await fetch('/admin/users/' + userId + '/delete', {
+                    method: 'DELETE',
+                    credentials: 'include',
+                    headers: {
+                      'Content-Type': 'application/json'
+                    }
+                  });
+                  
+                  if (response.ok) {
+                    successCount++;
+                  } else {
+                    failCount++;
+                  }
+                } catch (error) {
+                  failCount++;
+                }
+              }
+              
+              alert('✅ Удалено пользователей: ' + successCount + '\n❌ Ошибок: ' + failCount);
+              window.location.reload();
+            } catch (error) {
+              console.error('Error deleting users:', error);
+              alert('❌ Ошибка при удалении пользователей');
             }
           };
           
@@ -3231,100 +3323,6 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             const modal = document.getElementById('messageModal');
             if (modal) {
               modal.remove();
-            }
-          };
-          
-          // Функция для удаления выбранного пользователя
-          window.deleteSelectedUser = async function(userId, userName) {
-            if (!confirm('⚠️ ВНИМАНИЕ! Вы уверены, что хотите удалить пользователя "' + userName + '"?\n\nЭто действие удалит:\n- Пользователя\n- Партнерский профиль\n- Все рефералы\n- Все транзакции\n- Все заказы\n- Историю действий\n\nЭто действие НЕОБРАТИМО!')) {
-              return;
-            }
-            
-            const doubleCheck = prompt('Для подтверждения введите: УДАЛИТЬ');
-            if (doubleCheck !== 'УДАЛИТЬ') {
-              alert('Отмена удаления. Пользователь не был удален.');
-              return;
-            }
-            
-            try {
-              const response = await fetch('/admin/users/' + userId + '/delete', {
-                method: 'DELETE',
-                credentials: 'include',
-                headers: {
-                  'Content-Type': 'application/json'
-                }
-              });
-              
-              if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Ошибка при удалении пользователя');
-              }
-              
-              const result = await response.json();
-              
-              if (result.success) {
-                alert('✅ Пользователь "' + userName + '" успешно удален!');
-                // Перезагружаем страницу
-                window.location.reload();
-              } else {
-                throw new Error(result.error || 'Ошибка при удалении');
-              }
-            } catch (error) {
-              console.error('Error deleting user:', error);
-              alert('❌ Ошибка при удалении пользователя: ' + (error instanceof Error ? error.message : String(error)));
-            }
-          };
-          
-          // Функция для удаления всех выбранных пользователей
-          window.deleteSelectedUsers = async function() {
-            const selectedCheckboxes = document.querySelectorAll('.user-checkbox:checked');
-            if (selectedCheckboxes.length === 0) {
-              alert('Выберите пользователей для удаления');
-              return;
-            }
-            
-            const selectedIds = Array.from(selectedCheckboxes).map(cb => cb.value);
-            
-            if (!confirm('⚠️ ВНИМАНИЕ! Вы уверены, что хотите удалить ' + selectedIds.length + ' пользователей?\n\nЭто действие удалит:\n- Пользователей\n- Партнерские профили\n- Все рефералы\n- Все транзакции\n- Все заказы\n- Историю действий\n\nЭто действие НЕОБРАТИМО!')) {
-              return;
-            }
-            
-            const doubleCheck = prompt('Для подтверждения введите: УДАЛИТЬ ВСЕХ');
-            if (doubleCheck !== 'УДАЛИТЬ ВСЕХ') {
-              alert('Отмена удаления. Пользователи не были удалены.');
-              return;
-            }
-            
-            try {
-              let successCount = 0;
-              let failCount = 0;
-              
-              for (const userId of selectedIds) {
-                try {
-                  const response = await fetch('/admin/users/' + userId + '/delete', {
-                    method: 'DELETE',
-                    credentials: 'include',
-                    headers: {
-                      'Content-Type': 'application/json'
-                    }
-                  });
-                  
-                  if (response.ok) {
-                    successCount++;
-                  } else {
-                    failCount++;
-                  }
-                } catch (error) {
-                  failCount++;
-                }
-              }
-              
-              alert('✅ Удалено пользователей: ' + successCount + '\n❌ Ошибок: ' + failCount);
-              // Перезагружаем страницу
-              window.location.reload();
-            } catch (error) {
-              console.error('Error deleting users:', error);
-              alert('❌ Ошибка при удалении пользователей');
             }
           };
           
