@@ -186,9 +186,6 @@ async function loadSectionContent(sectionName, container) {
             case 'partner':
                 content = await loadPartnerContent();
                 break;
-            case 'audio':
-                content = await loadAudioContent();
-                break;
             case 'reviews':
                 content = await loadReviewsContent();
                 break;
