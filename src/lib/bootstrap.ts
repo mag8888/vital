@@ -3,6 +3,14 @@ import { initializeBotContent } from '../services/bot-content-service.js';
 
 export async function ensureInitialData() {
   try {
+    // Test connection first with a simple query
+    try {
+      await prisma.$connect();
+    } catch (connectError: any) {
+      console.warn('⚠️  Cannot connect to database for initial data setup:', connectError?.message);
+      return; // Exit early if connection fails
+    }
+    
     const reviewCount = await prisma.review.count();
     if (reviewCount === 0) {
       try {

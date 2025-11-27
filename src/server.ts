@@ -16,21 +16,48 @@ import { setBotInstance } from './lib/bot-instance.js';
 
 async function bootstrap() {
   try {
-    // Connect to database with timeout
-    await Promise.race([
-      prisma.$connect(),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Database connection timeout')), 10000)
-      )
-    ]).catch(() => {
-      // Silent fail - connection will be retried on first query
-    });
-    console.log('Database connected');
+    // Try to connect to database with timeout
+    let dbConnected = false;
+    try {
+      await Promise.race([
+        prisma.$connect(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Database connection timeout')), 15000)
+        )
+      ]);
+      dbConnected = true;
+      console.log('✅ Database connected successfully');
+    } catch (dbError: any) {
+      console.warn('⚠️  Database connection failed:', dbError?.message || 'Unknown error');
+      
+      // Check for specific error types
+      if (dbError?.message?.includes('Server selection timeout')) {
+        console.error('❌ MongoDB Atlas connection issue:');
+        console.error('   1. Check Network Access in MongoDB Atlas - allow all IPs (0.0.0.0/0)');
+        console.error('   2. Verify DATABASE_URL is correct in Railway variables');
+        console.error('   3. Ensure cluster is running (not paused)');
+      } else if (dbError?.message?.includes('Authentication failed')) {
+        console.error('❌ MongoDB authentication failed:');
+        console.error('   1. Check username and password in DATABASE_URL');
+        console.error('   2. Verify user has correct permissions in MongoDB Atlas');
+      } else if (dbError?.message?.includes('fatal alert')) {
+        console.error('❌ SSL/TLS connection error:');
+        console.error('   1. Network Access must allow Railway IP addresses');
+        console.error('   2. Connection string parameters may be incorrect');
+      }
+      
+      console.warn('⚠️  Server will start, but database operations may fail');
+      console.warn('⚠️  Connection will be retried on first database query');
+    }
     
     // Run initial data setup in background (non-blocking)
-    ensureInitialData().catch(() => {
-      // Silent fail - will retry later
-    });
+    if (dbConnected) {
+      ensureInitialData().catch((err: any) => {
+        console.warn('⚠️  Failed to initialize data:', err?.message || err);
+      });
+    } else {
+      console.warn('⚠️  Skipping initial data setup - database not connected');
+    }
 
     const app = express();
     app.use(express.json());
