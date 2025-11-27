@@ -263,19 +263,29 @@ async function bootstrap() {
     // Handle unhandled errors - don't crash server
     process.on('unhandledRejection', (reason, promise) => {
       console.error('⚠️  Unhandled Rejection at:', promise, 'reason:', reason);
-      // Don't exit - log and continue
+      // Don't exit - log and continue (server should keep running)
     });
 
     process.on('uncaughtException', (error) => {
       console.error('⚠️  Uncaught Exception:', error);
-      // Don't exit - log and continue (server should keep running)
+      // Only exit on critical errors, not on bot errors
+      if (error.message?.includes('Database') || error.message?.includes('Prisma')) {
+        console.error('❌ Critical database error - exiting');
+        process.exit(1);
+      }
+      // Don't exit for other errors - log and continue
     });
 
-  } catch (error) {
-    console.error('❌ Bootstrap error:', error);
-    // Don't exit(1) - let Railway handle restarts if needed
-    // Server might still be partially functional
-    console.log('⚠️  Server may be partially functional despite bootstrap errors');
+  } catch (error: any) {
+    console.error('❌ Bootstrap error:', error?.message || error);
+    // Only exit if it's a critical database connection error before server starts
+    if (error instanceof Error && (error.message.includes('Database') || error.message.includes('connect'))) {
+      console.error('❌ Critical database error during bootstrap - exiting');
+      process.exit(1);
+    }
+    // For other errors (like bot conflicts), server might still be partially functional
+    console.warn('⚠️  Server may be partially functional despite bootstrap errors');
+    console.warn('⚠️  Web server and admin panel should still work');
   }
 }
 
