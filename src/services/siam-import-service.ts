@@ -576,43 +576,110 @@ export async function updateProductImages(): Promise<{ updated: number; failed: 
   let failedCount = 0;
 
   // Создаем мапу для быстрого поиска исходных данных по названию
-  const productMap = new Map<string, SiamProduct>();
+  // Ключевые слова для более точного сопоставления
+  const keywordMap = new Map<string, string>([
+    ['кастор', 'castor'],
+    ['арган', 'argan'],
+    ['розов', 'rose'],
+    ['рудис', 'rudis'],
+    ['лемонграсс', 'lemongrass'],
+    ['имбир', 'ginger'],
+    ['миндаль', 'almond'],
+    ['шиповник', 'rosehip'],
+    ['жожоба', 'jojoba'],
+    ['авокадо', 'avocado'],
+    ['виноград', 'grapeseed'],
+    ['кунжут', 'sesame'],
+    ['примула', 'primrose'],
+    ['таману', 'tamanu'],
+    ['марула', 'marula'],
+    ['алоэ', 'aloe'],
+    ['глина', 'clay'],
+    ['ромашк', 'chamomile'],
+    ['витамин', 'vitamin'],
+    ['гиалуронов', 'hyaluronic'],
+    ['чайное', 'tea tree'],
+    ['лаванд', 'lavender'],
+    ['эвкалипт', 'eucalyptus'],
+    ['мёртвое', 'dead sea'],
+    ['кокос', 'coconut'],
+    ['лайм', 'lime'],
+    ['жасмин', 'jasmine'],
+    ['мят', 'peppermint'],
+    ['розмарин', 'rosemary'],
+  ]);
+
+  // Создаем индексы для быстрого поиска
+  const productMapByKeyword = new Map<string, SiamProduct[]>();
   for (const siamProduct of siamProducts) {
-    // Проверяем наличие обязательных полей
     if (!siamProduct.englishTitle || !siamProduct.imageUrl) {
-      continue; // Пропускаем продукты без обязательных полей
+      continue;
     }
-    const firstWord = siamProduct.englishTitle.split(' ')[0].toLowerCase();
-    productMap.set(firstWord, siamProduct as SiamProduct);
+    const titleLower = siamProduct.englishTitle.toLowerCase();
+    
+    // Добавляем по ключевым словам из английского названия
+    for (const [ruKeyword, enKeyword] of keywordMap.entries()) {
+      if (titleLower.includes(enKeyword)) {
+        if (!productMapByKeyword.has(ruKeyword)) {
+          productMapByKeyword.set(ruKeyword, []);
+        }
+        productMapByKeyword.get(ruKeyword)!.push(siamProduct as SiamProduct);
+      }
+    }
   }
 
   for (const product of allProducts) {
     try {
-      // Ищем соответствующий продукт в списке Siam Botanicals
-      const firstWord = product.title.split(' ')[0].toLowerCase();
-      let siamProduct = productMap.get(firstWord);
+      let siamProduct: SiamProduct | null = null;
+      const productTitleLower = product.title.toLowerCase();
       
-      // Если не нашли по первому слову, ищем по части названия
-      if (!siamProduct) {
-        for (const [key, value] of productMap.entries()) {
-          if (value.englishTitle && (product.title.toLowerCase().includes(key) || value.englishTitle.toLowerCase().includes(firstWord))) {
-            siamProduct = value;
+      // Ищем по ключевым словам в русском названии
+      for (const [ruKeyword, enKeyword] of keywordMap.entries()) {
+        if (productTitleLower.includes(ruKeyword)) {
+          const candidates = productMapByKeyword.get(ruKeyword);
+          if (candidates && candidates.length > 0) {
+            // Берем первый подходящий (обычно один)
+            siamProduct = candidates[0];
+            console.log(`✅ Найден товар по ключевому слову "${ruKeyword}": ${product.title} → ${siamProduct.englishTitle}`);
             break;
           }
         }
       }
+      
+      // Если не нашли по ключевым словам, пробуем поиск по части названия
+      if (!siamProduct) {
+        for (const siamProd of siamProducts) {
+          if (!siamProd.englishTitle || !siamProd.imageUrl) continue;
+          
+          // Проверяем совпадение ключевых слов
+          const siamTitleLower = siamProd.englishTitle.toLowerCase();
+          for (const [ruKeyword, enKeyword] of keywordMap.entries()) {
+            if (productTitleLower.includes(ruKeyword) && siamTitleLower.includes(enKeyword)) {
+              siamProduct = siamProd as SiamProduct;
+              console.log(`✅ Найден товар по частичному совпадению: ${product.title} → ${siamProduct.englishTitle}`);
+              break;
+            }
+          }
+          if (siamProduct) break;
+        }
+      }
 
       if (!siamProduct || !siamProduct.imageUrl || !siamProduct.englishTitle) {
-        console.log(`⚠️  Не найдено изображение для товара: ${product.title}`);
+        console.log(`⚠️  Не найдено изображение для товара: "${product.title}" (текущий imageUrl: ${product.imageUrl || 'отсутствует'})`);
         failedCount++;
         continue;
       }
 
+      console.log(`🔍 Обрабатываю: "${product.title}" → "${siamProduct.englishTitle}"`);
+      console.log(`   Текущее изображение: ${product.imageUrl || 'отсутствует'}`);
+      console.log(`   Источник изображения: ${siamProduct.imageUrl}`);
+
       // Проверяем, нужно ли обновлять изображение
-      // Обновляем, если изображения нет или если это старый URL с siambotanicals.com
+      // Обновляем, если изображения нет, если это старый URL с siambotanicals.com, или если не Cloudinary
       const needsUpdate = !product.imageUrl || 
                           product.imageUrl.includes('siambotanicals.com') ||
-                          !product.imageUrl.includes('cloudinary');
+                          !product.imageUrl.includes('cloudinary') ||
+                          product.imageUrl.includes('placeholder');
 
       if (needsUpdate) {
         console.log(`\n📦 Обновляю изображение для: ${product.title}`);
@@ -637,9 +704,22 @@ export async function updateProductImages(): Promise<{ updated: number; failed: 
       // Небольшая пауза между запросами
       await new Promise(resolve => setTimeout(resolve, 1500));
     } catch (error) {
-      console.error(`❌ Ошибка обновления изображения для товара "${product.title}":`, error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error(`❌ Ошибка обновления изображения для товара "${product.title}": ${errorMsg}`);
       failedCount++;
     }
+  }
+  
+  console.log(`\n📊 Итоговая статистика:`);
+  console.log(`   ✅ Обновлено изображений: ${updatedCount}`);
+  console.log(`   ❌ Не удалось обновить: ${failedCount}`);
+  console.log(`   📦 Всего товаров обработано: ${allProducts.length}`);
+  
+  if (updatedCount === 0 && failedCount > 0) {
+    console.log(`\n💡 Совет: Проверьте логи выше. Возможные причины:`);
+    console.log(`   - Товары в базе не совпадают с товарами Siam Botanicals`);
+    console.log(`   - Изображения на сайте Siam Botanicals недоступны`);
+    console.log(`   - Проблемы с подключением к Cloudinary`);
   }
 
   console.log(`\n✅ Обновление изображений завершено!`);
