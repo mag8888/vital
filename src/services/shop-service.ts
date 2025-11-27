@@ -27,11 +27,24 @@ export async function getProductById(productId: string) {
 }
 
 export async function getAllActiveProducts() {
-  return prisma.product.findMany({
-    where: { isActive: true },
-    include: {
-      category: true
-    },
-    orderBy: { title: 'asc' },
-  });
+  try {
+    console.log('📦 getAllActiveProducts: Querying database...');
+    const products = await prisma.product.findMany({
+      where: { isActive: true },
+      include: {
+        category: true
+      },
+      orderBy: { title: 'asc' },
+    });
+    console.log(`✅ getAllActiveProducts: Found ${products.length} products`);
+    return products;
+  } catch (error: any) {
+    console.error('❌ getAllActiveProducts error:', error);
+    if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
+      console.warn('⚠️  MongoDB replica set not configured');
+      // Return empty array instead of throwing
+      return [];
+    }
+    throw error;
+  }
 }

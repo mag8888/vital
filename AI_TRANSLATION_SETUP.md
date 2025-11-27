@@ -161,3 +161,5 @@ We believe in the power of nature. That is why we created Siam Botanicals, an ho
 2. Убедитесь, что API ключ действителен
 3. Проверьте баланс на аккаунте OpenAI
 
+
+

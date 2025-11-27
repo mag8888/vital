@@ -215,23 +215,40 @@ async function loadSectionContent(sectionName, container) {
 // Shop content - показываем все товары сразу
 async function loadShopContent() {
     try {
+        console.log('🛒 Loading shop content...');
         const response = await fetch(`${API_BASE}/products`);
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            console.error('❌ Error response:', errorData);
+            throw new Error(`HTTP error! status: ${response.status}, error: ${errorData.error || 'Unknown'}`);
         }
+        
         const products = await response.json();
+        console.log(`✅ Loaded ${products?.length || 0} products`);
         
         let content = '<div class="content-section"><h3>Каталог товаров</h3>';
         
-        if (products && products.length > 0) {
+        if (products && Array.isArray(products) && products.length > 0) {
             content += '<div class="products-grid">';
             products.forEach(product => {
+                const imageHtml = product.imageUrl 
+                    ? `<div class="product-image" onclick="showProductDetails('${product.id}')"><img src="${product.imageUrl}" alt="${product.title || 'Товар'}" onerror="this.style.display='none'"></div>`
+                    : `<div class="product-image-placeholder" onclick="showProductDetails('${product.id}')">📦</div>`;
+                
+                const title = product.title || 'Без названия';
+                const summary = product.summary || product.description || 'Описание товара';
+                const price = product.price ? `${(product.price * 100).toFixed(2)} ₽ / ${product.price} PZ` : 'Цена не указана';
+                const instructionBtn = product.instruction 
+                    ? `<button class="btn-instruction" onclick="showInstruction('${product.id}', \`${product.instruction.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)">📋 Инструкция</button>`
+                    : '';
+                
                 content += `
                     <div class="product-tile">
-                        ${product.imageUrl ? `<div class="product-image" onclick="showProductDetails('${product.id}')"><img src="${product.imageUrl}" alt="${product.title}" onerror="this.style.display='none'"></div>` : '<div class="product-image-placeholder" onclick="showProductDetails(\'' + product.id + '\')">📦</div>'}
-                        <h4 onclick="showProductDetails('${product.id}')">${product.title}</h4>
-                        <div class="product-description" onclick="showProductDetails('${product.id}')">${product.summary || product.description || 'Описание товара'}</div>
-                        <div class="product-price">💰 ${(product.price * 100).toFixed(2)} ₽ / ${product.price} PZ</div>
+                        ${imageHtml}
+                        <h4 onclick="showProductDetails('${product.id}')">${title}</h4>
+                        <div class="product-description" onclick="showProductDetails('${product.id}')">${summary}</div>
+                        <div class="product-price">💰 ${price}</div>
                         <div class="product-actions">
                             <button class="btn-add-to-cart" onclick="addToCart('${product.id}')">
                                 🛒 В корзину
@@ -239,21 +256,63 @@ async function loadShopContent() {
                             <button class="btn-buy" onclick="buyProduct('${product.id}')">
                                 🛍 Купить
                             </button>
-                            ${product.instruction ? `<button class="btn-instruction" onclick="showInstruction('${product.id}', \`${product.instruction.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)">📋 Инструкция</button>` : ''}
+                            ${instructionBtn}
                         </div>
                     </div>
                 `;
             });
             content += '</div>';
         } else {
-            content += '<p>Каталог пока пуст</p>';
+            content += `
+                <div style="text-align: center; padding: 40px 20px;">
+                    <p style="font-size: 18px; margin-bottom: 20px;">📦 Каталог пока пуст</p>
+                    <button class="btn" onclick="importProducts()" style="margin-top: 20px;">
+                        🤖 Импортировать товары
+                    </button>
+                </div>
+            `;
         }
         
         content += '</div>';
         return content;
     } catch (error) {
-        console.error('Error loading shop content:', error);
-        return '<div class="error-message"><h3>Ошибка загрузки каталога</h3><p>Попробуйте позже</p></div>';
+        console.error('❌ Error loading shop content:', error);
+        return `
+            <div class="error-message">
+                <h3>Ошибка загрузки каталога</h3>
+                <p>${error?.message || 'Попробуйте позже'}</p>
+                <button class="btn" onclick="loadShopContent()" style="margin-top: 20px;">
+                    🔄 Попробовать снова
+                </button>
+            </div>
+        `;
+    }
+}
+
+// Import products function
+async function importProducts() {
+    try {
+        console.log('🤖 Starting product import...');
+        showSuccess('Запускаю импорт товаров...');
+        
+        const response = await fetch(`${API_BASE}/import-products`, {
+            method: 'POST',
+            headers: getApiHeaders()
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess('Импорт запущен! Обновите страницу через минуту.');
+            setTimeout(() => {
+                location.reload();
+            }, 5000);
+        } else {
+            showError(result.message || 'Ошибка импорта');
+        }
+    } catch (error) {
+        console.error('❌ Error importing products:', error);
+        showError('Ошибка запуска импорта');
     }
 }
 

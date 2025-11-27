@@ -88,3 +88,4 @@ npx prisma generate && npx prisma db push
 ✅ **Replica Set**: Atlas автоматически настроен как replica set - ошибки должны исчезнуть  
 ✅ **Индексы**: После подключения примените индексы командой `npx prisma db push`
 
+

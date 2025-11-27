@@ -202,25 +202,45 @@ router.get('/api/categories', async (req, res) => {
 // Total products count endpoint (must be before /api/products/:id)
 router.get('/api/products/count', async (req, res) => {
   try {
+    console.log('📊 Fetching product count...');
     const { prisma } = await import('../lib/prisma.js');
     const count = await prisma.product.count({
       where: { isActive: true }
     });
+    console.log(`✅ Product count: ${count}`);
     res.json({ totalProducts: count });
-  } catch (error) {
-    console.error('Error fetching total product count:', error);
-    res.status(500).json({ error: 'Internal server error' });
+  } catch (error: any) {
+    console.error('❌ Error fetching total product count:', error);
+    if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
+      console.warn('⚠️  MongoDB replica set not configured - returning 0');
+      return res.json({ totalProducts: 0 });
+    }
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error?.message || 'Unknown error'
+    });
   }
 });
 
 // All products endpoint
 router.get('/api/products', async (req, res) => {
   try {
+    console.log('📦 Fetching all active products...');
     const products = await getAllActiveProducts();
-    res.json(products);
-  } catch (error) {
-    console.error('Error getting all products:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.log(`✅ Found ${products?.length || 0} products`);
+    res.json(products || []);
+  } catch (error: any) {
+    console.error('❌ Error getting all products:', error);
+    console.error('Error details:', {
+      message: error?.message,
+      code: error?.code,
+      stack: error?.stack
+    });
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error?.message || 'Unknown error',
+      code: error?.code
+    });
   }
 });
 
