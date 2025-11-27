@@ -223,6 +223,16 @@ export async function getPartnerList(userId: string) {
 }
 
 export async function recordPartnerTransaction(profileId: string, amount: number, description: string, type: TransactionType = 'CREDIT') {
+  // Get partner profile to access userId
+  const profile = await prisma.partnerProfile.findUnique({
+    where: { id: profileId },
+    select: { userId: true }
+  });
+
+  if (!profile) {
+    throw new Error(`Partner profile not found: ${profileId}`);
+  }
+
   // Create transaction
   const transaction = await prisma.partnerTransaction.create({
     data: {
@@ -233,7 +243,30 @@ export async function recordPartnerTransaction(profileId: string, amount: number
     },
   });
 
-  // Recalculate total bonus and balance from all transactions
+  // Update user balance if this is a CREDIT transaction
+  if (type === 'CREDIT') {
+    await prisma.user.update({
+      where: { id: profile.userId },
+      data: {
+        balance: {
+          increment: amount
+        }
+      }
+    });
+    console.log(`✅ Incremented user ${profile.userId} balance by ${amount} PZ`);
+  } else if (type === 'DEBIT') {
+    await prisma.user.update({
+      where: { id: profile.userId },
+      data: {
+        balance: {
+          decrement: amount
+        }
+      }
+    });
+    console.log(`✅ Decremented user ${profile.userId} balance by ${amount} PZ`);
+  }
+
+  // Recalculate total bonus and balance from all transactions (only for PartnerProfile, not User)
   await recalculatePartnerBonuses(profileId);
 
   return transaction;
@@ -265,14 +298,18 @@ export async function recalculatePartnerBonuses(profileId: string) {
     }
   });
 
-  // Also update user balance in User table
-  await prisma.user.update({
+  // NOTE: We do NOT update user.balance here to avoid overwriting it
+  // user.balance should be managed separately (increments/decrements)
+  // partnerProfile.balance is only for partner program display
+  
+  // Get current user balance for logging
+  const currentUser = await prisma.user.findUnique({
     where: { id: updatedProfile.userId },
-    data: { balance: totalBonus }
+    select: { balance: true }
   });
 
   console.log(`✅ Updated profile ${profileId}: balance = ${updatedProfile.balance} PZ, bonus = ${updatedProfile.bonus} PZ`);
-  console.log(`✅ Updated user ${updatedProfile.userId}: balance = ${totalBonus} PZ`);
+  console.log(`✅ User ${updatedProfile.userId} current balance: ${currentUser?.balance || 0} PZ (not overwritten)`);
   return totalBonus;
 }
 

@@ -472,6 +472,23 @@ export const navigationModule: BotModule = {
         // Try to find user by username
         try {
           const { prisma } = await import('../../lib/prisma.js');
+          
+          // Check if user already existed before ensuring
+          let existingUserBeforeEnsure: { id: string } | null = null;
+          if (ctx.from?.id) {
+            try {
+              existingUserBeforeEnsure = await prisma.user.findUnique({
+                where: { telegramId: ctx.from.id.toString() },
+                select: { id: true }
+              });
+            } catch (error: any) {
+              // Silent fail for DB errors
+              if (error?.code === 'P1013' || error?.message?.includes('Authentication failed')) {
+                existingUserBeforeEnsure = null;
+              }
+            }
+          }
+          
           const referrerUser = await prisma.user.findFirst({
             where: { 
               username: startPayload,
@@ -479,15 +496,111 @@ export const navigationModule: BotModule = {
             include: { partner: true }
           });
           
-          if (referrerUser && referrerUser.partner) {
+          if (referrerUser) {
             console.log('🔗 Referral: Found user by username:', referrerUser.username);
-            // Process referral using partner profile
+            
+            // Ensure current user exists first
             const user = await ensureUser(ctx);
-            if (user) {
+            if (!user) {
+              console.log('🔗 Referral: Failed to ensure user');
+              return;
+            }
+            
+            const isNewUser = !existingUserBeforeEnsure;
+            console.log('🔗 Referral: Is new user:', isNewUser);
+            
+            // Process referral using partner profile if exists
+            if (referrerUser.partner) {
               const referralLevel = 1;
               const programType = referrerUser.partner.programType || 'DIRECT';
               await upsertPartnerReferral(referrerUser.partner.id, referralLevel, user.id, undefined, programType);
               console.log('🔗 Referral: Referral record created via username');
+            }
+            
+            // Award 3 PZ bonus for new user registration via referral link
+            if (isNewUser) {
+              try {
+                // Check if bonus was already awarded for this referral
+                const existingBonus = await prisma.partnerTransaction.findFirst({
+                  where: {
+                    profileId: referrerUser.partner?.id || '',
+                    description: `Бонус 3PZ за приглашение нового пользователя (${user.id})`
+                  }
+                });
+                
+                if (!existingBonus) {
+                  // Award 3PZ bonus to inviter for new user registration
+                  console.log('🔗 Referral: Awarding 3PZ bonus to inviter for new user registration');
+                  
+                  let updatedReferrer;
+                  
+                  // If partner profile exists, use recordPartnerTransaction (it will update balance automatically)
+                  if (referrerUser.partner) {
+                    await recordPartnerTransaction(
+                      referrerUser.partner.id,
+                      3,
+                      `Бонус 3PZ за приглашение нового пользователя (${user.id})`,
+                      'CREDIT'
+                    );
+                    
+                    // Get updated balance after transaction
+                    updatedReferrer = await prisma.user.findUnique({
+                      where: { id: referrerUser.id },
+                      select: {
+                        balance: true,
+                        telegramId: true,
+                        firstName: true
+                      }
+                    });
+                  } else {
+                    // If no partner profile, update balance directly
+                    updatedReferrer = await prisma.user.update({
+                      where: { id: referrerUser.id },
+                      data: {
+                        balance: {
+                          increment: 3
+                        }
+                      },
+                      select: {
+                        balance: true,
+                        telegramId: true,
+                        firstName: true
+                      }
+                    });
+                    console.log('🔗 Referral: Bonus 3PZ added directly to referrer balance (no partner profile)');
+                  }
+                  
+                  console.log('🔗 Referral: Bonus 3PZ processed, new balance:', updatedReferrer?.balance);
+                  
+                  // Send notification to inviter
+                  if (updatedReferrer) {
+                    try {
+                      const joinedLabel = user.username ? `@${user.username}` : (user.firstName || 'пользователь');
+                      const notificationText = 
+                        '🎉 <b>Баланс пополнен!</b>\n\n' +
+                        `💰 Сумма: 3.00 PZ\n` +
+                        `💳 Текущий баланс: ${updatedReferrer.balance.toFixed(2)} PZ\n\n` +
+                        `✨ К вам присоединился ${joinedLabel} по вашей реферальной ссылке!\n\n` +
+                        `Приглашайте больше друзей и получайте бонусы!`;
+                      
+                      await ctx.telegram.sendMessage(
+                        referrerUser.telegramId,
+                        notificationText,
+                        { parse_mode: 'HTML' }
+                      );
+                      console.log('🔗 Referral: Notification sent successfully to inviter');
+                    } catch (error) {
+                      console.warn('🔗 Referral: Failed to send notification to inviter:', error);
+                    }
+                  }
+                } else {
+                  console.log('🔗 Referral: Bonus already awarded for this user, skipping');
+                }
+              } catch (error: any) {
+                console.error('🔗 Referral: Error awarding bonus:', error?.message);
+              }
+            } else {
+              console.log('🔗 Referral: User already exists, bonus not awarded');
             }
           }
         } catch (error: any) {
