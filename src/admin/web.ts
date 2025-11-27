@@ -867,6 +867,7 @@ router.get('/', requireAdmin, async (req, res) => {
                 <button class="btn" onclick="openAddProductModal()" style="background: #28a745;">➕ Добавить товар</button>
                 <button class="btn import-siam-btn" style="background: #17a2b8; cursor: pointer; pointer-events: auto !important;">🤖 Импорт Siam Botanicals</button>
                 <button class="btn update-images-btn" style="background: #ff9800; cursor: pointer; pointer-events: auto !important;">🖼️ Обновить изображения</button>
+                <button class="btn upload-all-images-btn" style="background: #9c27b0; cursor: pointer; pointer-events: auto !important;">📸 Загрузить все изображения</button>
               </div>
             </div>
             <p>Управление каталогом товаров, отзывами и заказами.</p>
@@ -1277,6 +1278,86 @@ router.get('/', requireAdmin, async (req, res) => {
             
             setTimeout(function() {
               document.addEventListener('click', handleUpdateImages, true);
+            }, 50);
+          })();
+          
+          // Handler для кнопки "Загрузить все изображения"
+          (function() {
+            'use strict';
+            
+            async function handleUploadAllImages(event) {
+              const target = event.target.closest('.upload-all-images-btn');
+              if (!target) return;
+              
+              event.preventDefault();
+              event.stopPropagation();
+              event.stopImmediatePropagation();
+              
+              if (!confirm('Загрузить изображения для всех товаров из списка Siam Botanicals? Это может занять 5-10 минут. Процесс будет запущен в фоновом режиме.')) {
+                return false;
+              }
+              
+              const btn = target;
+              const originalText = btn.textContent;
+              btn.disabled = true;
+              btn.textContent = '⏳ Загрузка...';
+              btn.style.opacity = '0.6';
+              
+              try {
+                const response = await fetch('/admin/api/upload-all-product-images', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                  throw new Error('HTTP ' + response.status);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                  alert('✅ Загрузка изображений запущена! Процесс выполняется в фоновом режиме. Это может занять 5-10 минут. Проверьте логи сервера или обновите страницу через несколько минут.');
+                } else {
+                  throw new Error(result.error || 'Ошибка запуска загрузки');
+                }
+              } catch (error) {
+                console.error('❌ Upload all images error:', error);
+                alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Не удалось запустить загрузку изображений'));
+              } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+                btn.style.opacity = '1';
+              }
+              
+              return false;
+            }
+            
+            document.addEventListener('click', handleUploadAllImages, true);
+            
+            document.addEventListener('DOMContentLoaded', function() {
+              document.addEventListener('click', handleUploadAllImages, true);
+              
+              function attachUploadAllImagesHandler() {
+                const uploadAllBtn = document.querySelector('.upload-all-images-btn');
+                if (uploadAllBtn && !uploadAllBtn.hasAttribute('data-handler-attached')) {
+                  uploadAllBtn.addEventListener('click', handleUploadAllImages, true);
+                  uploadAllBtn.setAttribute('data-handler-attached', 'true');
+                  console.log('✅ Upload all images button handler attached');
+                } else if (!uploadAllBtn) {
+                  setTimeout(attachUploadAllImagesHandler, 200);
+                }
+              }
+              
+              attachUploadAllImagesHandler();
+              setTimeout(attachUploadAllImagesHandler, 500);
+              setTimeout(attachUploadAllImagesHandler, 1000);
+            });
+            
+            setTimeout(function() {
+              document.addEventListener('click', handleUploadAllImages, true);
             }, 50);
           })();
           
@@ -6001,6 +6082,132 @@ router.post('/api/update-product-images', requireAdmin, async (req, res) => {
     res.status(500).json({
       success: false,
       error: error?.message || 'Ошибка запуска обновления изображений'
+    });
+  }
+});
+
+// Endpoint для загрузки изображения товара по URL
+router.post('/api/products/:productId/upload-image-url', requireAdmin, async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { imageUrl } = req.body as { imageUrl: string };
+
+    if (!imageUrl || !imageUrl.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'URL изображения не предоставлен'
+      });
+    }
+
+    if (!isCloudinaryConfigured()) {
+      return res.status(503).json({
+        success: false,
+        error: 'Cloudinary не настроен'
+      });
+    }
+
+    // Проверяем существование товара
+    const product = await prisma.product.findUnique({
+      where: { id: productId }
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        error: 'Товар не найден'
+      });
+    }
+
+    console.log(`📥 Загружаю изображение для товара: ${product.title}`);
+    console.log(`   URL: ${imageUrl}`);
+
+    // Скачиваем изображение
+    const response = await fetch(imageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      signal: AbortSignal.timeout(15000)
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.startsWith('image/')) {
+      throw new Error(`URL не является изображением: ${contentType}`);
+    }
+
+    const imageBuffer = Buffer.from(await response.arrayBuffer());
+    
+    if (imageBuffer.length === 0) {
+      throw new Error('Изображение пустое');
+    }
+
+    console.log(`   ✅ Изображение скачано (${(imageBuffer.length / 1024).toFixed(2)} KB)`);
+
+    // Загружаем на Cloudinary
+    console.log(`☁️  Загружаю на Cloudinary...`);
+    const uploadResult = await uploadImage(imageBuffer, {
+      folder: 'vital/products',
+      publicId: `siam-${productId}`,
+      resourceType: 'image'
+    });
+
+    console.log(`   ✅ Изображение загружено на Cloudinary: ${uploadResult.secureUrl}`);
+
+    // Обновляем товар в базе данных
+    await prisma.product.update({
+      where: { id: productId },
+      data: { imageUrl: uploadResult.secureUrl }
+    });
+
+    console.log(`   ✅ Товар обновлен: ${product.title}`);
+
+    return res.json({
+      success: true,
+      message: 'Изображение успешно загружено и прикреплено к товару',
+      imageUrl: uploadResult.secureUrl
+    });
+
+  } catch (error: any) {
+    console.error('❌ Upload product image URL error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Ошибка загрузки изображения'
+    });
+  }
+});
+
+// Endpoint для массовой загрузки изображений всех товаров (парсинг страниц)
+router.post('/api/upload-all-product-images', requireAdmin, async (req, res) => {
+  try {
+    console.log('🖼️  Запрос на загрузку изображений для всех товаров получен (парсинг страниц)');
+    
+    // Запускаем процесс в фоне
+    import('../services/siam-import-service.js')
+      .then(({ uploadAllProductImagesFromPages }) => {
+        console.log('✅ Модуль загрузки изображений загружен, запускаю процесс...');
+        return uploadAllProductImagesFromPages();
+      })
+      .then(result => {
+        console.log(`✅ Загрузка изображений завершена! Обновлено: ${result.updated}, Ошибок: ${result.failed}, Пропущено: ${result.skipped}, Всего: ${result.total}`);
+      })
+      .catch(error => {
+        console.error('❌ Ошибка загрузки изображений:', error);
+        console.error('❌ Error stack:', error?.stack);
+      });
+
+    // Возвращаем ответ немедленно
+    res.json({
+      success: true,
+      message: 'Загрузка изображений для всех товаров запущена (парсинг страниц). Проверьте логи сервера для прогресса.'
+    });
+  } catch (error: any) {
+    console.error('❌ Upload all images endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Ошибка запуска загрузки изображений'
     });
   }
 });

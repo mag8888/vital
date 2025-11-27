@@ -25,7 +25,9 @@
     "import-siam": "ts-node --esm scripts/import-siam-botanicals.ts",
     "import-now": "npm run build && node dist/scripts/run-import-direct.js",
     "update-images": "node scripts/update-images-now.js",
-    "scrape-images": "ts-node --esm scripts/scrape-product-images.ts"
+    "scrape-images": "ts-node --esm scripts/scrape-product-images.ts",
+    "upload-image": "node scripts/upload-product-image.js",
+    "upload-all-images": "node scripts/upload-all-product-images.js"
   },
   "dependencies": {
     "@adminjs/express": "^6.1.1",

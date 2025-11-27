@@ -49,6 +49,29 @@ const products: ProductInfo[] = [
   { slug: 'rosemary-peppermint-shampoo', title: 'Rosemary & Peppermint Shampoo' },
 ];
 
+// Позволяет ограничить запуск одним товаром через аргументы
+const slugArg = process.argv.find((arg) => arg.startsWith('--slug='));
+const titleArg = process.argv.find((arg) => arg.startsWith('--title='));
+const requestedSlug = slugArg ? slugArg.replace('--slug=', '') : undefined;
+const requestedTitle = titleArg ? titleArg.replace('--title=', '').toLowerCase() : undefined;
+
+const productsToProcess =
+  requestedSlug || requestedTitle
+    ? products.filter((product) => {
+        if (requestedSlug && product.slug === requestedSlug) {
+          return true;
+        }
+        if (requestedTitle && product.title.toLowerCase() === requestedTitle) {
+          return true;
+        }
+        return false;
+      })
+    : products;
+
+if ((requestedSlug || requestedTitle) && productsToProcess.length === 0) {
+  console.warn('⚠️  Не найден товар по указанным параметрам, будет обработан весь список.');
+}
+
 async function extractImageFromPage(url: string): Promise<string | null> {
   try {
     console.log(`   📄 Загружаю страницу: ${url}`);
@@ -158,7 +181,7 @@ async function downloadAndUploadImage(imageUrl: string, productId: string): Prom
 
 async function updateAllProducts() {
   console.log('🚀 Начало обновления изображений товаров\n');
-  console.log(`📋 Будет обработано товаров: ${products.length}\n`);
+  console.log(`📋 Будет обработано товаров: ${productsToProcess.length}\n`);
 
   const allProducts = await prisma.product.findMany({
     where: { isActive: true }
@@ -170,7 +193,7 @@ async function updateAllProducts() {
   let failed = 0;
   let skipped = 0;
 
-  for (const productInfo of products) {
+  for (const productInfo of productsToProcess) {
     try {
       // Находим соответствующий товар в базе данных
       const dbProduct = allProducts.find(p => 
@@ -227,7 +250,7 @@ async function updateAllProducts() {
   console.log(`   ✅ Обновлено: ${updated}`);
   console.log(`   ❌ Не удалось: ${failed}`);
   console.log(`   ⏭️  Пропущено: ${skipped}`);
-  console.log(`   📦 Всего обработано: ${products.length}`);
+  console.log(`   📦 Всего обработано: ${productsToProcess.length}`);
 }
 
 // Запуск
