@@ -5301,14 +5301,28 @@ router.get('/products', requireAdmin, async (req, res) => {
           
           // Safe function to show instruction
           function showInstructionSafe(button) {
-            const productId = button.dataset.instructionId;
-            const instructionText = button.dataset.instructionText || '';
-            if (window.showInstruction) {
-              window.showInstruction(productId, instructionText);
-            } else {
-              alert('Инструкция:\n\n' + (instructionText || 'Инструкция не добавлена'));
+            try {
+              const productId = button.dataset.instructionId;
+              const instructionText = button.dataset.instructionText || '';
+              // Decode HTML entities
+              const decodedText = instructionText
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/&#96;/g, '`');
+              
+              if (window.showInstruction && typeof window.showInstruction === 'function') {
+                window.showInstruction(productId, decodedText);
+              } else {
+                alert('Инструкция:\n\n' + (decodedText || 'Инструкция не добавлена'));
+              }
+            } catch (error) {
+              console.error('Error showing instruction:', error);
+              alert('Ошибка отображения инструкции');
             }
           }
+          
+          // Make function available globally
+          window.showInstructionSafe = showInstructionSafe;
           
           // Simple function for editing products
           function editProduct(button) {
