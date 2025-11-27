@@ -119,6 +119,358 @@ function closeApp() {
     }
 }
 
+// Menu functions
+function openMenu() {
+    const drawer = document.getElementById('menu-drawer');
+    drawer.classList.remove('hidden');
+    setTimeout(() => {
+        drawer.classList.add('open');
+    }, 10);
+}
+
+function closeMenu() {
+    const drawer = document.getElementById('menu-drawer');
+    drawer.classList.remove('open');
+    setTimeout(() => {
+        drawer.classList.add('hidden');
+    }, 300);
+}
+
+// Search functions
+function openSearch() {
+    const overlay = document.getElementById('search-overlay');
+    overlay.classList.remove('hidden');
+    setTimeout(() => {
+        overlay.classList.add('open');
+        loadCategoriesForSearch();
+    }, 10);
+}
+
+function closeSearch() {
+    const overlay = document.getElementById('search-overlay');
+    overlay.classList.remove('open');
+    setTimeout(() => {
+        overlay.classList.add('hidden');
+    }, 300);
+}
+
+async function loadCategoriesForSearch() {
+    const container = document.getElementById('search-body');
+    try {
+        const response = await fetch(`${API_BASE}/categories`);
+        if (!response.ok) throw new Error('Failed to fetch categories');
+        
+        const categories = await response.json();
+        if (categories && categories.length > 0) {
+            let html = '<div class="categories-list">';
+            categories.forEach(category => {
+                html += `
+                    <div class="category-item" onclick="showCategoryProducts('${category.id}')">
+                        <span class="category-icon">📁</span>
+                        <span class="category-name">${escapeHtml(category.name)}</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                            <path d="M9 18L15 12L9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = '<div class="empty-state"><p>Категории не найдены</p></div>';
+        }
+    } catch (error) {
+        console.error('Error loading categories:', error);
+        container.innerHTML = '<div class="error-message"><p>Ошибка загрузки категорий</p></div>';
+    }
+}
+
+function showCategoryProducts(categoryId) {
+    closeSearch();
+    openSection('shop');
+    loadProductsByCategory(categoryId);
+}
+
+async function loadProductsByCategory(categoryId) {
+    const container = document.getElementById('section-body');
+    try {
+        const response = await fetch(`${API_BASE}/categories/${categoryId}/products`);
+        if (!response.ok) throw new Error('Failed to fetch products');
+        
+        const products = await response.json();
+        if (products && products.length > 0) {
+            let html = '<div class="products-grid">';
+            products.forEach(product => {
+                html += renderProductCard(product);
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = '<div class="empty-state"><p>Товары в этой категории не найдены</p></div>';
+        }
+    } catch (error) {
+        console.error('Error loading products:', error);
+        container.innerHTML = '<div class="error-message"><p>Ошибка загрузки товаров</p></div>';
+    }
+}
+
+// Profile functions
+function openProfile() {
+    const overlay = document.getElementById('profile-overlay');
+    overlay.classList.remove('hidden');
+    setTimeout(() => {
+        overlay.classList.add('open');
+        loadProfileContent();
+    }, 10);
+}
+
+function closeProfile() {
+    const overlay = document.getElementById('profile-overlay');
+    overlay.classList.remove('open');
+    setTimeout(() => {
+        overlay.classList.add('hidden');
+    }, 300);
+}
+
+async function loadProfileContent() {
+    const container = document.getElementById('profile-body');
+    try {
+        // Load user profile and partner data
+        const [userResponse, partnerResponse] = await Promise.all([
+            fetch(`${API_BASE}/user/profile`, { headers: getApiHeaders() }),
+            fetch(`${API_BASE}/partner/dashboard`, { headers: getApiHeaders() }).catch(() => ({ ok: false }))
+        ]);
+        
+        const user = await userResponse.json();
+        const partner = partnerResponse.ok ? await partnerResponse.json() : null;
+        
+        const telegramUser = getTelegramUserData();
+        // Use the same format as buildReferralLink from partner-service
+        let referralLink = `https://t.me/ivitalbot`;
+        if (partner?.referralCode) {
+            // Format: https://t.me/ivitalbot?start=ref_direct_CODE or ref_multi_CODE
+            const programType = partner.programType || 'DIRECT';
+            const prefix = programType === 'DIRECT' ? 'ref_direct' : 'ref_multi';
+            referralLink = `https://t.me/ivitalbot?start=${prefix}_${partner.referralCode}`;
+        } else if (telegramUser.username || telegramUser.id) {
+            // Fallback link if no referral code yet
+            referralLink = `https://t.me/ivitalbot?start=${telegramUser.username || telegramUser.id}`;
+        }
+        
+        let html = `
+            <div class="profile-content-wrapper">
+                <div class="profile-header-info">
+                    <div class="profile-avatar">
+                        <svg width="60" height="60" viewBox="0 0 24 24" fill="none">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <h3>${escapeHtml(user.firstName || 'Пользователь')} ${escapeHtml(user.lastName || '')}</h3>
+                    ${user.username ? `<p class="profile-username">@${escapeHtml(user.username)}</p>` : ''}
+                </div>
+                
+                <div class="profile-section">
+                    <h4>Реферальная ссылка</h4>
+                    <div class="referral-link-box">
+                        <input type="text" id="referral-link-input" value="${referralLink}" readonly onclick="this.select();">
+                        <button class="btn-copy" onclick="copyReferralLink()">📋</button>
+                    </div>
+                    <p class="referral-hint">Поделитесь этой ссылкой с друзьями и получайте бонусы!</p>
+                </div>
+        `;
+        
+        if (partner && partner.isActive) {
+            html += `
+                <div class="profile-section">
+                    <h4>Статистика</h4>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">Баланс</span>
+                            <span class="stat-value">${(partner.balance || 0).toFixed(2)} PZ</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Бонусы</span>
+                            <span class="stat-value">${(partner.bonus || 0).toFixed(2)} PZ</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Партнеры</span>
+                            <span class="stat-value">${partner.totalPartners || 0}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Прямые</span>
+                            <span class="stat-value">${partner.directPartners || 0}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            html += `
+                <div class="profile-section">
+                    <h4>Партнерская программа</h4>
+                    <p>Активируйте партнерскую программу для получения реферальных бонусов</p>
+                    <button class="btn" onclick="openSection('partner')">Активировать</button>
+                </div>
+            `;
+        }
+        
+        html += `
+                <div class="profile-section">
+                    <h4>Баланс</h4>
+                    <div class="balance-display">
+                        <span class="balance-value">${(user.balance || 0).toFixed(2)} PZ</span>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading profile:', error);
+        container.innerHTML = '<div class="error-message"><p>Ошибка загрузки профиля</p></div>';
+    }
+}
+
+function copyReferralLink() {
+    const input = document.getElementById('referral-link-input');
+    if (input) {
+        input.select();
+        document.execCommand('copy');
+        if (tg && tg.HapticFeedback) {
+            tg.HapticFeedback.notificationOccurred('success');
+        }
+        alert('Реферальная ссылка скопирована!');
+    }
+}
+
+// Cart function
+function openCart() {
+    openSection('cart');
+}
+
+async function loadCartContent() {
+    try {
+        const response = await fetch(`${API_BASE}/cart/items`, { headers: getApiHeaders() });
+        if (!response.ok) {
+            throw new Error('Failed to fetch cart items');
+        }
+        
+        const items = await response.json();
+        
+        if (!items || items.length === 0) {
+            return `
+                <div class="content-section">
+                    <h3>Корзина пуста</h3>
+                    <p>Добавьте товары в корзину, чтобы продолжить</p>
+                    <button class="btn" onclick="closeSection(); loadProductsOnMainPage();">Перейти к каталогу</button>
+                </div>
+            `;
+        }
+        
+        let total = 0;
+        let html = '<div class="cart-items-list">';
+        
+        items.forEach(item => {
+            const product = item.product;
+            const itemTotal = (product.price || 0) * (item.quantity || 1);
+            total += itemTotal;
+            
+            html += `
+                <div class="cart-item">
+                    ${product.imageUrl ? `<img src="${product.imageUrl}" alt="${escapeHtml(product.title)}" class="cart-item-image">` : '<div class="cart-item-image-placeholder">📦</div>'}
+                    <div class="cart-item-info">
+                        <h4>${escapeHtml(product.title)}</h4>
+                        <p class="cart-item-price">${(product.price || 0).toFixed(2)} PZ × ${item.quantity || 1} = ${itemTotal.toFixed(2)} PZ</p>
+                    </div>
+                    <div class="cart-item-actions">
+                        <button class="btn-cart-remove" onclick="removeFromCart('${item.id}')">✕</button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        html += `
+            <div class="cart-total">
+                <div class="cart-total-row">
+                    <span>Итого:</span>
+                    <strong>${total.toFixed(2)} PZ</strong>
+                </div>
+                <button class="btn btn-primary" onclick="checkoutCart()" style="width: 100%; margin-top: 16px;">
+                    Оформить заказ
+                </button>
+            </div>
+        `;
+        
+        return html;
+    } catch (error) {
+        console.error('Error loading cart:', error);
+        return '<div class="error-message"><p>Ошибка загрузки корзины</p></div>';
+    }
+}
+
+async function removeFromCart(cartItemId) {
+    try {
+        const response = await fetch(`${API_BASE}/cart/remove/${cartItemId}`, {
+            method: 'DELETE',
+            headers: getApiHeaders()
+        });
+        
+        if (response.ok) {
+            await loadCartItems();
+            updateCartBadge();
+            // Reload cart content
+            const container = document.getElementById('section-body');
+            if (container) {
+                container.innerHTML = await loadCartContent();
+            }
+            showSuccess('Товар удален из корзины');
+        } else {
+            showError('Ошибка удаления товара');
+        }
+    } catch (error) {
+        console.error('Error removing from cart:', error);
+        showError('Ошибка удаления товара');
+    }
+}
+
+async function checkoutCart() {
+    try {
+        const response = await fetch(`${API_BASE}/cart/items`, { headers: getApiHeaders() });
+        if (!response.ok) throw new Error('Failed to fetch cart items');
+        
+        const items = await response.json();
+        if (!items || items.length === 0) {
+            showError('Корзина пуста');
+            return;
+        }
+        
+        const orderItems = items.map(item => ({
+            productId: item.product.id,
+            title: item.product.title,
+            price: item.product.price,
+            quantity: item.quantity
+        }));
+        
+        const orderResponse = await fetch(`${API_BASE}/orders/create`, {
+            method: 'POST',
+            headers: getApiHeaders(),
+            body: JSON.stringify({ items: orderItems, message: 'Заказ из корзины' })
+        });
+        
+        if (orderResponse.ok) {
+            showSuccess('Заказ оформлен! Администратор свяжется с вами.');
+            closeSection();
+            await loadCartItems();
+            updateCartBadge();
+        } else {
+            showError('Ошибка оформления заказа');
+        }
+    } catch (error) {
+        console.error('Error checkout:', error);
+        showError('Ошибка оформления заказа');
+    }
+}
+
 function showHome() {
     closeSection();
     // Update bottom nav
@@ -149,7 +501,11 @@ function openSection(sectionName) {
         reviews: 'Отзывы',
         about: 'О нас',
         support: 'Поддержка',
-        favorites: 'Избранное'
+        favorites: 'Избранное',
+        cart: 'Корзина',
+        certificates: 'Сертификаты',
+        promotions: 'Акции',
+        contacts: 'Контакты'
     };
     
     title.textContent = titles[sectionName] || 'Раздел';
@@ -198,6 +554,18 @@ async function loadSectionContent(sectionName, container) {
                 break;
             case 'favorites':
                 content = await loadFavoritesContent();
+                break;
+            case 'certificates':
+                content = loadCertificatesContent();
+                break;
+            case 'promotions':
+                content = loadPromotionsContent();
+                break;
+            case 'contacts':
+                content = loadContactsContent();
+                break;
+            case 'cart':
+                content = await loadCartContent();
                 break;
             default:
                 content = '<div class="error-message"><h3>Раздел не найден</h3><p>Попробуйте позже</p></div>';
@@ -1375,6 +1743,55 @@ async function confirmAddress(address) {
 
 async function changeAddress() {
     await requestDeliveryAddress();
+}
+
+// New section content loaders
+function loadCertificatesContent() {
+    return `
+        <div class="content-section">
+            <h3>🎁 Подарочные сертификаты</h3>
+            <p>Скоро здесь будут доступны подарочные сертификаты!</p>
+        </div>
+    `;
+}
+
+function loadPromotionsContent() {
+    return `
+        <div class="content-section">
+            <h3>🎉 Акции и скидки</h3>
+            <p>Следите за нашими акциями и специальными предложениями!</p>
+        </div>
+    `;
+}
+
+function loadContactsContent() {
+    return `
+        <div class="content-section">
+            <h3>📞 Контакты</h3>
+            <div class="contacts-list">
+                <div class="contact-item">
+                    <strong>Телефон:</strong>
+                    <a href="tel:+79999999999">+7 (999) 999-99-99</a>
+                </div>
+                <div class="contact-item">
+                    <strong>Email:</strong>
+                    <a href="mailto:info@vital.ru">info@vital.ru</a>
+                </div>
+                <div class="contact-item">
+                    <strong>Telegram:</strong>
+                    <a href="https://t.me/ivitalbot" target="_blank">@ivitalbot</a>
+                </div>
+                <div class="contact-item">
+                    <strong>ВКонтакте:</strong>
+                    <a href="https://vk.com/ivital" target="_blank">vk.com/ivital</a>
+                </div>
+                <div class="contact-item">
+                    <strong>Instagram:</strong>
+                    <a href="https://www.instagram.com/ivitalnano/" target="_blank">@ivitalnano</a>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 // Utility functions

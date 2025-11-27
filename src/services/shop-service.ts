@@ -14,10 +14,16 @@ export async function getCategoryById(id: string) {
 }
 
 export async function getProductsByCategory(categoryId: string) {
-  return prisma.product.findMany({
-    where: { categoryId, isActive: true },
+  const products = await prisma.product.findMany({
+    where: { 
+      categoryId, 
+      isActive: true,
+      imageUrl: { not: null }, // Only products with images
+    },
     orderBy: { title: 'asc' },
   });
+  // Additional filter to ensure imageUrl is not empty string
+  return products.filter(p => p.imageUrl && p.imageUrl.trim() !== '');
 }
 
 export async function getProductById(productId: string) {

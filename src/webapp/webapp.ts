@@ -399,6 +399,45 @@ router.post('/api/cart/add', async (req, res) => {
   }
 });
 
+// Cart remove endpoint
+router.delete('/api/cart/remove/:cartItemId', async (req, res) => {
+  try {
+    const telegramUser = getTelegramUser(req);
+    if (!telegramUser) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { cartItemId } = req.params;
+    const { prisma } = await import('../lib/prisma.js');
+    
+    const user = await prisma.user.findUnique({
+      where: { telegramId: telegramUser.id.toString() }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if cart item belongs to user
+    const cartItem = await prisma.cartItem.findUnique({
+      where: { id: cartItemId }
+    });
+
+    if (!cartItem || cartItem.userId !== user.id) {
+      return res.status(404).json({ error: 'Cart item not found' });
+    }
+
+    await prisma.cartItem.delete({
+      where: { id: cartItemId }
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error removing from cart:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Order create endpoint
 router.post('/api/orders/create', async (req, res) => {
   try {
@@ -503,6 +542,7 @@ router.get('/api/partner/dashboard', async (req, res) => {
       balance: user.partner.balance,
       bonus: user.partner.bonus,
       referralCode: user.partner.referralCode,
+      programType: user.partner.programType || 'DIRECT',
       totalPartners: user.partner.totalPartners,
       directPartners: user.partner.directPartners
     });
