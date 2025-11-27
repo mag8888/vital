@@ -246,15 +246,22 @@ async function loadProfileContent() {
         
         const telegramUser = getTelegramUserData();
         // Use the same format as buildReferralLink from partner-service
-        let referralLink = `https://t.me/ivitalbot`;
-        if (partner?.referralCode) {
+        let referralLink = 'https://t.me/ivitalbot';
+        
+        if (partner && partner.referralCode && partner.referralCode !== 'undefined') {
             // Format: https://t.me/ivitalbot?start=ref_direct_CODE or ref_multi_CODE
-            const programType = partner.programType || 'DIRECT';
+            const programType = (partner.programType || 'DIRECT').toString();
             const prefix = programType === 'DIRECT' ? 'ref_direct' : 'ref_multi';
             referralLink = `https://t.me/ivitalbot?start=${prefix}_${partner.referralCode}`;
-        } else if (telegramUser.username || telegramUser.id) {
+        } else if (telegramUser && (telegramUser.username || telegramUser.id)) {
             // Fallback link if no referral code yet
-            referralLink = `https://t.me/ivitalbot?start=${telegramUser.username || telegramUser.id}`;
+            const startParam = telegramUser.username || telegramUser.id.toString();
+            referralLink = `https://t.me/ivitalbot?start=${startParam}`;
+        }
+        
+        // Ensure referralLink is never undefined
+        if (!referralLink || referralLink === 'undefined') {
+            referralLink = 'https://t.me/ivitalbot';
         }
         
         let html = `
@@ -272,7 +279,7 @@ async function loadProfileContent() {
                 <div class="profile-section">
                     <h4>Реферальная ссылка</h4>
                     <div class="referral-link-box">
-                        <input type="text" id="referral-link-input" value="${referralLink}" readonly onclick="this.select();">
+                        <input type="text" id="referral-link-input" value="${escapeHtml(referralLink)}" readonly onclick="this.select();">
                         <button class="btn-copy" onclick="copyReferralLink()">📋</button>
                     </div>
                     <p class="referral-hint">Поделитесь этой ссылкой с друзьями и получайте бонусы!</p>
@@ -330,15 +337,40 @@ async function loadProfileContent() {
     }
 }
 
-function copyReferralLink() {
+async function copyReferralLink() {
     const input = document.getElementById('referral-link-input');
-    if (input) {
-        input.select();
-        document.execCommand('copy');
+    if (!input) {
+        console.error('Referral link input not found');
+        alert('Ошибка: ссылка не найдена');
+        return;
+    }
+    
+    const linkText = input.value;
+    if (!linkText || linkText === 'undefined' || linkText.trim() === '') {
+        console.error('Referral link is empty or undefined');
+        alert('Ошибка: ссылка не загружена');
+        return;
+    }
+    
+    try {
+        // Use modern Clipboard API
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(linkText);
+        } else {
+            // Fallback for older browsers
+            input.select();
+            input.setSelectionRange(0, 99999); // For mobile devices
+            document.execCommand('copy');
+        }
+        
         if (tg && tg.HapticFeedback) {
             tg.HapticFeedback.notificationOccurred('success');
         }
-        alert('Реферальная ссылка скопирована!');
+        
+        alert('✅ Реферальная ссылка скопирована!');
+    } catch (error) {
+        console.error('Error copying referral link:', error);
+        alert('Ошибка копирования ссылки');
     }
 }
 

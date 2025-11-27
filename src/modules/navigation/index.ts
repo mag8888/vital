@@ -153,7 +153,8 @@ const navigationItems: NavigationItem[] = [
     description: 'Каталог продукции и сезонные наборы',
     badgeKey: 'shop',
     handler: async (ctx) => {
-      // Открываем webapp вместо старого магазина
+      // Сразу открываем webapp
+      await ctx.answerCbQuery();
       const webappUrl = getWebappUrl();
       await ctx.reply(
         '🛒 <b>Открываю магазин...</b>',
@@ -626,8 +627,23 @@ export const navigationModule: BotModule = {
     // Обработчики для кнопок классического меню
     bot.hears('🛒 Магазин', async (ctx) => {
       await logUserAction(ctx, 'menu:shop');
-      const { showCategories } = await import('../shop/index.js');
-      await showCategories(ctx);
+      const webappUrl = getWebappUrl();
+      await ctx.reply(
+        '🛒 <b>Открываю магазин...</b>',
+        {
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: '🚀 Открыть магазин',
+                  web_app: { url: webappUrl }
+                }
+              ]
+            ]
+          }
+        }
+      );
     });
 
     bot.hears('🤝 Партнёрка', async (ctx) => {
