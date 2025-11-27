@@ -218,16 +218,25 @@ async function bootstrap() {
       }
     }
     
-    // Try to launch bot with error handling
+    // Try to launch bot with error handling - don't crash server if bot fails
     try {
       await bot.launch();
-      console.log('Bot launched successfully');
+      console.log('✅ Bot launched successfully');
     } catch (error: any) {
-      if (error.code === 'ETIMEDOUT' || error.errno === 'ETIMEDOUT') {
-        console.warn('⚠️  Telegram API timeout when launching bot - will retry on next request');
+      const errorMessage = error?.message || String(error);
+      const errorCode = error?.response?.error_code || error?.code;
+      
+      if (errorCode === 409 || errorMessage.includes('409') || errorMessage.includes('Conflict')) {
+        console.warn('⚠️  Bot conflict detected (409). Another bot instance may be running.');
+        console.warn('⚠️  Web server will continue running without bot.');
+        console.warn('ℹ️  To fix: Stop other bot instances or wait for webhook to clear.');
+      } else if (error.code === 'ETIMEDOUT' || error.errno === 'ETIMEDOUT') {
+        console.warn('⚠️  Telegram API timeout when launching bot - web server continues');
       } else {
-        console.error('Bot launch failed, but web server is running:', error instanceof Error ? error.message : String(error));
+        console.error('❌ Bot launch failed, but web server is running:', errorMessage);
       }
+      // Don't exit - web server should continue working
+      console.log('✅ Web server continues to run despite bot error');
     }
 
     // Graceful shutdown handlers
