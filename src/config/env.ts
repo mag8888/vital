@@ -36,7 +36,7 @@ export const env = {
   adminEmail: requireEnv('ADMIN_EMAIL'),
   adminPassword: requireEnv('ADMIN_PASSWORD'),
   publicBaseUrl: process.env.PUBLIC_BASE_URL || 'http://localhost:3000',
-  webappUrl: process.env.WEBAPP_URL || process.env.PUBLIC_BASE_URL || 'https://vital-production.up.railway.app',
+  webappUrl: process.env.WEBAPP_URL || process.env.PUBLIC_BASE_URL || 'https://vital-production-82b0.up.railway.app',
   videoUrl: process.env.VIDEO_URL || 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', // Ссылка на видео по умолчанию
   // Cloudinary configuration (optional)
   cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
