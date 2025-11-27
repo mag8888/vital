@@ -367,17 +367,48 @@ export const shopModule: BotModule = {
   async register(bot: Telegraf<Context>) {
     console.log('🛍️ Registering shop module...');
 
-    // Handle shop command
+    // Handle shop command - open webapp directly
     bot.command('shop', async (ctx) => {
       await logUserAction(ctx, 'command:shop');
-      // Сразу показываем категории без выбора региона
-      await showCategories(ctx, 'RUSSIA');
+      const webappUrl = env.webappUrl;
+      await ctx.reply(
+        '🛒 <b>Открываю магазин...</b>',
+        {
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: '🚀 Открыть магазин',
+                  web_app: { url: webappUrl }
+                }
+              ]
+            ]
+          }
+        }
+      );
     });
 
-    bot.hears(['Магазин', 'Каталог', '🛒 Магазин'], async (ctx) => {
+    bot.hears(['Магазин', 'Каталог'], async (ctx) => {
       console.log('🛍️ Shop button pressed by user:', ctx.from?.id);
-      // Сразу показываем категории без выбора региона
-      await showCategories(ctx, 'RUSSIA');
+      await logUserAction(ctx, 'menu:shop');
+      const webappUrl = env.webappUrl;
+      await ctx.reply(
+        '🛒 <b>Открываю магазин...</b>',
+        {
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: '🚀 Открыть магазин',
+                  web_app: { url: webappUrl }
+                }
+              ]
+            ]
+          }
+        }
+      );
     });
 
     // Handle region selection
