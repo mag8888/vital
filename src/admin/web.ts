@@ -865,7 +865,7 @@ router.get('/', requireAdmin, async (req, res) => {
                 <a href="/admin/reviews" class="btn">⭐ Отзывы</a>
                 <a href="/admin/orders" class="btn">📦 Заказы</a>
                 <button class="btn" onclick="openAddProductModal()" style="background: #28a745;">➕ Добавить товар</button>
-                <button class="btn import-siam-btn" onclick="event.stopPropagation(); event.stopImmediatePropagation(); importSiamProducts(this, event); return false;" style="background: #17a2b8; cursor: pointer; pointer-events: auto !important;">🤖 Импорт Siam Botanicals</button>
+                <button class="btn import-siam-btn" style="background: #17a2b8; cursor: pointer; pointer-events: auto !important;">🤖 Импорт Siam Botanicals</button>
               </div>
             </div>
             <p>Управление каталогом товаров, отзывами и заказами.</p>
