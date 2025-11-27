@@ -462,8 +462,12 @@ async function importProduct(product: SiamProduct): Promise<any> {
 export async function importSiamProducts(): Promise<{ success: number; errors: number; total: number }> {
   console.log('🚀 Начало импорта продуктов из Siam Botanicals\n');
 
-  if (!aiTranslationService.isEnabled()) {
-    throw new Error('AI Translation Service не настроен! Добавьте OPENAI_API_KEY в переменные окружения.');
+  const aiEnabled = aiTranslationService.isEnabled();
+  if (!aiEnabled) {
+    console.warn('⚠️  AI Translation Service не настроен (нет OPENAI_API_KEY).');
+    console.warn('⚠️  Импорт продолжится, но продукты будут с английскими названиями.');
+  } else {
+    console.log('✅ AI Translation Service включен');
   }
 
   if (siamProducts.length === 0) {
