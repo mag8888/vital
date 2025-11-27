@@ -5554,20 +5554,17 @@ router.get('/products', requireAdmin, async (req, res) => {
             }
           };
           
-          // Import Siam Botanicals products
-          window.importSiamProducts = async function(buttonElement, eventObj) {
-            // Предотвращаем блокировку события, если оно передано
-            if (eventObj) {
-              eventObj.preventDefault();
-              eventObj.stopPropagation();
-              eventObj.stopImmediatePropagation();
-            }
+          // Import Siam Botanicals products handler
+          async function handleImportSiamProducts(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
             
             if (!confirm('Запустить импорт продуктов из Siam Botanicals? Это может занять несколько минут.')) {
               return false;
             }
             
-            const btn = buttonElement || (eventObj && eventObj.target) || document.querySelector('.import-siam-btn') || document.querySelector('button[onclick*="importSiamProducts"]');
+            const btn = event.target.closest('button.import-siam-btn') || event.target;
             if (!btn) {
               alert('❌ Кнопка не найдена');
               return false;
@@ -5618,24 +5615,33 @@ router.get('/products', requireAdmin, async (req, res) => {
             }
             
             return false;
-          };
+          }
           
-          // Добавляем обработчик для кнопки импорта после загрузки страницы
-          document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(function() {
-              const importBtn = document.querySelector('.import-siam-btn');
-              if (importBtn) {
-                importBtn.addEventListener('click', function(e) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  e.stopImmediatePropagation();
-                  window.importSiamProducts(this, e);
-                  return false;
-                }, true); // Используем capture phase для раннего перехвата
-                console.log('✅ Import button handler attached');
-              }
-            }, 1000);
-          });
+          // Добавляем обработчик для кнопки импорта
+          function attachImportButtonHandler() {
+            const importBtn = document.querySelector('.import-siam-btn');
+            if (importBtn) {
+              // Удаляем старый обработчик, если есть
+              importBtn.removeEventListener('click', handleImportSiamProducts);
+              // Добавляем новый обработчик с capture phase для раннего перехвата
+              importBtn.addEventListener('click', handleImportSiamProducts, true);
+              console.log('✅ Import button handler attached');
+            } else {
+              console.warn('⚠️  Import button not found, retrying...');
+              setTimeout(attachImportButtonHandler, 500);
+            }
+          }
+          
+          // Прикрепляем обработчик сразу и после загрузки DOM
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', attachImportButtonHandler);
+          } else {
+            attachImportButtonHandler();
+          }
+          
+          // Дополнительная попытка через небольшую задержку
+          setTimeout(attachImportButtonHandler, 100);
+          setTimeout(attachImportButtonHandler, 1000);
         </script>
       </body>
       </html>
