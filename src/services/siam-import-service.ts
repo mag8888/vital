@@ -382,12 +382,9 @@ async function importProduct(product: SiamProduct): Promise<any> {
   if (existingProduct) {
     console.log(`⏭️  Продукт "${product.englishTitle}" уже существует`);
     
-    // Обновляем изображение, если его нет или оно placeholder
-    const needsImageUpdate = !existingProduct.imageUrl || 
-                            existingProduct.imageUrl.includes('placeholder') ||
-                            existingProduct.imageUrl.includes('missing');
-    
-    if (needsImageUpdate && product.imageUrl) {
+    // ВСЕГДА обновляем изображение, если оно есть в источнике
+    // Это гарантирует, что даже если изображение было загружено, но не отображается, оно обновится
+    if (product.imageUrl) {
       console.log('  📷 Загрузка/обновление изображения для существующего товара...');
       const tempId = `update-${existingProduct.id}`;
       const imageUrl = await downloadAndUploadImage(product.imageUrl, tempId);
@@ -397,6 +394,8 @@ async function importProduct(product: SiamProduct): Promise<any> {
           data: { imageUrl }
         });
         console.log('  ✅ Изображение обновлено:', imageUrl);
+      } else {
+        console.warn('  ⚠️  Не удалось загрузить изображение');
       }
     }
     return existingProduct;
