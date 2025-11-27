@@ -248,21 +248,50 @@ async function loadProfileContent() {
         // Use the same format as buildReferralLink from partner-service
         let referralLink = 'https://t.me/ivitalbot';
         
-        if (partner && partner.referralCode && partner.referralCode !== 'undefined') {
+        // Check if partner has valid referral code
+        const hasValidReferralCode = partner && 
+            partner.referralCode && 
+            partner.referralCode !== 'undefined' && 
+            partner.referralCode !== 'null' &&
+            partner.referralCode.trim() !== '';
+        
+        if (hasValidReferralCode) {
             // Format: https://t.me/ivitalbot?start=ref_direct_CODE or ref_multi_CODE
             const programType = (partner.programType || 'DIRECT').toString();
             const prefix = programType === 'DIRECT' ? 'ref_direct' : 'ref_multi';
-            referralLink = `https://t.me/ivitalbot?start=${prefix}_${partner.referralCode}`;
-        } else if (telegramUser && (telegramUser.username || telegramUser.id)) {
-            // Fallback link if no referral code yet
-            const startParam = telegramUser.username || telegramUser.id.toString();
-            referralLink = `https://t.me/ivitalbot?start=${startParam}`;
+            referralLink = `https://t.me/ivitalbot?start=${prefix}_${partner.referralCode.trim()}`;
+        } else if (telegramUser) {
+            // Fallback: use username or ID
+            let startParam = null;
+            
+            if (telegramUser.username && telegramUser.username !== 'undefined' && telegramUser.username.trim() !== '') {
+                startParam = telegramUser.username.trim();
+            } else if (telegramUser.id && telegramUser.id !== 'undefined') {
+                startParam = String(telegramUser.id).trim();
+            }
+            
+            if (startParam) {
+                referralLink = `https://t.me/ivitalbot?start=${startParam}`;
+            }
         }
         
-        // Ensure referralLink is never undefined
-        if (!referralLink || referralLink === 'undefined') {
+        // Final check: ensure referralLink is never undefined, null, or contains "undefined"
+        if (!referralLink || 
+            referralLink === 'undefined' || 
+            referralLink === 'null' ||
+            referralLink.includes('undefined') ||
+            referralLink.includes('null')) {
             referralLink = 'https://t.me/ivitalbot';
         }
+        
+        // Log for debugging
+        console.log('🔗 Referral link generated:', {
+            hasPartner: !!partner,
+            referralCode: partner?.referralCode,
+            telegramUsername: telegramUser?.username,
+            telegramId: telegramUser?.id,
+            finalLink: referralLink
+        });
         
         let html = `
             <div class="profile-content-wrapper">
@@ -345,17 +374,33 @@ async function copyReferralLink() {
         return;
     }
     
-    const linkText = input.value;
-    if (!linkText || linkText === 'undefined' || linkText.trim() === '') {
-        console.error('Referral link is empty or undefined');
-        alert('Ошибка: ссылка не загружена');
+    let linkText = input.value || '';
+    
+    // Clean up the link text - remove any undefined/null values
+    if (linkText.includes('undefined') || linkText.includes('null')) {
+        console.warn('Link contains undefined/null, cleaning up...');
+        // Replace undefined/null in the link
+        linkText = linkText.replace(/undefined/g, '').replace(/null/g, '');
+    }
+    
+    // Final validation
+    if (!linkText || linkText.trim() === '' || linkText === 'undefined' || linkText === 'null') {
+        console.error('Referral link is empty or invalid:', linkText);
+        alert('Ошибка: ссылка не загружена. Попробуйте обновить страницу.');
+        return;
+    }
+    
+    // Ensure it's a valid URL
+    if (!linkText.startsWith('http')) {
+        console.error('Invalid link format:', linkText);
+        alert('Ошибка: неверный формат ссылки');
         return;
     }
     
     try {
         // Use modern Clipboard API
         if (navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(linkText);
+            await navigator.clipboard.writeText(linkText.trim());
         } else {
             // Fallback for older browsers
             input.select();
@@ -370,7 +415,7 @@ async function copyReferralLink() {
         alert('✅ Реферальная ссылка скопирована!');
     } catch (error) {
         console.error('Error copying referral link:', error);
-        alert('Ошибка копирования ссылки');
+        alert('Ошибка копирования ссылки. Попробуйте выделить и скопировать вручную.');
     }
 }
 
