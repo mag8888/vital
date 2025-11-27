@@ -2854,7 +2854,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
               <button onclick="applySorting()">🔄 Применить</button>
             </div>
             <div class="message-controls" style="margin-top: 10px;">
-              <button class="btn" onclick="deleteSelectedUsers()" style="background: #dc3545;">🗑️ Удалить выбранных</button>
+              <button class="btn delete-selected-btn" style="background: #dc3545;">🗑️ Удалить выбранных</button>
             </div>
           </div>
           
@@ -2892,9 +2892,9 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                 <thead>
                   <tr>
                     <th class="compact-cell">
-                      <input type="checkbox" id="selectAllUsers" onchange="toggleAllUsers(this.checked)" style="margin-right: 5px;">
+                      <input type="checkbox" id="selectAllUsers" style="margin-right: 5px;">
                       <button onclick="openMessageModal()" class="action-btn" style="font-size: 10px; padding: 2px 6px;">📧</button>
-                      <button onclick="deleteSelectedUsers()" class="action-btn" style="font-size: 10px; padding: 2px 6px; background: #dc3545; color: white;" title="Удалить выбранных">🗑️</button>
+                      <button class="action-btn delete-selected-btn" style="font-size: 10px; padding: 2px 6px; background: #dc3545; color: white;" title="Удалить выбранных">🗑️</button>
                     </th>
                     <th class="compact-cell">Партнерская программа</th>
                     <th class="compact-cell">Баланс</th>
@@ -2929,7 +2929,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                   return `
                   <tr>
                     <td class="compact-cell">
-                      <input type="checkbox" class="user-checkbox" value="${user.id}" onchange="updateSelectedUsers()" style="margin-right: 5px;">
+                      <input type="checkbox" class="user-checkbox" value="${user.id}" data-user-id="${user.id}" style="margin-right: 5px;">
                     </td>
                     <td class="compact-cell cell-tooltip" data-tooltip="Партнерская программа: ${isPartnerActive ? 'Активирована' : 'Не активирована'}">
                       <input type="checkbox" 
@@ -3045,10 +3045,41 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             checkboxes.forEach(checkbox => {
               checkbox.checked = checked;
             });
-            if (typeof window.updateSelectedUsers === 'function') {
-              window.updateSelectedUsers();
-            }
+            window.updateSelectedUsers();
           };
+          
+          // Event delegation для чекбоксов пользователей
+          // Обработчик для чекбоксов пользователей
+          document.addEventListener('change', function(e) {
+            if (e.target && e.target.classList && e.target.classList.contains('user-checkbox')) {
+              if (typeof window.updateSelectedUsers === 'function') {
+                window.updateSelectedUsers();
+              }
+            }
+          });
+          
+          // Обработчик для кнопки удаления выбранных
+          document.addEventListener('click', function(e) {
+            if (e.target && e.target.classList && e.target.classList.contains('delete-selected-btn')) {
+              e.preventDefault();
+              e.stopPropagation();
+              if (typeof window.deleteSelectedUsers === 'function') {
+                window.deleteSelectedUsers();
+              }
+            }
+          });
+          
+          // Обработчик для selectAllUsers checkbox
+          document.addEventListener('DOMContentLoaded', function() {
+            const selectAllCheckbox = document.getElementById('selectAllUsers');
+            if (selectAllCheckbox) {
+              selectAllCheckbox.addEventListener('change', function(e) {
+                if (typeof window.toggleAllUsers === 'function') {
+                  window.toggleAllUsers(e.target.checked);
+                }
+              });
+            }
+          });
           
           window.deleteSelectedUser = async function(userId, userName) {
             if (!confirm('⚠️ ВНИМАНИЕ! Вы уверены, что хотите удалить пользователя "' + userName + '"?\n\nЭто действие удалит:\n- Пользователя\n- Партнерский профиль\n- Все рефералы\n- Все транзакции\n- Все заказы\n- Историю действий\n\nЭто действие НЕОБРАТИМО!')) {
