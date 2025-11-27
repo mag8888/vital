@@ -5,7 +5,7 @@
 Скопируйте и вставьте эту строку в Railway:
 
 ```
-mongodb+srv://smirenskaya5984_db_user:nwYsMppKRXCdqURM@cluster0.t28dfmk.mongodb.net/vital?appName=Cluster0&retryWrites=true&w=majority
+mongodb+srv://smirenskaya5984_db_user:nwYsMppKRXCdqURM@cluster0.t28dfmk.mongodb.net/vital?appName=Cluster0&retryWrites=true&w=majority&authSource=admin&tls=true&connectTimeoutMS=30000&socketTimeoutMS=30000&serverSelectionTimeoutMS=30000
 ```
 
 ## Как добавить в Railway:

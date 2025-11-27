@@ -83,9 +83,13 @@ if (fixedDbUrl && fixedDbUrl !== dbUrl) {
   }
 }
 
-// Optimize connection string for better performance
+// Optimize connection string for better performance and MongoDB Atlas compatibility
 function optimizeConnectionString(url: string): string {
   let optimized = url;
+  
+  // MongoDB Atlas requires SSL/TLS by default
+  // Add SSL parameters if not present (for mongodb+srv, SSL is automatic)
+  // But we can add explicit TLS parameters for better compatibility
   
   // Add connection pooling options if not present
   if (!optimized.includes('maxPoolSize')) {
@@ -93,22 +97,48 @@ function optimizeConnectionString(url: string): string {
     optimized = `${optimized}${separator}maxPoolSize=10&minPoolSize=2`;
   }
   
-  // Add connection timeout options
+  // Add connection timeout options (increase for Railway network)
   if (!optimized.includes('connectTimeoutMS')) {
-    optimized = `${optimized}&connectTimeoutMS=10000&socketTimeoutMS=30000`;
+    optimized = `${optimized}&connectTimeoutMS=30000`;
+  }
+  
+  if (!optimized.includes('socketTimeoutMS')) {
+    optimized = `${optimized}&socketTimeoutMS=30000`;
   }
   
   // Enable keepalive for persistent connections
   if (!optimized.includes('serverSelectionTimeoutMS')) {
-    optimized = `${optimized}&serverSelectionTimeoutMS=10000`;
+    optimized = `${optimized}&serverSelectionTimeoutMS=30000`;
   }
   
-  // Add authSource if not present (important for Railway MongoDB)
-  // Railway MongoDB often needs authSource=admin for authentication
+  // Add heartbeat frequency (keep connections alive)
+  if (!optimized.includes('heartbeatFrequencyMS')) {
+    optimized = `${optimized}&heartbeatFrequencyMS=10000`;
+  }
+  
+  // Add authSource if not present (important for MongoDB Atlas)
+  // MongoDB Atlas often needs authSource=admin for authentication
   if (!optimized.includes('authSource')) {
-    // Railway MongoDB typically uses 'admin' as authSource for root user
-    // Try 'admin' first, then fallback to database name
-    optimized = `${optimized}${optimized.includes('?') ? '&' : '?'}authSource=admin`;
+    optimized = `${optimized}&authSource=admin`;
+  }
+  
+  // MongoDB Atlas requires TLS/SSL - ensure it's enabled
+  // For mongodb+srv, TLS is automatic, but we can add explicit parameters
+  if (optimized.startsWith('mongodb+srv://')) {
+    // mongodb+srv automatically uses TLS, but add explicit tls parameter
+    if (!optimized.includes('tls=')) {
+      optimized = `${optimized}&tls=true`;
+    }
+  }
+  
+  // Add retryWrites if not present (default for replica sets)
+  if (!optimized.includes('retryWrites')) {
+    optimized = `${optimized}&retryWrites=true`;
+  }
+  
+  // Add w=majority if not present (default write concern for replica sets)
+  if (!optimized.includes('w=')) {
+    optimized = `${optimized}&w=majority`;
   }
   
   return optimized;
