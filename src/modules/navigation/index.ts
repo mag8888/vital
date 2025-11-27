@@ -529,12 +529,12 @@ export const navigationModule: BotModule = {
             // Award 3 PZ bonus for new user registration via referral link
             if (isNewUser) {
               try {
-                // Check if bonus was already awarded for this referral (only if partner profile exists)
+                // Check if bonus was already awarded for this referral (using partnerProfile from above)
                 let existingBonus = null;
-                if (referrerUser.partner) {
+                if (partnerProfile) {
                   existingBonus = await prisma.partnerTransaction.findFirst({
                     where: {
-                      profileId: referrerUser.partner.id,
+                      profileId: partnerProfile.id,
                       description: `Бонус 3PZ за приглашение нового пользователя (${user.id})`
                     }
                   });
