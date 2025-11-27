@@ -520,13 +520,16 @@ export const navigationModule: BotModule = {
             // Award 3 PZ bonus for new user registration via referral link
             if (isNewUser) {
               try {
-                // Check if bonus was already awarded for this referral
-                const existingBonus = await prisma.partnerTransaction.findFirst({
-                  where: {
-                    profileId: referrerUser.partner?.id || '',
-                    description: `Бонус 3PZ за приглашение нового пользователя (${user.id})`
-                  }
-                });
+                // Check if bonus was already awarded for this referral (only if partner profile exists)
+                let existingBonus = null;
+                if (referrerUser.partner) {
+                  existingBonus = await prisma.partnerTransaction.findFirst({
+                    where: {
+                      profileId: referrerUser.partner.id,
+                      description: `Бонус 3PZ за приглашение нового пользователя (${user.id})`
+                    }
+                  });
+                }
                 
                 if (!existingBonus) {
                   // Award 3PZ bonus to inviter for new user registration
@@ -572,7 +575,7 @@ export const navigationModule: BotModule = {
                   
                   console.log('🔗 Referral: Bonus 3PZ processed, new balance:', updatedReferrer?.balance);
                   
-                  // Send notification to inviter
+                  // Send notification to inviter (always send if bonus was awarded)
                   if (updatedReferrer) {
                     try {
                       const joinedLabel = user.username ? `@${user.username}` : (user.firstName || 'пользователь');
@@ -588,10 +591,16 @@ export const navigationModule: BotModule = {
                         notificationText,
                         { parse_mode: 'HTML' }
                       );
-                      console.log('🔗 Referral: Notification sent successfully to inviter');
-                    } catch (error) {
-                      console.warn('🔗 Referral: Failed to send notification to inviter:', error);
+                      console.log('🔗 Referral: Notification sent successfully to inviter:', referrerUser.telegramId);
+                    } catch (error: any) {
+                      console.error('🔗 Referral: Failed to send notification to inviter:', error?.message || error);
+                      // Log full error for debugging
+                      if (error?.response) {
+                        console.error('🔗 Referral: Telegram API error:', JSON.stringify(error.response, null, 2));
+                      }
                     }
+                  } else {
+                    console.warn('🔗 Referral: updatedReferrer is null, cannot send notification');
                   }
                 } else {
                   console.log('🔗 Referral: Bonus already awarded for this user, skipping');

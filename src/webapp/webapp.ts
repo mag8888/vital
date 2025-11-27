@@ -552,6 +552,41 @@ router.get('/api/partner/dashboard', async (req, res) => {
   }
 });
 
+// Get partner referrals list
+router.get('/api/partner/referrals', async (req, res) => {
+  try {
+    const telegramUser = getTelegramUser(req);
+    if (!telegramUser) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { prisma } = await import('../lib/prisma.js');
+    const { getPartnerList } = await import('../services/partner-service.js');
+    
+    let user = await prisma.user.findUnique({
+      where: { telegramId: telegramUser.id.toString() }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const partnerList = await getPartnerList(user.id);
+    
+    if (!partnerList) {
+      return res.json({
+        directPartners: [],
+        multiPartners: []
+      });
+    }
+
+    res.json(partnerList);
+  } catch (error) {
+    console.error('Error getting partner referrals:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Activate partner program
 router.post('/api/partner/activate', async (req, res) => {
   try {

@@ -330,6 +330,9 @@ async function loadProfileContent() {
                             <span class="stat-value">${partner.directPartners || 0}</span>
                         </div>
                     </div>
+                    <button class="btn" onclick="showPartners(); loadSectionContent('partners', document.getElementById('section-body'))" style="margin-top: 16px; width: 100%;">
+                        👥 Посмотреть рефералов
+                    </button>
                 </div>
             `;
         } else {
@@ -637,6 +640,9 @@ async function loadSectionContent(sectionName, container) {
             case 'cart':
                 content = await loadCartContent();
                 break;
+            case 'partners':
+                await showPartners();
+                return; // showPartners already sets innerHTML
             default:
                 content = '<div class="error-message"><h3>Раздел не найден</h3><p>Попробуйте позже</p></div>';
         }
@@ -1364,9 +1370,57 @@ function showReferralLink() {
     // Здесь можно добавить логику показа ссылки
 }
 
-function showPartners() {
-    showSuccess('Загрузка списка партнёров...');
-    // Здесь можно добавить логику показа партнёров
+async function showPartners() {
+    try {
+        const response = await fetch(`${API_BASE}/partner/referrals`, { headers: getApiHeaders() });
+        if (!response.ok) {
+            throw new Error('Failed to fetch referrals');
+        }
+        
+        const data = await response.json();
+        const directPartners = data.directPartners || [];
+        const multiPartners = data.multiPartners || [];
+        
+        let html = '<div class="partners-list-container">';
+        html += '<h3>👥 Мои рефералы</h3>';
+        
+        if (directPartners.length === 0 && multiPartners.length === 0) {
+            html += '<p>Пока нет рефералов. Приглашайте друзей по вашей реферальной ссылке!</p>';
+        } else {
+            if (directPartners.length > 0) {
+                html += '<h4>🎯 Прямые рефералы (1-й уровень)</h4>';
+                html += '<ul class="referrals-list">';
+                directPartners.forEach((partner, index) => {
+                    const displayName = partner.username ? `@${partner.username}` : (partner.firstName || `ID:${partner.telegramId?.slice(-5) || ''}`);
+                    const joinedDate = partner.joinedAt ? new Date(partner.joinedAt).toLocaleDateString('ru-RU') : '';
+                    html += `<li>${index + 1}. ${escapeHtml(displayName)}${joinedDate ? ` (с ${joinedDate})` : ''}</li>`;
+                });
+                html += '</ul>';
+            }
+            
+            if (multiPartners.length > 0) {
+                html += '<h4>🌳 Многоуровневые рефералы</h4>';
+                html += '<ul class="referrals-list">';
+                multiPartners.forEach((partner, index) => {
+                    const displayName = partner.username ? `@${partner.username}` : (partner.firstName || `ID:${partner.telegramId?.slice(-5) || ''}`);
+                    const level = partner.level || 2;
+                    const joinedDate = partner.joinedAt ? new Date(partner.joinedAt).toLocaleDateString('ru-RU') : '';
+                    html += `<li>${index + 1}. ${escapeHtml(displayName)} (${level}-й уровень)${joinedDate ? ` - с ${joinedDate}` : ''}</li>`;
+                });
+                html += '</ul>';
+            }
+        }
+        
+        html += '</div>';
+        
+        const container = document.getElementById('section-body');
+        if (container) {
+            container.innerHTML = html;
+        }
+    } catch (error) {
+        console.error('Error loading partners:', error);
+        showError('Ошибка загрузки списка рефералов');
+    }
 }
 
 // Show products section with custom content
