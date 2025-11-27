@@ -620,13 +620,22 @@ async function extractImageFromProductPage(slug: string): Promise<string | null>
 
     const html = await response.text();
     
-    // Ищем изображение товара в HTML
+    // Ищем изображение товара в HTML - расширенный набор паттернов
     const patterns = [
+      // WooCommerce галерея
+      /<img[^>]*class="[^"]*woocommerce-product-gallery__image[^"]*"[^>]*src="([^"]+)"/i,
+      /<img[^>]*class="[^"]*woocommerce-product-gallery__image[^"]*"[^>]*data-src="([^"]+)"/i,
+      /<img[^>]*data-large_image="([^"]+)"/i,
+      /<img[^>]*data-full_image="([^"]+)"/i,
+      // WordPress изображения
       /<img[^>]*class="[^"]*wp-post-image[^"]*"[^>]*src="([^"]+)"/i,
       /<img[^>]*class="[^"]*attachment-woocommerce_single[^"]*"[^>]*src="([^"]+)"/i,
-      /<img[^>]*class="[^"]*woocommerce-product-gallery__image[^"]*"[^>]*src="([^"]+)"/i,
-      /<img[^>]*data-large_image="([^"]+)"/i,
-      /<img[^>]*src="([^"]*\/wp-content\/uploads\/[^"]+\.(jpg|jpeg|png))"[^>]*>/i,
+      // Общие паттерны для изображений из wp-content
+      /<img[^>]*src="([^"]*\/wp-content\/uploads\/[^"]+\.(jpg|jpeg|png|webp))"[^>]*>/i,
+      // Изображения в figure или div
+      /<figure[^>]*>[\s\S]*?<img[^>]*src="([^"]*\/wp-content\/uploads\/[^"]+\.(jpg|jpeg|png|webp))"[^>]*>/i,
+      // Изображения в background-image
+      /background-image:\s*url\(['"]?([^'")]+\/(wp-content\/uploads\/[^'")]+\.(jpg|jpeg|png|webp))[^'")]*)['"]?\)/i,
     ];
 
     for (const pattern of patterns) {
@@ -873,23 +882,70 @@ const productSlugs: Record<string, string> = {
 
 /**
  * Находит товар в базе данных по английскому названию
+ * Использует ключевые слова для сопоставления русских и английских названий
+ * (использует ту же логику, что и updateProductImages)
  */
-function findProductByEnglishTitle(products: any[], englishTitle: string) {
-  // Ищем по первому слову или ключевым словам
-  const firstWord = englishTitle.split(' ')[0].toLowerCase();
+function findProductByEnglishTitle(products: any[], englishTitle: string): any | null {
+  const englishTitleLower = englishTitle.toLowerCase();
   
-  // Попытка найти точное совпадение или частичное
+  // Ключевые слова для сопоставления (та же карта, что в updateProductImages)
+  const keywordMap = new Map<string, string>([
+    ['кастор', 'castor'],
+    ['арган', 'argan'],
+    ['розов', 'rose'],
+    ['рудис', 'rudis'],
+    ['лемонграсс', 'lemongrass'],
+    ['имбир', 'ginger'],
+    ['миндаль', 'almond'],
+    ['шиповник', 'rosehip'],
+    ['жожоба', 'jojoba'],
+    ['авокадо', 'avocado'],
+    ['виноград', 'grapeseed'],
+    ['кунжут', 'sesame'],
+    ['примула', 'primrose'],
+    ['таману', 'tamanu'],
+    ['марула', 'marula'],
+    ['алоэ', 'aloe'],
+    ['глина', 'clay'],
+    ['ромашк', 'chamomile'],
+    ['витамин', 'vitamin'],
+    ['гиалуронов', 'hyaluronic'],
+    ['чайное', 'tea tree'],
+    ['лаванд', 'lavender'],
+    ['эвкалипт', 'eucalyptus'],
+    ['мёртвое', 'dead sea'],
+    ['кокос', 'coconut'],
+    ['лайм', 'lime'],
+    ['жасмин', 'jasmine'],
+    ['мят', 'peppermint'],
+    ['розмарин', 'rosemary'],
+  ]);
+
+  // Ищем товар по ключевым словам (как в updateProductImages)
   for (const product of products) {
-    const productTitle = product.title.toLowerCase();
-    const englishTitleLower = englishTitle.toLowerCase();
+    const productTitleLower = product.title.toLowerCase();
     
-    // Проверяем различные варианты сопоставления
-    if (
-      productTitle.includes(firstWord) ||
-      englishTitleLower.includes(productTitle.split(' ')[0].toLowerCase()) ||
-      productTitle.includes(englishTitleLower.split(' ')[1]?.toLowerCase() || '')
-    ) {
-      return product;
+    // Проверяем совпадение по ключевым словам из английского названия
+    for (const [ruKeyword, enKeyword] of keywordMap.entries()) {
+      if (englishTitleLower.includes(enKeyword) && productTitleLower.includes(ruKeyword)) {
+        return product;
+      }
+    }
+    
+    // Дополнительная проверка: первое слово английского названия
+    const firstEnglishWord = englishTitleLower.split(' ')[0];
+    if (firstEnglishWord.length > 3) {
+      // Проверяем, есть ли это слово в русском названии или в ключевых словах
+      if (productTitleLower.includes(firstEnglishWord)) {
+        return product;
+      }
+      
+      // Проверяем обратное: русское ключевое слово соответствует английскому
+      for (const [ruKeyword, enKeyword] of keywordMap.entries()) {
+        if (productTitleLower.includes(ruKeyword) && englishTitleLower.includes(enKeyword)) {
+          return product;
+        }
+      }
     }
   }
   
@@ -937,10 +993,15 @@ export async function uploadAllProductImagesFromPages(): Promise<{ updated: numb
       const dbProduct = findProductByEnglishTitle(allProducts, siamProduct.englishTitle);
 
       if (!dbProduct) {
+        // Логируем детали для отладки
         console.log(`⏭️  Пропущен: ${siamProduct.englishTitle} (не найден в базе)`);
+        console.log(`   💡 Доступные товары в базе:`);
+        allProducts.slice(0, 5).forEach(p => console.log(`      - ${p.title}`));
         skipped++;
         continue;
       }
+
+      console.log(`   ✅ Сопоставлен с товаром в базе: "${dbProduct.title}"`);
 
       console.log(`\n📦 Товар: ${dbProduct.title}`);
       console.log(`   Английское название: ${siamProduct.englishTitle}`);
@@ -952,7 +1013,8 @@ export async function uploadAllProductImagesFromPages(): Promise<{ updated: numb
       const imageUrl = await extractImageFromProductPage(slug);
       
       if (!imageUrl) {
-        console.log(`   ⚠️  Не удалось получить URL изображения`);
+        console.log(`   ⚠️  Не удалось получить URL изображения со страницы`);
+        console.log(`   💡 Попробуйте проверить страницу вручную: ${productUrl}`);
         failed++;
         continue;
       }
