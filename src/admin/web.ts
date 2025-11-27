@@ -5752,26 +5752,43 @@ router.post('/products/:productId/upload-image', requireAdmin, upload.single('im
 // Import Siam Botanicals products endpoint
 router.post('/api/import-siam-products', requireAdmin, async (req, res) => {
   try {
-    console.log('🚀 Запуск импорта продуктов из Siam Botanicals...');
+    console.log('🚀 Запрос на импорт продуктов из Siam Botanicals получен');
+    console.log('📋 Request headers:', req.headers);
+    console.log('📋 Request body:', req.body);
     
     // Запускаем импорт в фоне и возвращаем результат
-    import('../services/siam-import-service.js').then(({ importSiamProducts }) => {
-      importSiamProducts()
-        .then(result => {
-          console.log(`✅ Импорт завершён! Успешно: ${result.success}, Ошибок: ${result.errors}`);
-        })
-        .catch(error => {
-          console.error('❌ Ошибка импорта продуктов:', error);
+    import('../services/siam-import-service.js')
+      .then(({ importSiamProducts }) => {
+        console.log('✅ Модуль импорта загружен, запускаю импорт...');
+        return importSiamProducts();
+      })
+      .then(result => {
+        console.log(`✅ Импорт завершён! Успешно: ${result.success}, Ошибок: ${result.errors}, Всего: ${result.total}`);
+      })
+      .catch(error => {
+        console.error('❌ Ошибка импорта продуктов:', error);
+        console.error('❌ Error stack:', error?.stack);
+        console.error('❌ Error details:', {
+          message: error?.message,
+          name: error?.name,
+          code: error?.code
         });
-    });
+      });
 
     // Возвращаем ответ немедленно
+    console.log('✅ Отправляю ответ клиенту об успешном запуске импорта');
     res.json({
       success: true,
       message: 'Импорт продуктов запущен. Проверьте логи сервера для прогресса.'
     });
   } catch (error: any) {
-    console.error('Import endpoint error:', error);
+    console.error('❌ Import endpoint error:', error);
+    console.error('❌ Error stack:', error?.stack);
+    console.error('❌ Error details:', {
+      message: error?.message,
+      name: error?.name,
+      code: error?.code
+    });
     res.status(500).json({
       success: false,
       error: error.message || 'Ошибка запуска импорта'
