@@ -865,7 +865,7 @@ router.get('/', requireAdmin, async (req, res) => {
                 <a href="/admin/reviews" class="btn">⭐ Отзывы</a>
                 <a href="/admin/orders" class="btn">📦 Заказы</a>
                 <button class="btn" onclick="openAddProductModal()" style="background: #28a745;">➕ Добавить товар</button>
-                <button class="btn import-siam-btn" onclick="importSiamProducts(this)" style="background: #17a2b8; cursor: pointer;">🤖 Импорт Siam Botanicals</button>
+                <button class="btn import-siam-btn" onclick="event.stopPropagation(); event.stopImmediatePropagation(); importSiamProducts(this, event); return false;" style="background: #17a2b8; cursor: pointer; pointer-events: auto !important;">🤖 Импорт Siam Botanicals</button>
               </div>
             </div>
             <p>Управление каталогом товаров, отзывами и заказами.</p>
@@ -5555,18 +5555,18 @@ router.get('/products', requireAdmin, async (req, res) => {
           };
           
           // Import Siam Botanicals products
-          window.importSiamProducts = async function(buttonElement) {
-            // Предотвращаем блокировку события
-            if (event) {
-              event.stopPropagation();
-              event.stopImmediatePropagation();
+          window.importSiamProducts = async function(buttonElement, eventObj) {
+            // Предотвращаем блокировку события, если оно передано
+            if (eventObj) {
+              eventObj.stopPropagation();
+              eventObj.stopImmediatePropagation();
             }
             
             if (!confirm('Запустить импорт продуктов из Siam Botanicals? Это может занять несколько минут.')) {
               return;
             }
             
-            const btn = buttonElement || event?.target || document.querySelector('.import-siam-btn') || document.querySelector('button[onclick*="importSiamProducts"]');
+            const btn = buttonElement || (eventObj && eventObj.target) || document.querySelector('.import-siam-btn') || document.querySelector('button[onclick*="importSiamProducts"]');
             if (btn) {
               const originalText = btn.textContent;
               btn.disabled = true;
