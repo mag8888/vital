@@ -615,10 +615,21 @@ async function extractImageFromProductPage(slug: string): Promise<string | null>
     });
 
     if (!response.ok) {
+      if (response.status === 404) {
+        console.log(`   ⚠️  Страница товара не найдена (404): ${slug}`);
+      } else {
+        console.log(`   ⚠️  Ошибка при загрузке страницы (${response.status}): ${slug}`);
+      }
       return null;
     }
 
     const html = await response.text();
+    
+    // Проверяем, не является ли страница 404 страницей
+    if (html.includes('Page not found') || html.includes('404') || html.includes('Not Found')) {
+      console.log(`   ⚠️  Страница товара не найдена (404 в HTML): ${slug}`);
+      return null;
+    }
     
     // Ищем изображение товара в HTML - расширенный набор паттернов
     const patterns = [
@@ -1028,6 +1039,14 @@ export async function uploadAllProductImagesFromPages(): Promise<{ updated: numb
       console.log(`\n📦 Товар: ${dbProduct.title}`);
       console.log(`   Английское название: ${siamProduct.englishTitle}`);
       
+      // Проверяем, нужно ли обновлять изображение
+      // Пропускаем, если уже есть изображение на Cloudinary
+      if (dbProduct.imageUrl && dbProduct.imageUrl.includes('cloudinary') && !dbProduct.imageUrl.includes('siambotanicals.com')) {
+        console.log(`   ⏭️  Пропускаю: товар уже имеет изображение на Cloudinary`);
+        skipped++;
+        continue;
+      }
+
       // Извлекаем URL изображения со страницы товара
       const productUrl = `https://siambotanicals.com/product/${slug}/`;
       console.log(`   📄 Загружаю страницу: ${productUrl}`);
@@ -1036,6 +1055,10 @@ export async function uploadAllProductImagesFromPages(): Promise<{ updated: numb
       
       if (!imageUrl) {
         console.log(`   ⚠️  Не удалось получить URL изображения со страницы`);
+        console.log(`   💡 Возможные причины:`);
+        console.log(`      - Страница товара не существует (404)`);
+        console.log(`      - Структура HTML страницы изменилась`);
+        console.log(`      - Товар был удален или переименован`);
         console.log(`   💡 Попробуйте проверить страницу вручную: ${productUrl}`);
         failed++;
         continue;
