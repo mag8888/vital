@@ -1097,6 +1097,108 @@ router.get('/', requireAdmin, async (req, res) => {
           </div>
         </div>
         <script>
+          // Импорт продуктов - определяем сразу для раннего перехвата
+          (function() {
+            'use strict';
+            
+            // Обработчик импорта - определяем глобально сразу
+            async function handleImportSiamProducts(event) {
+              // Проверяем, что клик именно по кнопке импорта
+              const target = event.target.closest('.import-siam-btn');
+              if (!target) return;
+              
+              event.preventDefault();
+              event.stopPropagation();
+              event.stopImmediatePropagation();
+              
+              if (!confirm('Запустить импорт продуктов из Siam Botanicals? Это может занять несколько минут.')) {
+                return false;
+              }
+              
+              const btn = target;
+              const originalText = btn.textContent;
+              btn.disabled = true;
+              btn.textContent = '⏳ Импорт запущен...';
+              btn.style.opacity = '0.6';
+              
+              try {
+                console.log('📤 Отправляю запрос на импорт...');
+                const response = await fetch('/admin/api/import-siam-products', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  credentials: 'include'
+                });
+                
+                console.log('📥 Ответ получен, status:', response.status);
+                
+                if (!response.ok) {
+                  const errorText = await response.text();
+                  console.error('❌ Ошибка ответа:', errorText);
+                  throw new Error('HTTP ' + response.status + ': ' + errorText);
+                }
+                
+                const result = await response.json();
+                console.log('📋 Результат:', result);
+                
+                if (result.success) {
+                  alert('✅ Импорт запущен! Продукты будут добавлены в течение нескольких минут. Проверьте логи сервера или обновите страницу через 3-5 минут.');
+                } else {
+                  throw new Error(result.error || 'Ошибка запуска импорта');
+                }
+              } catch (error) {
+                console.error('❌ Import error:', error);
+                console.error('❌ Error details:', {
+                  message: error instanceof Error ? error.message : String(error),
+                  stack: error instanceof Error ? error.stack : undefined
+                });
+                alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Не удалось запустить импорт. Проверьте консоль браузера (F12) для подробностей.'));
+              } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+                btn.style.opacity = '1';
+              }
+              
+              return false;
+            }
+            
+            // Прикрепляем обработчик СРАЗУ с самым ранним capture phase
+            // Это должно сработать до любых блокировщиков
+            if (document.readyState === 'loading') {
+              document.addEventListener('click', handleImportSiamProducts, true);
+            } else {
+              document.addEventListener('click', handleImportSiamProducts, true);
+            }
+            
+            // Также прикрепляем после загрузки DOM для надежности
+            document.addEventListener('DOMContentLoaded', function() {
+              document.addEventListener('click', handleImportSiamProducts, true);
+              
+              // Прямой обработчик на кнопку
+              function attachDirectHandler() {
+                const importBtn = document.querySelector('.import-siam-btn');
+                if (importBtn && !importBtn.hasAttribute('data-handler-attached')) {
+                  importBtn.addEventListener('click', handleImportSiamProducts, true);
+                  importBtn.setAttribute('data-handler-attached', 'true');
+                  console.log('✅ Direct import button handler attached');
+                } else if (!importBtn) {
+                  setTimeout(attachDirectHandler, 200);
+                }
+              }
+              
+              attachDirectHandler();
+              setTimeout(attachDirectHandler, 500);
+              setTimeout(attachDirectHandler, 1000);
+            });
+            
+            // Экстренная попытка - через небольшую задержку
+            setTimeout(function() {
+              document.addEventListener('click', handleImportSiamProducts, true);
+              console.log('✅ Import handler attached (delayed)');
+            }, 50);
+          })();
+          
           window.switchTab = function(tabName) {
             // Hide all tab contents
             const contents = document.querySelectorAll('.tab-content');
