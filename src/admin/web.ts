@@ -5210,7 +5210,11 @@ router.get('/products', requireAdmin, async (req, res) => {
       const priceFormatted = `${rubPrice} ₽ / ${product.price.toFixed(2)} PZ`;
       const createdAt = new Date(product.createdAt).toLocaleDateString();
       const imageSection = product.imageUrl
-        ? `<img src="${product.imageUrl}" alt="${product.title}" class="product-image" loading="lazy">`
+        ? `<img src="${product.imageUrl.replace(/"/g, '&quot;')}" alt="${(product.title || '').replace(/"/g, '&quot;')}" class="product-image" loading="lazy" onerror="this.onerror=null; this.style.display='none'; const placeholder = this.parentElement.querySelector('.product-image-placeholder'); if(placeholder) placeholder.style.display='flex';">
+           <div class="product-image-placeholder" style="display: none;">
+             <span class="placeholder-icon">📷</span>
+             <span class="placeholder-text">Нет фото</span>
+           </div>`
         : `<div class="product-image-placeholder">
              <span class="placeholder-icon">📷</span>
              <span class="placeholder-text">Нет фото</span>
@@ -5244,16 +5248,16 @@ router.get('/products', requireAdmin, async (req, res) => {
                 type="button" 
                 class="edit-btn"
                 data-id="${product.id}"
-                data-title="${product.title.replace(/"/g, '&quot;')}"
-                data-summary="${(product.summary || '').replace(/"/g, '&quot;')}"
-                data-description="${(product.description || '').replace(/"/g, '&quot;')}"
-                data-instruction="${((product as any).instruction || '').replace(/"/g, '&quot;')}"
+                data-title="${(product.title || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}"
+                data-summary="${(product.summary || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}"
+                data-description="${(product.description || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}"
+                data-instruction="${((product as any).instruction || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/`/g, '&#96;')}"
                 data-price="${product.price}"
                 data-category-id="${product.categoryId}"
                 data-active="${product.isActive ? 'true' : 'false'}"
                 data-russia="${(product as any).availableInRussia ? 'true' : 'false'}"
                 data-bali="${(product as any).availableInBali ? 'true' : 'false'}"
-                data-image="${product.imageUrl || ''}"
+                data-image="${(product.imageUrl || '').replace(/"/g, '&quot;')}"
                 onclick="editProduct(this)"
               >✏️ Редактировать</button>
               <form method="post" action="/admin/products/${product.id}/toggle-active">
@@ -5263,8 +5267,8 @@ router.get('/products', requireAdmin, async (req, res) => {
                 <input type="file" name="image" accept="image/*" style="display: none;" id="image-${product.id}" onchange="this.form.submit()">
                 <button type="button" class="image-btn" onclick="document.getElementById('image-${product.id}').click()">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</button>
               </form>
-              <button class="instruction-btn" onclick="showInstruction('${product.id}', \`${((product as any).instruction || '').replace(/`/g, '\\`').replace(/'/g, "\\'")}\`)" style="background: #28a745;">📋 Инструкция</button>
-              <form method="post" action="/admin/products/${product.id}/delete" onsubmit="return confirm('Удалить товар «${product.title}»?')">
+              <button class="instruction-btn" data-instruction-id="${product.id}" data-instruction-text="${((product as any).instruction || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" onclick="showInstructionSafe(this)" style="background: #28a745;">📋 Инструкция</button>
+              <form method="post" action="/admin/products/${product.id}/delete" onsubmit="return confirm('Удалить товар?')">
                 <button type="submit" class="delete-btn">Удалить</button>
               </form>
             </div>
@@ -5294,6 +5298,17 @@ router.get('/products', requireAdmin, async (req, res) => {
               });
             });
           });
+          
+          // Safe function to show instruction
+          function showInstructionSafe(button) {
+            const productId = button.dataset.instructionId;
+            const instructionText = button.dataset.instructionText || '';
+            if (window.showInstruction) {
+              window.showInstruction(productId, instructionText);
+            } else {
+              alert('Инструкция:\n\n' + (instructionText || 'Инструкция не добавлена'));
+            }
+          }
           
           // Simple function for editing products
           function editProduct(button) {
