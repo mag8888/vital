@@ -80,7 +80,7 @@ async function handleSupportMessage(ctx: Context) {
   if (messageText.startsWith('/')) return;
 
   // Skip if it's a button press (common button texts)
-  const buttonTexts = ['🛒 Магазин', '💰 Партнёрка', '🎵 Звуковые матрицы Гаряева', '⭐ Отзывы', 'ℹ️ О PLASMA', 'Меню', 'Главное меню', 'Назад'];
+  const buttonTexts = ['🛒 Магазин', '💰 Партнёрка', '⭐ Отзывы', 'ℹ️ О нас', 'Меню', 'Главное меню', 'Назад'];
   if (buttonTexts.includes(messageText)) return;
 
   // Log the support message
@@ -136,12 +136,6 @@ async function showGiftMessage(ctx: Context) {
       inline_keyboard: [
         [
           {
-            text: '🎵 Слушать звуковые матрицы',
-            callback_data: 'nav:audio:gift',
-          },
-        ],
-        [
-          {
             text: '📖 ГИД по плазменному здоровью',
             url: 'https://t.me/ivitalbot',
           },
@@ -159,16 +153,24 @@ const navigationItems: NavigationItem[] = [
     description: 'Каталог продукции и сезонные наборы',
     badgeKey: 'shop',
     handler: async (ctx) => {
-      const { showRegionSelection, showCategories } = await import('../shop/index.js');
-      const user = await ensureUser(ctx);
-      
-      if (user && (user as any).selectedRegion) {
-        // User already has a region selected, show categories directly
-        await showCategories(ctx, (user as any).selectedRegion);
-      } else {
-        // User needs to select region first
-        await showRegionSelection(ctx);
-      }
+      // Открываем webapp вместо старого магазина
+      const webappUrl = getWebappUrl();
+      await ctx.reply(
+        '🛒 <b>Открываю магазин...</b>',
+        {
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: '🚀 Открыть магазин',
+                  web_app: { url: webappUrl }
+                }
+              ]
+            ]
+          }
+        }
+      );
     },
   },
   {
@@ -179,16 +181,6 @@ const navigationItems: NavigationItem[] = [
     handler: async (ctx) => {
       const { showPartnerIntro } = await import('../partner/index.js');
       await showPartnerIntro(ctx);
-    },
-  },
-  {
-    id: 'sounds',
-    title: 'Звуковые матрицы Гаряева',
-    emoji: '🎵',
-    description: 'Уникальные аудиофайлы для оздоровления',
-    handler: async (ctx) => {
-      const { showAudioFiles } = await import('../audio/index.js');
-      await showAudioFiles(ctx, 'gift');
     },
   },
   {
@@ -204,7 +196,7 @@ const navigationItems: NavigationItem[] = [
   },
   {
     id: 'about',
-    title: 'О PLASMA',
+    title: 'О нас',
     emoji: 'ℹ️',
     description: 'Информация о Vital и соцсети',
     handler: async (ctx) => {
@@ -404,8 +396,7 @@ async function sendNavigationMenu(ctx: Context) {
 export function mainKeyboard() {
   return Markup.keyboard([
     ['🛒 Магазин', '🤝 Партнёрка'],
-    ['🎵 Звуковые матрицы Гаряева'],
-    ['⭐ Отзывы', 'ℹ️ О PLASMA'],
+    ['⭐ Отзывы', 'ℹ️ О нас'],
   ]).resize();
 }
 
@@ -421,9 +412,8 @@ export const navigationModule: BotModule = {
         '/help - Показать эту справку\n' +
         '/shop - Открыть магазин товаров\n' +
         '/partner - Партнерская программа\n' +
-        '/audio - Звуковые матрицы\n' +
         '/reviews - Отзывы клиентов\n' +
-        '/about - О PLASMA Water\n' +
+        '/about - О нас\n' +
         '/add_balance - Пополнить баланс через Lava\n' +
         '/support - Поддержка 24/7\n' +
         '/app - Открыть веб-приложение\n\n' +
@@ -646,11 +636,6 @@ export const navigationModule: BotModule = {
       await showPartnerIntro(ctx);
     });
 
-    bot.hears('🎵 Звуковые матрицы Гаряева', async (ctx) => {
-      await logUserAction(ctx, 'menu:sounds');
-      const { showAudioFiles } = await import('../audio/index.js');
-      await showAudioFiles(ctx, 'gift');
-    });
 
     bot.hears('⭐ Отзывы', async (ctx) => {
       await logUserAction(ctx, 'menu:reviews');
@@ -658,7 +643,7 @@ export const navigationModule: BotModule = {
       await showReviews(ctx);
     });
 
-    bot.hears('ℹ️ О PLASMA', async (ctx) => {
+    bot.hears('ℹ️ О нас', async (ctx) => {
       await logUserAction(ctx, 'menu:about');
       const { showAbout } = await import('../about/index.js');
       await showAbout(ctx);
@@ -678,12 +663,6 @@ export const navigationModule: BotModule = {
       await showGiftMessage(ctx);
     });
 
-    bot.action('nav:audio:gift', async (ctx) => {
-      await ctx.answerCbQuery();
-      await logUserAction(ctx, 'cta:audio:gift');
-      const { showAudioFiles } = await import('../audio/index.js');
-      await showAudioFiles(ctx, 'gift');
-    });
 
     for (const item of navigationItems) {
       bot.action(`${NAVIGATION_ACTION_PREFIX}${item.id}`, async (ctx) => {
@@ -787,7 +766,7 @@ export const navigationModule: BotModule = {
         return;
       }
       
-      const buttonTexts = ['🛒 Магазин', '💰 Партнёрка', '🎵 Звуковые матрицы Гаряева', '⭐ Отзывы', 'ℹ️ О PLASMA', 'Меню', 'Главное меню', 'Назад'];
+      const buttonTexts = ['🛒 Магазин', '💰 Партнёрка', '⭐ Отзывы', 'ℹ️ О нас', 'Меню', 'Главное меню', 'Назад'];
       if (buttonTexts.includes(messageText)) {
         await next();
         return;

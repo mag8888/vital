@@ -30,14 +30,19 @@ export async function getAllActiveProducts() {
   try {
     console.log('📦 getAllActiveProducts: Querying database...');
     const products = await prisma.product.findMany({
-      where: { isActive: true },
+      where: { 
+        isActive: true,
+        imageUrl: { not: null }, // Only products with images
+      },
       include: {
         category: true
       },
       orderBy: { title: 'asc' },
     });
-    console.log(`✅ getAllActiveProducts: Found ${products.length} products`);
-    return products;
+    // Additional filter to ensure imageUrl is not empty string
+    const productsWithImages = products.filter(p => p.imageUrl && p.imageUrl.trim() !== '');
+    console.log(`✅ getAllActiveProducts: Found ${productsWithImages.length} products with images (out of ${products.length} total)`);
+    return productsWithImages;
   } catch (error: any) {
     console.error('❌ getAllActiveProducts error:', error);
     if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
