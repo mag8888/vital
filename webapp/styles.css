@@ -162,23 +162,23 @@ body {
 /* Card grid - FORMA Store style with larger cards */
 .content-grid {
     flex: 1;
-    padding: 16px;
+    padding: 20px 16px;
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+    gap: 16px;
     max-width: 100%;
     margin: 0 auto;
 }
 
 .content-card {
     position: relative;
-    border-radius: var(--radius-md);
-    background: #e8e8e8;
-    border: none;
+    border-radius: 16px;
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.06);
     overflow: hidden;
     cursor: pointer;
-    transition: var(--transition);
-    box-shadow: none;
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
     min-height: 180px;
     aspect-ratio: 1 / 1;
     display: flex;
@@ -208,10 +208,11 @@ body {
 /* Shop card - elegant shopping theme with green accent */
 .shop-card .card-image {
     background: 
-        linear-gradient(135deg, rgba(76, 175, 80, 0.08) 0%, rgba(56, 142, 60, 0.12) 50%, rgba(46, 125, 50, 0.08) 100%),
-        radial-gradient(circle at 30% 40%, rgba(76, 175, 80, 0.1) 0%, transparent 50%),
-        radial-gradient(circle at 70% 60%, rgba(56, 142, 60, 0.1) 0%, transparent 50%);
+        linear-gradient(135deg, rgba(76, 175, 80, 0.15) 0%, rgba(56, 142, 60, 0.2) 50%, rgba(46, 125, 50, 0.15) 100%),
+        radial-gradient(circle at 30% 40%, rgba(76, 175, 80, 0.25) 0%, transparent 60%),
+        radial-gradient(circle at 70% 60%, rgba(56, 142, 60, 0.2) 0%, transparent 60%);
     background-size: 100% 100%, 60% 60%, 50% 50%;
+    filter: blur(0.5px);
 }
 
 .shop-card::after {
@@ -220,19 +221,27 @@ body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-size: 64px;
-    opacity: 0.12;
+    font-size: 72px;
+    opacity: 0.18;
     z-index: 1;
     pointer-events: none;
+    filter: drop-shadow(0 4px 8px rgba(76, 175, 80, 0.2));
+    transition: transform 0.3s ease;
+}
+
+.shop-card:hover::after {
+    transform: translate(-50%, -50%) scale(1.1);
+    opacity: 0.22;
 }
 
 /* Partner card - network and connections theme with blue accent */
 .partner-card .card-image {
     background: 
-        linear-gradient(135deg, rgba(33, 150, 243, 0.08) 0%, rgba(21, 101, 192, 0.12) 50%, rgba(13, 71, 161, 0.08) 100%),
-        radial-gradient(circle at 40% 50%, rgba(33, 150, 243, 0.1) 0%, transparent 60%),
-        radial-gradient(circle at 60% 50%, rgba(25, 118, 210, 0.1) 0%, transparent 60%);
+        linear-gradient(135deg, rgba(33, 150, 243, 0.15) 0%, rgba(21, 101, 192, 0.2) 50%, rgba(13, 71, 161, 0.15) 100%),
+        radial-gradient(circle at 40% 50%, rgba(33, 150, 243, 0.25) 0%, transparent 60%),
+        radial-gradient(circle at 60% 50%, rgba(25, 118, 210, 0.2) 0%, transparent 60%);
     background-size: 100% 100%, 55% 55%, 55% 55%;
+    filter: blur(0.5px);
 }
 
 .partner-card::after {
@@ -241,18 +250,26 @@ body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-size: 64px;
-    opacity: 0.12;
+    font-size: 72px;
+    opacity: 0.18;
     z-index: 1;
     pointer-events: none;
+    filter: drop-shadow(0 4px 8px rgba(33, 150, 243, 0.2));
+    transition: transform 0.3s ease;
+}
+
+.partner-card:hover::after {
+    transform: translate(-50%, -50%) scale(1.1);
+    opacity: 0.22;
 }
 
 /* Reviews card - stars and testimonials theme with gold accent */
 .reviews-card .card-image {
     background: 
-        linear-gradient(135deg, rgba(255, 193, 7, 0.08) 0%, rgba(255, 152, 0, 0.12) 50%, rgba(245, 124, 0, 0.08) 100%),
-        radial-gradient(circle at 50% 50%, rgba(255, 193, 7, 0.1) 0%, transparent 70%);
+        linear-gradient(135deg, rgba(255, 193, 7, 0.15) 0%, rgba(255, 152, 0, 0.2) 50%, rgba(245, 124, 0, 0.15) 100%),
+        radial-gradient(circle at 50% 50%, rgba(255, 193, 7, 0.25) 0%, transparent 70%);
     background-size: 100% 100%, 80% 80%;
+    filter: blur(0.5px);
 }
 
 .reviews-card::after {
@@ -261,19 +278,27 @@ body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-size: 64px;
-    opacity: 0.12;
+    font-size: 72px;
+    opacity: 0.18;
     z-index: 1;
     pointer-events: none;
+    filter: drop-shadow(0 4px 8px rgba(255, 193, 7, 0.25));
+    transition: transform 0.3s ease;
+}
+
+.reviews-card:hover::after {
+    transform: translate(-50%, -50%) scale(1.1) rotate(5deg);
+    opacity: 0.22;
 }
 
 /* About card - water droplet and nature theme with cyan accent */
 .about-card .card-image {
     background: 
-        linear-gradient(135deg, rgba(3, 169, 244, 0.08) 0%, rgba(0, 150, 255, 0.12) 50%, rgba(0, 131, 220, 0.08) 100%),
-        radial-gradient(ellipse at 50% 40%, rgba(3, 169, 244, 0.15) 0%, transparent 70%),
-        radial-gradient(ellipse at 50% 70%, rgba(0, 188, 212, 0.1) 0%, transparent 60%);
+        linear-gradient(135deg, rgba(3, 169, 244, 0.15) 0%, rgba(0, 150, 255, 0.2) 50%, rgba(0, 131, 220, 0.15) 100%),
+        radial-gradient(ellipse at 50% 40%, rgba(3, 169, 244, 0.25) 0%, transparent 70%),
+        radial-gradient(ellipse at 50% 70%, rgba(0, 188, 212, 0.2) 0%, transparent 60%);
     background-size: 100% 100%, 100% 100%, 100% 100%;
+    filter: blur(0.5px);
 }
 
 .about-card::after {
@@ -282,19 +307,27 @@ body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-size: 64px;
-    opacity: 0.12;
+    font-size: 72px;
+    opacity: 0.18;
     z-index: 1;
     pointer-events: none;
+    filter: drop-shadow(0 4px 8px rgba(3, 169, 244, 0.2));
+    transition: transform 0.3s ease;
+}
+
+.about-card:hover::after {
+    transform: translate(-50%, -50%) scale(1.1);
+    opacity: 0.22;
 }
 
 /* Support card - chat bubbles and help theme with purple accent */
 .support-card .card-image {
     background: 
-        linear-gradient(135deg, rgba(156, 39, 176, 0.08) 0%, rgba(123, 31, 162, 0.12) 50%, rgba(106, 27, 154, 0.08) 100%),
-        radial-gradient(circle at 35% 45%, rgba(156, 39, 176, 0.12) 0%, transparent 50%),
-        radial-gradient(circle at 65% 55%, rgba(171, 71, 188, 0.1) 0%, transparent 50%);
+        linear-gradient(135deg, rgba(156, 39, 176, 0.15) 0%, rgba(123, 31, 162, 0.2) 50%, rgba(106, 27, 154, 0.15) 100%),
+        radial-gradient(circle at 35% 45%, rgba(156, 39, 176, 0.25) 0%, transparent 50%),
+        radial-gradient(circle at 65% 55%, rgba(171, 71, 188, 0.2) 0%, transparent 50%);
     background-size: 100% 100%, 50% 50%, 50% 50%;
+    filter: blur(0.5px);
 }
 
 .support-card::after {
@@ -303,23 +336,35 @@ body {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-size: 64px;
-    opacity: 0.12;
+    font-size: 72px;
+    opacity: 0.18;
     z-index: 1;
     pointer-events: none;
+    filter: drop-shadow(0 4px 8px rgba(156, 39, 176, 0.2));
+    transition: transform 0.3s ease;
 }
 
-/* Gradient overlay for text readability - FORMA style */
+.support-card:hover::after {
+    transform: translate(-50%, -50%) scale(1.1);
+    opacity: 0.22;
+}
+
+/* Gradient overlay for text readability - Enhanced FORMA style */
 .content-card::before {
     content: '';
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
-    height: 70%;
-    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0.75) 100%);
+    height: 75%;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.35) 40%, rgba(0, 0, 0, 0.7) 70%, rgba(0, 0, 0, 0.85) 100%);
     z-index: 2;
     pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.content-card:hover::before {
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.4) 40%, rgba(0, 0, 0, 0.75) 70%, rgba(0, 0, 0, 0.9) 100%);
 }
 
 .content-card .card-inner {
@@ -391,16 +436,22 @@ body {
 }
 
 .card-title {
-    font-size: 20px;
+    font-size: 22px;
     font-weight: 700;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.03em;
     color: #ffffff;
     line-height: 1.3;
-    padding: 20px 16px;
+    padding: 24px 18px;
     position: relative;
     z-index: 3;
     text-align: left;
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.7);
+    text-shadow: 0 3px 12px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.8), 0 1px 2px rgba(0, 0, 0, 0.9);
+    transition: transform 0.3s ease, text-shadow 0.3s ease;
+}
+
+.content-card:hover .card-title {
+    transform: translateY(-2px);
+    text-shadow: 0 4px 16px rgba(0, 0, 0, 0.7), 0 2px 8px rgba(0, 0, 0, 0.9);
 }
 
 .card-action {
@@ -408,12 +459,14 @@ body {
 }
 
 .content-card:active {
-    transform: scale(0.98);
+    transform: scale(0.97);
+    transition: transform 0.1s ease;
 }
 
 .content-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-4px) scale(1.01);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
+    border-color: rgba(0, 0, 0, 0.1);
 }
 
 /* Bottom navigation - FORMA Store minimal style */
