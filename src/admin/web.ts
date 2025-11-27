@@ -964,7 +964,7 @@ router.get('/', requireAdmin, async (req, res) => {
               <span class="close" onclick="closeAddProductModal()">&times;</span>
             </div>
             
-            <form id="addProductForm" class="product-form">
+            <form id="productModalForm" class="product-form">
               <input type="hidden" id="productId" name="productId" value="">
               <div class="product-section">
                 <div class="product-section-header">
@@ -1710,7 +1710,7 @@ router.get('/', requireAdmin, async (req, res) => {
             const modal = document.getElementById('addProductModal');
             if (modal) modal.style.display = 'none';
             
-            const form = document.getElementById('addProductForm');
+            const form = document.getElementById('productModalForm');
             if (form) form.reset();
             
             const productIdEl = document.getElementById('productId');
@@ -1751,7 +1751,8 @@ router.get('/', requireAdmin, async (req, res) => {
           // loadCategories is already defined as window.loadCategories above
           
           // Handle product form submission
-          document.getElementById('addProductForm').addEventListener('submit', async function(e) {
+          const productModalForm = document.getElementById('productModalForm') as HTMLFormElement | null;
+          productModalForm?.addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const productId = document.getElementById('productId').value;
