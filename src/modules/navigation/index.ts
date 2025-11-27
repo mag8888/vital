@@ -509,11 +509,20 @@ export const navigationModule: BotModule = {
             const isNewUser = !existingUserBeforeEnsure;
             console.log('🔗 Referral: Is new user:', isNewUser);
             
-            // Process referral using partner profile if exists
-            if (referrerUser.partner) {
+            // Process referral - create partner profile if it doesn't exist
+            let partnerProfile = referrerUser.partner;
+            if (!partnerProfile) {
+              console.log('🔗 Referral: Partner profile not found, creating one for referrer');
+              const { getOrCreatePartnerProfile } = await import('../../services/partner-service.js');
+              partnerProfile = await getOrCreatePartnerProfile(referrerUser.id, 'DIRECT');
+              console.log('🔗 Referral: Partner profile created:', partnerProfile.id);
+            }
+            
+            // Create referral record
+            if (partnerProfile) {
               const referralLevel = 1;
-              const programType = referrerUser.partner.programType || 'DIRECT';
-              await upsertPartnerReferral(referrerUser.partner.id, referralLevel, user.id, undefined, programType);
+              const programType = partnerProfile.programType || 'DIRECT';
+              await upsertPartnerReferral(partnerProfile.id, referralLevel, user.id, undefined, programType);
               console.log('🔗 Referral: Referral record created via username');
             }
             
@@ -537,10 +546,10 @@ export const navigationModule: BotModule = {
                   
                   let updatedReferrer;
                   
-                  // If partner profile exists, use recordPartnerTransaction (it will update balance automatically)
-                  if (referrerUser.partner) {
+                  // Use partner profile (created above if didn't exist)
+                  if (partnerProfile) {
                     await recordPartnerTransaction(
-                      referrerUser.partner.id,
+                      partnerProfile.id,
                       3,
                       `Бонус 3PZ за приглашение нового пользователя (${user.id})`,
                       'CREDIT'
