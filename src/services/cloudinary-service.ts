@@ -52,16 +52,20 @@ export async function uploadImage(
     publicId,
     resourceType = 'image',
     transformation = [],
-    format = 'auto',
+    format,
   } = options;
 
   return new Promise((resolve, reject) => {
     const uploadOptions: any = {
       folder,
       resource_type: resourceType,
-      format,
       transformation,
     };
+
+    // Добавляем format только если он указан и не 'auto'
+    if (format && format !== 'auto') {
+      uploadOptions.format = format;
+    }
 
     if (publicId) {
       uploadOptions.public_id = publicId;
@@ -113,15 +117,19 @@ export async function uploadImageFromPath(
     publicId,
     resourceType = 'image',
     transformation = [],
-    format = 'auto',
+    format,
   } = options;
 
   const uploadOptions: any = {
     folder,
     resource_type: resourceType,
-    format,
     transformation,
   };
+
+  // Добавляем format только если он указан и не 'auto'
+  if (format && format !== 'auto') {
+    uploadOptions.format = format;
+  }
 
   if (publicId) {
     uploadOptions.public_id = publicId;

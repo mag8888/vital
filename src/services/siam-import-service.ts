@@ -622,23 +622,30 @@ async function extractImageFromProductPage(slug: string): Promise<string | null>
     
     // Ищем изображение товара в HTML - расширенный набор паттернов
     const patterns = [
-      // WooCommerce галерея
+      // WooCommerce галерея - приоритетные паттерны
       /<img[^>]*class="[^"]*woocommerce-product-gallery__image[^"]*"[^>]*src="([^"]+)"/i,
       /<img[^>]*class="[^"]*woocommerce-product-gallery__image[^"]*"[^>]*data-src="([^"]+)"/i,
       /<img[^>]*data-large_image="([^"]+)"/i,
       /<img[^>]*data-full_image="([^"]+)"/i,
+      // WooCommerce single product image
+      /<div[^>]*class="[^"]*woocommerce-product-gallery[^"]*"[^>]*>[\s\S]*?<img[^>]*src="([^"]+)"/i,
       // WordPress изображения
       /<img[^>]*class="[^"]*wp-post-image[^"]*"[^>]*src="([^"]+)"/i,
       /<img[^>]*class="[^"]*attachment-woocommerce_single[^"]*"[^>]*src="([^"]+)"/i,
-      // Общие паттерны для изображений из wp-content
+      // Общие паттерны для изображений из wp-content (более специфичные)
       /<img[^>]*src="([^"]*\/wp-content\/uploads\/[^"]+\.(jpg|jpeg|png|webp))"[^>]*>/i,
       // Изображения в figure или div
       /<figure[^>]*>[\s\S]*?<img[^>]*src="([^"]*\/wp-content\/uploads\/[^"]+\.(jpg|jpeg|png|webp))"[^>]*>/i,
       // Изображения в background-image
       /background-image:\s*url\(['"]?([^'")]+\/(wp-content\/uploads\/[^'")]+\.(jpg|jpeg|png|webp))[^'")]*)['"]?\)/i,
+      // Общий паттерн для любых изображений из uploads
+      /https?:\/\/[^"'\s]+\/wp-content\/uploads\/[^"'\s]+\.(jpg|jpeg|png|webp)/i,
     ];
+    
+    console.log(`   🔍 Ищу изображение в HTML (длина HTML: ${html.length} символов)...`);
 
-    for (const pattern of patterns) {
+    for (let i = 0; i < patterns.length; i++) {
+      const pattern = patterns[i];
       const match = html.match(pattern);
       if (match && match[1]) {
         let imageUrl = match[1];
@@ -650,16 +657,31 @@ async function extractImageFromProductPage(slug: string): Promise<string | null>
           imageUrl = 'https://siambotanicals.com' + imageUrl;
         }
 
-        // Убираем параметры размера для получения оригинала
-        imageUrl = imageUrl.replace(/-\d+x\d+\.(jpg|jpeg|png)/i, '.$1');
+        // Убираем параметры размера для получения оригинала (например, -300x300.jpg -> .jpg)
+        imageUrl = imageUrl.replace(/-\d+x\d+\.(jpg|jpeg|png|webp)/i, '.$1');
         
         // Убираем параметры запроса
         imageUrl = imageUrl.split('?')[0];
         
+        // Убираем лишние символы в конце (скобки, кавычки)
+        imageUrl = imageUrl.replace(/[)'"]+$/, '');
+        
+        console.log(`   ✅ Найдено изображение (паттерн ${i + 1}/${patterns.length}): ${imageUrl.split('/').pop()}`);
         return imageUrl;
       }
     }
 
+    // Если не нашли, попробуем найти любую ссылку на изображение в HTML
+    const fallbackMatch = html.match(/https?:\/\/[^"'\s]+\/wp-content\/uploads\/[^"'\s]+\.(jpg|jpeg|png|webp)/i);
+    if (fallbackMatch && fallbackMatch[0]) {
+      let imageUrl = fallbackMatch[0];
+      imageUrl = imageUrl.replace(/-\d+x\d+\.(jpg|jpeg|png|webp)/i, '.$1');
+      imageUrl = imageUrl.split('?')[0];
+      console.log(`   ✅ Найдено изображение (fallback): ${imageUrl.split('/').pop()}`);
+      return imageUrl;
+    }
+
+    console.log(`   ⚠️  Изображение не найдено. Проверьте HTML вручную: ${productUrl}`);
     return null;
   } catch (error) {
     return null;
