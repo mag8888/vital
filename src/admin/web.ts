@@ -4359,6 +4359,9 @@ router.get('/partners', requireAdmin, async (req, res) => {
         <form method="post" action="/admin/fix-roman-bonuses" style="display: inline;">
           <button type="submit" class="btn" style="background: #28a745;" onclick="return confirm('🔧 Исправить бонусы Roman Arctur?')">🔧 Исправить бонусы Roman</button>
         </form>
+        <form method="post" action="/admin/reset-all-partners" style="display: inline;">
+          <button type="submit" class="btn" style="background: #dc3545;" onclick="return confirm('⚠️⚠️⚠️ ВНИМАНИЕ! Это удалит ВСЕ партнерские профили, рефералы и транзакции! Это действие НЕОБРАТИМО! Введите \"ДА\" для подтверждения.') && prompt('Для подтверждения введите: УДАЛИТЬ ВСЕХ ПАРТНЕРОВ') === 'УДАЛИТЬ ВСЕХ ПАРТНЕРОВ'">🗑️ Сбросить всех партнёров</button>
+        </form>
         
         <div style="background: linear-gradient(135deg, #e8f5e8 0%, #d4edda 100%); padding: 20px; border-radius: 12px; margin: 20px 0; text-align: center; border: 3px solid #28a745; box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2);">
           <h2 style="margin: 0 0 5px 0; color: #28a745; font-size: 28px;">💰 Общий баланс всех партнёров</h2>
@@ -4378,7 +4381,9 @@ router.get('/partners', requireAdmin, async (req, res) => {
         ${req.query.success === 'bonuses_force_recalculated' ? '<div class="alert alert-success">✅ Все бонусы принудительно пересчитаны</div>' : ''}
         ${req.query.success === 'duplicate_bonuses_cleaned' ? `<div class="alert alert-success">✅ Дубли бонусов очищены! Удалено ${req.query.count || 0} дублей</div>` : ''}
         ${req.query.success === 'roman_bonuses_fixed' ? `<div class="alert alert-success">✅ Бонусы Roman Arctur исправлены! Новый бонус: ${req.query.bonus || 0} PZ</div>` : ''}
+        ${req.query.success === 'all_partners_reset' ? `<div class="alert alert-success">✅ Все партнёры удалены! Удалено профилей: ${req.query.count || 0}</div>` : ''}
         ${req.query.error === 'balance_add' ? '<div class="alert alert-error">❌ Ошибка при пополнении баланса</div>' : ''}
+        ${req.query.error === 'reset_partners_failed' ? '<div class="alert alert-error">❌ Ошибка при сбросе всех партнёров</div>' : ''}
         ${req.query.error === 'balance_subtract' ? '<div class="alert alert-error">❌ Ошибка при списании баланса</div>' : ''}
         ${req.query.error === 'bonus_recalculation' ? '<div class="alert alert-error">❌ Ошибка при пересчёте бонусов</div>' : ''}
         ${req.query.error === 'balance_recalculation_failed' ? '<div class="alert alert-error">❌ Ошибка при пересчёте всех балансов</div>' : ''}
@@ -7330,6 +7335,46 @@ router.post('/cleanup-duplicate-bonuses', requireAdmin, async (req, res) => {
     res.redirect('/admin/partners?error=duplicate_bonuses_cleanup_failed');
   }
 });
+
+// Reset all partners - удалить все партнерские профили
+router.post('/reset-all-partners', requireAdmin, async (req, res) => {
+  try {
+    console.log('🗑️ Starting reset all partners...');
+    
+    // Сначала посчитаем количество партнеров
+    const partnerCount = await prisma.partnerProfile.count();
+    console.log(`📊 Found ${partnerCount} partner profiles to delete`);
+    
+    if (partnerCount === 0) {
+      return res.redirect('/admin/partners?success=all_partners_reset&count=0');
+    }
+    
+    // Удаляем все PartnerTransaction (они каскадно удалятся при удалении PartnerProfile, но для ясности удаляем явно)
+    const transactionCount = await prisma.partnerTransaction.count();
+    console.log(`📊 Found ${transactionCount} transactions to delete`);
+    await prisma.partnerTransaction.deleteMany({});
+    console.log(`✅ Deleted ${transactionCount} partner transactions`);
+    
+    // Удаляем все PartnerReferral (они каскадно удалятся при удалении PartnerProfile, но для ясности удаляем явно)
+    const referralCount = await prisma.partnerReferral.count();
+    console.log(`📊 Found ${referralCount} referrals to delete`);
+    await prisma.partnerReferral.deleteMany({});
+    console.log(`✅ Deleted ${referralCount} partner referrals`);
+    
+    // Удаляем все PartnerProfile
+    await prisma.partnerProfile.deleteMany({});
+    console.log(`✅ Deleted ${partnerCount} partner profiles`);
+    
+    console.log(`\n🎉 Reset all partners completed! Deleted ${partnerCount} profiles, ${referralCount} referrals, ${transactionCount} transactions.`);
+    
+    res.redirect(`/admin/partners?success=all_partners_reset&count=${partnerCount}`);
+  } catch (error: any) {
+    console.error('❌ Reset all partners error:', error);
+    console.error('❌ Error stack:', error?.stack);
+    res.redirect('/admin/partners?error=reset_partners_failed');
+  }
+});
+
 // Fix Roman Arctur bonuses specifically
 router.post('/fix-roman-bonuses', requireAdmin, async (req, res) => {
   try {
