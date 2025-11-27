@@ -5593,7 +5593,7 @@ router.get('/products', requireAdmin, async (req, res) => {
               if (!response.ok) {
                 const errorText = await response.text();
                 console.error('❌ Ошибка ответа:', errorText);
-                throw new Error(`HTTP ${response.status}: ${errorText}`);
+                throw new Error('HTTP ' + response.status + ': ' + errorText);
               }
               
               const result = await response.json();
