@@ -750,7 +750,7 @@ router.get('/', requireAdmin, async (req, res) => {
           
           <div class="tabs">
             <button class="tab active" onclick="switchTab('overview')">📊 Обзор</button>
-            <button class="tab" onclick="switchTab('users')">👥 Пользователи</button>
+            <button class="tab" onclick="window.location.href='/admin/users-detailed'">👥 Пользователи</button>
             <button class="tab" onclick="switchTab('partners')">🤝 Партнёры</button>
             <button class="tab" onclick="switchTab('content')">📦 Контент</button>
             <button class="tab" onclick="switchTab('tools')">🔧 Инструменты</button>
@@ -2853,6 +2853,9 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
               
               <button onclick="applySorting()">🔄 Применить</button>
             </div>
+            <div class="message-controls" style="margin-top: 10px;">
+              <button class="btn" onclick="deleteSelectedUsers()" style="background: #dc3545;">🗑️ Удалить выбранных</button>
+            </div>
           </div>
           
           <div class="stats-bar">
@@ -2891,6 +2894,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                     <th class="compact-cell">
                       <input type="checkbox" id="selectAllUsers" onchange="toggleAllUsers(this.checked)" style="margin-right: 5px;">
                       <button onclick="openMessageModal()" class="action-btn" style="font-size: 10px; padding: 2px 6px;">📧</button>
+                      <button onclick="deleteSelectedUsers()" class="action-btn" style="font-size: 10px; padding: 2px 6px; background: #dc3545; color: white;" title="Удалить выбранных">🗑️</button>
                     </th>
                     <th class="compact-cell">Партнерская программа</th>
                     <th class="compact-cell">Баланс</th>
@@ -2996,6 +3000,9 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                       </button>
                       <button class="action-btn" onclick="openChangeInviter('${user.id}', '${user.firstName || 'Без имени'} ${user.lastName || ''}')" title="Сменить пригласителя">
                         🔄
+                      </button>
+                      <button class="action-btn delete-user-btn" onclick="deleteSelectedUser('${user.id}', '${(user.firstName || 'Пользователь').replace(/'/g, "\\'")}')" title="Удалить пользователя" style="background: #dc3545; color: white;">
+                        🗑️
                       </button>
                     </td>
                   </tr>
@@ -3224,6 +3231,100 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             const modal = document.getElementById('messageModal');
             if (modal) {
               modal.remove();
+            }
+          };
+          
+          // Функция для удаления выбранного пользователя
+          window.deleteSelectedUser = async function(userId, userName) {
+            if (!confirm('⚠️ ВНИМАНИЕ! Вы уверены, что хотите удалить пользователя "' + userName + '"?\n\nЭто действие удалит:\n- Пользователя\n- Партнерский профиль\n- Все рефералы\n- Все транзакции\n- Все заказы\n- Историю действий\n\nЭто действие НЕОБРАТИМО!')) {
+              return;
+            }
+            
+            const doubleCheck = prompt('Для подтверждения введите: УДАЛИТЬ');
+            if (doubleCheck !== 'УДАЛИТЬ') {
+              alert('Отмена удаления. Пользователь не был удален.');
+              return;
+            }
+            
+            try {
+              const response = await fetch('/admin/users/' + userId + '/delete', {
+                method: 'DELETE',
+                credentials: 'include',
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Ошибка при удалении пользователя');
+              }
+              
+              const result = await response.json();
+              
+              if (result.success) {
+                alert('✅ Пользователь "' + userName + '" успешно удален!');
+                // Перезагружаем страницу
+                window.location.reload();
+              } else {
+                throw new Error(result.error || 'Ошибка при удалении');
+              }
+            } catch (error) {
+              console.error('Error deleting user:', error);
+              alert('❌ Ошибка при удалении пользователя: ' + (error instanceof Error ? error.message : String(error)));
+            }
+          };
+          
+          // Функция для удаления всех выбранных пользователей
+          window.deleteSelectedUsers = async function() {
+            const selectedCheckboxes = document.querySelectorAll('.user-checkbox:checked');
+            if (selectedCheckboxes.length === 0) {
+              alert('Выберите пользователей для удаления');
+              return;
+            }
+            
+            const selectedIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+            
+            if (!confirm('⚠️ ВНИМАНИЕ! Вы уверены, что хотите удалить ' + selectedIds.length + ' пользователей?\n\nЭто действие удалит:\n- Пользователей\n- Партнерские профили\n- Все рефералы\n- Все транзакции\n- Все заказы\n- Историю действий\n\nЭто действие НЕОБРАТИМО!')) {
+              return;
+            }
+            
+            const doubleCheck = prompt('Для подтверждения введите: УДАЛИТЬ ВСЕХ');
+            if (doubleCheck !== 'УДАЛИТЬ ВСЕХ') {
+              alert('Отмена удаления. Пользователи не были удалены.');
+              return;
+            }
+            
+            try {
+              let successCount = 0;
+              let failCount = 0;
+              
+              for (const userId of selectedIds) {
+                try {
+                  const response = await fetch('/admin/users/' + userId + '/delete', {
+                    method: 'DELETE',
+                    credentials: 'include',
+                    headers: {
+                      'Content-Type': 'application/json'
+                    }
+                  });
+                  
+                  if (response.ok) {
+                    successCount++;
+                  } else {
+                    failCount++;
+                  }
+                } catch (error) {
+                  failCount++;
+                }
+              }
+              
+              alert('✅ Удалено пользователей: ' + successCount + '\n❌ Ошибок: ' + failCount);
+              // Перезагружаем страницу
+              window.location.reload();
+            } catch (error) {
+              console.error('Error deleting users:', error);
+              alert('❌ Ошибка при удалении пользователей');
             }
           };
           
@@ -4911,6 +5012,91 @@ router.post('/users/:id/change-inviter', requireAdmin, async (req, res) => {
     return res.redirect('/admin/users?error=inviter_change');
   }
 });
+
+// Delete user endpoint
+router.delete('/users/:id/delete', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log('🗑️ Deleting user:', id);
+    
+    // Find user first
+    const user = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        partner: true,
+        orders: true,
+        cartItems: true,
+        histories: true,
+        payments: true
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'Пользователь не найден'
+      });
+    }
+    
+    console.log(`🗑️ User found: ${user.firstName || 'Unknown'} (@${user.username || 'no username'})`);
+    console.log(`   - Partner profile: ${user.partner ? 'YES' : 'NO'}`);
+    console.log(`   - Orders: ${user.orders?.length || 0}`);
+    console.log(`   - Cart items: ${user.cartItems?.length || 0}`);
+    console.log(`   - Histories: ${user.histories?.length || 0}`);
+    console.log(`   - Payments: ${user.payments?.length || 0}`);
+    
+    // Delete in correct order (dependencies first)
+    // PartnerReferral with this user as referrer will be deleted via cascade
+    // But we need to delete referrals where this user is the referred user
+    await prisma.partnerReferral.deleteMany({
+      where: { referredId: id }
+    });
+    console.log('   ✅ Deleted partner referrals');
+    
+    // PartnerProfile will be deleted via cascade when user is deleted
+    // But transactions and referrals of the partner profile need to be handled
+    if (user.partner) {
+      await prisma.partnerTransaction.deleteMany({
+        where: { profileId: user.partner.id }
+      });
+      await prisma.partnerReferral.deleteMany({
+        where: { profileId: user.partner.id }
+      });
+      console.log('   ✅ Deleted partner transactions and referrals');
+    }
+    
+    // Cart items will be deleted via cascade
+    // Orders - we keep them but remove user reference
+    await prisma.orderRequest.updateMany({
+      where: { userId: id },
+      data: { userId: null }
+    });
+    console.log('   ✅ Removed user from orders');
+    
+    // Histories will be deleted via cascade
+    // Payments - we keep them but could remove user reference if needed
+    
+    // Finally delete the user (this will cascade delete partner profile, cart items, histories)
+    await prisma.user.delete({
+      where: { id }
+    });
+    console.log('   ✅ User deleted successfully');
+    
+    res.json({
+      success: true,
+      message: 'Пользователь успешно удален'
+    });
+  } catch (error: any) {
+    console.error('❌ Delete user error:', error);
+    console.error('❌ Error stack:', error?.stack);
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Ошибка при удалении пользователя'
+    });
+  }
+});
+
 router.get('/products', requireAdmin, async (req, res) => {
   try {
     console.log('🛍️ Admin products page accessed');
