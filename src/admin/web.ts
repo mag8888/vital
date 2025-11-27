@@ -5205,17 +5205,36 @@ router.get('/products', requireAdmin, async (req, res) => {
       `;
       return res.send(html);
     }
+    // Helper function to escape HTML attributes safely
+    const escapeAttr = (str: string | null | undefined): string => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    };
+    
+    // Helper function to escape HTML content safely
+    const escapeHtml = (str: string | null | undefined): string => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    };
+    
     allProducts.forEach((product) => {
       const rubPrice = (product.price * 100).toFixed(2);
       const priceFormatted = `${rubPrice} руб. / ${product.price.toFixed(2)} PZ`;
       const createdAt = new Date(product.createdAt).toLocaleDateString();
-      const escapedImageUrl = (product.imageUrl || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-      const escapedTitle = (product.title || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-      const imageId = `product-img-${product.id}`;
-      const placeholderId = `product-placeholder-${product.id}`;
+      const imageId = `product-img-${product.id.replace(/[^a-zA-Z0-9]/g, '-')}`;
+      const placeholderId = `product-placeholder-${product.id.replace(/[^a-zA-Z0-9]/g, '-')}`;
       
       const imageSection = product.imageUrl
-        ? `<img id="${imageId}" src="${escapedImageUrl}" alt="${escapedTitle}" class="product-image" loading="lazy" onerror="var img=document.getElementById('${imageId}');var ph=document.getElementById('${placeholderId}');if(img)img.style.display='none';if(ph)ph.style.display='flex';">
+        ? `<img id="${imageId}" src="${escapeAttr(product.imageUrl)}" alt="${escapeAttr(product.title)}" class="product-image" loading="lazy" onerror="var i=document.getElementById('${imageId}');var p=document.getElementById('${placeholderId}');if(i)i.style.display='none';if(p)p.style.display='flex';">
            <div id="${placeholderId}" class="product-image-placeholder" style="display: none;">
              <span class="placeholder-icon">📷</span>
              <span class="placeholder-text">Нет фото</span>
@@ -5226,54 +5245,54 @@ router.get('/products', requireAdmin, async (req, res) => {
            </div>`;
 
       html += `
-          <div class="product-card" data-category="${product.categoryId}" data-id="${product.id}">
+          <div class="product-card" data-category="${escapeAttr(product.categoryId)}" data-id="${escapeAttr(product.id)}">
             ${imageSection}
             <div class="product-header">
-              <h3 class="product-title">${(product.title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')}</h3>
-              <form method="post" action="/admin/products/${product.id}/toggle-active" style="display: inline;">
+              <h3 class="product-title">${escapeHtml(product.title)}</h3>
+              <form method="post" action="/admin/products/${escapeAttr(product.id)}/toggle-active" style="display: inline;">
                 <button type="submit" class="status-btn ${product.isActive ? 'active' : 'inactive'}" style="border: none; background: none; cursor: pointer; font-size: 12px; padding: 4px 8px; border-radius: 4px;">
                   ${product.isActive ? '✅ Активен' : '❌ Неактивен'}
                 </button>
               </form>
             </div>
-            <span class="badge badge-category">${(product.categoryName || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>
+            <span class="badge badge-category">${escapeHtml(product.categoryName)}</span>
             <div style="margin: 8px 0;">
               <span style="font-size: 12px; color: #666;">Регионы:</span>
               ${(product as any).availableInRussia ? '<span style="background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px;">🇷🇺 Россия</span>' : ''}
               ${(product as any).availableInBali ? '<span style="background: #f3e5f5; color: #7b1fa2; padding: 2px 6px; border-radius: 4px; font-size: 11px;">🇮🇩 Бали</span>' : ''}
             </div>
-            <p class="product-summary">${(product.summary || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')}</p>
+            <p class="product-summary">${escapeHtml(product.summary)}</p>
             <div class="product-price">${priceFormatted}</div>
             <div class="product-meta">
               <span>Создан: ${createdAt}</span>
-              <span>ID: ${product.id.slice(0, 8)}...</span>
+              <span>ID: ${escapeHtml(product.id.slice(0, 8))}...</span>
             </div>
             <div class="product-actions">
               <button 
                 type="button" 
                 class="edit-btn"
-                data-id="${product.id}"
-                data-title="${(product.title || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}"
-                data-summary="${(product.summary || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}"
-                data-description="${(product.description || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}"
-                data-instruction="${((product as any).instruction || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/`/g, '&#96;')}"
+                data-id="${escapeAttr(product.id)}"
+                data-title="${escapeAttr(product.title)}"
+                data-summary="${escapeAttr(product.summary)}"
+                data-description="${escapeAttr(product.description)}"
+                data-instruction="${escapeAttr((product as any).instruction)}"
                 data-price="${product.price}"
-                data-category-id="${product.categoryId}"
+                data-category-id="${escapeAttr(product.categoryId)}"
                 data-active="${product.isActive ? 'true' : 'false'}"
                 data-russia="${(product as any).availableInRussia ? 'true' : 'false'}"
                 data-bali="${(product as any).availableInBali ? 'true' : 'false'}"
-                data-image="${(product.imageUrl || '').replace(/"/g, '&quot;')}"
+                data-image="${escapeAttr(product.imageUrl)}"
                 onclick="editProduct(this)"
               >✏️ Редактировать</button>
-              <form method="post" action="/admin/products/${product.id}/toggle-active">
+              <form method="post" action="/admin/products/${escapeAttr(product.id)}/toggle-active">
                 <button type="submit" class="toggle-btn">${product.isActive ? 'Отключить' : 'Включить'}</button>
               </form>
-              <form method="post" action="/admin/products/${product.id}/upload-image" enctype="multipart/form-data" style="display: inline;">
-                <input type="file" name="image" accept="image/*" style="display: none;" id="image-${product.id}" onchange="this.form.submit()">
-                <button type="button" class="image-btn" onclick="document.getElementById('image-${product.id}').click()">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</button>
+              <form method="post" action="/admin/products/${escapeAttr(product.id)}/upload-image" enctype="multipart/form-data" style="display: inline;">
+                <input type="file" name="image" accept="image/*" style="display: none;" id="image-${escapeAttr(product.id)}" onchange="this.form.submit()">
+                <button type="button" class="image-btn" onclick="document.getElementById('image-${escapeAttr(product.id)}').click()">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</button>
               </form>
-              <button class="instruction-btn" data-instruction-id="${product.id}" data-instruction-text="${((product as any).instruction || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" onclick="showInstructionSafe(this)" style="background: #28a745;">📋 Инструкция</button>
-              <form method="post" action="/admin/products/${product.id}/delete" onsubmit="return confirm('Удалить товар?')">
+              <button class="instruction-btn" data-instruction-id="${escapeAttr(product.id)}" data-instruction-text="${escapeAttr((product as any).instruction)}" onclick="showInstructionSafe(this)" style="background: #28a745;">📋 Инструкция</button>
+              <form method="post" action="/admin/products/${escapeAttr(product.id)}/delete" onsubmit="return confirm('Удалить товар?')">
                 <button type="submit" class="delete-btn">Удалить</button>
               </form>
             </div>
