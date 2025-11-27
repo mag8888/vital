@@ -23,7 +23,8 @@
     "compress-video": "./scripts/compress-video.sh",
     "refactor:test": "npm run build:refactored && npm run start:refactored",
     "import-siam": "ts-node --esm scripts/import-siam-botanicals.ts",
-    "import-now": "npm run build && node dist/scripts/run-import-direct.js"
+    "import-now": "npm run build && node dist/scripts/run-import-direct.js",
+    "update-images": "node scripts/update-images-now.js"
   },
   "dependencies": {
     "@adminjs/express": "^6.1.1",
