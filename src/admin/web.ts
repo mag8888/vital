@@ -2937,7 +2937,9 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             // Event delegation - работает сразу
             document.addEventListener('change', function(e) {
               if (e.target && e.target.classList && e.target.classList.contains('user-checkbox')) {
-                window.updateSelectedUsers();
+                if (typeof window.updateSelectedUsers === 'function') {
+                  window.updateSelectedUsers();
+                }
               }
             });
             
@@ -2945,7 +2947,9 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
               if (e.target && e.target.classList && e.target.classList.contains('delete-selected-btn')) {
                 e.preventDefault();
                 e.stopPropagation();
-                window.deleteSelectedUsers();
+                if (typeof window.deleteSelectedUsers === 'function') {
+                  window.deleteSelectedUsers();
+                }
               }
             });
             
@@ -2954,7 +2958,9 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
               const selectAllCheckbox = document.getElementById('selectAllUsers');
               if (selectAllCheckbox) {
                 selectAllCheckbox.addEventListener('change', function(e) {
-                  window.toggleAllUsers(e.target.checked);
+                  if (typeof window.toggleAllUsers === 'function') {
+                    window.toggleAllUsers(e.target.checked);
+                  }
                 });
               }
             });
