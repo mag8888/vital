@@ -3169,55 +3169,6 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
         <script>
           // Все основные функции уже определены в начале документа в IIFE
           // Здесь только дополнительные функции, которые не были определены выше
-            const selectedCheckboxes = document.querySelectorAll('.user-checkbox:checked');
-            if (selectedCheckboxes.length === 0) {
-              alert('Выберите пользователей для удаления');
-              return;
-            }
-            
-            const selectedIds = Array.from(selectedCheckboxes).map(cb => cb.value);
-            
-            if (!confirm('⚠️ ВНИМАНИЕ! Вы уверены, что хотите удалить ' + selectedIds.length + ' пользователей?\n\nЭто действие удалит:\n- Пользователей\n- Партнерские профили\n- Все рефералы\n- Все транзакции\n- Все заказы\n- Историю действий\n\nЭто действие НЕОБРАТИМО!')) {
-              return;
-            }
-            
-            const doubleCheck = prompt('Для подтверждения введите: УДАЛИТЬ ВСЕХ');
-            if (doubleCheck !== 'УДАЛИТЬ ВСЕХ') {
-              alert('Отмена удаления. Пользователи не были удалены.');
-              return;
-            }
-            
-            try {
-              let successCount = 0;
-              let failCount = 0;
-              
-              for (const userId of selectedIds) {
-                try {
-                  const response = await fetch('/admin/users/' + userId + '/delete', {
-                    method: 'DELETE',
-                    credentials: 'include',
-                    headers: {
-                      'Content-Type': 'application/json'
-                    }
-                  });
-                  
-                  if (response.ok) {
-                    successCount++;
-                  } else {
-                    failCount++;
-                  }
-                } catch (error) {
-                  failCount++;
-                }
-              }
-              
-              alert('✅ Удалено пользователей: ' + successCount + '\n❌ Ошибок: ' + failCount);
-              window.location.reload();
-            } catch (error) {
-              console.error('Error deleting users:', error);
-              alert('❌ Ошибка при удалении пользователей');
-            }
-          };
           
           // Функция для показа списка партнеров
           window.showPartnersList = async function(userId, userName, level) {
