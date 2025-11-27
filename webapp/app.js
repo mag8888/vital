@@ -76,6 +76,8 @@ document.addEventListener('DOMContentLoaded', function() {
     loadUserData();
     loadCartItems();
     updateBadges();
+    loadProductsOnMainPage(); // Load products immediately on main page
+    loadProductsOnMainPage(); // Загружаем товары сразу на главной странице
     
     // Apply Telegram theme colors on load
     if (tg) {

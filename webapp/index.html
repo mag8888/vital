@@ -41,45 +41,24 @@
             </div>
         </header>
 
-        <!-- Main Content Grid -->
-        <main class="content-grid">
-            <div class="content-card shop-card" onclick="openSection('shop')">
-                <div class="card-badge" id="shop-badge">0</div>
-                <div class="card-image"></div>
-                <div class="card-inner">
-                    <div class="card-title">МАГАЗИН</div>
-                </div>
+        <!-- Hero Banner -->
+        <div class="hero-banner">
+            <div class="hero-content">
+                <h1 class="hero-title">VITAL</h1>
+                <p class="hero-subtitle">магазин полезных продуктов</p>
+                <div class="hero-decoration"></div>
             </div>
+        </div>
 
-            <div class="content-card partner-card" onclick="openSection('partner')">
-                <div class="card-badge" id="partner-badge">25%</div>
-                <div class="card-image"></div>
-                <div class="card-inner">
-                    <div class="card-title">ПАРТНЁРКА</div>
-                </div>
+        <!-- Main Products Grid -->
+        <main class="products-main-container">
+            <div class="section-header-inline">
+                <h2 class="section-title-inline">Каталог</h2>
             </div>
-
-            <div class="content-card reviews-card" onclick="openSection('reviews')">
-                <div class="card-badge" id="reviews-badge">0</div>
-                <div class="card-image"></div>
-                <div class="card-inner">
-                    <div class="card-title">ОТЗЫВЫ</div>
-                </div>
-            </div>
-
-            <div class="content-card about-card" onclick="openSection('about')">
-                <div class="card-badge" id="about-badge">1</div>
-                <div class="card-image"></div>
-                <div class="card-inner">
-                    <div class="card-title">О НАС</div>
-                </div>
-            </div>
-
-            <div class="content-card support-card" onclick="openSection('support')">
-                <div class="card-badge" id="support-badge">24/7</div>
-                <div class="card-image"></div>
-                <div class="card-inner">
-                    <div class="card-title">ПОДДЕРЖКА</div>
+            <div id="products-container" class="products-grid">
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <p>Загрузка товаров...</p>
                 </div>
             </div>
         </main>
