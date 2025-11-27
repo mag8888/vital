@@ -185,6 +185,130 @@ body {
     flex-direction: column;
 }
 
+/* Card images - stylish minimal backgrounds with gradient overlays */
+.content-card .card-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    z-index: 1;
+    opacity: 0.85;
+    transition: var(--transition);
+}
+
+.content-card:hover .card-image {
+    opacity: 0.95;
+    transform: scale(1.03);
+}
+
+/* Shop card - elegant shopping theme with green accent */
+.shop-card .card-image {
+    background: 
+        linear-gradient(135deg, rgba(76, 175, 80, 0.08) 0%, rgba(56, 142, 60, 0.12) 50%, rgba(46, 125, 50, 0.08) 100%),
+        radial-gradient(circle at 30% 40%, rgba(76, 175, 80, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 70% 60%, rgba(56, 142, 60, 0.1) 0%, transparent 50%);
+    background-size: 100% 100%, 60% 60%, 50% 50%;
+}
+
+.shop-card::after {
+    content: '🛍️';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 64px;
+    opacity: 0.12;
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* Partner card - network and connections theme with blue accent */
+.partner-card .card-image {
+    background: 
+        linear-gradient(135deg, rgba(33, 150, 243, 0.08) 0%, rgba(21, 101, 192, 0.12) 50%, rgba(13, 71, 161, 0.08) 100%),
+        radial-gradient(circle at 40% 50%, rgba(33, 150, 243, 0.1) 0%, transparent 60%),
+        radial-gradient(circle at 60% 50%, rgba(25, 118, 210, 0.1) 0%, transparent 60%);
+    background-size: 100% 100%, 55% 55%, 55% 55%;
+}
+
+.partner-card::after {
+    content: '🤝';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 64px;
+    opacity: 0.12;
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* Reviews card - stars and testimonials theme with gold accent */
+.reviews-card .card-image {
+    background: 
+        linear-gradient(135deg, rgba(255, 193, 7, 0.08) 0%, rgba(255, 152, 0, 0.12) 50%, rgba(245, 124, 0, 0.08) 100%),
+        radial-gradient(circle at 50% 50%, rgba(255, 193, 7, 0.1) 0%, transparent 70%);
+    background-size: 100% 100%, 80% 80%;
+}
+
+.reviews-card::after {
+    content: '⭐';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 64px;
+    opacity: 0.12;
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* About card - water droplet and nature theme with cyan accent */
+.about-card .card-image {
+    background: 
+        linear-gradient(135deg, rgba(3, 169, 244, 0.08) 0%, rgba(0, 150, 255, 0.12) 50%, rgba(0, 131, 220, 0.08) 100%),
+        radial-gradient(ellipse at 50% 40%, rgba(3, 169, 244, 0.15) 0%, transparent 70%),
+        radial-gradient(ellipse at 50% 70%, rgba(0, 188, 212, 0.1) 0%, transparent 60%);
+    background-size: 100% 100%, 100% 100%, 100% 100%;
+}
+
+.about-card::after {
+    content: '💧';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 64px;
+    opacity: 0.12;
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* Support card - chat bubbles and help theme with purple accent */
+.support-card .card-image {
+    background: 
+        linear-gradient(135deg, rgba(156, 39, 176, 0.08) 0%, rgba(123, 31, 162, 0.12) 50%, rgba(106, 27, 154, 0.08) 100%),
+        radial-gradient(circle at 35% 45%, rgba(156, 39, 176, 0.12) 0%, transparent 50%),
+        radial-gradient(circle at 65% 55%, rgba(171, 71, 188, 0.1) 0%, transparent 50%);
+    background-size: 100% 100%, 50% 50%, 50% 50%;
+}
+
+.support-card::after {
+    content: '💬';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 64px;
+    opacity: 0.12;
+    z-index: 1;
+    pointer-events: none;
+}
+
 /* Gradient overlay for text readability - FORMA style */
 .content-card::before {
     content: '';
