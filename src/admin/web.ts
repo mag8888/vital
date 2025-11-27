@@ -5253,10 +5253,10 @@ router.get('/products', requireAdmin, async (req, res) => {
                 type="button" 
                 class="edit-btn"
                 data-id="${product.id}"
-                data-title="${(product.title || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/&/g, '&amp;')}"
-                data-summary="${(product.summary || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/&/g, '&amp;')}"
-                data-description="${(product.description || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/&/g, '&amp;')}"
-                data-instruction="${((product as any).instruction || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/`/g, '&#96;').replace(/&/g, '&amp;')}"
+                data-title="${(product.title || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}"
+                data-summary="${(product.summary || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}"
+                data-description="${(product.description || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}"
+                data-instruction="${((product as any).instruction || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/`/g, '&#96;')}"
                 data-price="${product.price}"
                 data-category-id="${product.categoryId}"
                 data-active="${product.isActive ? 'true' : 'false'}"
@@ -5272,7 +5272,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 <input type="file" name="image" accept="image/*" style="display: none;" id="image-${product.id}" onchange="this.form.submit()">
                 <button type="button" class="image-btn" onclick="document.getElementById('image-${product.id}').click()">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</button>
               </form>
-              <button class="instruction-btn" data-instruction-id="${product.id}" data-instruction-text="${((product as any).instruction || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" onclick="showInstructionSafe(this)" style="background: #28a745;">📋 Инструкция</button>
+              <button class="instruction-btn" data-instruction-id="${product.id}" data-instruction-text="${((product as any).instruction || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}" onclick="showInstructionSafe(this)" style="background: #28a745;">📋 Инструкция</button>
               <form method="post" action="/admin/products/${product.id}/delete" onsubmit="return confirm('Удалить товар?')">
                 <button type="submit" class="delete-btn">Удалить</button>
               </form>
