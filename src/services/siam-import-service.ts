@@ -341,44 +341,105 @@ async function downloadAndUploadImage(imageUrl: string, productId: string): Prom
     return null;
   }
 
-  try {
-    const response = await fetch(imageUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
-      signal: AbortSignal.timeout(10000) // 10 секунд таймаут
-    });
-    
-    if (!response.ok) {
-      // Логируем только как предупреждение, не как ошибку
+  // Пробуем альтернативные варианты URL
+  const alternativeUrls: string[] = [imageUrl];
+  
+  // Вариант без "-1" в конце
+  if (imageUrl.includes('-1.jpg')) {
+    alternativeUrls.push(imageUrl.replace('-1.jpg', '.jpg'));
+  }
+  
+  // Вариант без расширения и снова с расширением
+  const baseUrl = imageUrl.replace(/\.(jpg|jpeg|png)$/i, '');
+  alternativeUrls.push(`${baseUrl}.jpg`);
+  alternativeUrls.push(`${baseUrl}.jpeg`);
+  alternativeUrls.push(`${baseUrl}.png`);
+
+  // Убираем дубликаты
+  const uniqueUrls = [...new Set(alternativeUrls)];
+
+  for (const url of uniqueUrls) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        signal: AbortSignal.timeout(10000) // 10 секунд таймаут
+      });
+      
+      if (!response.ok) {
+        // Если это не последний URL, пробуем следующий
+        if (url !== uniqueUrls[uniqueUrls.length - 1]) {
+          continue;
+        }
+        // Логируем только как предупреждение, не как ошибку
+        const shortUrl = imageUrl.split('/').pop() || imageUrl;
+        console.warn(`⚠️  Изображение недоступно (${response.status}): ${shortUrl}`);
+        return null;
+      }
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.startsWith('image/')) {
+        // Если это не последний URL, пробуем следующий
+        if (url !== uniqueUrls[uniqueUrls.length - 1]) {
+          continue;
+        }
+        const shortUrl = imageUrl.split('/').pop() || imageUrl;
+        console.warn(`⚠️  URL не является изображением: ${shortUrl}`);
+        return null;
+      }
+
+      const imageBuffer = Buffer.from(await response.arrayBuffer());
+      
+      if (imageBuffer.length === 0) {
+        // Если это не последний URL, пробуем следующий
+        if (url !== uniqueUrls[uniqueUrls.length - 1]) {
+          continue;
+        }
+        const shortUrl = imageUrl.split('/').pop() || imageUrl;
+        console.warn(`⚠️  Изображение пустое: ${shortUrl}`);
+        return null;
+      }
+      
+      // Успешно загрузили изображение
+      if (url !== imageUrl) {
+        const shortUrl = url.split('/').pop() || url;
+        console.log(`   ✅ Найдено альтернативное изображение: ${shortUrl}`);
+      }
+      
+      const result = await uploadImage(imageBuffer, {
+        folder: 'vital/products',
+        publicId: `siam-${productId}`,
+        resourceType: 'image'
+      });
+
+      console.log(`   ✅ Изображение загружено: ${result.secureUrl}`);
+      return result.secureUrl;
+    } catch (error: any) {
+      // Если это не последний URL, пробуем следующий
+      if (url !== uniqueUrls[uniqueUrls.length - 1]) {
+        continue;
+      }
+      
+      // Если это последний URL, логируем ошибку
       const shortUrl = imageUrl.split('/').pop() || imageUrl;
-      console.warn(`⚠️  Изображение недоступно (${response.status}): ${shortUrl}`);
+      const errorMessage = error.message || String(error);
+      
+      if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+        console.warn(`⚠️  Таймаут загрузки изображения: ${shortUrl}`);
+      } else if (errorMessage.includes('Not Found') || errorMessage.includes('404') || errorMessage.includes('Failed to fetch')) {
+        console.warn(`⚠️  Изображение не найдено: ${shortUrl}`);
+      } else {
+        // Берем только краткое сообщение об ошибке, без stack trace
+        const cleanMessage = errorMessage.split('\n')[0].substring(0, 100);
+        console.warn(`⚠️  Не удалось загрузить изображение ${shortUrl}: ${cleanMessage}`);
+      }
       return null;
     }
-
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.startsWith('image/')) {
-      const shortUrl = imageUrl.split('/').pop() || imageUrl;
-      console.warn(`⚠️  URL не является изображением: ${shortUrl}`);
-      return null;
-    }
-
-    const imageBuffer = Buffer.from(await response.arrayBuffer());
-    
-    if (imageBuffer.length === 0) {
-      const shortUrl = imageUrl.split('/').pop() || imageUrl;
-      console.warn(`⚠️  Изображение пустое: ${shortUrl}`);
-      return null;
-    }
-    
-    const result = await uploadImage(imageBuffer, {
-      folder: 'vital/products',
-      publicId: `siam-${productId}`,
-      resourceType: 'image'
-    });
-
-    console.log(`✅ Изображение загружено: ${result.secureUrl}`);
-    return result.secureUrl;
+  }
+  
+  // Если дошли до сюда, ни один URL не сработал
+  return null;
   } catch (error: any) {
     // Логируем как предупреждение БЕЗ stack trace
     const shortUrl = imageUrl.split('/').pop() || imageUrl;
