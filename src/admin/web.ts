@@ -5579,6 +5579,7 @@ router.get('/products', requireAdmin, async (req, res) => {
             btn.style.opacity = '0.6';
             
             try {
+              console.log('📤 Отправляю запрос на импорт...');
               const response = await fetch('/admin/api/import-siam-products', {
                 method: 'POST',
                 headers: {
@@ -5587,7 +5588,16 @@ router.get('/products', requireAdmin, async (req, res) => {
                 credentials: 'include'
               });
               
+              console.log('📥 Ответ получен, status:', response.status);
+              
+              if (!response.ok) {
+                const errorText = await response.text();
+                console.error('❌ Ошибка ответа:', errorText);
+                throw new Error(`HTTP ${response.status}: ${errorText}`);
+              }
+              
               const result = await response.json();
+              console.log('📋 Результат:', result);
               
               if (result.success) {
                 alert('✅ Импорт запущен! Продукты будут добавлены в течение нескольких минут. Проверьте логи сервера или обновите страницу через 3-5 минут.');
@@ -5595,8 +5605,12 @@ router.get('/products', requireAdmin, async (req, res) => {
                 throw new Error(result.error || 'Ошибка запуска импорта');
               }
             } catch (error) {
-              console.error('Import error:', error);
-              alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Не удалось запустить импорт'));
+              console.error('❌ Import error:', error);
+              console.error('❌ Error details:', {
+                message: error instanceof Error ? error.message : String(error),
+                stack: error instanceof Error ? error.stack : undefined
+              });
+              alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Не удалось запустить импорт. Проверьте консоль браузера (F12) для подробностей.'));
             } finally {
               btn.disabled = false;
               btn.textContent = originalText;
