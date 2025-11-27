@@ -68,6 +68,7 @@ console.log('🚫 ULTRA AGGRESSIVE AdminJS Blocker Loading...');
   document.addEventListener('click', function(e) {
     const target = e.target;
     const button = target.closest('button');
+    const link = target.closest('a');
     
     // Разрешаем кнопки действий AdminJS
     if (target.classList.contains('adminjs-button') || 
@@ -76,7 +77,12 @@ console.log('🚫 ULTRA AGGRESSIVE AdminJS Blocker Loading...');
     }
     
     // Разрешаем кнопки с кастомными onclick функциями (импорт, модальные окна)
-    if (button && button.hasAttribute('onclick')) {
+    if (button && (button.hasAttribute('onclick') || button.classList.contains('import-siam-btn'))) {
+      return true;
+    }
+    
+    // Разрешаем кнопки и ссылки в контейнере action-buttons
+    if ((button || link) && (target.closest('.action-buttons') || target.closest('#content'))) {
       return true;
     }
     
