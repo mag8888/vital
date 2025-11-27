@@ -5621,16 +5621,26 @@ router.get('/products', requireAdmin, async (req, res) => {
           function attachImportButtonHandler() {
             const importBtn = document.querySelector('.import-siam-btn');
             if (importBtn) {
-              // Удаляем старый обработчик, если есть
-              importBtn.removeEventListener('click', handleImportSiamProducts);
-              // Добавляем новый обработчик с capture phase для раннего перехвата
-              importBtn.addEventListener('click', handleImportSiamProducts, true);
-              console.log('✅ Import button handler attached');
+              // Проверяем, не прикреплен ли уже обработчик
+              if (!importBtn.hasAttribute('data-handler-attached')) {
+                // Добавляем обработчик с capture phase для раннего перехвата
+                importBtn.addEventListener('click', handleImportSiamProducts, true);
+                importBtn.setAttribute('data-handler-attached', 'true');
+                console.log('✅ Import button handler attached');
+              }
             } else {
               console.warn('⚠️  Import button not found, retrying...');
               setTimeout(attachImportButtonHandler, 500);
             }
           }
+          
+          // Используем делегирование событий на уровне документа для надежности
+          document.addEventListener('click', function(e) {
+            const target = e.target.closest('.import-siam-btn');
+            if (target) {
+              handleImportSiamProducts(e);
+            }
+          }, true); // capture phase для раннего перехвата
           
           // Прикрепляем обработчик сразу и после загрузки DOM
           if (document.readyState === 'loading') {
@@ -5639,9 +5649,11 @@ router.get('/products', requireAdmin, async (req, res) => {
             attachImportButtonHandler();
           }
           
-          // Дополнительная попытка через небольшую задержку
+          // Дополнительные попытки через задержки (на случай динамической загрузки)
           setTimeout(attachImportButtonHandler, 100);
+          setTimeout(attachImportButtonHandler, 500);
           setTimeout(attachImportButtonHandler, 1000);
+          setTimeout(attachImportButtonHandler, 2000);
         </script>
       </body>
       </html>
