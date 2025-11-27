@@ -5229,20 +5229,20 @@ router.get('/products', requireAdmin, async (req, res) => {
           <div class="product-card" data-category="${product.categoryId}" data-id="${product.id}">
             ${imageSection}
             <div class="product-header">
-              <h3 class="product-title">${product.title}</h3>
+              <h3 class="product-title">${(product.title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')}</h3>
               <form method="post" action="/admin/products/${product.id}/toggle-active" style="display: inline;">
                 <button type="submit" class="status-btn ${product.isActive ? 'active' : 'inactive'}" style="border: none; background: none; cursor: pointer; font-size: 12px; padding: 4px 8px; border-radius: 4px;">
                   ${product.isActive ? '✅ Активен' : '❌ Неактивен'}
                 </button>
               </form>
             </div>
-            <span class="badge badge-category">${product.categoryName}</span>
+            <span class="badge badge-category">${(product.categoryName || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>
             <div style="margin: 8px 0;">
               <span style="font-size: 12px; color: #666;">Регионы:</span>
               ${(product as any).availableInRussia ? '<span style="background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px;">🇷🇺 Россия</span>' : ''}
               ${(product as any).availableInBali ? '<span style="background: #f3e5f5; color: #7b1fa2; padding: 2px 6px; border-radius: 4px; font-size: 11px;">🇮🇩 Бали</span>' : ''}
             </div>
-            <p class="product-summary">${product.summary}</p>
+            <p class="product-summary">${(product.summary || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')}</p>
             <div class="product-price">${priceFormatted}</div>
             <div class="product-meta">
               <span>Создан: ${createdAt}</span>
