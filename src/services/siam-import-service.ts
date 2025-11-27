@@ -92,6 +92,213 @@ export const siamProducts: Partial<SiamProduct>[] = [
     imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Organic-Rosehip-Jojoba-Facial-Oil-1.jpg',
     category: 'Face Care',
     categorySlug: 'face-care'
+  },
+  {
+    englishTitle: 'Organic Jojoba Oil',
+    englishSummary: 'Lightweight oil that closely resembles the skin\'s natural sebum. Excellent for moisturizing without clogging pores, suitable for all skin types.',
+    englishDescription: 'Jojoba oil is a lightweight, non-comedogenic oil that closely resembles the skin\'s natural sebum. It provides excellent moisturization without clogging pores, making it suitable for all skin types, including sensitive and acne-prone skin.',
+    price: 790, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Organic-Jojoba-Oil-1.jpg',
+    category: 'Pure Organic Oils',
+    categorySlug: 'pure-organic-oils'
+  },
+  {
+    englishTitle: 'Organic Coconut Oil',
+    englishSummary: 'Versatile oil rich in lauric acid, excellent for skin and hair care. Provides deep moisturization and has natural antibacterial properties.',
+    englishDescription: 'Organic coconut oil is rich in lauric acid and provides deep moisturization for both skin and hair. It has natural antibacterial properties and is excellent for dry skin and damaged hair.',
+    price: 590, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Organic-Coconut-Oil-1.jpg',
+    category: 'Pure Organic Oils',
+    categorySlug: 'pure-organic-oils'
+  },
+  {
+    englishTitle: 'Organic Avocado Oil',
+    englishSummary: 'Rich, nourishing oil high in vitamins A, D, and E. Perfect for dry and mature skin, promotes healing and reduces inflammation.',
+    englishDescription: 'Avocado oil is rich in vitamins A, D, and E, making it perfect for dry and mature skin. It promotes healing, reduces inflammation, and provides deep nourishment.',
+    price: 690, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Organic-Avocado-Oil-1.jpg',
+    category: 'Pure Organic Oils',
+    categorySlug: 'pure-organic-oils'
+  },
+  {
+    englishTitle: 'Organic Grapeseed Oil',
+    englishSummary: 'Light, non-greasy oil packed with antioxidants. Excellent for oily skin, helps balance sebum production and tighten pores.',
+    englishDescription: 'Grapeseed oil is a light, non-greasy oil packed with antioxidants. It\'s excellent for oily skin, helps balance sebum production, and has pore-tightening properties.',
+    price: 640, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Organic-Grapeseed-Oil-1.jpg',
+    category: 'Pure Organic Oils',
+    categorySlug: 'pure-organic-oils'
+  },
+  {
+    englishTitle: 'Organic Rosehip Oil',
+    englishSummary: 'Powerful anti-aging oil rich in vitamin A and fatty acids. Helps reduce scars, fine lines, and improves skin texture.',
+    englishDescription: 'Rosehip oil is a powerful anti-aging oil rich in vitamin A and essential fatty acids. It helps reduce scars, fine lines, and significantly improves skin texture and tone.',
+    price: 890, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Organic-Rosehip-Oil-1.jpg',
+    category: 'Pure Organic Oils',
+    categorySlug: 'pure-organic-oils'
+  },
+  {
+    englishTitle: 'Organic Sesame Oil',
+    englishSummary: 'Nutrient-rich oil with natural SPF properties. Excellent for massage, skin protection, and hair conditioning.',
+    englishDescription: 'Sesame oil is nutrient-rich with natural SPF properties. It\'s excellent for massage, provides skin protection from UV rays, and conditions hair beautifully.',
+    price: 540, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Organic-Sesame-Oil-1.jpg',
+    category: 'Pure Organic Oils',
+    categorySlug: 'pure-organic-oils'
+  },
+  {
+    englishTitle: 'Organic Evening Primrose Oil',
+    englishSummary: 'Rich in gamma-linolenic acid (GLA), helps balance hormones and reduces inflammation. Beneficial for hormonal skin issues.',
+    englishDescription: 'Evening primrose oil is rich in gamma-linolenic acid (GLA), which helps balance hormones and reduces inflammation. It\'s particularly beneficial for hormonal skin issues and eczema.',
+    price: 990, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Organic-Evening-Primrose-Oil-1.jpg',
+    category: 'Pure Organic Oils',
+    categorySlug: 'pure-organic-oils'
+  },
+  {
+    englishTitle: 'Organic Tamanu Oil',
+    englishSummary: 'Healing oil known for its regenerative properties. Excellent for scars, burns, and skin irritations.',
+    englishDescription: 'Tamanu oil is a healing oil known for its powerful regenerative properties. It\'s excellent for treating scars, burns, skin irritations, and promoting overall skin health.',
+    price: 1190, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Organic-Tamanu-Oil-1.jpg',
+    category: 'Pure Organic Oils',
+    categorySlug: 'pure-organic-oils'
+  },
+  {
+    englishTitle: 'Organic Marula Oil',
+    englishSummary: 'Lightweight, fast-absorbing oil high in antioxidants. Perfect for all skin types, provides protection against environmental damage.',
+    englishDescription: 'Marula oil is a lightweight, fast-absorbing oil high in antioxidants. Perfect for all skin types, it provides protection against environmental damage and premature aging.',
+    price: 1290, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Organic-Marula-Oil-1.jpg',
+    category: 'Pure Organic Oils',
+    categorySlug: 'pure-organic-oils'
+  },
+  {
+    englishTitle: 'Aloe Vera Gel 99% Pure',
+    englishSummary: 'Soothing gel perfect for sunburns, irritated skin, and daily hydration. Calms inflammation and promotes healing.',
+    englishDescription: 'Pure aloe vera gel is perfect for sunburns, irritated skin, and daily hydration. It calms inflammation, promotes healing, and provides instant relief for various skin conditions.',
+    price: 450, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Aloe-Vera-Gel-99-Pure-1.jpg',
+    category: 'Face Care',
+    categorySlug: 'face-care'
+  },
+  {
+    englishTitle: 'Natural Clay Mask',
+    englishSummary: 'Deep cleansing mask that draws out impurities and excess oil. Helps minimize pores and improve skin clarity.',
+    englishDescription: 'Natural clay mask provides deep cleansing by drawing out impurities and excess oil from pores. It helps minimize pores, improve skin clarity, and leave skin feeling refreshed.',
+    price: 380, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Natural-Clay-Mask-1.jpg',
+    category: 'Face Care',
+    categorySlug: 'face-care'
+  },
+  {
+    englishTitle: 'Rose & Chamomile Facial Toner',
+    englishSummary: 'Gentle toner that refreshes and balances skin pH. Soothes irritation and prepares skin for better product absorption.',
+    englishDescription: 'Rose and chamomile facial toner gently refreshes and balances skin pH. It soothes irritation, reduces redness, and prepares skin for better product absorption.',
+    price: 550, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Rose-Chamomile-Facial-Toner-1.jpg',
+    category: 'Face Care',
+    categorySlug: 'face-care'
+  },
+  {
+    englishTitle: 'Vitamin C Brightening Serum',
+    englishSummary: 'Powerful antioxidant serum that brightens skin, reduces dark spots, and promotes collagen production for youthful skin.',
+    englishDescription: 'Vitamin C brightening serum is a powerful antioxidant that brightens skin, reduces dark spots and hyperpigmentation, and promotes collagen production for more youthful-looking skin.',
+    price: 1250, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Vitamin-C-Brightening-Serum-1.jpg',
+    category: 'Face Care',
+    categorySlug: 'face-care'
+  },
+  {
+    englishTitle: 'Hyaluronic Acid Moisturizer',
+    englishSummary: 'Intense hydration cream that holds up to 1000x its weight in water. Plumps skin and reduces fine lines.',
+    englishDescription: 'Hyaluronic acid moisturizer provides intense hydration by holding up to 1000 times its weight in water. It plumps skin, reduces fine lines, and leaves skin feeling smooth and supple.',
+    price: 980, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Hyaluronic-Acid-Moisturizer-1.jpg',
+    category: 'Face Care',
+    categorySlug: 'face-care'
+  },
+  {
+    englishTitle: 'Tea Tree Oil',
+    englishSummary: 'Natural antiseptic oil perfect for acne-prone skin. Reduces inflammation and prevents breakouts.',
+    englishDescription: 'Tea tree oil is a natural antiseptic perfect for acne-prone skin. It reduces inflammation, prevents breakouts, and helps heal existing blemishes without over-drying skin.',
+    price: 420, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Tea-Tree-Oil-1.jpg',
+    category: 'Face Care',
+    categorySlug: 'face-care'
+  },
+  {
+    englishTitle: 'Lavender & Eucalyptus Body Lotion',
+    englishSummary: 'Calming body lotion that moisturizes and soothes. The combination of lavender and eucalyptus provides aromatherapy benefits.',
+    englishDescription: 'Lavender and eucalyptus body lotion provides deep moisturization while the calming scents offer aromatherapy benefits. It soothes both skin and mind after a long day.',
+    price: 720, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Lavender-Eucalyptus-Body-Lotion-1.jpg',
+    category: 'Bath & Spa',
+    categorySlug: 'bath-spa'
+  },
+  {
+    englishTitle: 'Dead Sea Salt Scrub',
+    englishSummary: 'Exfoliating body scrub with mineral-rich Dead Sea salt. Removes dead cells and leaves skin smooth and glowing.',
+    englishDescription: 'Dead Sea salt scrub exfoliates with mineral-rich salt from the Dead Sea. It removes dead cells, improves circulation, and leaves skin smooth, soft, and glowing.',
+    price: 650, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Dead-Sea-Salt-Scrub-1.jpg',
+    category: 'Bath & Spa',
+    categorySlug: 'bath-spa'
+  },
+  {
+    englishTitle: 'Coconut & Lime Body Wash',
+    englishSummary: 'Refreshing body wash with natural coconut and lime extracts. Gently cleanses while maintaining skin\'s natural moisture.',
+    englishDescription: 'Coconut and lime body wash provides a refreshing cleansing experience with natural extracts. It gently cleanses while maintaining skin\'s natural moisture balance.',
+    price: 380, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Coconut-Lime-Body-Wash-1.jpg',
+    category: 'Bath & Spa',
+    categorySlug: 'bath-spa'
+  },
+  {
+    englishTitle: 'Jasmine & Ylang-Ylang Bath Oil',
+    englishSummary: 'Luxurious bath oil that softens skin and provides aromatherapy benefits. Creates a spa-like experience at home.',
+    englishDescription: 'Jasmine and ylang-ylang bath oil creates a luxurious spa-like experience. It softens skin and provides calming aromatherapy benefits for relaxation and stress relief.',
+    price: 580, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Jasmine-Ylang-Ylang-Bath-Oil-1.jpg',
+    category: 'Bath & Spa',
+    categorySlug: 'bath-spa'
+  },
+  {
+    englishTitle: 'Peppermint & Eucalyptus Foot Cream',
+    englishSummary: 'Cooling foot cream that relieves tired feet. Peppermint and eucalyptus provide a refreshing, invigorating sensation.',
+    englishDescription: 'Peppermint and eucalyptus foot cream provides cooling relief for tired, achy feet. The refreshing sensation invigorates while the cream moisturizes and softens rough skin.',
+    price: 480, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Peppermint-Eucalyptus-Foot-Cream-1.jpg',
+    category: 'Bath & Spa',
+    categorySlug: 'bath-spa'
+  },
+  {
+    englishTitle: 'Argan Oil Hair Treatment',
+    englishSummary: 'Intensive hair treatment that repairs damage and adds shine. Perfect for dry, damaged, or frizzy hair.',
+    englishDescription: 'Argan oil hair treatment intensively repairs damaged hair and adds incredible shine. Perfect for dry, damaged, or frizzy hair, it restores health and manageability.',
+    price: 890, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Argan-Oil-Hair-Treatment-1.jpg',
+    category: 'Hair Care',
+    categorySlug: 'hair-care'
+  },
+  {
+    englishTitle: 'Coconut Oil Hair Mask',
+    englishSummary: 'Deep conditioning mask that penetrates hair shaft. Restores moisture and prevents protein loss for stronger hair.',
+    englishDescription: 'Coconut oil hair mask provides deep conditioning that penetrates the hair shaft. It restores moisture, prevents protein loss, and strengthens hair from within.',
+    price: 550, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Coconut-Oil-Hair-Mask-1.jpg',
+    category: 'Hair Care',
+    categorySlug: 'hair-care'
+  },
+  {
+    englishTitle: 'Rosemary & Peppermint Shampoo',
+    englishSummary: 'Clarifying shampoo that cleanses without stripping. Stimulates scalp and promotes healthy hair growth.',
+    englishDescription: 'Rosemary and peppermint shampoo provides deep cleansing without stripping natural oils. It stimulates the scalp and promotes healthy hair growth while refreshing the senses.',
+    price: 450, // THB
+    imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Rosemary-Peppermint-Shampoo-1.jpg',
+    category: 'Hair Care',
+    categorySlug: 'hair-care'
   }
 ];
 
