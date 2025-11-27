@@ -351,20 +351,23 @@ async function downloadAndUploadImage(imageUrl: string, productId: string): Prom
     
     if (!response.ok) {
       // Логируем только как предупреждение, не как ошибку
-      console.warn(`⚠️  Изображение недоступно (${response.status}): ${imageUrl}`);
+      const shortUrl = imageUrl.split('/').pop() || imageUrl;
+      console.warn(`⚠️  Изображение недоступно (${response.status}): ${shortUrl}`);
       return null;
     }
 
     const contentType = response.headers.get('content-type');
     if (!contentType || !contentType.startsWith('image/')) {
-      console.warn(`⚠️  URL не является изображением: ${imageUrl}`);
+      const shortUrl = imageUrl.split('/').pop() || imageUrl;
+      console.warn(`⚠️  URL не является изображением: ${shortUrl}`);
       return null;
     }
 
     const imageBuffer = Buffer.from(await response.arrayBuffer());
     
     if (imageBuffer.length === 0) {
-      console.warn(`⚠️  Изображение пустое: ${imageUrl}`);
+      const shortUrl = imageUrl.split('/').pop() || imageUrl;
+      console.warn(`⚠️  Изображение пустое: ${shortUrl}`);
       return null;
     }
     
@@ -377,13 +380,18 @@ async function downloadAndUploadImage(imageUrl: string, productId: string): Prom
     console.log(`✅ Изображение загружено: ${result.secureUrl}`);
     return result.secureUrl;
   } catch (error: any) {
-    // Логируем как предупреждение, не как критическую ошибку
+    // Логируем как предупреждение БЕЗ stack trace
+    const shortUrl = imageUrl.split('/').pop() || imageUrl;
+    const errorMessage = error.message || String(error);
+    
     if (error.name === 'AbortError' || error.name === 'TimeoutError') {
-      console.warn(`⚠️  Таймаут загрузки изображения: ${imageUrl}`);
-    } else if (error.message?.includes('Not Found') || error.message?.includes('404')) {
-      console.warn(`⚠️  Изображение не найдено (404): ${imageUrl}`);
+      console.warn(`⚠️  Таймаут загрузки изображения: ${shortUrl}`);
+    } else if (errorMessage.includes('Not Found') || errorMessage.includes('404') || errorMessage.includes('Failed to fetch')) {
+      console.warn(`⚠️  Изображение не найдено: ${shortUrl}`);
     } else {
-      console.warn(`⚠️  Не удалось загрузить изображение ${imageUrl}: ${error.message || error}`);
+      // Берем только краткое сообщение об ошибке, без stack trace
+      const cleanMessage = errorMessage.split('\n')[0].substring(0, 100);
+      console.warn(`⚠️  Не удалось загрузить изображение ${shortUrl}: ${cleanMessage}`);
     }
     return null;
   }
