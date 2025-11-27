@@ -1200,6 +1200,86 @@ router.get('/', requireAdmin, async (req, res) => {
             }, 50);
           })();
           
+          // Обработчик обновления изображений
+          (function() {
+            'use strict';
+            
+            async function handleUpdateImages(event) {
+              const target = event.target.closest('.update-images-btn');
+              if (!target) return;
+              
+              event.preventDefault();
+              event.stopPropagation();
+              event.stopImmediatePropagation();
+              
+              if (!confirm('Обновить изображения для всех товаров? Это может занять несколько минут.')) {
+                return false;
+              }
+              
+              const btn = target;
+              const originalText = btn.textContent;
+              btn.disabled = true;
+              btn.textContent = '⏳ Обновление...';
+              btn.style.opacity = '0.6';
+              
+              try {
+                const response = await fetch('/admin/api/update-product-images', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                  throw new Error('HTTP ' + response.status);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                  alert('✅ Обновление изображений запущено! Изображения будут загружены в течение нескольких минут. Проверьте логи сервера или обновите страницу через 3-5 минут.');
+                } else {
+                  throw new Error(result.error || 'Ошибка запуска обновления');
+                }
+              } catch (error) {
+                console.error('❌ Update images error:', error);
+                alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Не удалось запустить обновление изображений'));
+              } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+                btn.style.opacity = '1';
+              }
+              
+              return false;
+            }
+            
+            document.addEventListener('click', handleUpdateImages, true);
+            
+            document.addEventListener('DOMContentLoaded', function() {
+              document.addEventListener('click', handleUpdateImages, true);
+              
+              function attachUpdateImagesHandler() {
+                const updateBtn = document.querySelector('.update-images-btn');
+                if (updateBtn && !updateBtn.hasAttribute('data-handler-attached')) {
+                  updateBtn.addEventListener('click', handleUpdateImages, true);
+                  updateBtn.setAttribute('data-handler-attached', 'true');
+                  console.log('✅ Update images button handler attached');
+                } else if (!updateBtn) {
+                  setTimeout(attachUpdateImagesHandler, 200);
+                }
+              }
+              
+              attachUpdateImagesHandler();
+              setTimeout(attachUpdateImagesHandler, 500);
+              setTimeout(attachUpdateImagesHandler, 1000);
+            });
+            
+            setTimeout(function() {
+              document.addEventListener('click', handleUpdateImages, true);
+            }, 50);
+          })();
+          
           window.switchTab = function(tabName) {
             // Hide all tab contents
             const contents = document.querySelectorAll('.tab-content');
