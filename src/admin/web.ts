@@ -1535,9 +1535,19 @@ router.get('/', requireAdmin, async (req, res) => {
           
           function sendMessages() {
             const selectedUsers = getSelectedUsers();
-            const messageType = document.getElementById('messageType').value;
-            const subject = document.getElementById('messageSubject').value;
-            const text = document.getElementById('messageText').value;
+            const messageTypeEl = document.getElementById('messageType');
+            const subjectEl = document.getElementById('messageSubject');
+            const textEl = document.getElementById('messageText');
+            const includeButtonsEl = document.getElementById('includeButtons');
+            const button1TextEl = document.getElementById('button1Text');
+            const button1UrlEl = document.getElementById('button1Url');
+            const button2TextEl = document.getElementById('button2Text');
+            const button2UrlEl = document.getElementById('button2Url');
+            
+            const messageType = messageTypeEl ? messageTypeEl.value : 'plain';
+            const subject = subjectEl ? subjectEl.value : '';
+            const text = textEl ? textEl.value : '';
+            const includeButtons = includeButtonsEl ? includeButtonsEl.checked : false;
             
             if (!text.trim()) {
               alert('Введите текст сообщения');
@@ -1553,14 +1563,14 @@ router.get('/', requireAdmin, async (req, res) => {
                 type: messageType,
                 subject: subject,
                 text: text,
-                includeButtons: document.getElementById('includeButtons').checked,
+                includeButtons: includeButtons,
                 button1: {
-                  text: document.getElementById('button1Text').value,
-                  url: document.getElementById('button1Url').value
+                  text: button1TextEl ? button1TextEl.value : '',
+                  url: button1UrlEl ? button1UrlEl.value : ''
                 },
                 button2: {
-                  text: document.getElementById('button2Text').value,
-                  url: document.getElementById('button2Url').value
+                  text: button2TextEl ? button2TextEl.value : '',
+                  url: button2UrlEl ? button2UrlEl.value : ''
                 }
               })
             })
