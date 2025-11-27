@@ -440,22 +440,6 @@ async function downloadAndUploadImage(imageUrl: string, productId: string): Prom
   
   // Если дошли до сюда, ни один URL не сработал
   return null;
-  } catch (error: any) {
-    // Логируем как предупреждение БЕЗ stack trace
-    const shortUrl = imageUrl.split('/').pop() || imageUrl;
-    const errorMessage = error.message || String(error);
-    
-    if (error.name === 'AbortError' || error.name === 'TimeoutError') {
-      console.warn(`⚠️  Таймаут загрузки изображения: ${shortUrl}`);
-    } else if (errorMessage.includes('Not Found') || errorMessage.includes('404') || errorMessage.includes('Failed to fetch')) {
-      console.warn(`⚠️  Изображение не найдено: ${shortUrl}`);
-    } else {
-      // Берем только краткое сообщение об ошибке, без stack trace
-      const cleanMessage = errorMessage.split('\n')[0].substring(0, 100);
-      console.warn(`⚠️  Не удалось загрузить изображение ${shortUrl}: ${cleanMessage}`);
-    }
-    return null;
-  }
 }
 
 /**
