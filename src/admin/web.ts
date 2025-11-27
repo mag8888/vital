@@ -866,6 +866,7 @@ router.get('/', requireAdmin, async (req, res) => {
                 <a href="/admin/orders" class="btn">📦 Заказы</a>
                 <button class="btn" onclick="openAddProductModal()" style="background: #28a745;">➕ Добавить товар</button>
                 <button class="btn import-siam-btn" style="background: #17a2b8; cursor: pointer; pointer-events: auto !important;">🤖 Импорт Siam Botanicals</button>
+                <button class="btn update-images-btn" style="background: #ff9800; cursor: pointer; pointer-events: auto !important;">🖼️ Обновить изображения</button>
               </div>
             </div>
             <p>Управление каталогом товаров, отзывами и заказами.</p>
@@ -5827,6 +5828,39 @@ router.post('/api/import-siam-products', requireAdmin, async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message || 'Ошибка запуска импорта'
+    });
+  }
+});
+
+// Endpoint для обновления изображений товаров
+router.post('/api/update-product-images', requireAdmin, async (req, res) => {
+  try {
+    console.log('🖼️  Запрос на обновление изображений товаров получен');
+    
+    // Запускаем обновление в фоне
+    import('../services/siam-import-service.js')
+      .then(({ updateProductImages }) => {
+        console.log('✅ Модуль обновления изображений загружен, запускаю обновление...');
+        return updateProductImages();
+      })
+      .then(result => {
+        console.log(`✅ Обновление изображений завершено! Обновлено: ${result.updated}, Ошибок: ${result.failed}, Всего: ${result.total}`);
+      })
+      .catch(error => {
+        console.error('❌ Ошибка обновления изображений:', error);
+        console.error('❌ Error stack:', error?.stack);
+      });
+
+    // Возвращаем ответ немедленно
+    res.json({
+      success: true,
+      message: 'Обновление изображений запущено. Проверьте логи сервера для прогресса.'
+    });
+  } catch (error: any) {
+    console.error('❌ Update images endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Ошибка запуска обновления изображений'
     });
   }
 });

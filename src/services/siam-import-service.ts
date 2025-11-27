@@ -555,5 +555,100 @@ export async function importSiamProducts(): Promise<{ success: number; errors: n
   };
 }
 
+/**
+ * Обновляет изображения для всех существующих товаров
+ */
+export async function updateProductImages(): Promise<{ updated: number; failed: number; total: number }> {
+  console.log('🖼️  Начало обновления изображений товаров\n');
+
+  if (!isCloudinaryConfigured()) {
+    throw new Error('Cloudinary не настроен. Установите переменные окружения CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET');
+  }
+
+  // Получаем все активные товары
+  const allProducts = await prisma.product.findMany({
+    where: { isActive: true }
+  });
+
+  console.log(`📋 Найдено товаров: ${allProducts.length}\n`);
+
+  let updatedCount = 0;
+  let failedCount = 0;
+
+  // Создаем мапу для быстрого поиска исходных данных по названию
+  const productMap = new Map<string, SiamProduct>();
+  for (const siamProduct of siamProducts) {
+    const firstWord = siamProduct.englishTitle.split(' ')[0].toLowerCase();
+    productMap.set(firstWord, siamProduct as SiamProduct);
+  }
+
+  for (const product of allProducts) {
+    try {
+      // Ищем соответствующий продукт в списке Siam Botanicals
+      const firstWord = product.title.split(' ')[0].toLowerCase();
+      let siamProduct = productMap.get(firstWord);
+      
+      // Если не нашли по первому слову, ищем по части названия
+      if (!siamProduct) {
+        for (const [key, value] of productMap.entries()) {
+          if (product.title.toLowerCase().includes(key) || value.englishTitle.toLowerCase().includes(firstWord)) {
+            siamProduct = value;
+            break;
+          }
+        }
+      }
+
+      if (!siamProduct || !siamProduct.imageUrl) {
+        console.log(`⚠️  Не найдено изображение для товара: ${product.title}`);
+        failedCount++;
+        continue;
+      }
+
+      // Проверяем, нужно ли обновлять изображение
+      // Обновляем, если изображения нет или если это старый URL с siambotanicals.com
+      const needsUpdate = !product.imageUrl || 
+                          product.imageUrl.includes('siambotanicals.com') ||
+                          !product.imageUrl.includes('cloudinary');
+
+      if (needsUpdate) {
+        console.log(`\n📦 Обновляю изображение для: ${product.title}`);
+        const tempId = `update-${product.id}-${Date.now()}`;
+        const newImageUrl = await downloadAndUploadImage(siamProduct.imageUrl, tempId);
+        
+        if (newImageUrl) {
+          await prisma.product.update({
+            where: { id: product.id },
+            data: { imageUrl: newImageUrl }
+          });
+          console.log(`✅ Изображение обновлено: ${newImageUrl}`);
+          updatedCount++;
+        } else {
+          console.warn(`⚠️  Не удалось загрузить изображение для: ${product.title}`);
+          failedCount++;
+        }
+      } else {
+        console.log(`⏭️  Изображение актуально для: ${product.title}`);
+      }
+
+      // Небольшая пауза между запросами
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    } catch (error) {
+      console.error(`❌ Ошибка обновления изображения для товара "${product.title}":`, error);
+      failedCount++;
+    }
+  }
+
+  console.log(`\n✅ Обновление изображений завершено!`);
+  console.log(`   Обновлено: ${updatedCount}`);
+  console.log(`   Ошибок: ${failedCount}`);
+  console.log(`   Всего: ${allProducts.length}`);
+
+  return {
+    updated: updatedCount,
+    failed: failedCount,
+    total: allProducts.length
+  };
+}
+
 
 
