@@ -711,6 +711,18 @@ router.get('/', requireAdmin, async (req, res) => {
           }
           .product-grid.media-layout { grid-template-columns: repeat(2, 1fr); align-items: stretch; }
           .product-form textarea { resize: vertical; }
+          .product-form label { color: #212529; }
+          .product-form input,
+          .product-form select,
+          .product-form textarea {
+            background: #ffffff;
+            color: #212529;
+            border: 1px solid #ced4da;
+          }
+          .product-form input::placeholder,
+          .product-form textarea::placeholder {
+            color: #6c757d;
+          }
           #productShortDescription { min-height: 220px; }
           #productFullDescription { min-height: 220px; }
           .category-picker { display: flex; gap: 12px; }
@@ -1607,29 +1619,29 @@ router.get('/', requireAdmin, async (req, res) => {
               });
             }
             
-            // Price converters (PZ <-> RUB) for create form
-            const pricePzInput = document.getElementById('productPrice') as HTMLInputElement | null;
-            const priceRubInput = document.getElementById('productPriceRub') as HTMLInputElement | null;
-            if (pricePzInput && priceRubInput) {
-              const updateRubFromPz = () => {
-                const pzValue = parseFloat(pricePzInput.value) || 0;
-                priceRubInput.value = (pzValue * 100).toFixed(2);
-              };
-              const updatePzFromRub = () => {
+            function setupPriceSync(priceId: string, priceRubId: string) {
+              const pricePzInput = document.getElementById(priceId) as HTMLInputElement | null;
+              const priceRubInput = document.getElementById(priceRubId) as HTMLInputElement | null;
+              if (!pricePzInput || !priceRubInput) return;
+              
+              const syncFromRub = () => {
                 const rubValue = parseFloat(priceRubInput.value) || 0;
                 pricePzInput.value = (rubValue / 100).toFixed(2);
               };
+              const syncFromPz = () => {
+                const pzValue = parseFloat(pricePzInput.value) || 0;
+                priceRubInput.value = (pzValue * 100).toFixed(2);
+              };
               
-              pricePzInput.addEventListener('input', updateRubFromPz);
-              priceRubInput.addEventListener('input', updatePzFromRub);
+              priceRubInput.addEventListener('input', syncFromRub);
+              pricePzInput.addEventListener('input', syncFromPz);
               
-              // Ensure initial sync
-              if (priceRubInput.value) {
-                updatePzFromRub();
-              } else if (pricePzInput.value) {
-                updateRubFromPz();
-              }
+              if (priceRubInput.value) syncFromRub();
+              else if (pricePzInput.value) syncFromPz();
             }
+            
+            // Initialize price sync for create form
+            setupPriceSync('productPrice', 'productPriceRub');
             
             // Load categories when product modal opens
             const addProductModalEl = document.getElementById('addProductModal');
