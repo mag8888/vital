@@ -5209,9 +5209,14 @@ router.get('/products', requireAdmin, async (req, res) => {
       const rubPrice = (product.price * 100).toFixed(2);
       const priceFormatted = `${rubPrice} ₽ / ${product.price.toFixed(2)} PZ`;
       const createdAt = new Date(product.createdAt).toLocaleDateString();
+      const escapedImageUrl = (product.imageUrl || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      const escapedTitle = (product.title || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      const imageId = `product-img-${product.id}`;
+      const placeholderId = `product-placeholder-${product.id}`;
+      
       const imageSection = product.imageUrl
-        ? `<img src="${product.imageUrl.replace(/"/g, '&quot;')}" alt="${(product.title || '').replace(/"/g, '&quot;')}" class="product-image" loading="lazy" onerror="this.onerror=null; this.style.display='none'; const placeholder = this.parentElement.querySelector('.product-image-placeholder'); if(placeholder) placeholder.style.display='flex';">
-           <div class="product-image-placeholder" style="display: none;">
+        ? `<img id="${imageId}" src="${escapedImageUrl}" alt="${escapedTitle}" class="product-image" loading="lazy" onerror="document.getElementById('${imageId}').style.display='none'; document.getElementById('${placeholderId}').style.display='flex';">
+           <div id="${placeholderId}" class="product-image-placeholder" style="display: none;">
              <span class="placeholder-icon">📷</span>
              <span class="placeholder-text">Нет фото</span>
            </div>`
