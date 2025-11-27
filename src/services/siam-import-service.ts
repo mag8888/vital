@@ -578,6 +578,10 @@ export async function updateProductImages(): Promise<{ updated: number; failed: 
   // Создаем мапу для быстрого поиска исходных данных по названию
   const productMap = new Map<string, SiamProduct>();
   for (const siamProduct of siamProducts) {
+    // Проверяем наличие обязательных полей
+    if (!siamProduct.englishTitle || !siamProduct.imageUrl) {
+      continue; // Пропускаем продукты без обязательных полей
+    }
     const firstWord = siamProduct.englishTitle.split(' ')[0].toLowerCase();
     productMap.set(firstWord, siamProduct as SiamProduct);
   }
@@ -591,14 +595,14 @@ export async function updateProductImages(): Promise<{ updated: number; failed: 
       // Если не нашли по первому слову, ищем по части названия
       if (!siamProduct) {
         for (const [key, value] of productMap.entries()) {
-          if (product.title.toLowerCase().includes(key) || value.englishTitle.toLowerCase().includes(firstWord)) {
+          if (value.englishTitle && (product.title.toLowerCase().includes(key) || value.englishTitle.toLowerCase().includes(firstWord))) {
             siamProduct = value;
             break;
           }
         }
       }
 
-      if (!siamProduct || !siamProduct.imageUrl) {
+      if (!siamProduct || !siamProduct.imageUrl || !siamProduct.englishTitle) {
         console.log(`⚠️  Не найдено изображение для товара: ${product.title}`);
         failedCount++;
         continue;
