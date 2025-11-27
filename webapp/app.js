@@ -146,7 +146,7 @@ function openSection(sectionName) {
         partner: 'Партнёрка',
         audio: 'Звуковые матрицы',
         reviews: 'Отзывы',
-        about: 'О PLASMA',
+        about: 'О нас',
         support: 'Поддержка',
         favorites: 'Избранное'
     };
