@@ -211,6 +211,88 @@ async function loadSectionContent(sectionName, container) {
     }
 }
 
+// Load products on main page immediately
+async function loadProductsOnMainPage() {
+    const container = document.getElementById('products-container');
+    if (!container) return; // Container might not exist in overlay mode
+    
+    try {
+        console.log('🛒 Loading products on main page...');
+        const response = await fetch(`${API_BASE}/products`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const products = await response.json();
+        console.log(`✅ Loaded ${products?.length || 0} products`);
+        
+        if (products && Array.isArray(products) && products.length > 0) {
+            let html = '';
+            products.forEach(product => {
+                html += renderProductCard(product);
+            });
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <p style="font-size: 18px; margin-bottom: 20px;">📦 Каталог пока пуст</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('❌ Error loading products:', error);
+        const container = document.getElementById('products-container');
+        if (container) {
+            container.innerHTML = `
+                <div class="error-message">
+                    <p>Ошибка загрузки товаров</p>
+                    <button class="btn" onclick="loadProductsOnMainPage()" style="margin-top: 20px;">
+                        🔄 Попробовать снова
+                    </button>
+                </div>
+            `;
+        }
+    }
+}
+
+// Render product card in FORMA Store style
+function renderProductCard(product) {
+    const imageHtml = product.imageUrl 
+        ? `<div class="product-card-image" onclick="event.stopPropagation(); showProductDetails('${product.id}')"><img src="${product.imageUrl}" alt="${escapeHtml(product.title || 'Товар')}" onerror="this.style.display='none'; this.parentElement.classList.add('no-image');"></div>`
+        : `<div class="product-card-image no-image" onclick="event.stopPropagation(); showProductDetails('${product.id}')"><div class="product-image-placeholder-icon">📦</div></div>`;
+    
+    const title = escapeHtml(product.title || 'Без названия');
+    const summary = escapeHtml((product.summary || product.description || '').substring(0, 100));
+    const priceRub = product.price ? (product.price * 100).toFixed(0) : '0';
+    
+    return `
+        <div class="product-card-forma" onclick="showProductDetails('${product.id}')">
+            ${imageHtml}
+            <div class="product-card-content">
+                <h3 class="product-card-title">${title}</h3>
+                ${summary ? `<p class="product-card-summary">${summary}${(product.summary || product.description || '').length > 100 ? '...' : ''}</p>` : ''}
+                <div class="product-card-footer">
+                    <div class="product-card-price">
+                        <span class="price-value">${priceRub} ₽</span>
+                    </div>
+                    <button class="product-card-btn" onclick="event.stopPropagation(); addToCart('${product.id}')">
+                        В корзину
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // Shop content - показываем все товары сразу
 async function loadShopContent() {
     try {
