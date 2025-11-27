@@ -342,12 +342,31 @@ async function downloadAndUploadImage(imageUrl: string, productId: string): Prom
   }
 
   try {
-    const response = await fetch(imageUrl);
+    const response = await fetch(imageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      signal: AbortSignal.timeout(10000) // 10 секунд таймаут
+    });
+    
     if (!response.ok) {
-      throw new Error(`Failed to fetch image: ${response.statusText}`);
+      // Логируем только как предупреждение, не как ошибку
+      console.warn(`⚠️  Изображение недоступно (${response.status}): ${imageUrl}`);
+      return null;
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.startsWith('image/')) {
+      console.warn(`⚠️  URL не является изображением: ${imageUrl}`);
+      return null;
     }
 
     const imageBuffer = Buffer.from(await response.arrayBuffer());
+    
+    if (imageBuffer.length === 0) {
+      console.warn(`⚠️  Изображение пустое: ${imageUrl}`);
+      return null;
+    }
     
     const result = await uploadImage(imageBuffer, {
       folder: 'vital/products',
@@ -357,8 +376,15 @@ async function downloadAndUploadImage(imageUrl: string, productId: string): Prom
 
     console.log(`✅ Изображение загружено: ${result.secureUrl}`);
     return result.secureUrl;
-  } catch (error) {
-    console.error(`❌ Ошибка загрузки изображения ${imageUrl}:`, error);
+  } catch (error: any) {
+    // Логируем как предупреждение, не как критическую ошибку
+    if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+      console.warn(`⚠️  Таймаут загрузки изображения: ${imageUrl}`);
+    } else if (error.message?.includes('Not Found') || error.message?.includes('404')) {
+      console.warn(`⚠️  Изображение не найдено (404): ${imageUrl}`);
+    } else {
+      console.warn(`⚠️  Не удалось загрузить изображение ${imageUrl}: ${error.message || error}`);
+    }
     return null;
   }
 }
@@ -395,7 +421,7 @@ async function importProduct(product: SiamProduct): Promise<any> {
         });
         console.log('  ✅ Изображение обновлено:', imageUrl);
       } else {
-        console.warn('  ⚠️  Не удалось загрузить изображение');
+        console.warn('  ⚠️  Изображение недоступно, продукт будет без фото');
       }
     }
     return existingProduct;
