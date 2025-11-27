@@ -1769,8 +1769,10 @@ router.get('/', requireAdmin, async (req, res) => {
             formData.append('stock', document.getElementById('productStock').value || 0);
             formData.append('summary', document.getElementById('productShortDescription').value);
             formData.append('description', document.getElementById('productFullDescription').value);
-            formData.append('instruction', document.getElementById('productInstruction').value);
-            formData.append('isActive', document.getElementById('productStatus').checked);
+             const productInstructionEl = document.getElementById('productInstruction');
+             const productStatusEl = document.getElementById('productStatus');
+             formData.append('instruction', productInstructionEl ? productInstructionEl.value : '');
+             formData.append('isActive', productStatusEl ? productStatusEl.checked : false);
             
             // Regions
             const regionRussiaEl = document.getElementById('regionRussia');
