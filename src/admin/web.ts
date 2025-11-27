@@ -1745,15 +1745,26 @@ router.get('/', requireAdmin, async (req, res) => {
           // loadCategories is already defined as window.loadCategories above
           
           // Handle product form submission
-          document.getElementById('addProductForm').addEventListener('submit', async function(e) {
+           document.getElementById('addProductForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const productId = document.getElementById('productId').value;
             const isEdit = productId !== '';
             
+             const productPriceInput = document.getElementById('productPrice');
+             const productPriceRubInput = document.getElementById('productPriceRub');
+             let productPriceValue = productPriceInput ? productPriceInput.value : '';
+             if ((!productPriceValue || Number(productPriceValue) === 0) && productPriceRubInput) {
+               const rubValue = parseFloat(productPriceRubInput.value) || 0;
+               if (rubValue > 0 && productPriceInput) {
+                 productPriceValue = (rubValue / 100).toFixed(2);
+                 productPriceInput.value = productPriceValue;
+               }
+             }
+             
             const formData = new FormData();
             formData.append('title', document.getElementById('productName').value);
-            formData.append('price', document.getElementById('productPrice').value);
+             formData.append('price', productPriceValue || document.getElementById('productPrice').value);
             formData.append('categoryId', document.getElementById('productCategory').value);
             formData.append('stock', document.getElementById('productStock').value || 0);
             formData.append('summary', document.getElementById('productShortDescription').value);
@@ -5313,9 +5324,19 @@ router.get('/products', requireAdmin, async (req, res) => {
               
               // Ensure checkboxes are properly handled
               const formDataToSend = new FormData();
+              const editPriceInput = document.getElementById('editProductPrice');
+              const editPriceRubInput = document.getElementById('editProductPriceRub');
+              let editPriceValue = formData.get('price') || '';
+              if ((!editPriceValue || Number(editPriceValue) === 0) && editPriceRubInput) {
+                const rubValue = parseFloat(editPriceRubInput.value) || 0;
+                if (rubValue > 0 && editPriceInput) {
+                  editPriceValue = (rubValue / 100).toFixed(2);
+                  editPriceInput.value = editPriceValue;
+                }
+              }
               formDataToSend.append('productId', productId);
               formDataToSend.append('title', formData.get('title') || '');
-              formDataToSend.append('price', formData.get('price') || '0');
+              formDataToSend.append('price', editPriceValue || formData.get('price') || '0');
               formDataToSend.append('summary', formData.get('summary') || '');
               formDataToSend.append('description', formData.get('description') || '');
               formDataToSend.append('categoryId', formData.get('categoryId') || '');
