@@ -230,17 +230,43 @@ async function bootstrap() {
       }
     }
 
+    // Graceful shutdown handlers
     process.once('SIGINT', () => {
-      void bot.stop('SIGINT');
+      console.log('\n🛑 Received SIGINT, shutting down gracefully...');
+      try {
+        bot.stop('SIGINT');
+      } catch (error) {
+        console.warn('⚠️  Error stopping bot:', error);
+      }
+      process.exit(0);
     });
 
     process.once('SIGTERM', () => {
-      void bot.stop('SIGTERM');
+      console.log('\n🛑 Received SIGTERM, shutting down gracefully...');
+      try {
+        bot.stop('SIGTERM');
+      } catch (error) {
+        console.warn('⚠️  Error stopping bot:', error);
+      }
+      process.exit(0);
+    });
+
+    // Handle unhandled errors - don't crash server
+    process.on('unhandledRejection', (reason, promise) => {
+      console.error('⚠️  Unhandled Rejection at:', promise, 'reason:', reason);
+      // Don't exit - log and continue
+    });
+
+    process.on('uncaughtException', (error) => {
+      console.error('⚠️  Uncaught Exception:', error);
+      // Don't exit - log and continue (server should keep running)
     });
 
   } catch (error) {
-    console.error('Bootstrap error:', error);
-    process.exit(1);
+    console.error('❌ Bootstrap error:', error);
+    // Don't exit(1) - let Railway handle restarts if needed
+    // Server might still be partially functional
+    console.log('⚠️  Server may be partially functional despite bootstrap errors');
   }
 }
 
