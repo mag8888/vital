@@ -5308,7 +5308,7 @@ router.get('/products', requireAdmin, async (req, res) => {
               const decodedText = instructionText
                 .replace(/&quot;/g, '"')
                 .replace(/&#39;/g, "'")
-                .replace(/&#96;/g, '`');
+                .replace(/&#96;/g, String.fromCharCode(96));
               
               if (window.showInstruction && typeof window.showInstruction === 'function') {
                 window.showInstruction(productId, decodedText);
