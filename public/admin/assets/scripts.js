@@ -30,10 +30,11 @@ document.addEventListener('DOMContentLoaded', function() {
       };
     });
 
-    // Блокируем все кнопки кроме action buttons
+    // Блокируем все кнопки кроме action buttons и кастомных кнопок (с onclick)
     const allButtons = document.querySelectorAll('button');
     allButtons.forEach(button => {
-      if (!button.classList.contains('adminjs-button')) {
+      // Разрешаем кнопки AdminJS и кнопки с кастомными onclick функциями (импорт, модальные окна и т.д.)
+      if (!button.classList.contains('adminjs-button') && !button.hasAttribute('onclick')) {
         button.onclick = function(e) {
           console.log('🚫 BLOCKED BUTTON CLICK');
           e.preventDefault();

@@ -81,10 +81,16 @@ console.log('🚫 NO REDIRECT AdminJS Blocker Loading...');
   // Блокируем все клики на ссылки
   document.addEventListener('click', function(e) {
     const target = e.target;
+    const button = target.closest('button');
     
-    // Разрешаем только кнопки действий
+    // Разрешаем кнопки действий AdminJS
     if (target.classList.contains('adminjs-button') || 
         target.closest('.adminjs-button')) {
+      return true;
+    }
+    
+    // Разрешаем кнопки с кастомными onclick функциями (импорт, модальные окна)
+    if (button && button.hasAttribute('onclick')) {
       return true;
     }
     

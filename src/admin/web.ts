@@ -865,7 +865,7 @@ router.get('/', requireAdmin, async (req, res) => {
                 <a href="/admin/reviews" class="btn">⭐ Отзывы</a>
                 <a href="/admin/orders" class="btn">📦 Заказы</a>
                 <button class="btn" onclick="openAddProductModal()" style="background: #28a745;">➕ Добавить товар</button>
-                <button class="btn" onclick="importSiamProducts()" style="background: #17a2b8;">🤖 Импорт Siam Botanicals</button>
+                <button class="btn" onclick="importSiamProducts(this)" style="background: #17a2b8;">🤖 Импорт Siam Botanicals</button>
               </div>
             </div>
             <p>Управление каталогом товаров, отзывами и заказами.</p>
@@ -5555,12 +5555,12 @@ router.get('/products', requireAdmin, async (req, res) => {
           };
           
           // Import Siam Botanicals products
-          window.importSiamProducts = async function() {
+          window.importSiamProducts = async function(buttonElement) {
             if (!confirm('Запустить импорт продуктов из Siam Botanicals? Это может занять несколько минут.')) {
               return;
             }
             
-            const btn = event?.target || document.querySelector('button[onclick*="importSiamProducts"]');
+            const btn = buttonElement || event?.target || document.querySelector('button[onclick*="importSiamProducts"]');
             if (btn) {
               const originalText = btn.textContent;
               btn.disabled = true;
