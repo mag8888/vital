@@ -1609,7 +1609,7 @@ router.get('/', requireAdmin, async (req, res) => {
           
           // Show/hide buttons section
           document.addEventListener('DOMContentLoaded', function() {
-            const includeButtonsToggle = document.getElementById('includeButtons') as HTMLInputElement | null;
+            const includeButtonsToggle = document.getElementById('includeButtons');
             if (includeButtonsToggle) {
               includeButtonsToggle.addEventListener('change', function() {
                 const buttonsSection = document.getElementById('buttonsSection');
@@ -1619,9 +1619,9 @@ router.get('/', requireAdmin, async (req, res) => {
               });
             }
             
-            function setupPriceSync(priceId: string, priceRubId: string) {
-              const pricePzInput = document.getElementById(priceId) as HTMLInputElement | null;
-              const priceRubInput = document.getElementById(priceRubId) as HTMLInputElement | null;
+            function setupPriceSync(priceId, priceRubId) {
+              const pricePzInput = document.getElementById(priceId);
+              const priceRubInput = document.getElementById(priceRubId);
               if (!pricePzInput || !priceRubInput) return;
               
               const syncFromRub = () => {
