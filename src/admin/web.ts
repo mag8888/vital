@@ -1763,22 +1763,35 @@ router.get('/', requireAdmin, async (req, res) => {
              }
              
             const formData = new FormData();
-            formData.append('title', document.getElementById('productName').value);
-             formData.append('price', productPriceValue || document.getElementById('productPrice').value);
+            const productNameValue = document.getElementById('productName').value || '';
+            const shortDescValue = document.getElementById('productShortDescription').value || '';
+            const fullDescValue = document.getElementById('productFullDescription').value || '';
+            const productInstructionEl = document.getElementById('productInstruction');
+            const productStatusEl = document.getElementById('productStatus');
+            const productInstructionValue = productInstructionEl ? productInstructionEl.value : '';
+            const productStatusValue = productStatusEl ? productStatusEl.checked : false;
+            
+            formData.append('title', productNameValue);
+            formData.append('name', productNameValue);
+            const finalPriceValue = productPriceValue || document.getElementById('productPrice').value;
+            formData.append('price', finalPriceValue);
             formData.append('categoryId', document.getElementById('productCategory').value);
             formData.append('stock', document.getElementById('productStock').value || 0);
-            formData.append('summary', document.getElementById('productShortDescription').value);
-            formData.append('description', document.getElementById('productFullDescription').value);
-             const productInstructionEl = document.getElementById('productInstruction');
-             const productStatusEl = document.getElementById('productStatus');
-             formData.append('instruction', productInstructionEl ? productInstructionEl.value : '');
-             formData.append('isActive', productStatusEl ? productStatusEl.checked : false);
+            formData.append('summary', shortDescValue);
+            formData.append('shortDescription', shortDescValue);
+            formData.append('description', fullDescValue);
+            formData.append('fullDescription', fullDescValue);
+            formData.append('instruction', productInstructionValue);
+            formData.append('isActive', productStatusValue);
+            formData.append('active', productStatusValue ? 'true' : 'false');
             
             // Regions
             const regionRussiaEl = document.getElementById('regionRussia');
             const regionBaliEl = document.getElementById('regionBali');
-            formData.append('availableInRussia', regionRussiaEl ? regionRussiaEl.checked : false);
-            formData.append('availableInBali', regionBaliEl ? regionBaliEl.checked : false);
+            const russiaAvailable = regionRussiaEl ? regionRussiaEl.checked : false;
+            const baliAvailable = regionBaliEl ? regionBaliEl.checked : false;
+            formData.append('availableInRussia', russiaAvailable ? 'true' : 'false');
+            formData.append('availableInBali', baliAvailable ? 'true' : 'false');
             
             // Add image if selected
             const imageFile = document.getElementById('productImage').files[0];
