@@ -1559,8 +1559,10 @@ router.get('/', requireAdmin, async (req, res) => {
             }
             
             // Update modal title and submit button
-            document.querySelector('.product-modal h2').textContent = 'Редактировать товар';
-            document.querySelector('#productModalSubmit').textContent = 'Обновить товар';
+            const modalH2 = document.querySelector('.product-modal h2');
+            const submitBtn = document.getElementById('productModalSubmit');
+            if (modalH2) modalH2.textContent = 'Редактировать товар';
+            if (submitBtn) submitBtn.textContent = 'Обновить товар';
             
             // Load categories
             fetch('/admin/api/categories', { credentials: 'include' })
@@ -1625,8 +1627,10 @@ router.get('/', requireAdmin, async (req, res) => {
             }
             
             // Update modal title and submit button
-            document.querySelector('.product-modal h2').textContent = 'Редактировать товар';
-            document.querySelector('#productModalSubmit').textContent = 'Обновить товар';
+            const modalH2 = document.querySelector('.product-modal h2');
+            const submitBtn = document.getElementById('productModalSubmit');
+            if (modalH2) modalH2.textContent = 'Редактировать товар';
+            if (submitBtn) submitBtn.textContent = 'Обновить товар';
             
             // Load categories and show modal
             loadCategories();
@@ -1790,8 +1794,10 @@ router.get('/', requireAdmin, async (req, res) => {
           function openAddProductModal() {
             // Reset form for new product
             document.getElementById('productId').value = '';
-            document.querySelector('.product-modal h2').textContent = 'Добавить товар';
-            document.querySelector('#productModalSubmit').textContent = 'Создать товар';
+            const modalH2 = document.querySelector('.product-modal h2');
+            const submitBtn = document.getElementById('productModalSubmit');
+            if (modalH2) modalH2.textContent = 'Добавить товар';
+            if (submitBtn) submitBtn.textContent = 'Создать товар';
             document.getElementById('addProductModal').style.display = 'block';
             loadCategories();
           }
@@ -1863,8 +1869,10 @@ router.get('/', requireAdmin, async (req, res) => {
             }
             
             // Update modal title and submit button
-            document.querySelector('.product-modal h2').textContent = 'Редактировать товар';
-            document.querySelector('#productModalSubmit').textContent = 'Обновить товар';
+            const modalH2 = document.querySelector('.product-modal h2');
+            const submitBtn = document.getElementById('productModalSubmit');
+            if (modalH2) modalH2.textContent = 'Редактировать товар';
+            if (submitBtn) submitBtn.textContent = 'Обновить товар';
             
             // Load categories and show modal
             loadCategories();
