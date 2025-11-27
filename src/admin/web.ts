@@ -1803,8 +1803,10 @@ router.get('/', requireAdmin, async (req, res) => {
             document.getElementById('shortDescCount').textContent = '0/200';
             
             // Reset modal title and submit button
-            document.querySelector('.product-modal h2').textContent = '➕ Добавить новый товар';
-            document.querySelector('#productModalSubmit').textContent = 'Создать товар';
+            const modalH2 = document.querySelector('.product-modal h2');
+            const submitBtn = document.getElementById('productModalSubmit');
+            if (modalH2) modalH2.textContent = '➕ Добавить новый товар';
+            if (submitBtn) submitBtn.textContent = 'Создать товар';
           }
           
           function openAddCategoryModal() {
@@ -4843,7 +4845,7 @@ router.get('/products', requireAdmin, async (req, res) => {
           body { font-family: Arial, sans-serif; max-width: 1200px; margin: 20px auto; padding: 20px; background: #f5f5f5; }
           a.btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 6px; margin: 5px 0 20px; transition: background 0.2s ease; }
           a.btn:hover { background: #0056b3; }
-          h2 { margin-top: 0; }
+          h2 { margin-top: 0; color: #1f2937; font-weight: 600; }
           .filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
           .filter-btn { padding: 8px 16px; border: none; border-radius: 999px; background: #e0e7ff; color: #1d4ed8; cursor: pointer; transition: all 0.2s ease; }
           .filter-btn:hover { background: #c7d2fe; }
