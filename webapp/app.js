@@ -245,33 +245,26 @@ async function loadProfileContent() {
         const partner = partnerResponse.ok ? await partnerResponse.json() : null;
         
         const telegramUser = getTelegramUserData();
-        // Use the same format as buildReferralLink from partner-service
-        let referralLink = 'https://t.me/ivitalbot';
+        // Реферальная ссылка с юзернеймом в конце
+        const botUsername = 'Vital_shop_bot';
+        let referralLink = `https://t.me/${botUsername}`;
         
-        // Check if partner has valid referral code
-        const hasValidReferralCode = partner && 
-            partner.referralCode && 
-            partner.referralCode !== 'undefined' && 
-            partner.referralCode !== 'null' &&
-            partner.referralCode.trim() !== '';
+        // Получаем username пользователя для реферальной ссылки
+        let username = null;
+        if (telegramUser && telegramUser.username && telegramUser.username !== 'undefined' && telegramUser.username.trim() !== '') {
+            username = telegramUser.username.trim();
+        } else if (user && user.username && user.username !== 'undefined' && user.username.trim() !== '') {
+            username = user.username.trim();
+        }
         
-        if (hasValidReferralCode) {
-            // Format: https://t.me/ivitalbot?start=ref_direct_CODE or ref_multi_CODE
-            const programType = (partner.programType || 'DIRECT').toString();
-            const prefix = programType === 'DIRECT' ? 'ref_direct' : 'ref_multi';
-            referralLink = `https://t.me/ivitalbot?start=${prefix}_${partner.referralCode.trim()}`;
-        } else if (telegramUser) {
-            // Fallback: use username or ID
-            let startParam = null;
-            
-            if (telegramUser.username && telegramUser.username !== 'undefined' && telegramUser.username.trim() !== '') {
-                startParam = telegramUser.username.trim();
-            } else if (telegramUser.id && telegramUser.id !== 'undefined') {
-                startParam = String(telegramUser.id).trim();
-            }
-            
-            if (startParam) {
-                referralLink = `https://t.me/ivitalbot?start=${startParam}`;
+        // Формируем ссылку с username в конце
+        if (username) {
+            referralLink = `https://t.me/${botUsername}?start=${username}`;
+        } else {
+            // Fallback: используем ID если нет username
+            const userId = telegramUser?.id || user?.telegramId;
+            if (userId && userId !== 'undefined') {
+                referralLink = `https://t.me/${botUsername}?start=${userId}`;
             }
         }
         
@@ -281,7 +274,7 @@ async function loadProfileContent() {
             referralLink === 'null' ||
             referralLink.includes('undefined') ||
             referralLink.includes('null')) {
-            referralLink = 'https://t.me/ivitalbot';
+            referralLink = `https://t.me/${botUsername}`;
         }
         
         // Log for debugging

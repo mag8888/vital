@@ -137,7 +137,7 @@ async function showGiftMessage(ctx: Context) {
         [
           {
             text: '📖 ГИД по плазменному здоровью',
-            url: 'https://t.me/ivitalbot',
+            url: 'https://t.me/Vital_shop_bot',
           },
         ],
       ],
@@ -467,6 +467,35 @@ export const navigationModule: BotModule = {
       const startPayload = ctx.startPayload;
       console.log('🔗 Referral: startPayload =', startPayload);
       
+      // Handle new format: username (simple referral link)
+      if (startPayload && !startPayload.startsWith('ref_direct_') && !startPayload.startsWith('ref_multi_')) {
+        // Try to find user by username
+        try {
+          const { prisma } = await import('../../lib/prisma.js');
+          const referrerUser = await prisma.user.findFirst({
+            where: { 
+              username: startPayload,
+            },
+            include: { partner: true }
+          });
+          
+          if (referrerUser && referrerUser.partner) {
+            console.log('🔗 Referral: Found user by username:', referrerUser.username);
+            // Process referral using partner profile
+            const user = await ensureUser(ctx);
+            if (user) {
+              const referralLevel = 1;
+              const programType = referrerUser.partner.programType || 'DIRECT';
+              await upsertPartnerReferral(referrerUser.partner.id, referralLevel, user.id, undefined, programType);
+              console.log('🔗 Referral: Referral record created via username');
+            }
+          }
+        } catch (error: any) {
+          console.warn('🔗 Referral: Error processing username referral:', error?.message);
+        }
+      }
+      
+      // Handle old format: ref_direct_CODE or ref_multi_CODE
       if (startPayload && (startPayload.startsWith('ref_direct_') || startPayload.startsWith('ref_multi_'))) {
         const parts = startPayload.split('_');
         console.log('🔗 Referral: parts =', parts);

@@ -56,7 +56,7 @@ export async function showAbout(ctx: Context) {
       ],
       [
         Markup.button.url('🌐 Каталог', 'https://ivital.tilda.ws/'),
-        Markup.button.url('💬 Telegram', 'https://t.me/ivitalbot')
+        Markup.button.url('💬 Telegram', 'https://t.me/Vital_shop_bot')
       ]
     ]);
 

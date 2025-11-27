@@ -74,10 +74,14 @@ export async function checkPartnerActivation(userId: string): Promise<boolean> {
   return true;
 }
 
-export function buildReferralLink(code: string, programType: 'DIRECT' | 'MULTI_LEVEL') {
-  // Create Telegram bot link with referral parameter based on program type
+export function buildReferralLink(code: string, programType: 'DIRECT' | 'MULTI_LEVEL', username?: string) {
+  // Create Telegram bot link with username at the end
+  if (username) {
+    return `https://t.me/Vital_shop_bot?start=${username}`;
+  }
+  // Fallback to old format if no username
   const prefix = programType === 'DIRECT' ? 'ref_direct' : 'ref_multi';
-  return `https://t.me/ivitalbot?start=${prefix}_${code}`;
+  return `https://t.me/Vital_shop_bot?start=${prefix}_${code}`;
 }
 
 export async function getPartnerDashboard(userId: string) {
