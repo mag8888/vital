@@ -5215,7 +5215,7 @@ router.get('/products', requireAdmin, async (req, res) => {
       const placeholderId = `product-placeholder-${product.id}`;
       
       const imageSection = product.imageUrl
-        ? `<img id="${imageId}" src="${escapedImageUrl}" alt="${escapedTitle}" class="product-image" loading="lazy" onerror="document.getElementById('${imageId}').style.display='none'; document.getElementById('${placeholderId}').style.display='flex';">
+        ? `<img id="${imageId}" src="${escapedImageUrl}" alt="${escapedTitle}" class="product-image" loading="lazy" onerror="var img=document.getElementById('${imageId}');var ph=document.getElementById('${placeholderId}');if(img)img.style.display='none';if(ph)ph.style.display='flex';">
            <div id="${placeholderId}" class="product-image-placeholder" style="display: none;">
              <span class="placeholder-icon">📷</span>
              <span class="placeholder-text">Нет фото</span>
