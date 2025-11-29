@@ -50,7 +50,17 @@ export async function scrapeShopPage(page: number = 1): Promise<{
     
     // Ищем все ссылки на продукты в HTML
     // WooCommerce обычно использует структуру: <li class="product"> или <article class="product">
-    const allProductLinks = html.match(/<a[^>]*href="([^"]*\/product\/[^\/]+)"[^>]*>/gi) || [];
+    // Ищем все ссылки, содержащие /product/ в href
+    const allProductLinks = html.match(/<a[^>]*href="[^"]*\/product\/[^"]*"[^>]*>/gi) || [];
+    
+    if (allProductLinks.length === 0) {
+      // Попробуем альтернативный паттерн
+      const altPattern = /href="(https:\/\/siambotanicals\.com\/product\/[^"]+)"/gi;
+      const altMatches = [...html.matchAll(altPattern)];
+      if (altMatches.length > 0) {
+        console.log(`   ℹ️  Найдено товаров альтернативным способом: ${altMatches.length}`);
+      }
+    }
     
     for (const linkTag of allProductLinks) {
       const urlMatch = linkTag.match(/href="([^"]+)"/i);

@@ -27,6 +27,7 @@
     "update-images": "node scripts/update-images-now.js",
     "scrape-images": "ts-node --esm scripts/scrape-product-images.ts",
     "scrape-all-images": "ts-node --esm scripts/scrape-all-missing-images.ts",
+    "test-scrape": "ts-node --esm scripts/test-scrape-shop.ts",
     "upload-image": "node scripts/upload-product-image.js",
     "upload-all-images": "node scripts/upload-all-product-images.js"
   },
