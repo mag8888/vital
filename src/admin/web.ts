@@ -10717,36 +10717,29 @@ router.put('/orders/:orderId/items', requireAdmin, async (req, res) => {
 
 // API endpoint to scrape all missing images
 router.post('/api/scrape-all-images', requireAdmin, async (req, res) => {
-  // Запускаем скрипт в фоне и сразу возвращаем ответ
+  // Возвращаем ответ сразу и запускаем в фоне
   res.json({ 
     success: true, 
     message: 'Сбор фотографий запущен. Проверьте логи сервера для деталей.' 
   });
   
-  // Запускаем скрипт асинхронно в фоне
+  // Запускаем в фоне
   (async () => {
     try {
       console.log('🚀 Запуск сбора недостающих фотографий продуктов...');
       
-      // Импортируем и запускаем скрипт
-      const { exec } = await import('child_process');
-      const { promisify } = await import('util');
-      const execAsync = promisify(exec);
+      const { scrapeAllMissingImages } = await import('../services/scrape-images-service.js');
+      const result = await scrapeAllMissingImages();
       
-      // Запускаем скрипт
-      const { stdout, stderr } = await execAsync('npm run scrape-all-images', {
-        cwd: process.cwd(),
-        maxBuffer: 10 * 1024 * 1024, // 10MB buffer
-        env: process.env
-      });
-      
-      console.log('📸 Скрипт сбора фотографий завершен:');
-      console.log(stdout);
-      if (stderr) {
-        console.error('⚠️ Ошибки:', stderr);
-      }
+      console.log('\n✅ Сбор фотографий завершен!');
+      console.log(`   ✅ Обновлено: ${result.updated}`);
+      console.log(`   ⏭️  Пропущено (уже есть): ${result.skipped}`);
+      console.log(`   ❌ Не удалось: ${result.failed}`);
+      console.log(`   🔍 Не найдено в БД: ${result.notFound}`);
+      console.log(`   📦 Всего обработано: ${result.total}`);
     } catch (error: any) {
-      console.error('❌ Ошибка запуска скрипта сбора фотографий:', error.message || error);
+      console.error('❌ Ошибка сбора фотографий:', error.message || error);
+      console.error('Stack:', error.stack);
     }
   })();
 });
