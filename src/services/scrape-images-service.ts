@@ -46,53 +46,91 @@ export async function scrapeShopPage(page: number = 1): Promise<{
 
     const html = await response.text();
     const products: ProductFromSite[] = [];
+    const foundUrls = new Set<string>(); // Для избежания дубликатов
     
-    // Парсим HTML для поиска продуктов
-    const productPattern = /<li[^>]*class="[^"]*product[^"]*"[^>]*>([\s\S]*?)<\/li>/gi;
-    const productMatches = [...html.matchAll(productPattern)];
+    // Ищем все ссылки на продукты в HTML
+    // WooCommerce обычно использует структуру: <li class="product"> или <article class="product">
+    const allProductLinks = html.match(/<a[^>]*href="([^"]*\/product\/[^\/]+)"[^>]*>/gi) || [];
     
-    const articlePattern = /<article[^>]*class="[^"]*product[^"]*"[^>]*>([\s\S]*?)<\/article>/gi;
-    const articleMatches = [...html.matchAll(articlePattern)];
-    
-    const allMatches = [...productMatches, ...articleMatches];
-    
-    for (const match of allMatches) {
-      const productHtml = match[1];
+    for (const linkTag of allProductLinks) {
+      const urlMatch = linkTag.match(/href="([^"]+)"/i);
+      if (!urlMatch) continue;
       
-      const linkMatch = productHtml.match(/<a[^>]*href="([^"]*\/product\/[^"]+)"[^>]*>/i);
-      if (!linkMatch) continue;
-      
-      const productUrl = linkMatch[1];
+      let productUrl = urlMatch[1];
       if (!productUrl.includes('/product/')) continue;
       
-      const slugMatch = productUrl.match(/\/product\/([^\/]+)\/?/);
-      const slug = slugMatch ? slugMatch[1] : null;
-      if (!slug) continue;
-      
-      const titleMatch = productHtml.match(/<h2[^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/i) ||
-                        productHtml.match(/<h3[^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/i) ||
-                        productHtml.match(/<a[^>]*class="[^"]*woocommerce-LoopProduct-link[^"]*"[^>]*>[\s\S]*?<h2[^>]*>([\s\S]*?)<\/h2>/i);
-      
-      let title = '';
-      if (titleMatch) {
-        title = titleMatch[1].replace(/<[^>]+>/g, '').trim();
+      // Нормализуем URL
+      if (!productUrl.startsWith('http')) {
+        productUrl = productUrl.startsWith('/') 
+          ? `https://siambotanicals.com${productUrl}`
+          : `https://siambotanicals.com/${productUrl}`;
       }
       
-      const imageMatch = productHtml.match(/<img[^>]*src="([^"]+)"[^>]*class="[^"]*(?:attachment-woocommerce_thumbnail|wp-post-image)[^"]*"/i) ||
-                        productHtml.match(/<img[^>]*class="[^"]*(?:attachment-woocommerce_thumbnail|wp-post-image)[^"]*"[^>]*src="([^"]+)"/i) ||
-                        productHtml.match(/<img[^>]*data-src="([^"]+)"[^>]*>/i) ||
-                        productHtml.match(/<img[^>]*src="([^"]*\/wp-content\/uploads\/[^"]+\.(jpg|jpeg|png))"[^>]*>/i);
+      // Убираем параметры из URL
+      productUrl = productUrl.split('?')[0].split('#')[0];
       
-      let imageUrl: string | null = null;
-      if (imageMatch && imageMatch[1]) {
-        imageUrl = imageMatch[1];
-        if (imageUrl.startsWith('//')) {
-          imageUrl = 'https:' + imageUrl;
-        } else if (imageUrl.startsWith('/')) {
-          imageUrl = 'https://siambotanicals.com' + imageUrl;
+      // Извлекаем slug
+      const slugMatch = productUrl.match(/\/product\/([^\/]+)/);
+      if (!slugMatch) continue;
+      
+      const slug = slugMatch[1];
+      
+      // Пропускаем дубликаты
+      if (foundUrls.has(productUrl)) continue;
+      foundUrls.add(productUrl);
+      
+      // Находим блок продукта вокруг этой ссылки
+      const linkIndex = html.indexOf(linkTag);
+      const productBlockStart = Math.max(0, linkIndex - 1000);
+      const productBlockEnd = Math.min(html.length, linkIndex + 2000);
+      const productHtml = html.substring(productBlockStart, productBlockEnd);
+      
+      // Извлекаем название
+      let title = '';
+      const titlePatterns = [
+        /<h2[^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h2>/i,
+        /<h3[^>]*>[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h3>/i,
+        /<a[^>]*class="[^"]*woocommerce-LoopProduct-link[^"]*"[^>]*>[\s\S]*?<h2[^>]*>([\s\S]*?)<\/h2>/i,
+        /<a[^>]*class="[^"]*woocommerce-LoopProduct-link[^"]*"[^>]*>[\s\S]*?<h3[^>]*>([\s\S]*?)<\/h3>/i,
+        // Альтернативные паттерны для названия
+        new RegExp(`<a[^>]*href="${productUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*>([^<]+)</a>`, 'i')
+      ];
+      
+      for (const pattern of titlePatterns) {
+        const match = productHtml.match(pattern);
+        if (match && match[1]) {
+          title = match[1].replace(/<[^>]+>/g, '').trim();
+          if (title && title.length > 3) break;
         }
-        imageUrl = imageUrl.replace(/-\d+x\d+\.(jpg|jpeg|png)/i, '.$1');
-        imageUrl = imageUrl.split('?')[0];
+      }
+      
+      // Если название не найдено, извлекаем из slug
+      if (!title || title.length < 3) {
+        title = slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      }
+      
+      // Извлекаем миниатюру (опционально, основное изображение будет со страницы продукта)
+      let imageUrl: string | null = null;
+      const imagePatterns = [
+        /<img[^>]*src="([^"]+)"[^>]*class="[^"]*(?:attachment-woocommerce_thumbnail|wp-post-image)[^"]*"/i,
+        /<img[^>]*class="[^"]*(?:attachment-woocommerce_thumbnail|wp-post-image)[^"]*"[^>]*src="([^"]+)"/i,
+        /<img[^>]*data-src="([^"]+)"[^>]*>/i,
+        /<img[^>]*src="([^"]*\/wp-content\/uploads\/[^"]+\.(jpg|jpeg|png|webp))"[^>]*>/i,
+      ];
+      
+      for (const pattern of imagePatterns) {
+        const match = productHtml.match(pattern);
+        if (match && match[1]) {
+          imageUrl = match[1];
+          if (imageUrl.startsWith('//')) {
+            imageUrl = 'https:' + imageUrl;
+          } else if (imageUrl.startsWith('/')) {
+            imageUrl = 'https://siambotanicals.com' + imageUrl;
+          }
+          imageUrl = imageUrl.replace(/-\d+x\d+\.(jpg|jpeg|png|webp)/i, '.$1');
+          imageUrl = imageUrl.split('?')[0];
+          break;
+        }
       }
       
       if (title && slug) {
@@ -100,7 +138,7 @@ export async function scrapeShopPage(page: number = 1): Promise<{
           title: title,
           slug: slug,
           imageUrl: imageUrl,
-          productUrl: productUrl.startsWith('http') ? productUrl : `https://siambotanicals.com${productUrl}`
+          productUrl: productUrl
         });
       }
     }
@@ -137,13 +175,21 @@ export async function extractImageFromProductPage(productUrl: string): Promise<s
 
     const html = await response.text();
     
+    // Ищем основное изображение продукта (высокого качества)
     const patterns = [
+      // WooCommerce галерея - главное изображение
+      /<img[^>]*class="[^"]*woocommerce-product-gallery__image[^"]*"[^>]*src="([^"]+)"/i,
       /<img[^>]*class="[^"]*wp-post-image[^"]*"[^>]*src="([^"]+)"/i,
       /<img[^>]*class="[^"]*attachment-woocommerce_single[^"]*"[^>]*src="([^"]+)"/i,
-      /<img[^>]*class="[^"]*woocommerce-product-gallery__image[^"]*"[^>]*src="([^"]+)"/i,
+      // Data атрибуты для большого изображения
       /<img[^>]*data-large_image="([^"]+)"/i,
-      /<img[^>]*data-src="([^"]*\/wp-content\/uploads\/[^"]+\.(jpg|jpeg|png))"[^>]*>/i,
-      /<img[^>]*src="([^"]*\/wp-content\/uploads\/[^"]+\.(jpg|jpeg|png))"[^>]*>/i,
+      /<img[^>]*data-src-full="([^"]+)"/i,
+      /<img[^>]*data-large_image_url="([^"]+)"/i,
+      // Обычные изображения из wp-content/uploads
+      /<img[^>]*src="([^"]*\/wp-content\/uploads\/[^"]+\.(jpg|jpeg|png|webp))"[^>]*>/i,
+      /<img[^>]*data-src="([^"]*\/wp-content\/uploads\/[^"]+\.(jpg|jpeg|png|webp))"[^>]*>/i,
+      // Альтернативные паттерны
+      /<img[^>]*srcset="([^"]+)"[^>]*>/i,
     ];
 
     for (const pattern of patterns) {
@@ -151,16 +197,30 @@ export async function extractImageFromProductPage(productUrl: string): Promise<s
       if (match && match[1]) {
         let imageUrl = match[1];
         
+        // Обработка srcset (выбираем самое большое изображение)
+        if (pattern.toString().includes('srcset')) {
+          const srcsetParts = imageUrl.split(',').map(p => p.trim());
+          if (srcsetParts.length > 0) {
+            // Берем последний элемент (обычно самый большой)
+            imageUrl = srcsetParts[srcsetParts.length - 1].split(' ')[0];
+          }
+        }
+        
         if (imageUrl.startsWith('//')) {
           imageUrl = 'https:' + imageUrl;
         } else if (imageUrl.startsWith('/')) {
           imageUrl = 'https://siambotanicals.com' + imageUrl;
         }
 
-        imageUrl = imageUrl.replace(/-\d+x\d+\.(jpg|jpeg|png)/i, '.$1');
+        // Убираем размерные параметры для получения оригинала
+        imageUrl = imageUrl.replace(/-\d+x\d+\.(jpg|jpeg|png|webp)/i, '.$1');
         imageUrl = imageUrl.split('?')[0];
+        imageUrl = imageUrl.split('#')[0];
         
-        return imageUrl;
+        // Проверяем, что это действительно изображение
+        if (imageUrl.match(/\.(jpg|jpeg|png|webp)(\?|$)/i)) {
+          return imageUrl;
+        }
       }
     }
 
