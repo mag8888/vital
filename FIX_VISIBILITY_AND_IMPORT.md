@@ -52,3 +52,5 @@ npm run import-siam
 - Изображения загружаются с сайта Siam Botanicals
 - Все описания переводятся через OpenAI API (нужен OPENAI_API_KEY)
 
+
+

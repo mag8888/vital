@@ -213,3 +213,5 @@ updateProductImages()
     process.exit(1);
   });
 
+
+

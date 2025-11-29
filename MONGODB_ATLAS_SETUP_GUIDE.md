@@ -89,3 +89,5 @@ npx prisma generate && npx prisma db push
 ✅ **Индексы**: После подключения примените индексы командой `npx prisma db push`
 
 
+
+

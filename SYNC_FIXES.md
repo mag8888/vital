@@ -90,3 +90,5 @@ await prisma.user.update({
 
 3. Функция `recalculatePartnerBonuses` больше НЕ перезаписывает `user.balance`, только обновляет `partnerProfile.balance`
 
+
+

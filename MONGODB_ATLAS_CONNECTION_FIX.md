@@ -105,3 +105,5 @@ mongodb+srv://smirenskaya5984_db_user:nwYsMppKRXCdqURM@cluster0.t28dfmk.mongodb.
 
 **⚠️ Внимание:** Не используйте `tlsAllowInvalidCertificates=true` в production - это только для тестирования!
 
+
+
