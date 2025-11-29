@@ -105,10 +105,12 @@ export async function scrapeShopPage(page: number = 1): Promise<{
       }
     }
     
+    // Определяем наличие следующей страницы более точно
     const hasNextPage = html.includes('next page-numbers') || 
                        html.includes('next page') ||
                        html.includes('→') ||
-                       (page === 1 && products.length > 0);
+                       html.match(/page-numbers.*next/) !== null ||
+                       (products.length >= 12); // Если на странице 12 или больше товаров, вероятно есть еще
     
     return { products, hasNextPage };
   } catch (error: any) {
@@ -281,9 +283,11 @@ export async function findProductInDB(title: string, slug: string): Promise<{ id
 }
 
 /**
- * Основная функция сбора недостающих фотографий
+ * Основная функция сбора всех фотографий (обновляет даже существующие для лучшего качества)
  */
 export async function scrapeAllMissingImages(): Promise<ScrapeResult> {
+  console.log('🚀 Начало сбора всех фотографий продуктов\n');
+  
   const result: ScrapeResult = {
     updated: 0,
     skipped: 0,
@@ -296,15 +300,27 @@ export async function scrapeAllMissingImages(): Promise<ScrapeResult> {
   const allProductsFromSite: ProductFromSite[] = [];
   let currentPage = 1;
   let hasMorePages = true;
-  const maxPages = 20;
+  const maxPages = 20; // 148 товаров / 12 на странице = ~13 страниц
+
+  console.log('📄 Начинаю сбор всех товаров со страниц магазина...\n');
 
   while (hasMorePages && currentPage <= maxPages) {
+    console.log(`\n📄 Страница ${currentPage}:`);
     const { products, hasNextPage } = await scrapeShopPage(currentPage);
+    
+    if (products.length === 0 && currentPage > 1) {
+      console.log(`   ✅ Больше товаров нет, завершаю сбор`);
+      hasMorePages = false;
+      break;
+    }
+    
     allProductsFromSite.push(...products);
+    console.log(`   ✅ Найдено товаров: ${products.length}, всего: ${allProductsFromSite.length}`);
     
     hasMorePages = hasNextPage && products.length > 0;
     currentPage++;
     
+    // Задержка между страницами
     await new Promise(resolve => setTimeout(resolve, 2000));
   }
 
@@ -313,45 +329,56 @@ export async function scrapeAllMissingImages(): Promise<ScrapeResult> {
   // Обрабатываем каждый продукт
   for (const siteProduct of allProductsFromSite) {
     try {
+      console.log(`\n📦 Обработка продукта: ${siteProduct.title}`);
+      
       const dbProduct = await findProductInDB(siteProduct.title, siteProduct.slug);
       
       if (!dbProduct) {
+        console.log(`   ⏭️  Не найден в базе данных`);
         result.notFound++;
         continue;
       }
       
-      if (dbProduct.imageUrl && dbProduct.imageUrl.trim() !== '') {
-        result.skipped++;
-        continue;
+      // Всегда заходим на страницу продукта для получения изображения высокого качества
+      console.log(`   🔍 Захожу на страницу продукта: ${siteProduct.productUrl}`);
+      let imageUrl = await extractImageFromProductPage(siteProduct.productUrl);
+      
+      // Если не получилось со страницы, пробуем из списка
+      if (!imageUrl && siteProduct.imageUrl) {
+        console.log(`   🔄 Используем изображение из списка`);
+        imageUrl = siteProduct.imageUrl;
       }
       
-      let imageUrl = siteProduct.imageUrl;
-      
       if (!imageUrl) {
-        imageUrl = await extractImageFromProductPage(siteProduct.productUrl);
-      }
-      
-      if (!imageUrl) {
+        console.log(`   ⚠️  Изображение не найдено`);
         result.failed++;
         continue;
       }
       
-      const cloudinaryUrl = await downloadAndUploadImage(imageUrl, dbProduct.id, dbProduct.title);
+      console.log(`   📥 Найдено изображение: ${imageUrl.substring(0, 60)}...`);
       
-      if (!cloudinaryUrl) {
+      // Загружаем на Cloudinary или используем прямой URL
+      const finalImageUrl = await downloadAndUploadImage(imageUrl, dbProduct.id, dbProduct.title);
+      
+      if (!finalImageUrl) {
+        console.log(`   ⚠️  Не удалось обработать изображение`);
         result.failed++;
         continue;
       }
       
+      // Обновляем в базе данных (даже если изображение уже было, обновляем на более качественное)
       await prisma.product.update({
         where: { id: dbProduct.id },
-        data: { imageUrl: cloudinaryUrl }
+        data: { imageUrl: finalImageUrl }
       });
       
+      console.log(`   ✅ Успешно добавлено/обновлено!`);
       result.updated++;
       
+      // Задержка между запросами
       await new Promise(resolve => setTimeout(resolve, 2000));
     } catch (error: any) {
+      console.error(`   ❌ Ошибка: ${error.message || error}`);
       result.failed++;
     }
   }
