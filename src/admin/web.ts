@@ -5487,11 +5487,18 @@ router.get('/products', requireAdmin, async (req, res) => {
       <body>
         <h2>🛍 Управление товарами</h2>
         <a href="/admin" class="btn">← Назад</a>
+        <button onclick="scrapeAllImages()" class="btn" style="background: #28a745; margin-left: 10px;">📸 Собрать недостающие фото</button>
         
         ${req.query.success === 'image_updated' ? '<div class="alert alert-success">✅ Фото успешно обновлено!</div>' : ''}
         ${req.query.error === 'no_image' ? '<div class="alert alert-error">❌ Файл не выбран</div>' : ''}
         ${req.query.error === 'image_upload' ? '<div class="alert alert-error">❌ Ошибка загрузки фото</div>' : ''}
         ${req.query.error === 'product_not_found' ? '<div class="alert alert-error">❌ Товар не найден</div>' : ''}
+        ${req.query.success === 'images_scraped' ? '<div class="alert alert-success">✅ Фото успешно собраны! Проверьте результаты ниже.</div>' : ''}
+        
+        <div id="scraping-status" style="display: none; margin: 20px 0; padding: 15px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid #2196f3;">
+          <h3 style="margin: 0 0 10px 0; color: #1976d2;">📸 Сбор фотографий...</h3>
+          <div id="scraping-progress" style="color: #666; font-size: 14px;">Инициализация...</div>
+        </div>
 
         <div class="filters">
           <button type="button" class="filter-btn active" data-filter="all">Все категории (${allProducts.length})</button>
@@ -6104,6 +6111,45 @@ router.get('/products', requireAdmin, async (req, res) => {
           };
           
           // Импорт продуктов уже обработан в начале скрипта выше
+          
+          // Функция для сбора всех недостающих фотографий
+          async function scrapeAllImages() {
+            const statusDiv = document.getElementById('scraping-status');
+            const progressDiv = document.getElementById('scraping-progress');
+            
+            if (statusDiv) statusDiv.style.display = 'block';
+            
+            try {
+              if (progressDiv) progressDiv.textContent = '🚀 Запуск сбора фотографий...';
+              
+              const response = await fetch('/admin/api/scrape-all-images', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              if (!response.ok) {
+                throw new Error('Ошибка запуска сбора фотографий');
+              }
+              
+              // Открываем новую вкладку с логами или показываем статус
+              if (progressDiv) progressDiv.innerHTML = '✅ Сбор фотографий запущен! Проверьте логи в консоли сервера или подождите завершения...';
+              
+              // Через 5 секунд перезагружаем страницу для проверки результатов
+              setTimeout(() => {
+                window.location.href = '/admin/products?success=images_scraped';
+              }, 5000);
+              
+            } catch (error) {
+              console.error('Error scraping images:', error);
+              if (progressDiv) progressDiv.innerHTML = '❌ Ошибка: ' + (error instanceof Error ? error.message : String(error));
+              setTimeout(() => {
+                if (statusDiv) statusDiv.style.display = 'none';
+              }, 5000);
+            }
+          }
         </script>
       </body>
       </html>
@@ -10667,6 +10713,42 @@ router.put('/orders/:orderId/items', requireAdmin, async (req, res) => {
       error: error instanceof Error ? error.message : String(error) 
     });
   }
+});
+
+// API endpoint to scrape all missing images
+router.post('/api/scrape-all-images', requireAdmin, async (req, res) => {
+  // Запускаем скрипт в фоне и сразу возвращаем ответ
+  res.json({ 
+    success: true, 
+    message: 'Сбор фотографий запущен. Проверьте логи сервера для деталей.' 
+  });
+  
+  // Запускаем скрипт асинхронно в фоне
+  (async () => {
+    try {
+      console.log('🚀 Запуск сбора недостающих фотографий продуктов...');
+      
+      // Импортируем и запускаем скрипт
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+      
+      // Запускаем скрипт
+      const { stdout, stderr } = await execAsync('npm run scrape-all-images', {
+        cwd: process.cwd(),
+        maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+        env: process.env
+      });
+      
+      console.log('📸 Скрипт сбора фотографий завершен:');
+      console.log(stdout);
+      if (stderr) {
+        console.error('⚠️ Ошибки:', stderr);
+      }
+    } catch (error: any) {
+      console.error('❌ Ошибка запуска скрипта сбора фотографий:', error.message || error);
+    }
+  })();
 });
 
 // Get all products for dropdown
