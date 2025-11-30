@@ -1275,11 +1275,18 @@ async function addToCart(productId) {
             // Анимация корзины
             animateCartIcon();
             
-            // Обновляем корзину и счетчик
+            // Загружаем обновленную корзину
             await loadCartItems();
+            // Обновляем счетчик после загрузки данных
             updateCartBadge();
             
             showSuccess('Товар добавлен в корзину!');
+            
+            // Дополнительная проверка и обновление через небольшую задержку
+            setTimeout(async () => {
+                await loadCartItems();
+                updateCartBadge();
+            }, 500);
         } else {
             // Получаем детали ошибки
             let errorMessage = 'Ошибка добавления в корзину';
@@ -2447,8 +2454,12 @@ function updateCartBadge() {
     try {
         // Calculate total quantity of items in cart
         let totalQuantity = 0;
-        if (cartItems && cartItems.length > 0) {
+        if (cartItems && Array.isArray(cartItems) && cartItems.length > 0) {
             totalQuantity = cartItems.reduce((sum, item) => {
+                // Пропускаем товары без продукта
+                if (!item.product || !item.product.isActive) {
+                    return sum;
+                }
                 return sum + (item.quantity || 1);
             }, 0);
         }
@@ -2459,15 +2470,29 @@ function updateCartBadge() {
             if (totalQuantity > 0) {
                 cartBadge.textContent = totalQuantity.toString();
                 cartBadge.style.display = 'grid';
+                cartBadge.classList.add('animate');
+                setTimeout(() => cartBadge.classList.remove('animate'), 300);
             } else {
                 cartBadge.textContent = '0';
                 cartBadge.style.display = 'none';
             }
+        } else {
+            console.warn('⚠️ Cart badge element not found');
         }
         
-        console.log(`🛒 Cart items count: ${totalQuantity}`);
+        console.log(`🛒 Cart badge updated: ${totalQuantity} items`);
     } catch (error) {
         console.error('Error updating cart badge:', error);
+    }
+}
+
+// Принудительное обновление счетчика корзины
+async function refreshCartBadge() {
+    try {
+        await loadCartItems();
+        updateCartBadge();
+    } catch (error) {
+        console.error('Error refreshing cart badge:', error);
     }
 }
 
