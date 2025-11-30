@@ -2120,6 +2120,60 @@ function loadContactsContent() {
     `;
 }
 
+// Balance top-up dialog
+function showBalanceTopUpDialog() {
+    const dialog = document.createElement('div');
+    dialog.className = 'balance-topup-modal';
+    dialog.innerHTML = `
+        <div class="balance-topup-overlay" onclick="closeBalanceTopUpDialog()"></div>
+        <div class="balance-topup-content">
+            <div class="balance-topup-header">
+                <h3>💰 Пополнить баланс</h3>
+                <button class="balance-topup-close" onclick="closeBalanceTopUpDialog()">×</button>
+            </div>
+            <div class="balance-topup-body">
+                <p style="margin-bottom: 16px; color: var(--text-secondary);">Для пополнения баланса перейдите в бота и используйте команду:</p>
+                <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                    <code style="font-size: 16px; font-weight: 600; color: var(--accent);">/add_balance</code>
+                </div>
+                <p style="margin-bottom: 16px; color: var(--text-secondary);">Или нажмите кнопку ниже для быстрого перехода:</p>
+                <button class="btn" onclick="openBotForBalance()" style="width: 100%; margin-bottom: 12px;">
+                    📱 Перейти в бота
+                </button>
+                <button class="btn btn-secondary" onclick="closeBalanceTopUpDialog()" style="width: 100%;">
+                    Отмена
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(dialog);
+    setTimeout(() => dialog.classList.add('open'), 10);
+}
+
+function closeBalanceTopUpDialog() {
+    const dialog = document.querySelector('.balance-topup-modal');
+    if (dialog) {
+        dialog.classList.remove('open');
+        setTimeout(() => dialog.remove(), 300);
+    }
+}
+
+function openBotForBalance() {
+    // Открываем бота с командой пополнения баланса
+    const botUsername = 'Vital_shop_bot';
+    const botUrl = `https://t.me/${botUsername}?start=add_balance`;
+    
+    // Пытаемся открыть через Telegram WebApp
+    if (window.Telegram?.WebApp) {
+        window.Telegram.WebApp.openTelegramLink(botUrl);
+    } else {
+        // Fallback: открываем в новом окне
+        window.open(botUrl, '_blank');
+    }
+    
+    closeBalanceTopUpDialog();
+}
+
 // Utility functions
 async function loadUserData() {
   try {
