@@ -845,16 +845,10 @@ async function loadPartnerContent() {
     return `
         <div class="content-section">
             <h3>Партнёрская программа</h3>
-            <p>Станьте партнёром Vital и получайте до 25% от каждой покупки по вашей ссылке!</p>
+            <p>Станьте партнёром Vital и получайте бонусы 15% + 5% + 5% по вашей ссылке!</p>
             
             <div style="margin: 20px 0;">
-                <button class="btn" onclick="activatePartnerProgram('DIRECT')">
-                    💰 Прямая комиссия 25%
-                </button>
-            </div>
-            
-            <div style="margin: 20px 0;">
-                <button class="btn btn-secondary" onclick="activatePartnerProgram('MULTI_LEVEL')">
+                <button class="btn" onclick="activatePartnerProgram('MULTI_LEVEL')">
                     📈 Многоуровневая 15% + 5% + 5%
                 </button>
             </div>
@@ -1316,16 +1310,10 @@ function showPartnerProgram() {
     const content = `
         <div class="content-section">
             <h3>Партнёрская программа</h3>
-            <p>Станьте партнёром Vital и получайте до 25% от каждой покупки по вашей ссылке!</p>
+            <p>Станьте партнёром Vital и получайте бонусы 15% + 5% + 5% по вашей ссылке!</p>
             
             <div style="margin: 20px 0;">
-                <button class="btn" onclick="activatePartnerProgram('DIRECT')">
-                    💰 Прямая комиссия 25%
-                </button>
-            </div>
-            
-            <div style="margin: 20px 0;">
-                <button class="btn btn-secondary" onclick="activatePartnerProgram('MULTI_LEVEL')">
+                <button class="btn" onclick="activatePartnerProgram('MULTI_LEVEL')">
                     📈 Многоуровневая 15% + 5% + 5%
                 </button>
             </div>
