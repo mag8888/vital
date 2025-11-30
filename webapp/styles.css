@@ -2353,6 +2353,53 @@ body {
     margin: 0;
 }
 
+.cart-item-quantity-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 8px 0;
+}
+
+.btn-quantity {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 20px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+
+.btn-quantity:hover:not(:disabled) {
+    background: var(--accent);
+    color: #ffffff;
+    border-color: var(--accent);
+}
+
+.btn-quantity:active:not(:disabled) {
+    transform: scale(0.95);
+}
+
+.btn-quantity:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.cart-item-quantity {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    min-width: 24px;
+    text-align: center;
+}
+
 .cart-item-total {
     font-size: 16px;
     font-weight: 600;

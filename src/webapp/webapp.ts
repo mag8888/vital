@@ -188,6 +188,50 @@ router.get('/api/user/profile', async (req, res) => {
   }
 });
 
+// Update user profile endpoint
+router.put('/api/user/profile', async (req, res) => {
+  try {
+    const telegramUser = getTelegramUser(req);
+    if (!telegramUser) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { phone, deliveryAddress } = req.body;
+    const { prisma } = await import('../lib/prisma.js');
+    
+    let user = await prisma.user.findUnique({
+      where: { telegramId: telegramUser.id.toString() }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const updateData: any = {};
+    if (phone !== undefined) updateData.phone = phone;
+    if (deliveryAddress !== undefined) updateData.deliveryAddress = deliveryAddress;
+
+    user = await prisma.user.update({
+      where: { id: user.id },
+      data: updateData
+    });
+
+    res.json({
+      id: user.id,
+      telegramId: user.telegramId,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      username: user.username,
+      phone: user.phone,
+      deliveryAddress: user.deliveryAddress,
+      balance: (user as any).balance || 0
+    });
+  } catch (error) {
+    console.error('Error updating user profile:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Deduct balance endpoint
 router.post('/api/user/deduct-balance', async (req, res) => {
   try {
@@ -517,6 +561,52 @@ router.post('/api/cart/add', async (req, res) => {
   }
 });
 
+// Cart update endpoint
+router.put('/api/cart/update/:cartItemId', async (req, res) => {
+  try {
+    const telegramUser = getTelegramUser(req);
+    if (!telegramUser) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { cartItemId } = req.params;
+    const { quantity } = req.body;
+    
+    if (!quantity || quantity < 1) {
+      return res.status(400).json({ error: 'Invalid quantity' });
+    }
+
+    const { prisma } = await import('../lib/prisma.js');
+    
+    const user = await prisma.user.findUnique({
+      where: { telegramId: telegramUser.id.toString() }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if cart item belongs to user
+    const cartItem = await prisma.cartItem.findUnique({
+      where: { id: cartItemId }
+    });
+
+    if (!cartItem || cartItem.userId !== user.id) {
+      return res.status(404).json({ error: 'Cart item not found' });
+    }
+
+    await prisma.cartItem.update({
+      where: { id: cartItemId },
+      data: { quantity }
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Error updating cart item:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Cart remove endpoint
 router.delete('/api/cart/remove/:cartItemId', async (req, res) => {
   try {
@@ -572,7 +662,7 @@ router.post('/api/orders/create', async (req, res) => {
 
     console.log('✅ Telegram user found:', telegramUser.id);
 
-    const { items, message = '' } = req.body;
+    const { items, message = '', phone, deliveryAddress } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) {
       console.log('❌ Invalid items:', items);
       return res.status(400).json({ error: 'Items are required' });
@@ -595,6 +685,8 @@ router.post('/api/orders/create', async (req, res) => {
             firstName: telegramUser.first_name,
             lastName: telegramUser.last_name,
             username: telegramUser.username,
+            phone: phone || null,
+            deliveryAddress: deliveryAddress || null,
           }
         });
         console.log('✅ User created:', user.id);
@@ -607,9 +699,31 @@ router.post('/api/orders/create', async (req, res) => {
         }
         throw error;
       }
+    } else {
+      // Update user phone and address if provided
+      if (phone || deliveryAddress) {
+        const updateData: any = {};
+        if (phone) updateData.phone = phone;
+        if (deliveryAddress) updateData.deliveryAddress = deliveryAddress;
+        
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: updateData
+        });
+        console.log('✅ User updated with contact info');
+      }
     }
 
     console.log('✅ User found:', user.id);
+
+    // Build contact string
+    let contact = `@${telegramUser.username || 'user'}` || `ID: ${telegramUser.id}`;
+    if (phone) {
+      contact += `\n📞 Телефон: ${phone}`;
+    }
+    if (deliveryAddress) {
+      contact += `\n📍 Адрес: ${deliveryAddress}`;
+    }
 
     // Create order
     const order = await prisma.orderRequest.create({
@@ -618,7 +732,7 @@ router.post('/api/orders/create', async (req, res) => {
         message,
         itemsJson: items,
         status: 'NEW',
-        contact: `@${telegramUser.username || 'user'}` || `ID: ${telegramUser.id}`
+        contact: contact
       }
     });
 

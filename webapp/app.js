@@ -482,7 +482,12 @@ async function loadCartContent() {
                     </div>
                     <div class="cart-item-info">
                         <h4>${escapeHtml(product.title)}</h4>
-                        <p class="cart-item-price">${(product.price || 0).toFixed(2)} PZ × ${item.quantity || 1}</p>
+                        <p class="cart-item-price">${(product.price || 0).toFixed(2)} PZ</p>
+                        <div class="cart-item-quantity-controls">
+                            <button class="btn-quantity" onclick="updateCartQuantity('${item.id}', ${(item.quantity || 1) - 1})" ${(item.quantity || 1) <= 1 ? 'disabled' : ''}>−</button>
+                            <span class="cart-item-quantity">${item.quantity || 1}</span>
+                            <button class="btn-quantity" onclick="updateCartQuantity('${item.id}', ${(item.quantity || 1) + 1})">+</button>
+                        </div>
                         <p class="cart-item-total">${itemTotal.toFixed(2)} PZ</p>
                     </div>
                 </div>
@@ -530,6 +535,38 @@ async function loadCartContent() {
                 </div>
             </div>
         `;
+    }
+}
+
+async function updateCartQuantity(cartItemId, newQuantity) {
+    if (newQuantity < 1) {
+        // Если количество 0 или меньше, удаляем товар
+        await removeFromCart(cartItemId);
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/cart/update/${cartItemId}`, {
+            method: 'PUT',
+            headers: getApiHeaders(),
+            body: JSON.stringify({ quantity: newQuantity })
+        });
+        
+        if (response.ok) {
+            await loadCartItems();
+            updateCartBadge();
+            // Reload cart content
+            const container = document.getElementById('section-body');
+            if (container) {
+                container.innerHTML = await loadCartContent();
+            }
+        } else {
+            const errorData = await response.json().catch(() => ({}));
+            showError(errorData.error || 'Ошибка обновления количества');
+        }
+    } catch (error) {
+        console.error('Error updating cart quantity:', error);
+        showError('Ошибка обновления количества');
     }
 }
 
@@ -582,36 +619,8 @@ async function checkoutCart() {
             userBalance = userData.balance || 0;
         }
         
-        // Показываем диалог выбора способа оплаты
-        if (userBalance >= total) {
-            const payWithBalance = confirm(
-                `💰 Ваш баланс: ${userBalance.toFixed(2)} PZ\n` +
-                `📦 Сумма заказа: ${total.toFixed(2)} PZ\n\n` +
-                `Оплатить с баланса?`
-            );
-            
-            if (payWithBalance) {
-                // Оплата с баланса
-                await processOrderWithBalance(items, total);
-                return;
-            }
-        } else if (userBalance > 0) {
-            const payPartial = confirm(
-                `💰 Ваш баланс: ${userBalance.toFixed(2)} PZ\n` +
-                `📦 Сумма заказа: ${total.toFixed(2)} PZ\n` +
-                `💵 Недостаточно средств: ${(total - userBalance).toFixed(2)} PZ\n\n` +
-                `Использовать баланс частично?`
-            );
-            
-            if (payPartial) {
-                // Частичная оплата с баланса
-                await processOrderWithBalance(items, total, userBalance);
-                return;
-            }
-        }
-        
-        // Обычное оформление заказа (без оплаты с баланса)
-        await processOrderNormal(items);
+        // Показываем форму для ввода телефона и адреса
+        showDeliveryForm(items, total, userBalance);
         
     } catch (error) {
         console.error('Error checkout:', error);
@@ -620,7 +629,7 @@ async function checkoutCart() {
 }
 
 // Обработка заказа с оплатой с баланса
-async function processOrderWithBalance(items, total, partialAmount = null) {
+async function processOrderWithBalance(items, total, partialAmount = null, phone = null, address = null) {
     try {
         const orderItems = items.map(item => ({
             productId: item.product.id,
@@ -630,9 +639,12 @@ async function processOrderWithBalance(items, total, partialAmount = null) {
         }));
         
         const amountToPay = partialAmount || total;
-        const message = partialAmount 
+        const contactInfo = phone && address 
+            ? `Телефон: ${phone}\nАдрес: ${address}`
+            : '';
+        const message = (partialAmount 
             ? `Заказ из корзины. Оплачено с баланса: ${amountToPay.toFixed(2)} PZ из ${total.toFixed(2)} PZ`
-            : `Заказ из корзины. Оплачено с баланса: ${total.toFixed(2)} PZ`;
+            : `Заказ из корзины. Оплачено с баланса: ${total.toFixed(2)} PZ`) + (contactInfo ? `\n\n${contactInfo}` : '');
         
         const orderResponse = await fetch(`${API_BASE}/orders/create`, {
             method: 'POST',
@@ -640,7 +652,9 @@ async function processOrderWithBalance(items, total, partialAmount = null) {
             body: JSON.stringify({ 
                 items: orderItems, 
                 message: message,
-                paidFromBalance: amountToPay
+                paidFromBalance: amountToPay,
+                phone: phone,
+                deliveryAddress: address
             })
         });
         
@@ -681,10 +695,20 @@ async function processOrderNormal(items) {
             quantity: item.quantity
         }));
         
+        const contactInfo = phone && address 
+            ? `Телефон: ${phone}\nАдрес: ${address}`
+            : '';
+        const message = 'Заказ из корзины' + (contactInfo ? `\n\n${contactInfo}` : '');
+        
         const orderResponse = await fetch(`${API_BASE}/orders/create`, {
             method: 'POST',
             headers: getApiHeaders(),
-            body: JSON.stringify({ items: orderItems, message: 'Заказ из корзины' })
+            body: JSON.stringify({ 
+                items: orderItems, 
+                message: message,
+                phone: phone,
+                deliveryAddress: address
+            })
         });
         
         if (orderResponse.ok) {
