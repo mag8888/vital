@@ -1,13 +1,36 @@
 import { prisma } from '../lib/prisma.js';
 
 export async function getCartItems(userId: string) {
-  return prisma.cartItem.findMany({
+  const items = await prisma.cartItem.findMany({
     where: { userId },
     include: {
       product: true,
     },
     orderBy: { createdAt: 'desc' },
   });
+  
+  // Фильтруем и удаляем товары, которые были удалены или деактивированы
+  const validItems = [];
+  const invalidItemIds = [];
+  
+  for (const item of items) {
+    if (item.product && item.product.isActive) {
+      validItems.push(item);
+    } else {
+      invalidItemIds.push(item.id);
+    }
+  }
+  
+  // Удаляем невалидные товары из корзины
+  if (invalidItemIds.length > 0) {
+    await prisma.cartItem.deleteMany({
+      where: {
+        id: { in: invalidItemIds }
+      }
+    });
+  }
+  
+  return validItems;
 }
 
 export async function addProductToCart(userId: string, productId: string) {

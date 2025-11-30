@@ -436,9 +436,50 @@ async function loadCartContent() {
                 `;
             }
             
-            const errorText = await response.text();
-            console.error('❌ Cart loading error:', response.status, errorText);
-            throw new Error(`Failed to fetch cart items: ${response.status}`);
+            if (response.status === 503) {
+                console.error('❌ Service unavailable');
+                let errorData = {};
+                try {
+                    errorData = await response.json();
+                } catch (e) {
+                    errorData = { error: 'Сервис временно недоступен' };
+                }
+                return `
+                    <div class="content-section">
+                        <div class="error-message">
+                            <h3>Сервис временно недоступен</h3>
+                            <p>${errorData.error || 'База данных временно недоступна. Попробуйте позже.'}</p>
+                            <button class="btn" onclick="closeSection(); loadProductsOnMainPage();" style="margin-top: 16px;">
+                                Перейти к каталогу
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            let errorData = {};
+            try {
+                errorData = await response.json();
+            } catch (e) {
+                const errorText = await response.text();
+                errorData = { error: errorText || 'Неизвестная ошибка' };
+            }
+            
+            console.error('❌ Cart loading error:', response.status, errorData);
+            return `
+                <div class="content-section">
+                    <div class="error-message">
+                        <h3>Ошибка загрузки корзины</h3>
+                        <p>${errorData.error || 'Произошла ошибка при загрузке корзины. Попробуйте обновить страницу.'}</p>
+                        <button class="btn" onclick="closeSection(); location.reload();" style="margin-top: 16px;">
+                            Обновить страницу
+                        </button>
+                        <button class="btn btn-secondary" onclick="closeSection(); loadProductsOnMainPage();" style="margin-top: 12px;">
+                            Перейти к каталогу
+                        </button>
+                    </div>
+                </div>
+            `;
         }
         
         const items = await response.json();

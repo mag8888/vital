@@ -406,10 +406,47 @@ router.get('/api/cart/items', async (req, res) => {
 
     const cartItems = await getCartItems(user.id);
     console.log('✅ Cart items retrieved:', cartItems.length);
-    res.json(cartItems);
-  } catch (error) {
+    
+    // Форматируем данные для ответа, исключая null значения
+    const validCartItems = cartItems
+      .filter(item => item.product && item.product.isActive)
+      .map(item => ({
+        id: item.id,
+        userId: item.userId,
+        productId: item.productId,
+        quantity: item.quantity,
+        createdAt: item.createdAt,
+        product: {
+          id: item.product.id,
+          title: item.product.title,
+          price: item.product.price,
+          imageUrl: item.product.imageUrl || null,
+          summary: item.product.summary || null,
+          description: item.product.description || null,
+          isActive: item.product.isActive,
+        }
+      }));
+    
+    console.log('✅ Valid cart items:', validCartItems.length);
+    res.json(validCartItems);
+  } catch (error: any) {
     console.error('❌ Error getting cart items:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error details:', {
+      message: error?.message,
+      code: error?.code,
+      stack: error?.stack
+    });
+    
+    if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
+      return res.status(503).json({ 
+        error: 'База данных временно недоступна. Попробуйте позже.' 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Внутренняя ошибка сервера',
+      details: process.env.NODE_ENV === 'development' ? error?.message : undefined
+    });
   }
 });
 
