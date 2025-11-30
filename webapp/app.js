@@ -511,6 +511,12 @@ async function loadCartContent() {
         let html = '<div class="cart-items-grid">';
         
         items.forEach(item => {
+            // Пропускаем товары без продукта (удаленные/деактивированные)
+            if (!item.product) {
+                console.warn('⚠️ Cart item without product:', item.id);
+                return;
+            }
+            
             const product = item.product;
             const itemTotal = (product.price || 0) * (item.quantity || 1);
             total += itemTotal;
@@ -518,11 +524,11 @@ async function loadCartContent() {
             html += `
                 <div class="cart-item-tile">
                     <div class="cart-item-image-wrapper">
-                        ${product.imageUrl ? `<img src="${product.imageUrl}" alt="${escapeHtml(product.title)}" class="cart-item-image">` : '<div class="cart-item-image-placeholder">📦</div>'}
+                        ${product.imageUrl ? `<img src="${product.imageUrl}" alt="${escapeHtml(product.title || 'Товар')}" class="cart-item-image">` : '<div class="cart-item-image-placeholder">📦</div>'}
                         <button class="btn-cart-remove" onclick="removeFromCart('${item.id}')">✕</button>
                     </div>
                     <div class="cart-item-info">
-                        <h4>${escapeHtml(product.title)}</h4>
+                        <h4>${escapeHtml(product.title || 'Без названия')}</h4>
                         <p class="cart-item-price">${(product.price || 0).toFixed(2)} PZ</p>
                         <div class="cart-item-quantity-controls">
                             <button class="btn-quantity" onclick="updateCartQuantity('${item.id}', ${(item.quantity || 1) - 1})" ${(item.quantity || 1) <= 1 ? 'disabled' : ''}>−</button>
@@ -647,10 +653,12 @@ async function checkoutCart() {
             return;
         }
         
-        // Вычисляем общую сумму
-        const total = items.reduce((sum, item) => {
-            return sum + (item.product.price || 0) * (item.quantity || 1);
-        }, 0);
+        // Вычисляем общую сумму, пропуская товары без продукта
+        const total = items
+            .filter(item => item.product && item.product.price)
+            .reduce((sum, item) => {
+                return sum + (item.product.price || 0) * (item.quantity || 1);
+            }, 0);
         
         // Загружаем баланс пользователя
         const userResponse = await fetch(`${API_BASE}/user/profile`, { headers: getApiHeaders() });
