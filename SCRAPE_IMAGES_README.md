@@ -12,15 +12,27 @@
 
 ## Запуск скрипта:
 
-### Локально (если настроены переменные окружения):
+### На Railway (рекомендуется - все переменные окружения настроены):
 ```bash
-npm run scrape-all-images
+railway run npm run scrape-all-images-now
 ```
 
-### На Railway:
+Или через веб-интерфейс Railway:
+1. Зайдите в ваш проект на Railway
+2. Откройте вкладку "Deployments"
+3. Нажмите на три точки рядом с последним деплоем
+4. Выберите "Run Command"
+5. Введите команду: `npm run scrape-all-images-now`
+6. Нажмите "Run"
+
+### Локально (если настроены переменные окружения):
 ```bash
-railway run npm run scrape-all-images
+npm run scrape-all-images-now
 ```
+
+Этот скрипт автоматически:
+- Компилирует TypeScript код
+- Запускает сбор всех фотографий товаров
 
 ## Важно:
 
