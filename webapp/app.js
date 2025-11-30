@@ -2274,10 +2274,13 @@ async function showProductDetails(productId) {
         let content = `
             <div class="product-details">
                 <div class="product-details-header">
-                    <button class="btn-back" onclick="openSection('shop')">
-                        ← Назад к каталогу
+                    <button class="btn-back-to-catalog" onclick="closeSection(); loadProductsOnMainPage();">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M19 12H5M12 19l-7-7 7-7"/>
+                        </svg>
+                        <span>Назад</span>
                     </button>
-                    <h2>${product.title}</h2>
+                    <h2>${escapeHtml(product.title)}</h2>
                 </div>
                 
                 <div class="product-details-content">
