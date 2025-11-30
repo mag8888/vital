@@ -323,32 +323,37 @@ async function handleBuy(ctx: Context, productId: string) {
 
   // Send order to specific admin with contact button
   const { getBotInstance } = await import('../../lib/bot-instance.js');
+  const { getAdminChatIds } = await import('../../config/env.js');
   const bot = await getBotInstance();
   
   if (bot) {
-    const aureliaAdminId = '7077195545'; // @Aurelia_8888
+    const adminIds = getAdminChatIds();
     const fullMessage = `${message}\n\nЗдравствуйте, хочу приобрести товар…`;
     
-    try {
-      await bot.telegram.sendMessage(aureliaAdminId, fullMessage, {
-        parse_mode: 'HTML',
-    reply_markup: {
-      inline_keyboard: [
-        [
-          {
-                text: '💬 Написать пользователю',
-                url: user.username ? `https://t.me/${user.username}` : `tg://user?id=${user.telegramId}`
-          },
-          {
-                text: '🤖 Писать через бот',
-                callback_data: `admin_reply:${user.telegramId}:${user.firstName || 'Пользователь'}`
-              }
+    // Send to all admins
+    for (const adminId of adminIds) {
+      try {
+        await bot.telegram.sendMessage(adminId, fullMessage, {
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: '💬 Написать пользователю',
+                  url: user.username ? `https://t.me/${user.username}` : `tg://user?id=${user.telegramId}`
+                },
+                {
+                  text: '🤖 Писать через бот',
+                  callback_data: `admin_reply:${user.telegramId}:${user.firstName || 'Пользователь'}`
+                }
+              ]
             ]
-          ]
-        }
-      });
-    } catch (error) {
-      console.error('Failed to send order notification to admin:', error);
+          }
+        });
+        console.log(`✅ Order notification sent to admin: ${adminId}`);
+      } catch (error: any) {
+        console.error(`❌ Failed to send order notification to admin ${adminId}:`, error?.message || error);
+      }
     }
   }
 

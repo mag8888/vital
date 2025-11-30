@@ -505,6 +505,92 @@ router.post('/api/orders/create', async (req, res) => {
     });
 
     console.log('✅ Order created successfully:', order.id);
+
+    // Send order notification to all admins
+    try {
+      const { getBotInstance } = await import('../lib/bot-instance.js');
+      const { getAdminChatIds } = await import('../config/env.js');
+      const bot = await getBotInstance();
+      
+      if (bot) {
+        const adminIds = getAdminChatIds();
+        
+        // Format order items for notification
+        let itemsText = '📦 Состав заказа:\n';
+        try {
+          const orderItems = Array.isArray(items) ? items : [];
+          orderItems.forEach((item: any, index: number) => {
+            const quantity = item.quantity || 1;
+            const price = item.price || 0;
+            const total = quantity * price;
+            itemsText += `${index + 1}. ${item.title || 'Товар'} - ${quantity} шт. × ${price.toFixed(2)} PZ = ${total.toFixed(2)} PZ\n`;
+          });
+        } catch (error) {
+          itemsText += 'Ошибка парсинга товаров\n';
+        }
+        
+        // Get user contact info
+        let contactInfo = '';
+        if (user.phone) {
+          contactInfo += `📱 Телефон: ${user.phone}\n`;
+        }
+        if (user.deliveryAddress) {
+          contactInfo += `📍 Адрес доставки: ${user.deliveryAddress}\n`;
+        }
+        if (telegramUser.username) {
+          contactInfo += `👤 Telegram: @${telegramUser.username}\n`;
+        }
+        contactInfo += `🆔 User ID: ${user.id}\n`;
+        contactInfo += `🆔 Telegram ID: ${telegramUser.id}`;
+        
+        const orderMessage = 
+          '🛍️ <b>Новый заказ от пользователя</b>\n\n' +
+          `👤 <b>Пользователь:</b> ${user.firstName || ''} ${user.lastName || ''}\n` +
+          `${contactInfo}\n\n` +
+          `${itemsText}\n` +
+          (message ? `💬 <b>Сообщение:</b>\n${message}\n\n` : '') +
+          `🆔 <b>ID заказа:</b> <code>${order.id}</code>\n` +
+          `📅 <b>Дата:</b> ${new Date(order.createdAt).toLocaleString('ru-RU')}`;
+        
+        // Send to all admins
+        for (const adminId of adminIds) {
+          try {
+            await bot.telegram.sendMessage(adminId, orderMessage, {
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    {
+                      text: '💬 Написать пользователю',
+                      url: telegramUser.username 
+                        ? `https://t.me/${telegramUser.username}` 
+                        : `tg://user?id=${telegramUser.id}`
+                    },
+                    {
+                      text: '🤖 Писать через бот',
+                      callback_data: `admin_reply:${telegramUser.id}:${user.firstName || 'Пользователь'}`
+                    }
+                  ],
+                  [
+                    {
+                      text: '📋 Просмотреть в админ-панели',
+                      url: `${process.env.PUBLIC_BASE_URL || 'https://vital-production-82b0.up.railway.app'}/admin/resources/order-requests/${order.id}`
+                    }
+                  ]
+                ]
+              }
+            });
+            console.log(`✅ Order notification sent to admin: ${adminId}`);
+          } catch (error: any) {
+            console.error(`❌ Failed to send order notification to admin ${adminId}:`, error?.message || error);
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error('❌ Error sending order notification to admins:', error?.message || error);
+      // Don't fail the order creation if notification fails
+    }
+
     res.json({ success: true, orderId: order.id });
   } catch (error) {
     console.error('❌ Error creating order:', error);

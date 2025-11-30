@@ -271,33 +271,40 @@ export function registerCartActions(bot: Telegraf<Context>) {
       
       const orderText = `🛍️ Новый заказ от ${ctx.from?.first_name || 'Пользователь'}\n\n${cartText}\n\n${contactInfo}`;
 
-      // Send order to specific admin with contact button
+      // Send order to all admins with contact button
       const { getBotInstance } = await import('../../lib/bot-instance.js');
+      const { getAdminChatIds } = await import('../../config/env.js');
       const bot = await getBotInstance();
       
       if (bot) {
-        const aureliaAdminId = '7077195545'; // @Aurelia_8888
+        const adminIds = getAdminChatIds();
         
-        try {
-          await bot.telegram.sendMessage(aureliaAdminId, orderText, {
-            parse_mode: 'HTML',
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  {
-                    text: '💬 Написать пользователю',
-                    url: ctx.from?.username ? `https://t.me/${ctx.from.username}` : `tg://user?id=${ctx.from?.id}`
-                  },
-                  {
-                    text: '🤖 Писать через бот',
-                    callback_data: `admin_reply:${ctx.from?.id}:${ctx.from?.first_name || 'Пользователь'}`
-                  }
+        const orderMessage = `🛍️ <b>Новый заказ от пользователя</b>\n\n${orderText}`;
+        
+        // Send to all admins
+        for (const adminId of adminIds) {
+          try {
+            await bot.telegram.sendMessage(adminId, orderMessage, {
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    {
+                      text: '💬 Написать пользователю',
+                      url: ctx.from?.username ? `https://t.me/${ctx.from.username}` : `tg://user?id=${ctx.from?.id}`
+                    },
+                    {
+                      text: '🤖 Писать через бот',
+                      callback_data: `admin_reply:${ctx.from?.id}:${ctx.from?.first_name || 'Пользователь'}`
+                    }
+                  ]
                 ]
-              ]
-            }
-          });
-        } catch (error) {
-          console.error('Failed to send order notification to admin:', error);
+              }
+            });
+            console.log(`✅ Order notification sent to admin: ${adminId}`);
+          } catch (error: any) {
+            console.error(`❌ Failed to send order notification to admin ${adminId}:`, error?.message || error);
+          }
         }
       }
       
