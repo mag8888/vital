@@ -401,8 +401,11 @@ async function main() {
         data: { imageUrl: cloudinaryUrl }
       });
       
-      console.log(`   ✅ Успешно обновлено!`);
+      console.log(`   ✅ Успешно обновлено! ${hasExistingImage ? '(заменено существующее)' : '(добавлено новое)'}`);
       updated++;
+      if (hasExistingImage) {
+        skipped--; // Уменьшаем счетчик пропущенных, т.к. мы их обновили
+      }
       
       // Задержка между запросами
       await new Promise(resolve => setTimeout(resolve, 2000));
