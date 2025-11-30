@@ -686,7 +686,7 @@ async function processOrderWithBalance(items, total, partialAmount = null, phone
 }
 
 // Обычное оформление заказа
-async function processOrderNormal(items) {
+async function processOrderNormal(items, phone = null, address = null) {
     try {
         const orderItems = items.map(item => ({
             productId: item.product.id,
@@ -2196,6 +2196,123 @@ function openBotForBalance() {
     }
     
     closeBalanceTopUpDialog();
+}
+
+// Показать форму доставки
+function showDeliveryForm(items, total, userBalance) {
+    // Загружаем данные пользователя для предзаполнения
+    fetch(`${API_BASE}/user/profile`, { headers: getApiHeaders() })
+        .then(response => response.ok ? response.json() : {})
+        .then(userData => {
+            const dialog = document.createElement('div');
+            dialog.className = 'delivery-form-modal';
+            dialog.innerHTML = `
+                <div class="delivery-form-overlay" onclick="closeDeliveryForm()"></div>
+                <div class="delivery-form-content">
+                    <div class="delivery-form-header">
+                        <h3>📦 Оформление заказа</h3>
+                        <button class="delivery-form-close" onclick="closeDeliveryForm()">×</button>
+                    </div>
+                    <div class="delivery-form-body">
+                        <div style="margin-bottom: 20px; padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span>💰 Ваш баланс:</span>
+                                <strong>${userBalance.toFixed(2)} PZ</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>📦 Сумма заказа:</span>
+                                <strong>${total.toFixed(2)} PZ</strong>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--text-primary);">Телефон *</label>
+                            <input type="tel" id="delivery-phone" class="delivery-input" placeholder="+7 (999) 123-45-67" value="${userData.phone || ''}" required>
+                        </div>
+                        
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--text-primary);">Адрес доставки *</label>
+                            <textarea id="delivery-address" class="delivery-textarea" placeholder="Город, улица, дом, квартира" rows="3" required>${userData.deliveryAddress || ''}</textarea>
+                        </div>
+                        
+                        ${userBalance >= total ? `
+                            <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; cursor: pointer;">
+                                <input type="checkbox" id="pay-from-balance" checked>
+                                <span>Оплатить с баланса (${total.toFixed(2)} PZ)</span>
+                            </label>
+                        ` : userBalance > 0 ? `
+                            <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; cursor: pointer;">
+                                <input type="checkbox" id="pay-from-balance-partial" checked>
+                                <span>Использовать баланс (${userBalance.toFixed(2)} PZ из ${total.toFixed(2)} PZ)</span>
+                            </label>
+                        ` : ''}
+                        
+                        <button class="btn" onclick="submitDeliveryForm(${JSON.stringify(items).replace(/"/g, '&quot;')}, ${total}, ${userBalance})" style="width: 100%;">
+                            Оформить заказ
+                        </button>
+                        <button class="btn btn-secondary" onclick="closeDeliveryForm()" style="width: 100%; margin-top: 12px;">
+                            Отмена
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(dialog);
+            setTimeout(() => dialog.classList.add('open'), 10);
+        })
+        .catch(error => {
+            console.error('Error loading user data:', error);
+            showError('Ошибка загрузки данных пользователя');
+        });
+}
+
+function closeDeliveryForm() {
+    const dialog = document.querySelector('.delivery-form-modal');
+    if (dialog) {
+        dialog.classList.remove('open');
+        setTimeout(() => dialog.remove(), 300);
+    }
+}
+
+async function submitDeliveryForm(items, total, userBalance) {
+    const phone = document.getElementById('delivery-phone')?.value?.trim();
+    const address = document.getElementById('delivery-address')?.value?.trim();
+    const payFromBalance = document.getElementById('pay-from-balance')?.checked || false;
+    const payFromBalancePartial = document.getElementById('pay-from-balance-partial')?.checked || false;
+    
+    if (!phone) {
+        showError('Укажите номер телефона');
+        return;
+    }
+    
+    if (!address) {
+        showError('Укажите адрес доставки');
+        return;
+    }
+    
+    // Сохраняем телефон и адрес
+    try {
+        await fetch(`${API_BASE}/user/profile`, {
+            method: 'PUT',
+            headers: getApiHeaders(),
+            body: JSON.stringify({ phone, deliveryAddress: address })
+        });
+    } catch (error) {
+        console.error('Error saving user data:', error);
+    }
+    
+    // Определяем способ оплаты
+    if (payFromBalance && userBalance >= total) {
+        // Полная оплата с баланса
+        await processOrderWithBalance(items, total, null, phone, address);
+    } else if (payFromBalancePartial && userBalance > 0) {
+        // Частичная оплата с баланса
+        await processOrderWithBalance(items, total, userBalance, phone, address);
+    } else {
+        // Обычная оплата
+        await processOrderNormal(items, phone, address);
+    }
+    
+    closeDeliveryForm();
 }
 
 // Utility functions
