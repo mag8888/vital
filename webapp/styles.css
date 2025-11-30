@@ -1710,7 +1710,7 @@ body {
 }
 
 .product-details-header h2 {
-    color: var(--text-primary);
+    color: #ffffff;
     font-size: 20px;
     font-weight: 600;
     margin: 0;
