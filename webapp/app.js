@@ -423,18 +423,37 @@ function openCart() {
 async function loadCartContent() {
     try {
         const response = await fetch(`${API_BASE}/cart/items`, { headers: getApiHeaders() });
+        
         if (!response.ok) {
-            throw new Error('Failed to fetch cart items');
+            if (response.status === 401) {
+                console.warn('⚠️ Unauthorized - user not authenticated');
+                return `
+                    <div class="content-section">
+                        <h3>Корзина</h3>
+                        <p>Для просмотра корзины необходимо авторизоваться</p>
+                        <button class="btn" onclick="closeSection(); loadProductsOnMainPage();">Перейти к каталогу</button>
+                    </div>
+                `;
+            }
+            
+            const errorText = await response.text();
+            console.error('❌ Cart loading error:', response.status, errorText);
+            throw new Error(`Failed to fetch cart items: ${response.status}`);
         }
         
         const items = await response.json();
         
         // Загружаем данные пользователя для отображения баланса
-        const userResponse = await fetch(`${API_BASE}/user/profile`, { headers: getApiHeaders() });
         let userBalance = 0;
-        if (userResponse.ok) {
-            const userData = await userResponse.json();
-            userBalance = userData.balance || 0;
+        try {
+            const userResponse = await fetch(`${API_BASE}/user/profile`, { headers: getApiHeaders() });
+            if (userResponse.ok) {
+                const userData = await userResponse.json();
+                userBalance = userData.balance || 0;
+            }
+        } catch (error) {
+            console.warn('⚠️ Failed to load user balance:', error);
+            // Продолжаем без баланса
         }
         
         if (!items || items.length === 0) {
@@ -491,8 +510,18 @@ async function loadCartContent() {
         
         return html;
     } catch (error) {
-        console.error('Error loading cart:', error);
-        return '<div class="error-message"><p>Ошибка загрузки корзины</p></div>';
+        console.error('❌ Error loading cart:', error);
+        return `
+            <div class="content-section">
+                <div class="error-message">
+                    <h3>Ошибка загрузки корзины</h3>
+                    <p>Попробуйте обновить страницу или вернуться позже</p>
+                    <button class="btn" onclick="closeSection(); loadProductsOnMainPage();" style="margin-top: 16px;">
+                        Перейти к каталогу
+                    </button>
+                </div>
+            </div>
+        `;
     }
 }
 
@@ -1160,11 +1189,31 @@ async function addToCart(productId) {
             
             showSuccess('Товар добавлен в корзину!');
         } else {
-            showError('Ошибка добавления в корзину');
+            // Получаем детали ошибки
+            let errorMessage = 'Ошибка добавления в корзину';
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorMessage;
+            } catch (e) {
+                const errorText = await response.text();
+                if (errorText) {
+                    errorMessage = errorText;
+                }
+            }
+            
+            console.error('❌ Add to cart error:', response.status, errorMessage);
+            
+            if (response.status === 401) {
+                showError('Необходимо авторизоваться для добавления в корзину');
+            } else if (response.status === 400) {
+                showError(errorMessage || 'Неверные данные товара');
+            } else {
+                showError(errorMessage);
+            }
         }
     } catch (error) {
-        console.error('Error adding to cart:', error);
-        showError('Ошибка добавления в корзину');
+        console.error('❌ Error adding to cart:', error);
+        showError('Ошибка добавления в корзину. Проверьте подключение к интернету.');
     }
 }
 

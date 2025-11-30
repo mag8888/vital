@@ -2375,3 +2375,24 @@ body {
     font-size: 16px;
     font-weight: 600;
 }
+
+/* Error message styles */
+.error-message {
+    padding: 24px;
+    text-align: center;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+}
+
+.error-message h3 {
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    font-size: 18px;
+}
+
+.error-message p {
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
