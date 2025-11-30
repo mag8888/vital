@@ -91,16 +91,14 @@ const fallbackMultiPlanText = `Многоуровневая система — 1
 function planKeyboard() {
   return Markup.inlineKeyboard([
     [Markup.button.callback('📊 Карточка клиента', DASHBOARD_ACTION)],
-    [Markup.button.callback('💰 25%', DIRECT_PLAN_ACTION), Markup.button.callback('📈 15% + 5% + 5%', MULTI_PLAN_ACTION)],
+    [Markup.button.callback('📈 15% + 5% + 5%', MULTI_PLAN_ACTION)],
     [Markup.button.callback('📋 Подробнее', 'partner:details')],
   ]);
 }
 
 function partnerActionsKeyboard() {
   return Markup.inlineKeyboard([
-    [Markup.button.callback('👥 Мои партнёры', PARTNERS_ACTION), Markup.button.callback('📤 Пригласить друга', INVITE_ACTION)],
-    [Markup.button.callback('🔗 Ссылка 25%', INVITE_DIRECT_ACTION)],
-    [Markup.button.callback('🔗 Ссылка 15%+5%+5%', INVITE_MULTI_ACTION)],
+    [Markup.button.callback('👥 Мои партнёры', PARTNERS_ACTION), Markup.button.callback('📤 Пригласить друга', INVITE_MULTI_ACTION)],
   ]);
 }
 
@@ -536,22 +534,8 @@ async function showPartnersByLevel(ctx: Context, level: number) {
 }
 
 async function showInvite(ctx: Context) {
-  const user = await ensureUser(ctx);
-  if (!user) {
-    await ctx.reply('Не удалось получить ссылку.');
-    return;
-  }
-
-  const dashboard = await getPartnerDashboard(user.id);
-  if (!dashboard) {
-    await ctx.reply('Активируйте один из тарифов, чтобы получить ссылку.');
-    return;
-  }
-
-  await ctx.answerCbQuery('Выберите тип ссылки', { show_alert: false });
-  const shareGuide = `💫 Хочешь получать бонусы от рекомендаций?\nПросто перешли это сообщение выше друзьям или в свои чаты — прямо как оно есть.\n\n🔗 Бот автоматически закрепит всех, кто перейдёт по твоей ссылке, за тобой.\nТы будешь получать до 25% с покупок и бонусы с трёх уровней (15% + 5% + 5%).\n\n📩 Чтобы поделиться:\n1️⃣ Нажми и удерживай сообщение\n2️⃣ Выбери «Переслать»\n3️⃣ Отправь его своим друзьям или в чаты\n\nВот и всё — система сама всё посчитает 🔥`;
-  await ctx.reply(`Ваши реферальные ссылки:\n\nДружище 🌟\nЯ желаю тебе энергии, здоровья и внутренней силы, поэтому делюсь с тобой этим ботом 💧\nПопробуй VITAL — технология будущего, которая реально меняет состояние ⚡️\n🔗 Твоя ссылка:\n${buildReferralLink(dashboard.profile.referralCode, 'DIRECT', user.username || undefined)}\n\nДружище 🌟\nЯ желаю тебе энергии, здоровья и внутренней силы, поэтому делюсь с тобой этим ботом 💧\nПопробуй VITAL — технология будущего, которая реально меняет состояние ⚡️\n🔗 Твоя ссылка (сеть 15% + 5% + 5%):\n${buildReferralLink(dashboard.profile.referralCode, 'MULTI_LEVEL', user.username || undefined)}`);
-  await ctx.reply(shareGuide);
+  // Перенаправляем на многоуровневую ссылку
+  await showMultiInvite(ctx);
 }
 
 async function showDirectInvite(ctx: Context) {
@@ -626,10 +610,11 @@ export const partnerModule: BotModule = {
     });
 
     bot.action(DIRECT_PLAN_ACTION, async (ctx) => {
-      console.log('💰 Partner: Direct plan button pressed');
-      const directPlanText = await getBotContent('direct_plan_text') || fallbackDirectPlanText;
-      const success = await handlePlanSelection(ctx, PartnerProgramType.DIRECT, directPlanText);
-      await ctx.answerCbQuery(success ? 'Программа 25% активирована' : 'Не удалось активировать программу');
+      // Перенаправляем на многоуровневую программу
+      console.log('💰 Partner: Direct plan button pressed, redirecting to multi-level');
+      const multiPlanText = await getBotContent('multi_plan_text') || fallbackMultiPlanText;
+      const success = await handlePlanSelection(ctx, PartnerProgramType.MULTI_LEVEL, multiPlanText);
+      await ctx.answerCbQuery(success ? 'Сеть 15% + 5% + 5% активирована' : 'Не удалось активировать программу');
     });
 
     bot.action(MULTI_PLAN_ACTION, async (ctx) => {
@@ -650,8 +635,9 @@ export const partnerModule: BotModule = {
     });
 
     bot.action(INVITE_DIRECT_ACTION, async (ctx) => {
-      await logUserAction(ctx, 'partner:invite:direct');
-      await showDirectInvite(ctx);
+      // Перенаправляем на многоуровневую ссылку
+      await logUserAction(ctx, 'partner:invite:multi');
+      await showMultiInvite(ctx);
     });
 
     bot.action(INVITE_MULTI_ACTION, async (ctx) => {
@@ -752,7 +738,7 @@ async function showMoreDetails(ctx: Context) {
 
   const keyboard = Markup.inlineKeyboard([
     [Markup.button.callback('📊 Карточка клиента', DASHBOARD_ACTION)],
-    [Markup.button.callback('💰 25%', DIRECT_PLAN_ACTION), Markup.button.callback('📈 15% + 5% + 5%', MULTI_PLAN_ACTION)],
+    [Markup.button.callback('📈 15% + 5% + 5%', MULTI_PLAN_ACTION)],
     [Markup.button.callback('📋 Оферта', 'partner:offer')]
   ]);
 
@@ -839,7 +825,7 @@ async function showPartnerOffer(ctx: Context) {
 
   const keyboard = Markup.inlineKeyboard([
     [Markup.button.callback('📊 Карточка клиента', DASHBOARD_ACTION)],
-    [Markup.button.callback('💰 25%', DIRECT_PLAN_ACTION), Markup.button.callback('📈 15% + 5% + 5%', MULTI_PLAN_ACTION)]
+    [Markup.button.callback('📈 15% + 5% + 5%', MULTI_PLAN_ACTION)]
   ]);
 
   await ctx.reply(text, keyboard);
