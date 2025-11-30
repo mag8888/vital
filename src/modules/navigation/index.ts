@@ -535,7 +535,10 @@ export const navigationModule: BotModule = {
                   existingBonus = await prisma.partnerTransaction.findFirst({
                     where: {
                       profileId: partnerProfile.id,
-                      description: `Бонус 3PZ за приглашение нового пользователя (${user.id})`
+                      OR: [
+                        { description: { contains: `Бонус 3PZ за приглашение нового пользователя (${user.id})` } },
+                        { description: { contains: `Бонус за приглашение друга (${user.id})` } }
+                      ]
                     }
                   });
                 }
@@ -694,52 +697,75 @@ export const navigationModule: BotModule = {
             const referralLevel = programType === 'DIRECT' ? 1 : 1; // Both start at level 1
             const referral = await upsertPartnerReferral(partnerProfile.id, referralLevel, user.id, undefined, programType);
             
-            // Award bonus only if this is a new user and new referral record
-            const isNewReferral = referral.createdAt.getTime() > Date.now() - 5000; // Created within last 5 seconds
-            const shouldReward = !isExistingUser && isNewReferral;
-            
-            if (shouldReward) {
+            // Award bonus only if this is a new user (not existing before)
+            if (!isExistingUser) {
               // Check if bonus was already awarded for this user
               const existingBonus = await prisma.partnerTransaction.findFirst({
                 where: {
                   profileId: partnerProfile.id,
-                  description: `Бонус за приглашение друга (${user.id})`
+                  OR: [
+                    { description: { contains: `Бонус за приглашение друга (${user.id})` } },
+                    { description: { contains: `Бонус 3PZ за приглашение нового пользователя (${user.id})` } }
+                  ]
                 }
               });
               
               if (!existingBonus) {
                 // Award 3PZ to the inviter only if not already awarded
                 console.log('🔗 Referral: Awarding 3PZ bonus to inviter for new user');
+                
                 await recordPartnerTransaction(
                   partnerProfile.id, 
                   3, 
-                  `Бонус за приглашение друга (${user.id})`, 
+                  `Бонус 3PZ за приглашение нового пользователя (${user.id})`, 
                   'CREDIT'
                 );
-                console.log('🔗 Referral: Bonus awarded successfully');
+                
+                // Get updated user balance after transaction
+                const updatedReferrer = await prisma.user.findUnique({
+                  where: { id: partnerProfile.userId },
+                  select: {
+                    balance: true,
+                    telegramId: true,
+                    firstName: true
+                  }
+                });
+                
+                console.log('🔗 Referral: Bonus awarded successfully, new balance:', updatedReferrer?.balance);
+                
+                // Send notification to inviter (always send if bonus was awarded)
+                if (updatedReferrer) {
+                  try {
+                    console.log('🔗 Referral: Sending notification to inviter:', updatedReferrer.telegramId);
+                    const joinedLabel = user.username ? `@${user.username}` : (user.firstName || 'пользователь');
+                    const notificationText = 
+                      '🎉 <b>Баланс пополнен!</b>\n\n' +
+                      `💰 Сумма: 3.00 PZ\n` +
+                      `💳 Текущий баланс: ${updatedReferrer.balance.toFixed(2)} PZ\n\n` +
+                      `✨ К вам присоединился ${joinedLabel} по вашей реферальной ссылке!\n\n` +
+                      `Приглашайте больше друзей и получайте бонусы!`;
+                    
+                    await ctx.telegram.sendMessage(
+                      updatedReferrer.telegramId,
+                      notificationText,
+                      { parse_mode: 'HTML' }
+                    );
+                    console.log('🔗 Referral: Notification sent successfully to inviter');
+                  } catch (error: any) {
+                    console.error('🔗 Referral: Failed to send notification to inviter:', error?.message || error);
+                    // Log full error for debugging
+                    if (error?.response) {
+                      console.error('🔗 Referral: Telegram API error:', JSON.stringify(error.response, null, 2));
+                    }
+                  }
+                } else {
+                  console.warn('🔗 Referral: updatedReferrer is null, cannot send notification');
+                }
               } else {
                 console.log('🔗 Referral: Bonus already awarded for this user, skipping');
               }
             } else {
-              console.log('🔗 Referral: Skipping bonus because user already existed or referral is not new', {
-                isExistingUser,
-                isNewReferral
-              });
-            }
-            
-            // Send notification to inviter only for new referrals
-            if (shouldReward) {
-              try {
-                console.log('🔗 Referral: Sending notification to inviter:', partnerProfile.user.telegramId);
-                const joinedLabel = user.username ? `@${user.username}` : (user.firstName || 'пользователь');
-                const text = `🎉 Ваш счет пополнен на 3PZ — присоединился ${joinedLabel}!\n\nПриглашайте больше друзей и получайте продукцию за бонусы!`;
-                await ctx.telegram.sendMessage(partnerProfile.user.telegramId, text);
-                console.log('🔗 Referral: Notification sent successfully');
-              } catch (error) {
-                console.warn('🔗 Referral: Failed to send notification to inviter:', error);
-              }
-            } else {
-              console.log('🔗 Referral: Existing referral, no notification sent');
+              console.log('🔗 Referral: User already existed, bonus not awarded');
             }
             
           console.log('🔗 Referral: Sending welcome message with bonus info');
