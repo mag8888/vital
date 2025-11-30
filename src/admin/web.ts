@@ -5487,7 +5487,7 @@ router.get('/products', requireAdmin, async (req, res) => {
       <body>
         <h2>🛍 Управление товарами</h2>
         <a href="/admin" class="btn">← Назад</a>
-        <button onclick="scrapeAllImages()" class="btn" style="background: #28a745; margin-left: 10px;">📸 Собрать ВСЕ фото с сайта</button>
+        <button onclick="scrapeAllImages()" class="btn" style="background: #28a745; margin-left: 10px;" title="Собрать все изображения товаров с сайта Siam Botanicals">📸 Собрать ВСЕ фото с сайта Siam Botanicals</button>
         
         ${req.query.success === 'image_updated' ? '<div class="alert alert-success">✅ Фото успешно обновлено!</div>' : ''}
         ${req.query.error === 'no_image' ? '<div class="alert alert-error">❌ Файл не выбран</div>' : ''}
