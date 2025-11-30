@@ -2496,6 +2496,24 @@ async function refreshCartBadge() {
     }
 }
 
+// Оптимистичное увеличение счетчика корзины (до загрузки данных)
+function incrementCartBadge() {
+    try {
+        const cartBadge = document.querySelector('.cart-badge');
+        if (cartBadge) {
+            const currentCount = parseInt(cartBadge.textContent) || 0;
+            const newCount = currentCount + 1;
+            cartBadge.textContent = newCount.toString();
+            cartBadge.style.display = 'grid';
+            cartBadge.classList.add('animate');
+            setTimeout(() => cartBadge.classList.remove('animate'), 300);
+            console.log(`🛒 Cart badge incremented: ${newCount}`);
+        }
+    } catch (error) {
+        console.error('Error incrementing cart badge:', error);
+    }
+}
+
 function updateBadges() {
     // Update shop badge with total products count (not cart sum)
     loadProductCount();
