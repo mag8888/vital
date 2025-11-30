@@ -1217,20 +1217,26 @@ body {
 
 .shop-category h4,
 .product-tile h4 {
-    color: #ffffff;
+    color: #1a1a1a;
     font-size: 16px;
     font-weight: 600;
     letter-spacing: -0.01em;
     margin-bottom: 8px;
     margin-top: 0;
+    word-wrap: break-word;
+    word-break: break-word;
+    line-height: 1.4;
 }
 
 .shop-category p,
 .product-tile .product-description {
-    color: #e0e0e0;
+    color: #333333;
     font-size: 14px;
-    line-height: 1.5;
+    line-height: 1.6;
     margin: 0;
+    word-wrap: break-word;
+    word-break: break-word;
+    font-weight: 400;
 }
 
 .shop-category button,
@@ -2376,10 +2382,40 @@ body {
     color: var(--text-secondary);
 }
 
+.balance-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .balance-value {
     font-size: 18px;
     font-weight: 600;
     color: var(--text-primary);
+}
+
+.btn-balance-topup {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition);
+    flex-shrink: 0;
+}
+
+.btn-balance-topup:active {
+    transform: scale(0.95);
+}
+
+.btn-balance-topup:hover {
+    background: var(--accent-strong);
+    transform: scale(1.05);
 }
 
 .cart-total {
