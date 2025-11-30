@@ -1275,18 +1275,10 @@ async function addToCart(productId) {
             // Анимация корзины
             animateCartIcon();
             
-            // Загружаем обновленную корзину
+            // Загружаем обновленную корзину (счетчик обновится автоматически в loadCartItems)
             await loadCartItems();
-            // Обновляем счетчик после загрузки данных
-            updateCartBadge();
             
             showSuccess('Товар добавлен в корзину!');
-            
-            // Дополнительная проверка и обновление через небольшую задержку
-            setTimeout(async () => {
-                await loadCartItems();
-                updateCartBadge();
-            }, 500);
         } else {
             // Получаем детали ошибки
             let errorMessage = 'Ошибка добавления в корзину';
