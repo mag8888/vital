@@ -1,36 +1,61 @@
 import { prisma } from '../lib/prisma.js';
 
 export async function getCartItems(userId: string) {
-  const items = await prisma.cartItem.findMany({
-    where: { userId },
-    include: {
-      product: true,
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-  
-  // Фильтруем и удаляем товары, которые были удалены или деактивированы
-  const validItems = [];
-  const invalidItemIds = [];
-  
-  for (const item of items) {
-    if (item.product && item.product.isActive) {
-      validItems.push(item);
-    } else {
-      invalidItemIds.push(item.id);
-    }
-  }
-  
-  // Удаляем невалидные товары из корзины
-  if (invalidItemIds.length > 0) {
-    await prisma.cartItem.deleteMany({
-      where: {
-        id: { in: invalidItemIds }
-      }
+  try {
+    const items = await prisma.cartItem.findMany({
+      where: { userId },
+      include: {
+        product: {
+          select: {
+            id: true,
+            title: true,
+            price: true,
+            imageUrl: true,
+            summary: true,
+            description: true,
+            isActive: true,
+          }
+        },
+      },
+      orderBy: { createdAt: 'desc' },
     });
+    
+    // Фильтруем и удаляем товары, которые были удалены или деактивированы
+    const validItems = [];
+    const invalidItemIds = [];
+    
+    for (const item of items) {
+      if (item.product && item.product.isActive) {
+        validItems.push(item);
+      } else {
+        invalidItemIds.push(item.id);
+      }
+    }
+    
+    // Удаляем невалидные товары из корзины
+    if (invalidItemIds.length > 0) {
+      try {
+        await prisma.cartItem.deleteMany({
+          where: {
+            id: { in: invalidItemIds }
+          }
+        });
+        console.log(`🧹 Removed ${invalidItemIds.length} invalid cart items`);
+      } catch (deleteError) {
+        console.error('Error removing invalid cart items:', deleteError);
+        // Продолжаем даже если не удалось удалить
+      }
+    }
+    
+    return validItems;
+  } catch (error: any) {
+    console.error('❌ Error in getCartItems:', error);
+    if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
+      console.warn('⚠️  MongoDB replica set not configured');
+      return [];
+    }
+    throw error;
   }
-  
-  return validItems;
 }
 
 export async function addProductToCart(userId: string, productId: string) {
