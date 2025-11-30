@@ -436,14 +436,22 @@ export async function scrapeAllMissingImages(): Promise<ScrapeResult> {
         continue;
       }
       
-      // Обновляем в базе данных (даже если изображение уже было, обновляем на более качественное)
-      await prisma.product.update({
-        where: { id: dbProduct.id },
-        data: { imageUrl: finalImageUrl }
-      });
+      // Проверяем, что изображение действительно отличается от текущего
+      const needsUpdate = !dbProduct.imageUrl || dbProduct.imageUrl !== finalImageUrl;
       
-      console.log(`   ✅ Успешно добавлено/обновлено!`);
-      result.updated++;
+      if (needsUpdate) {
+        // Обновляем в базе данных (даже если изображение уже было, обновляем на более качественное)
+        await prisma.product.update({
+          where: { id: dbProduct.id },
+          data: { imageUrl: finalImageUrl }
+        });
+        
+        console.log(`   ✅ Успешно добавлено/обновлено! URL: ${finalImageUrl.substring(0, 60)}...`);
+        result.updated++;
+      } else {
+        console.log(`   ⏭️  Изображение уже актуальное, пропускаю`);
+        result.skipped++;
+      }
       
       // Задержка между запросами
       await new Promise(resolve => setTimeout(resolve, 2000));
