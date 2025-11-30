@@ -1231,25 +1231,50 @@ body {
 .btn-add-to-cart,
 .btn-buy,
 .btn-back-to-catalog {
-    margin-top: 16px;
-    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
     border-radius: var(--radius-md);
-    border: 1px solid rgba(92, 139, 255, 0.35);
-    background: rgba(92, 139, 255, 0.12);
-    color: var(--accent-strong);
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 500;
     cursor: pointer;
     transition: var(--transition);
+    white-space: nowrap;
+    flex-shrink: 0;
+    box-shadow: var(--shadow-soft);
+    margin: 0;
+}
+
+.btn-back-to-catalog svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.btn-back-to-catalog span {
+    line-height: 1;
 }
 
 .shop-category button:hover,
 .btn-add-to-cart:hover,
-.btn-buy:hover,
-.btn-back-to-catalog:hover {
+.btn-buy:hover {
     border-color: rgba(92, 139, 255, 0.55);
     box-shadow: 0 12px 24px rgba(60, 107, 255, 0.25);
+}
+
+.btn-back-to-catalog:hover {
+    background: var(--bg-secondary);
+    border-color: var(--accent);
+    transform: translateX(-2px);
+    box-shadow: var(--shadow-strong);
+}
+
+.btn-back-to-catalog:active {
+    transform: translateX(-2px) scale(0.98);
 }
 
 .btn-buy {
