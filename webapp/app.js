@@ -669,7 +669,7 @@ async function checkoutCart() {
         }
         
         // Показываем форму для ввода телефона и адреса
-        showDeliveryForm(items, total, userBalance);
+        showDeliveryForm(validItems, total, userBalance);
         
     } catch (error) {
         console.error('Error checkout:', error);
