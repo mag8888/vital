@@ -6162,39 +6162,6 @@ router.post('/api/import-siam-products', requireAdmin, async (req, res) => {
   }
 });
 
-// Endpoint для обновления изображений товаров
-router.post('/api/update-product-images', requireAdmin, async (req, res) => {
-  try {
-    console.log('🖼️  Запрос на обновление изображений товаров получен');
-    
-    // Запускаем обновление в фоне
-    import('../services/siam-import-service.js')
-      .then(({ updateProductImages }) => {
-        console.log('✅ Модуль обновления изображений загружен, запускаю обновление...');
-        return updateProductImages();
-      })
-      .then(result => {
-        console.log(`✅ Обновление изображений завершено! Обновлено: ${result.updated}, Ошибок: ${result.failed}, Всего: ${result.total}`);
-      })
-      .catch(error => {
-        console.error('❌ Ошибка обновления изображений:', error);
-        console.error('❌ Error stack:', error?.stack);
-      });
-
-    // Возвращаем ответ немедленно
-    res.json({
-      success: true,
-      message: 'Обновление изображений запущено. Проверьте логи сервера для прогресса.'
-    });
-  } catch (error: any) {
-    console.error('❌ Update images endpoint error:', error);
-    res.status(500).json({
-      success: false,
-      error: error?.message || 'Ошибка запуска обновления изображений'
-    });
-  }
-});
-
 // Endpoint для загрузки изображения товара по URL
 router.post('/api/products/:productId/upload-image-url', requireAdmin, async (req, res) => {
   try {
@@ -6284,39 +6251,6 @@ router.post('/api/products/:productId/upload-image-url', requireAdmin, async (re
     return res.status(500).json({
       success: false,
       error: error?.message || 'Ошибка загрузки изображения'
-    });
-  }
-});
-
-// Endpoint для массовой загрузки изображений всех товаров (парсинг страниц)
-router.post('/api/upload-all-product-images', requireAdmin, async (req, res) => {
-  try {
-    console.log('🖼️  Запрос на загрузку изображений для всех товаров получен (парсинг страниц)');
-    
-    // Запускаем процесс в фоне
-    import('../services/siam-import-service.js')
-      .then(({ uploadAllProductImagesFromPages }) => {
-        console.log('✅ Модуль загрузки изображений загружен, запускаю процесс...');
-        return uploadAllProductImagesFromPages();
-      })
-      .then(result => {
-        console.log(`✅ Загрузка изображений завершена! Обновлено: ${result.updated}, Ошибок: ${result.failed}, Пропущено: ${result.skipped}, Всего: ${result.total}`);
-      })
-      .catch(error => {
-        console.error('❌ Ошибка загрузки изображений:', error);
-        console.error('❌ Error stack:', error?.stack);
-      });
-
-    // Возвращаем ответ немедленно
-    res.json({
-      success: true,
-      message: 'Загрузка изображений для всех товаров запущена (парсинг страниц). Проверьте логи сервера для прогресса.'
-    });
-  } catch (error: any) {
-    console.error('❌ Upload all images endpoint error:', error);
-    res.status(500).json({
-      success: false,
-      error: error?.message || 'Ошибка запуска загрузки изображений'
     });
   }
 });
