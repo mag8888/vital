@@ -1749,7 +1749,7 @@ body {
 
 .product-price,
 .product-stock {
-    color: var(--text-primary);
+    color: #ffffff;
     font-size: 16px;
     font-weight: 600;
     padding: 12px 16px;
@@ -1770,7 +1770,7 @@ body {
 .product-summary h4,
 .product-description-full h4,
 .product-instruction h4 {
-    color: var(--text-primary);
+    color: #ffd700;
     font-size: 16px;
     font-weight: 600;
     margin: 0 0 12px 0;
@@ -1781,7 +1781,7 @@ body {
 .product-summary p,
 .product-description-full p,
 .product-instruction p {
-    color: var(--text-secondary);
+    color: #e0e0e0;
     font-size: 14px;
     line-height: 1.6;
     margin: 0;
