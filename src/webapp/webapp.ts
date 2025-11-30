@@ -188,6 +188,63 @@ router.get('/api/user/profile', async (req, res) => {
   }
 });
 
+// Deduct balance endpoint
+router.post('/api/user/deduct-balance', async (req, res) => {
+  try {
+    const telegramUser = getTelegramUser(req);
+    if (!telegramUser) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { amount } = req.body;
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid amount' });
+    }
+
+    const { prisma } = await import('../lib/prisma.js');
+    const user = await prisma.user.findUnique({
+      where: { telegramId: telegramUser.id.toString() }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const currentBalance = (user as any).balance || 0;
+    if (currentBalance < amount) {
+      return res.status(400).json({ 
+        error: 'Insufficient balance',
+        currentBalance,
+        required: amount
+      });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        balance: {
+          decrement: amount
+        }
+      },
+      select: {
+        id: true,
+        balance: true
+      }
+    });
+
+    console.log(`✅ Balance deducted: ${amount} PZ from user ${user.id}, new balance: ${updatedUser.balance}`);
+
+    res.json({
+      success: true,
+      amountDeducted: amount,
+      newBalance: updatedUser.balance
+    });
+  } catch (error) {
+    console.error('Error deducting balance:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Categories
 router.get('/api/categories', async (req, res) => {
   try {

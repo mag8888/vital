@@ -429,6 +429,14 @@ async function loadCartContent() {
         
         const items = await response.json();
         
+        // Загружаем данные пользователя для отображения баланса
+        const userResponse = await fetch(`${API_BASE}/user/profile`, { headers: getApiHeaders() });
+        let userBalance = 0;
+        if (userResponse.ok) {
+            const userData = await userResponse.json();
+            userBalance = userData.balance || 0;
+        }
+        
         if (!items || items.length === 0) {
             return `
                 <div class="content-section">
@@ -440,7 +448,7 @@ async function loadCartContent() {
         }
         
         let total = 0;
-        let html = '<div class="cart-items-list">';
+        let html = '<div class="cart-items-grid">';
         
         items.forEach(item => {
             const product = item.product;
@@ -448,14 +456,15 @@ async function loadCartContent() {
             total += itemTotal;
             
             html += `
-                <div class="cart-item">
-                    ${product.imageUrl ? `<img src="${product.imageUrl}" alt="${escapeHtml(product.title)}" class="cart-item-image">` : '<div class="cart-item-image-placeholder">📦</div>'}
+                <div class="cart-item-tile">
+                    <div class="cart-item-image-wrapper">
+                        ${product.imageUrl ? `<img src="${product.imageUrl}" alt="${escapeHtml(product.title)}" class="cart-item-image">` : '<div class="cart-item-image-placeholder">📦</div>'}
+                        <button class="btn-cart-remove" onclick="removeFromCart('${item.id}')">✕</button>
+                    </div>
                     <div class="cart-item-info">
                         <h4>${escapeHtml(product.title)}</h4>
-                        <p class="cart-item-price">${(product.price || 0).toFixed(2)} PZ × ${item.quantity || 1} = ${itemTotal.toFixed(2)} PZ</p>
-                    </div>
-                    <div class="cart-item-actions">
-                        <button class="btn-cart-remove" onclick="removeFromCart('${item.id}')">✕</button>
+                        <p class="cart-item-price">${(product.price || 0).toFixed(2)} PZ × ${item.quantity || 1}</p>
+                        <p class="cart-item-total">${itemTotal.toFixed(2)} PZ</p>
                     </div>
                 </div>
             `;
@@ -463,13 +472,19 @@ async function loadCartContent() {
         
         html += '</div>';
         html += `
-            <div class="cart-total">
-                <div class="cart-total-row">
-                    <span>Итого:</span>
-                    <strong>${total.toFixed(2)} PZ</strong>
+            <div class="cart-summary">
+                <div class="balance-display">
+                    <span class="balance-label">Ваш баланс:</span>
+                    <span class="balance-value">${userBalance.toFixed(2)} PZ</span>
                 </div>
-                <button class="btn btn-primary" onclick="checkoutCart()" style="width: 100%; margin-top: 16px;">
-                    Оформить заказ
+                <div class="cart-total">
+                    <div class="cart-total-row">
+                        <span>Итого:</span>
+                        <strong>${total.toFixed(2)} PZ</strong>
+                    </div>
+                </div>
+                <button class="btn btn-primary checkout-btn" onclick="checkoutCart()" style="width: 100%; margin-top: 16px;">
+                    Оформить заказ (${total.toFixed(2)} PZ)
                 </button>
             </div>
         `;
@@ -517,6 +532,111 @@ async function checkoutCart() {
             return;
         }
         
+        // Вычисляем общую сумму
+        const total = items.reduce((sum, item) => {
+            return sum + (item.product.price || 0) * (item.quantity || 1);
+        }, 0);
+        
+        // Загружаем баланс пользователя
+        const userResponse = await fetch(`${API_BASE}/user/profile`, { headers: getApiHeaders() });
+        let userBalance = 0;
+        if (userResponse.ok) {
+            const userData = await userResponse.json();
+            userBalance = userData.balance || 0;
+        }
+        
+        // Показываем диалог выбора способа оплаты
+        if (userBalance >= total) {
+            const payWithBalance = confirm(
+                `💰 Ваш баланс: ${userBalance.toFixed(2)} PZ\n` +
+                `📦 Сумма заказа: ${total.toFixed(2)} PZ\n\n` +
+                `Оплатить с баланса?`
+            );
+            
+            if (payWithBalance) {
+                // Оплата с баланса
+                await processOrderWithBalance(items, total);
+                return;
+            }
+        } else if (userBalance > 0) {
+            const payPartial = confirm(
+                `💰 Ваш баланс: ${userBalance.toFixed(2)} PZ\n` +
+                `📦 Сумма заказа: ${total.toFixed(2)} PZ\n` +
+                `💵 Недостаточно средств: ${(total - userBalance).toFixed(2)} PZ\n\n` +
+                `Использовать баланс частично?`
+            );
+            
+            if (payPartial) {
+                // Частичная оплата с баланса
+                await processOrderWithBalance(items, total, userBalance);
+                return;
+            }
+        }
+        
+        // Обычное оформление заказа (без оплаты с баланса)
+        await processOrderNormal(items);
+        
+    } catch (error) {
+        console.error('Error checkout:', error);
+        showError('Ошибка оформления заказа');
+    }
+}
+
+// Обработка заказа с оплатой с баланса
+async function processOrderWithBalance(items, total, partialAmount = null) {
+    try {
+        const orderItems = items.map(item => ({
+            productId: item.product.id,
+            title: item.product.title,
+            price: item.product.price,
+            quantity: item.quantity
+        }));
+        
+        const amountToPay = partialAmount || total;
+        const message = partialAmount 
+            ? `Заказ из корзины. Оплачено с баланса: ${amountToPay.toFixed(2)} PZ из ${total.toFixed(2)} PZ`
+            : `Заказ из корзины. Оплачено с баланса: ${total.toFixed(2)} PZ`;
+        
+        const orderResponse = await fetch(`${API_BASE}/orders/create`, {
+            method: 'POST',
+            headers: getApiHeaders(),
+            body: JSON.stringify({ 
+                items: orderItems, 
+                message: message,
+                paidFromBalance: amountToPay
+            })
+        });
+        
+        if (orderResponse.ok) {
+            // Списываем с баланса
+            const balanceResponse = await fetch(`${API_BASE}/user/deduct-balance`, {
+                method: 'POST',
+                headers: getApiHeaders(),
+                body: JSON.stringify({ amount: amountToPay })
+            });
+            
+            if (balanceResponse.ok) {
+                showSuccess(`Заказ оформлен! С баланса списано ${amountToPay.toFixed(2)} PZ.`);
+            } else {
+                showSuccess('Заказ оформлен! Ожидайте подтверждения.');
+            }
+            
+            closeSection();
+            await loadCartItems();
+            updateCartBadge();
+        } else {
+            const errorData = await orderResponse.json();
+            showError(`Ошибка оформления заказа: ${errorData.error || 'Неизвестная ошибка'}`);
+        }
+    } catch (error) {
+        console.error('Error processing order with balance:', error);
+        showError('Ошибка оформления заказа');
+    }
+}
+
+// Обычное оформление заказа
+async function processOrderNormal(items) {
+    try {
         const orderItems = items.map(item => ({
             productId: item.product.id,
             title: item.product.title,
@@ -536,10 +656,11 @@ async function checkoutCart() {
             await loadCartItems();
             updateCartBadge();
         } else {
-            showError('Ошибка оформления заказа');
+            const errorData = await orderResponse.json();
+            showError(`Ошибка оформления заказа: ${errorData.error || 'Неизвестная ошибка'}`);
         }
     } catch (error) {
-        console.error('Error checkout:', error);
+        console.error('Error processing order:', error);
         showError('Ошибка оформления заказа');
     }
 }
@@ -1030,14 +1151,44 @@ async function addToCart(productId) {
         });
         
         if (response.ok) {
+            // Анимация корзины
+            animateCartIcon();
+            
+            // Обновляем корзину и счетчик
+            await loadCartItems();
+            updateCartBadge();
+            
             showSuccess('Товар добавлен в корзину!');
-            loadCartItems(); // This will refresh cart items
         } else {
             showError('Ошибка добавления в корзину');
         }
     } catch (error) {
         console.error('Error adding to cart:', error);
         showError('Ошибка добавления в корзину');
+    }
+}
+
+// Анимация иконки корзины при добавлении товара
+function animateCartIcon() {
+    const cartButton = document.querySelector('.control-btn[onclick="openCart()"]');
+    if (cartButton) {
+        cartButton.style.transform = 'scale(1.2)';
+        cartButton.style.transition = 'transform 0.3s ease';
+        
+        setTimeout(() => {
+            cartButton.style.transform = 'scale(1)';
+        }, 300);
+    }
+    
+    // Анимация бейджа
+    const cartBadge = document.querySelector('.cart-badge');
+    if (cartBadge) {
+        cartBadge.style.transform = 'scale(1.5)';
+        cartBadge.style.transition = 'transform 0.3s ease';
+        
+        setTimeout(() => {
+            cartBadge.style.transform = 'scale(1)';
+        }, 300);
     }
 }
 
@@ -1973,27 +2124,27 @@ async function loadReviewsCount() {
 
 function updateCartBadge() {
     try {
-        // Calculate total sum of cart items
-        let totalSum = 0;
+        // Calculate total quantity of items in cart
+        let totalQuantity = 0;
         if (cartItems && cartItems.length > 0) {
-            totalSum = cartItems.reduce((sum, item) => {
-                return sum + (item.product.price * item.quantity);
+            totalQuantity = cartItems.reduce((sum, item) => {
+                return sum + (item.quantity || 1);
             }, 0);
         }
         
-        // Update shop badge with total sum
-        const shopBadge = document.getElementById('shop-badge');
-        if (shopBadge) {
-            if (totalSum > 0) {
-                shopBadge.textContent = `$${totalSum.toFixed(2)}`;
-                shopBadge.style.background = '#4CAF50'; // Green for non-zero
+        // Update cart badge with item count
+        const cartBadge = document.querySelector('.cart-badge');
+        if (cartBadge) {
+            if (totalQuantity > 0) {
+                cartBadge.textContent = totalQuantity.toString();
+                cartBadge.style.display = 'grid';
             } else {
-                shopBadge.textContent = '0';
-                shopBadge.style.background = ''; // Default color for zero
+                cartBadge.textContent = '0';
+                cartBadge.style.display = 'none';
             }
         }
         
-        console.log(`💰 Cart total: $${totalSum.toFixed(2)}`);
+        console.log(`🛒 Cart items count: ${totalQuantity}`);
     } catch (error) {
         console.error('Error updating cart badge:', error);
     }
