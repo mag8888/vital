@@ -866,8 +866,6 @@ router.get('/', requireAdmin, async (req, res) => {
                 <a href="/admin/orders" class="btn">📦 Заказы</a>
                 <button class="btn" onclick="openAddProductModal()" style="background: #28a745;">➕ Добавить товар</button>
                 <button class="btn import-siam-btn" style="background: #17a2b8; cursor: pointer; pointer-events: auto !important;">🤖 Импорт Siam Botanicals</button>
-                <button class="btn update-images-btn" style="background: #ff9800; cursor: pointer; pointer-events: auto !important;">🖼️ Обновить изображения</button>
-                <button class="btn upload-all-images-btn" style="background: #9c27b0; cursor: pointer; pointer-events: auto !important;">📸 Загрузить все изображения</button>
               </div>
             </div>
             <p>Управление каталогом товаров, отзывами и заказами.</p>
@@ -1198,166 +1196,6 @@ router.get('/', requireAdmin, async (req, res) => {
             setTimeout(function() {
               document.addEventListener('click', handleImportSiamProducts, true);
               console.log('✅ Import handler attached (delayed)');
-            }, 50);
-          })();
-          
-          // Обработчик обновления изображений
-          (function() {
-            'use strict';
-            
-            async function handleUpdateImages(event) {
-              const target = event.target.closest('.update-images-btn');
-              if (!target) return;
-              
-              event.preventDefault();
-              event.stopPropagation();
-              event.stopImmediatePropagation();
-              
-              if (!confirm('Обновить изображения для всех товаров? Это может занять несколько минут.')) {
-                return false;
-              }
-              
-              const btn = target;
-              const originalText = btn.textContent;
-              btn.disabled = true;
-              btn.textContent = '⏳ Обновление...';
-              btn.style.opacity = '0.6';
-              
-              try {
-                const response = await fetch('/admin/api/update-product-images', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  credentials: 'include'
-                });
-                
-                if (!response.ok) {
-                  throw new Error('HTTP ' + response.status);
-                }
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                  alert('✅ Обновление изображений запущено! Изображения будут загружены в течение нескольких минут. Проверьте логи сервера или обновите страницу через 3-5 минут.');
-                } else {
-                  throw new Error(result.error || 'Ошибка запуска обновления');
-                }
-              } catch (error) {
-                console.error('❌ Update images error:', error);
-                alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Не удалось запустить обновление изображений'));
-              } finally {
-                btn.disabled = false;
-                btn.textContent = originalText;
-                btn.style.opacity = '1';
-              }
-              
-              return false;
-            }
-            
-            document.addEventListener('click', handleUpdateImages, true);
-            
-            document.addEventListener('DOMContentLoaded', function() {
-              document.addEventListener('click', handleUpdateImages, true);
-              
-              function attachUpdateImagesHandler() {
-                const updateBtn = document.querySelector('.update-images-btn');
-                if (updateBtn && !updateBtn.hasAttribute('data-handler-attached')) {
-                  updateBtn.addEventListener('click', handleUpdateImages, true);
-                  updateBtn.setAttribute('data-handler-attached', 'true');
-                  console.log('✅ Update images button handler attached');
-                } else if (!updateBtn) {
-                  setTimeout(attachUpdateImagesHandler, 200);
-                }
-              }
-              
-              attachUpdateImagesHandler();
-              setTimeout(attachUpdateImagesHandler, 500);
-              setTimeout(attachUpdateImagesHandler, 1000);
-            });
-            
-            setTimeout(function() {
-              document.addEventListener('click', handleUpdateImages, true);
-            }, 50);
-          })();
-          
-          // Handler для кнопки "Загрузить все изображения"
-          (function() {
-            'use strict';
-            
-            async function handleUploadAllImages(event) {
-              const target = event.target.closest('.upload-all-images-btn');
-              if (!target) return;
-              
-              event.preventDefault();
-              event.stopPropagation();
-              event.stopImmediatePropagation();
-              
-              if (!confirm('Загрузить изображения для всех товаров из списка Siam Botanicals? Это может занять 5-10 минут. Процесс будет запущен в фоновом режиме.')) {
-                return false;
-              }
-              
-              const btn = target;
-              const originalText = btn.textContent;
-              btn.disabled = true;
-              btn.textContent = '⏳ Загрузка...';
-              btn.style.opacity = '0.6';
-              
-              try {
-                const response = await fetch('/admin/api/upload-all-product-images', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  credentials: 'include'
-                });
-                
-                if (!response.ok) {
-                  throw new Error('HTTP ' + response.status);
-                }
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                  alert('✅ Загрузка изображений запущена! Процесс выполняется в фоновом режиме. Это может занять 5-10 минут. Проверьте логи сервера или обновите страницу через несколько минут.');
-                } else {
-                  throw new Error(result.error || 'Ошибка запуска загрузки');
-                }
-              } catch (error) {
-                console.error('❌ Upload all images error:', error);
-                alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Не удалось запустить загрузку изображений'));
-              } finally {
-                btn.disabled = false;
-                btn.textContent = originalText;
-                btn.style.opacity = '1';
-              }
-              
-              return false;
-            }
-            
-            document.addEventListener('click', handleUploadAllImages, true);
-            
-            document.addEventListener('DOMContentLoaded', function() {
-              document.addEventListener('click', handleUploadAllImages, true);
-              
-              function attachUploadAllImagesHandler() {
-                const uploadAllBtn = document.querySelector('.upload-all-images-btn');
-                if (uploadAllBtn && !uploadAllBtn.hasAttribute('data-handler-attached')) {
-                  uploadAllBtn.addEventListener('click', handleUploadAllImages, true);
-                  uploadAllBtn.setAttribute('data-handler-attached', 'true');
-                  console.log('✅ Upload all images button handler attached');
-                } else if (!uploadAllBtn) {
-                  setTimeout(attachUploadAllImagesHandler, 200);
-                }
-              }
-              
-              attachUploadAllImagesHandler();
-              setTimeout(attachUploadAllImagesHandler, 500);
-              setTimeout(attachUploadAllImagesHandler, 1000);
-            });
-            
-            setTimeout(function() {
-              document.addEventListener('click', handleUploadAllImages, true);
             }, 50);
           })();
           
@@ -5487,7 +5325,7 @@ router.get('/products', requireAdmin, async (req, res) => {
       <body>
         <h2>🛍 Управление товарами</h2>
         <a href="/admin" class="btn">← Назад</a>
-        <button onclick="scrapeAllImages()" class="btn" style="background: #28a745; margin-left: 10px;" title="Собрать все изображения товаров с сайта Siam Botanicals">📸 Собрать ВСЕ фото с сайта Siam Botanicals</button>
+        <button onclick="scrapeAllImages()" class="btn" style="background: #28a745; margin-left: 10px;">📸 Собрать ВСЕ фото с сайта</button>
         
         ${req.query.success === 'image_updated' ? '<div class="alert alert-success">✅ Фото успешно обновлено!</div>' : ''}
         ${req.query.error === 'no_image' ? '<div class="alert alert-error">❌ Файл не выбран</div>' : ''}
