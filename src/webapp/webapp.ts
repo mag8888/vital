@@ -424,6 +424,24 @@ router.post('/api/cart/add', async (req, res) => {
 
     console.log('✅ User found for cart:', user.id);
 
+    // Check if product exists
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true, isActive: true }
+    });
+
+    if (!product) {
+      console.log('❌ Product not found:', productId);
+      return res.status(404).json({ error: 'Товар не найден' });
+    }
+
+    if (!product.isActive) {
+      console.log('❌ Product is not active:', productId);
+      return res.status(400).json({ error: 'Товар недоступен для заказа' });
+    }
+
+    console.log('✅ Product found and active:', productId);
+
     // Check if item already exists in cart
     const existingItem = await prisma.cartItem.findFirst({
       where: { userId: user.id, productId }
@@ -450,9 +468,52 @@ router.post('/api/cart/add', async (req, res) => {
 
     console.log('✅ Cart item added successfully');
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error adding to cart:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    
+    // Более детальная обработка ошибок
+    if (error?.code === 'P2002') {
+      // Unique constraint violation
+      console.log('⚠️ Duplicate cart item, updating instead');
+      try {
+        const { prisma } = await import('../lib/prisma.js');
+        const telegramUser = getTelegramUser(req);
+        if (telegramUser) {
+          const user = await prisma.user.findUnique({
+            where: { telegramId: telegramUser.id.toString() }
+          });
+          if (user) {
+            const existingItem = await prisma.cartItem.findFirst({
+              where: { userId: user.id, productId: req.body.productId }
+            });
+            if (existingItem) {
+              await prisma.cartItem.update({
+                where: { id: existingItem.id },
+                data: { quantity: existingItem.quantity + (req.body.quantity || 1) }
+              });
+              return res.json({ success: true });
+            }
+          }
+        }
+      } catch (retryError) {
+        console.error('❌ Retry failed:', retryError);
+      }
+    }
+    
+    if (error?.code === 'P2003') {
+      return res.status(400).json({ error: 'Товар не найден в базе данных' });
+    }
+    
+    if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
+      return res.status(503).json({ 
+        error: 'База данных временно недоступна. Попробуйте позже.' 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: error?.message || 'Внутренняя ошибка сервера',
+      details: process.env.NODE_ENV === 'development' ? error?.stack : undefined
+    });
   }
 });
 

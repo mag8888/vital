@@ -1172,7 +1172,15 @@ async function loadFavoritesContent() {
 // Action functions
 
 async function addToCart(productId) {
+    if (!productId) {
+        console.error('❌ No productId provided');
+        showError('Ошибка: не указан товар');
+        return;
+    }
+    
     try {
+        console.log('🛒 Adding product to cart:', productId);
+        
         const response = await fetch(`${API_BASE}/cart/add`, {
             method: 'POST',
             headers: getApiHeaders(),
@@ -1180,6 +1188,9 @@ async function addToCart(productId) {
         });
         
         if (response.ok) {
+            const result = await response.json();
+            console.log('✅ Product added to cart:', result);
+            
             // Анимация корзины
             animateCartIcon();
             
@@ -1194,10 +1205,15 @@ async function addToCart(productId) {
             try {
                 const errorData = await response.json();
                 errorMessage = errorData.error || errorMessage;
+                console.error('❌ Add to cart error response:', errorData);
             } catch (e) {
-                const errorText = await response.text();
-                if (errorText) {
-                    errorMessage = errorText;
+                try {
+                    const errorText = await response.text();
+                    if (errorText) {
+                        errorMessage = errorText;
+                    }
+                } catch (textError) {
+                    console.error('❌ Failed to parse error:', textError);
                 }
             }
             
@@ -1207,8 +1223,12 @@ async function addToCart(productId) {
                 showError('Необходимо авторизоваться для добавления в корзину');
             } else if (response.status === 400) {
                 showError(errorMessage || 'Неверные данные товара');
+            } else if (response.status === 404) {
+                showError('Товар не найден');
+            } else if (response.status === 503) {
+                showError('Сервис временно недоступен. Попробуйте позже.');
             } else {
-                showError(errorMessage);
+                showError(errorMessage || 'Ошибка добавления в корзину');
             }
         }
     } catch (error) {
