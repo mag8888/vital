@@ -2390,10 +2390,13 @@ async function loadUserData() {
 async function loadCartItems() {
   try {
     console.log('🛒 Loading cart items...');
-    const response = await fetch(`${API_BASE}/cart/items`);
+    const response = await fetch(`${API_BASE}/cart/items`, { headers: getApiHeaders() });
     if (response.ok) {
       cartItems = await response.json();
       console.log('✅ Cart items loaded:', cartItems.length);
+      
+      // Фильтруем валидные товары
+      cartItems = cartItems.filter(item => item.product && item.product.isActive);
     } else if (response.status === 401) {
       console.log('User not authenticated - this is normal for web preview');
       cartItems = [];
@@ -2402,11 +2405,13 @@ async function loadCartItems() {
       cartItems = [];
     }
     
-    // Don't update cart badge here - it should show product count, not cart sum
+    // Обновляем счетчик корзины после загрузки
+    updateCartBadge();
     console.log(`🛒 Cart items: ${cartItems.length} items`);
   } catch (error) {
     console.error('Error loading cart items:', error);
     cartItems = [];
+    updateCartBadge();
     console.log('🛒 Cart items: 0 items (error)');
   }
 }
