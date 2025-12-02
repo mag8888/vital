@@ -861,9 +861,18 @@ router.post('/api/orders/create', async (req, res) => {
     }
 
     res.json({ success: true, orderId: order.id });
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error creating order:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('❌ Error details:', {
+      message: error?.message,
+      stack: error?.stack,
+      code: error?.code,
+      name: error?.name
+    });
+    res.status(500).json({ 
+      error: error?.message || 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error?.stack : undefined
+    });
   }
 });
 

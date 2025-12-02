@@ -670,8 +670,13 @@ async function checkoutCart() {
         showDeliveryForm(validItems, total, userBalance);
         
     } catch (error) {
-        console.error('Error checkout:', error);
-        showError('Ошибка оформления заказа');
+        console.error('❌ Error checkout:', error);
+        console.error('❌ Error details:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
+        showError(`Ошибка оформления заказа: ${error.message || 'Неизвестная ошибка'}`);
     }
 }
 
