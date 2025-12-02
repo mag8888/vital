@@ -1,6 +1,7 @@
 import { Markup } from 'telegraf';
 import { logUserAction, ensureUser, checkUserContact } from '../../services/user-history.js';
 import { upsertPartnerReferral, recordPartnerTransaction } from '../../services/partner-service.js';
+import { env } from '../../config/env.js';
 const greeting = `👋 Добро пожаловать!
 Plazma Water — жидкие витамины и минералы в наноформе.
 💧 Усвоение — до 99,9% (в отличие от таблеток 1–10%).
@@ -366,8 +367,9 @@ export const navigationModule = {
         // Handle app command - open webapp directly
         bot.command('app', async (ctx) => {
             await logUserAction(ctx, 'command:app');
-            // Force HTTPS URL for Railway
-            const webappUrl = 'https://plazma-production.up.railway.app/webapp';
+            // Use webapp URL from environment or default
+            const baseUrl = env.webappUrl || env.publicBaseUrl || 'https://plazma-production.up.railway.app';
+            const webappUrl = baseUrl.endsWith('/webapp') ? baseUrl : `${baseUrl}/webapp`;
             console.log('🌐 WebApp URL:', webappUrl);
             await ctx.reply('🌐 <b>Открываю веб-приложение Plazma Water...</b>', {
                 parse_mode: 'HTML',
