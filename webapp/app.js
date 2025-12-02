@@ -645,12 +645,18 @@ async function checkoutCart() {
             return;
         }
         
-        // Вычисляем общую сумму, пропуская товары без продукта
-        const total = items
-            .filter(item => item.product && item.product.price)
-            .reduce((sum, item) => {
-                return sum + (item.product.price || 0) * (item.quantity || 1);
-            }, 0);
+        // Фильтруем только валидные товары (с продуктом и ценой)
+        const validItems = items.filter(item => item.product && item.product.price);
+        
+        if (validItems.length === 0) {
+            showError('В корзине нет доступных товаров');
+            return;
+        }
+        
+        // Вычисляем общую сумму
+        const total = validItems.reduce((sum, item) => {
+            return sum + (item.product.price || 0) * (item.quantity || 1);
+        }, 0);
         
         // Загружаем баланс пользователя
         const userResponse = await fetch(`${API_BASE}/user/profile`, { headers: getApiHeaders() });
