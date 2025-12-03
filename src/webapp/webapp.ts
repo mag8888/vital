@@ -1407,7 +1407,7 @@ router.post('/api/plazma/orders', async (req, res) => {
     try {
       await createOrderRequest({
         userId: user?.id || '',
-        telegramId: telegramUser.id.toString(),
+        contact: contact,
         items: [{
           productId: productId,
           title: productTitle,
