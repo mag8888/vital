@@ -3,8 +3,8 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { uploadImage, isCloudinaryConfigured } from '../../services/cloudinary';
-import { validateProduct } from './utils';
+import { uploadImage, isCloudinaryConfigured } from '../../services/cloudinary-service.js';
+import { validateProduct } from './utils.js';
 
 const prisma = new PrismaClient();
 
