@@ -5790,7 +5790,8 @@ router.get('/products', requireAdmin, async (req, res) => {
           
           // Function to move all products to "Косметика" category
           window.moveAllToCosmetics = async function() {
-            if (!confirm('⚠️ Переместить ВСЕ продукты в категорию ' + String.fromCharCode(34) + 'Косметика' + String.fromCharCode(34) + '?\\n\\nЭто действие изменит категорию для всех товаров в базе данных.')) {
+            const msg = '⚠️ Переместить ВСЕ продукты в категорию "Косметика"?\n\nЭто действие изменит категорию для всех товаров в базе данных.';
+            if (!confirm(msg)) {
               return;
             }
             
