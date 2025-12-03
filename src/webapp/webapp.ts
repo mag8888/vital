@@ -1269,6 +1269,25 @@ router.post('/api/import-products', async (req, res) => {
 });
 
 // Plazma API endpoints
+// Test endpoint to check API connection
+router.get('/api/plazma/test', async (req, res) => {
+  try {
+    const { env } = await import('../config/env.js');
+    
+    return res.json({
+      success: true,
+      apiKeyConfigured: !!env.plazmaApiKey,
+      apiUrl: env.plazmaApiUrl,
+      apiKeyPreview: env.plazmaApiKey ? `${env.plazmaApiKey.substring(0, 10)}...` : 'NOT SET'
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Internal server error'
+    });
+  }
+});
+
 // Get products from Plazma API
 router.get('/api/plazma/products', async (req, res) => {
   try {
@@ -1285,6 +1304,9 @@ router.get('/api/plazma/products', async (req, res) => {
     const { region = 'RUSSIA', limit = 20 } = req.query;
     const url = `${env.plazmaApiUrl}/products?region=${region}&limit=${limit}`;
 
+    console.log('🔗 Fetching Plazma products from:', url);
+    console.log('🔑 Using API key:', env.plazmaApiKey ? `${env.plazmaApiKey.substring(0, 10)}...` : 'NOT SET');
+
     const response = await fetch(url, {
       headers: {
         'X-API-Key': env.plazmaApiKey
@@ -1292,15 +1314,37 @@ router.get('/api/plazma/products', async (req, res) => {
     });
 
     if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unable to read error response');
       console.error(`❌ Plazma API error: ${response.status} ${response.statusText}`);
+      console.error(`❌ Error details:`, errorText);
       return res.status(response.status).json({ 
-        error: 'Failed to fetch products from Plazma API',
+        error: `Failed to fetch products from Plazma API: ${response.status} ${response.statusText}`,
         products: []
       });
     }
 
     const data = await response.json();
-    const products = data.success ? (data.data || []) : [];
+    console.log('📦 Plazma API response:', {
+      success: data.success,
+      hasData: !!data.data,
+      dataLength: Array.isArray(data.data) ? data.data.length : 'not array',
+      dataType: typeof data.data,
+      fullResponse: JSON.stringify(data).substring(0, 200) + '...'
+    });
+
+    // Обрабатываем разные форматы ответа
+    let products = [];
+    if (data.success && Array.isArray(data.data)) {
+      products = data.data;
+    } else if (Array.isArray(data)) {
+      // Если ответ - это массив напрямую
+      products = data;
+    } else if (data.products && Array.isArray(data.products)) {
+      // Если товары в поле products
+      products = data.products;
+    }
+
+    console.log(`✅ Parsed ${products.length} products from Plazma API`);
     
     res.json({ 
       success: true, 

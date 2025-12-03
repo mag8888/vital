@@ -959,37 +959,67 @@ async function loadPlazmaProducts() {
     
     try {
         console.log('🛒 Loading products from Plazma API...');
+        console.log('📍 API endpoint:', `${API_BASE}/plazma/products`);
         
         // Используем бэкенд endpoint для получения товаров из Plazma API
         const response = await fetch(`${API_BASE}/plazma/products`);
         
+        console.log('📡 Response status:', response.status, response.statusText);
+        
         if (!response.ok) {
-            // Если ошибка, просто скрываем секцию
-            console.warn('⚠️ Failed to load Plazma products:', response.status);
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            console.error('⚠️ Failed to load Plazma products:', {
+                status: response.status,
+                statusText: response.statusText,
+                error: errorData.error || errorData.message
+            });
             plazmaSection.style.display = 'none';
             return;
         }
         
         const result = await response.json();
+        console.log('📦 Response from backend:', {
+            success: result.success,
+            hasProducts: !!result.products,
+            productsLength: Array.isArray(result.products) ? result.products.length : 'not array',
+            error: result.error
+        });
+        
         const products = result.products || result.data || [];
         
         console.log(`✅ Loaded ${products?.length || 0} products from Plazma API`);
         
         if (products && Array.isArray(products) && products.length > 0) {
             const horizontalContainer = plazmaContainer.querySelector('.products-horizontal');
-            if (!horizontalContainer) return;
+            if (!horizontalContainer) {
+                console.error('❌ Horizontal container not found in Plazma section');
+                return;
+            }
             
             let html = '';
-            products.forEach(product => {
+            products.forEach((product, index) => {
+                console.log(`📦 Product ${index + 1}:`, {
+                    id: product.id,
+                    title: product.title,
+                    hasImage: !!product.imageUrl,
+                    price: product.price || product.priceRub
+                });
                 html += renderPlazmaProductCard(product);
             });
             horizontalContainer.innerHTML = html;
             plazmaSection.style.display = 'block';
+            console.log('✅ Plazma products section displayed');
         } else {
+            console.warn('⚠️ No products to display, hiding Plazma section');
             plazmaSection.style.display = 'none';
         }
     } catch (error) {
         console.error('❌ Error loading Plazma products:', error);
+        console.error('❌ Error details:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
         plazmaSection.style.display = 'none';
     }
 }
