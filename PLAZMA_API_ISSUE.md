@@ -74,3 +74,4 @@ curl "https://vital-production-82b0.up.railway.app/webapp/api/plazma/products?li
 2. Проверьте переменные окружения в Railway
 3. Свяжитесь с разработчиками Plazma для уточнения API
 
+

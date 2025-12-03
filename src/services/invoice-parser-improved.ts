@@ -130,3 +130,4 @@ export function parseInvoiceText(text: string): ParsedInvoiceItem[] {
   return Array.from(itemsMap.values()).filter(item => item.quantity > 0 && item.rate > 0);
 }
 
+

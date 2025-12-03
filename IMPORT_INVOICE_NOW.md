@@ -43,3 +43,4 @@ node scripts/import-invoice-now.js
    - Курс: 2.45
    - Мультипликатор: 8
 
+
