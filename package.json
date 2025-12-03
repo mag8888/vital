@@ -29,6 +29,10 @@
     "scrape-all-images": "ts-node --esm scripts/scrape-all-missing-images.ts",
     "scrape-all-images-now": "npm run build && node scripts/scrape-all-images-now.js",
     "verify-images": "npm run build && node scripts/verify-images.js",
+    "import-invoice": "ts-node --esm scripts/import-invoice.ts",
+    "import-invoice-now": "npm run build && node scripts/import-invoice-now.js",
+    "import-invoice-images": "ts-node --esm scripts/import-invoice-images.ts",
+    "import-invoice-images-now": "npm run build && node scripts/import-invoice-images-now.js",
     "test-scrape": "ts-node --esm scripts/test-scrape-shop.ts",
     "upload-image": "node scripts/upload-product-image.js",
     "upload-all-images": "node scripts/upload-all-product-images.js"

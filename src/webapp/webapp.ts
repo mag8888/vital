@@ -1268,4 +1268,170 @@ router.post('/api/import-products', async (req, res) => {
   }
 });
 
+// Plazma API endpoints
+// Get products from Plazma API
+router.get('/api/plazma/products', async (req, res) => {
+  try {
+    const { env } = await import('../config/env.js');
+    
+    if (!env.plazmaApiKey) {
+      console.warn('⚠️ Plazma API key not configured');
+      return res.status(503).json({ 
+        error: 'Plazma API integration not configured',
+        products: []
+      });
+    }
+
+    const { region = 'RUSSIA', limit = 20 } = req.query;
+    const url = `${env.plazmaApiUrl}/products?region=${region}&limit=${limit}`;
+
+    const response = await fetch(url, {
+      headers: {
+        'X-API-Key': env.plazmaApiKey
+      }
+    });
+
+    if (!response.ok) {
+      console.error(`❌ Plazma API error: ${response.status} ${response.statusText}`);
+      return res.status(response.status).json({ 
+        error: 'Failed to fetch products from Plazma API',
+        products: []
+      });
+    }
+
+    const data = await response.json();
+    const products = data.success ? (data.data || []) : [];
+    
+    res.json({ 
+      success: true, 
+      products: products.slice(0, parseInt(limit as string) || 20)
+    });
+  } catch (error: any) {
+    console.error('❌ Error fetching Plazma products:', error);
+    res.status(500).json({ 
+      error: error?.message || 'Internal server error',
+      products: []
+    });
+  }
+});
+
+// Get single product from Plazma API
+router.get('/api/plazma/products/:id', async (req, res) => {
+  try {
+    const { env } = await import('../config/env.js');
+    const { id } = req.params;
+    
+    if (!env.plazmaApiKey) {
+      return res.status(503).json({ 
+        error: 'Plazma API integration not configured' 
+      });
+    }
+
+    const url = `${env.plazmaApiUrl}/products/${id}`;
+    const response = await fetch(url, {
+      headers: {
+        'X-API-Key': env.plazmaApiKey
+      }
+    });
+
+    if (!response.ok) {
+      return res.status(response.status).json({ 
+        error: 'Product not found' 
+      });
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error: any) {
+    console.error('❌ Error fetching Plazma product:', error);
+    res.status(500).json({ 
+      error: error?.message || 'Internal server error' 
+    });
+  }
+});
+
+// Create order via Plazma API
+router.post('/api/plazma/orders', async (req, res) => {
+  try {
+    const telegramUser = getTelegramUser(req);
+    if (!telegramUser) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { env } = await import('../config/env.js');
+    const { productId, productTitle, price, quantity = 1 } = req.body;
+
+    if (!env.plazmaApiKey) {
+      return res.status(503).json({ 
+        error: 'Plazma API integration not configured' 
+      });
+    }
+
+    // Get user contact info
+    const { prisma } = await import('../lib/prisma.js');
+    const user = await prisma.user.findUnique({
+      where: { telegramId: telegramUser.id.toString() }
+    });
+
+    const contact = user?.phone || `@${telegramUser.username || 'user'}`;
+
+    // Create order request via Plazma API
+    const url = `${env.plazmaApiUrl}/orders`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'X-API-Key': env.plazmaApiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contact: contact,
+        items: [{
+          productId: productId,
+          quantity: quantity,
+          price: price
+        }],
+        message: `Заказ товара "${productTitle}" через Vital магазин`
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      return res.status(response.status).json({ 
+        error: errorData.error || 'Failed to create order' 
+      });
+    }
+
+    const data = await response.json();
+
+    // Also create order request in our database for tracking
+    try {
+      await createOrderRequest({
+        userId: user?.id || '',
+        telegramId: telegramUser.id.toString(),
+        items: [{
+          productId: productId,
+          title: productTitle,
+          price: price,
+          quantity: quantity
+        }],
+        message: `Заказ товара "${productTitle}" из Plazma через Vital магазин. Order ID: ${data.data?.orderId || 'N/A'}`
+      });
+    } catch (dbError) {
+      console.warn('⚠️ Failed to save order to local database:', dbError);
+      // Continue anyway - the order was created in Plazma
+    }
+
+    res.json({ 
+      success: true, 
+      orderId: data.data?.orderId,
+      message: 'Заказ успешно создан! Администратор свяжется с вами.'
+    });
+  } catch (error: any) {
+    console.error('❌ Error creating Plazma order:', error);
+    res.status(500).json({ 
+      error: error?.message || 'Internal server error' 
+    });
+  }
+});
+
 export { router as webappRouter };

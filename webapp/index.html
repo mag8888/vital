@@ -55,10 +55,29 @@
             <div class="section-header-inline">
                 <h2 class="section-title-inline">Каталог</h2>
             </div>
-            <div id="products-container" class="products-grid">
-                <div class="loading">
-                    <div class="loading-spinner"></div>
-                    <p>Загрузка товаров...</p>
+            <div id="products-container" class="products-scroll-container">
+                <div class="products-scroll-wrapper">
+                    <div class="products-horizontal">
+                        <div class="loading">
+                            <div class="loading-spinner"></div>
+                            <p>Загрузка товаров...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Plazma API Products Section -->
+            <div class="products-scroll-container" id="plazma-products-section" style="display: none;">
+                <div class="section-header-inline">
+                    <h2 class="section-title-inline">Рекомендуем</h2>
+                </div>
+                <div id="plazma-products-container" class="products-scroll-wrapper">
+                    <div class="products-horizontal">
+                        <div class="loading">
+                            <div class="loading-spinner"></div>
+                            <p>Загрузка товаров...</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>

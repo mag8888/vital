@@ -812,7 +812,8 @@ function openSection(sectionName) {
         cart: 'Корзина',
         certificates: 'Сертификаты',
         promotions: 'Акции',
-        contacts: 'Контакты'
+        contacts: 'Контакты',
+        'plazma-product-detail': 'Товар'
     };
     
     title.textContent = titles[sectionName] || 'Раздел';
@@ -904,25 +905,38 @@ async function loadProductsOnMainPage() {
         const products = await response.json();
         console.log(`✅ Loaded ${products?.length || 0} products`);
         
+        const scrollWrapper = container.querySelector('.products-scroll-wrapper');
+        const horizontalContainer = scrollWrapper ? scrollWrapper.querySelector('.products-horizontal') : null;
+        
+        if (!horizontalContainer) {
+            console.error('❌ Horizontal container not found');
+            return;
+        }
+        
         if (products && Array.isArray(products) && products.length > 0) {
             let html = '';
             products.forEach(product => {
-                html += renderProductCard(product);
+                html += renderProductCardHorizontal(product);
             });
-            container.innerHTML = html;
+            horizontalContainer.innerHTML = html;
         } else {
-            container.innerHTML = `
-                <div class="empty-state">
+            horizontalContainer.innerHTML = `
+                <div class="empty-state" style="padding: 40px 20px; text-align: center;">
                     <p style="font-size: 18px; margin-bottom: 20px;">📦 Каталог пока пуст</p>
                 </div>
             `;
         }
+        
+        // Загружаем товары из Plazma API
+        await loadPlazmaProducts();
+        
     } catch (error) {
         console.error('❌ Error loading products:', error);
-        const container = document.getElementById('products-container');
-        if (container) {
-            container.innerHTML = `
-                <div class="error-message">
+        const scrollWrapper = container?.querySelector('.products-scroll-wrapper');
+        const horizontalContainer = scrollWrapper?.querySelector('.products-horizontal');
+        if (horizontalContainer) {
+            horizontalContainer.innerHTML = `
+                <div class="error-message" style="padding: 40px 20px; text-align: center;">
                     <p>Ошибка загрузки товаров</p>
                     <button class="btn" onclick="loadProductsOnMainPage()" style="margin-top: 20px;">
                         🔄 Попробовать снова
@@ -933,7 +947,83 @@ async function loadProductsOnMainPage() {
     }
 }
 
-// Render product card in FORMA Store style
+// Загрузка товаров из Plazma API
+async function loadPlazmaProducts() {
+    const plazmaSection = document.getElementById('plazma-products-section');
+    const plazmaContainer = document.getElementById('plazma-products-container');
+    
+    if (!plazmaSection || !plazmaContainer) {
+        console.warn('⚠️ Plazma products section not found');
+        return;
+    }
+    
+    try {
+        console.log('🛒 Loading products from Plazma API...');
+        
+        // Используем бэкенд endpoint для получения товаров из Plazma API
+        const response = await fetch(`${API_BASE}/plazma/products`);
+        
+        if (!response.ok) {
+            // Если ошибка, просто скрываем секцию
+            console.warn('⚠️ Failed to load Plazma products:', response.status);
+            plazmaSection.style.display = 'none';
+            return;
+        }
+        
+        const result = await response.json();
+        const products = result.products || result.data || [];
+        
+        console.log(`✅ Loaded ${products?.length || 0} products from Plazma API`);
+        
+        if (products && Array.isArray(products) && products.length > 0) {
+            const horizontalContainer = plazmaContainer.querySelector('.products-horizontal');
+            if (!horizontalContainer) return;
+            
+            let html = '';
+            products.forEach(product => {
+                html += renderPlazmaProductCard(product);
+            });
+            horizontalContainer.innerHTML = html;
+            plazmaSection.style.display = 'block';
+        } else {
+            plazmaSection.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('❌ Error loading Plazma products:', error);
+        plazmaSection.style.display = 'none';
+    }
+}
+
+// Render product card in horizontal scroll format
+function renderProductCardHorizontal(product) {
+    const imageHtml = product.imageUrl 
+        ? `<div class="product-card-image" onclick="event.stopPropagation(); showProductDetails('${product.id}')"><img src="${product.imageUrl}" alt="${escapeHtml(product.title || 'Товар')}" onerror="this.style.display='none'; this.parentElement.classList.add('no-image');"></div>`
+        : `<div class="product-card-image no-image" onclick="event.stopPropagation(); showProductDetails('${product.id}')"><div class="product-image-placeholder-icon">📦</div></div>`;
+    
+    const title = escapeHtml(product.title || 'Без названия');
+    const summary = escapeHtml((product.summary || product.description || '').substring(0, 80));
+    const priceRub = product.price ? (product.price * 100).toFixed(0) : '0';
+    
+    return `
+        <div class="product-card-forma-horizontal" onclick="showProductDetails('${product.id}')">
+            ${imageHtml}
+            <div class="product-card-content">
+                <h3 class="product-card-title">${title}</h3>
+                ${summary ? `<p class="product-card-summary">${summary}${(product.summary || product.description || '').length > 80 ? '...' : ''}</p>` : ''}
+                <div class="product-card-footer">
+                    <div class="product-card-price">
+                        <span class="price-value">${priceRub} ₽</span>
+                    </div>
+                    <button class="product-card-btn" onclick="event.stopPropagation(); addToCart('${product.id}')">
+                        В корзину
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Render product card in FORMA Store style (for grid view)
 function renderProductCard(product) {
     const imageHtml = product.imageUrl 
         ? `<div class="product-card-image" onclick="event.stopPropagation(); showProductDetails('${product.id}')"><img src="${product.imageUrl}" alt="${escapeHtml(product.title || 'Товар')}" onerror="this.style.display='none'; this.parentElement.classList.add('no-image');"></div>`
@@ -960,6 +1050,111 @@ function renderProductCard(product) {
             </div>
         </div>
     `;
+}
+
+// Render Plazma API product card
+function renderPlazmaProductCard(product) {
+    const imageHtml = product.imageUrl 
+        ? `<div class="product-card-image" onclick="event.stopPropagation(); showPlazmaProductDetails('${product.id}')"><img src="${product.imageUrl}" alt="${escapeHtml(product.title || 'Товар')}" onerror="this.style.display='none'; this.parentElement.classList.add('no-image');"></div>`
+        : `<div class="product-card-image no-image" onclick="event.stopPropagation(); showPlazmaProductDetails('${product.id}')"><div class="product-image-placeholder-icon">📦</div></div>`;
+    
+    const title = escapeHtml(product.title || 'Без названия');
+    const summary = escapeHtml((product.summary || product.description || '').substring(0, 80));
+    const priceRub = product.priceRub || (product.price ? (product.price * 100).toFixed(0) : '0');
+    
+    return `
+        <div class="product-card-forma-horizontal" onclick="showPlazmaProductDetails('${product.id}')">
+            ${imageHtml}
+            <div class="product-card-content">
+                <h3 class="product-card-title">${title}</h3>
+                ${summary ? `<p class="product-card-summary">${summary}${(product.summary || product.description || '').length > 80 ? '...' : ''}</p>` : ''}
+                <div class="product-card-footer">
+                    <div class="product-card-price">
+                        <span class="price-value">${priceRub} ₽</span>
+                    </div>
+                    <button class="product-card-btn" onclick="event.stopPropagation(); addPlazmaProductToCart('${product.id}', '${escapeHtml(title)}', ${product.price || 0})">
+                        В корзину
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Show Plazma product details
+async function showPlazmaProductDetails(productId) {
+    try {
+        const response = await fetch(`${API_BASE}/plazma/products/${productId}`);
+        if (!response.ok) {
+            showError('Товар не найден');
+            return;
+        }
+        
+        const result = await response.json();
+        const product = result.product || result.data;
+        
+        if (!product) {
+            showError('Товар не найден');
+            return;
+        }
+        
+        // Открываем детали товара в отдельном окне или показываем информацию
+        showPlazmaProductModal(product);
+    } catch (error) {
+        console.error('Error loading Plazma product:', error);
+        showError('Ошибка загрузки товара');
+    }
+}
+
+// Show Plazma product modal
+function showPlazmaProductModal(product) {
+    const title = escapeHtml(product.title || 'Товар');
+    const description = escapeHtml(product.description || product.summary || 'Описание отсутствует');
+    const priceRub = product.priceRub || (product.price ? (product.price * 100).toFixed(0) : '0');
+    const imageUrl = product.imageUrl || '';
+    
+    openSection('plazma-product-detail');
+    document.getElementById('section-title').textContent = title;
+    document.getElementById('section-body').innerHTML = `
+        <div class="content-section">
+            ${imageUrl ? `<div class="product-image-full"><img src="${imageUrl}" alt="${title}" style="width: 100%; border-radius: 12px;"></div>` : ''}
+            <div class="product-details-content">
+                <h3>${title}</h3>
+                <p>${description}</p>
+                <div class="product-price">💰 ${priceRub} ₽</div>
+                <button class="btn" onclick="addPlazmaProductToCart('${product.id}', '${escapeHtml(title)}', ${product.price || 0}); closeSection();" style="margin-top: 20px;">
+                    🛒 Добавить в корзину
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Add Plazma product to cart (creates a special order request)
+async function addPlazmaProductToCart(productId, productTitle, price) {
+    try {
+        // Создаем заказ через Plazma API
+        const response = await fetch(`${API_BASE}/plazma/orders`, {
+            method: 'POST',
+            headers: getApiHeaders(),
+            body: JSON.stringify({
+                productId: productId,
+                productTitle: productTitle,
+                price: price,
+                quantity: 1
+            })
+        });
+        
+        if (response.ok) {
+            showSuccess(`Товар "${productTitle}" добавлен в заказ! Администратор свяжется с вами.`);
+        } else {
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            showError(errorData.error || 'Ошибка добавления товара');
+        }
+    } catch (error) {
+        console.error('Error adding Plazma product:', error);
+        showError('Ошибка добавления товара');
+    }
 }
 
 // Escape HTML to prevent XSS
@@ -2606,7 +2801,6 @@ async function showProductDetails(productId) {
                     
                     <div class="product-details-info">
                         <div class="product-price">💰 Цена: ${(product.price * 100).toFixed(2)} ₽ / ${product.price} PZ</div>
-                        <div class="product-stock">📦 В наличии: ${product.stock || 999} шт.</div>
                         
                         ${product.summary ? `<div class="product-summary"><h4>Краткое описание:</h4><p>${product.summary}</p></div>` : ''}
                         

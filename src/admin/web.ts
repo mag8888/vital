@@ -753,6 +753,7 @@ router.get('/', requireAdmin, async (req, res) => {
             <button class="tab" onclick="window.location.href='/admin/users-detailed'">👥 Пользователи</button>
             <button class="tab" onclick="switchTab('partners')">🤝 Партнёры</button>
             <button class="tab" onclick="switchTab('content')">📦 Контент</button>
+            <button class="tab" onclick="switchTab('invoice-import')">📥 Импорт инвойса</button>
             <button class="tab" onclick="switchTab('tools')">🔧 Инструменты</button>
           </div>
           
@@ -881,6 +882,36 @@ router.get('/', requireAdmin, async (req, res) => {
             </div>
             </div>
             <p>Дополнительные инструменты для отладки и тестирования.</p>
+          </div>
+          
+          <!-- Invoice Import Tab -->
+          <div id="invoice-import" class="tab-content">
+            <div class="section-header">
+              <h2 class="section-title">📥 Импорт инвойса</h2>
+            </div>
+            <p>Импортируйте товары из инвойса и управляйте настройками расчета цен.</p>
+            
+            <div class="action-buttons" style="margin-top: 20px;">
+              <a href="/admin/invoice-import" class="btn" style="background: #28a745;">📥 Импорт инвойса</a>
+              <a href="/admin/invoice-settings" class="btn" style="background: #667eea;">⚙️ Настройки импорта</a>
+            </div>
+            
+            <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+              <h3 style="margin-bottom: 15px;">Как использовать:</h3>
+              <ol style="line-height: 1.8;">
+                <li>Настройте курс обмена и мультипликатор в разделе "Настройки импорта"</li>
+                <li>Подготовьте данные инвойса в формате: SKU|Описание|Количество|Цена в БАТ|Сумма</li>
+                <li>Вставьте данные в форму импорта и нажмите "Импортировать"</li>
+                <li>Система автоматически:
+                  <ul style="margin-top: 10px;">
+                    <li>Рассчитает продажные цены по формуле: (Цена в БАТ × Курс × Мультипликатор) / 100</li>
+                    <li>Обновит количество товаров</li>
+                    <li>Отправит уведомления при низком остатке (≤3 шт)</li>
+                    <li>Деактивирует товары с нулевым остатком</li>
+                  </ul>
+                </li>
+              </ol>
+            </div>
           </div>
           
           <div style="text-align: center; margin-top: 30px;">
@@ -5452,6 +5483,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 <input type="file" name="image" accept="image/*" style="display: none;" id="image-${escapeAttr(product.id)}" onchange="this.form.submit()">
                 <button type="button" class="image-btn" onclick="document.getElementById('image-${escapeAttr(product.id)}').click()">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</button>
               </form>
+              <button type="button" class="image-btn" style="background: #6366f1;" onclick="openImageGallery('${escapeAttr(product.id)}')">🖼️ Выбрать из загруженных</button>
               <button class="instruction-btn" data-instruction-id="${escapeAttr(product.id)}" data-instruction-text="${escapeAttr((product as any).instruction)}" onclick="showInstructionSafe(this)" style="background: #28a745;">📋 Инструкция</button>
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/delete" onsubmit="return confirm('Удалить товар?')">
                 <button type="submit" class="delete-btn">Удалить</button>
@@ -5988,6 +6020,143 @@ router.get('/products', requireAdmin, async (req, res) => {
               }, 5000);
             }
           }
+          
+          // Image Gallery Functions
+          window.openImageGallery = function(productId) {
+            // Create modal overlay
+            const modal = document.createElement('div');
+            modal.id = 'imageGalleryModal';
+            modal.className = 'modal-overlay';
+            modal.innerHTML = \`
+              <div class="modal-content" style="max-width: 90vw; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;">
+                <div class="modal-header" style="padding: 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+                  <h2 style="margin: 0; font-size: 20px; font-weight: 600;">🖼️ Выбрать изображение из загруженных</h2>
+                  <button class="close-btn" onclick="closeImageGallery()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280;">&times;</button>
+                </div>
+                <div id="galleryContent" style="padding: 20px; overflow-y: auto; flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;">
+                  <div style="grid-column: 1 / -1; text-align: center; padding: 40px;">
+                    <div class="loading-spinner" style="width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px;"></div>
+                    <p style="color: #6b7280;">Загрузка изображений...</p>
+                  </div>
+                </div>
+              </div>
+            \`;
+            
+            document.body.appendChild(modal);
+            
+            // Load images
+            loadGalleryImages(productId);
+            
+            // Close on overlay click
+            modal.addEventListener('click', function(e) {
+              if (e.target === modal) {
+                closeImageGallery();
+              }
+            });
+          };
+          
+          async function loadGalleryImages(productId) {
+            const galleryContent = document.getElementById('galleryContent');
+            if (!galleryContent) return;
+            
+            try {
+              const response = await fetch('/admin/api/products/images', {
+                credentials: 'include'
+              });
+              
+              const result = await response.json();
+              
+              if (!result.success || !result.images || result.images.length === 0) {
+                galleryContent.innerHTML = \`
+                  <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #6b7280;">
+                    <p style="font-size: 18px; margin-bottom: 8px;">📦 Нет загруженных изображений</p>
+                    <p style="font-size: 14px;">Сначала загрузите изображения для товаров</p>
+                  </div>
+                \`;
+                return;
+              }
+              
+              let html = '';
+              result.images.forEach((imageData) => {
+                const imageUrl = imageData.url;
+                const productTitles = imageData.products.map((p) => p.title).join(', ');
+                const productCount = imageData.products.length;
+                
+                html += \`
+                  <div class="gallery-item" style="border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden; cursor: pointer; transition: all 0.2s; background: white;" onclick="selectGalleryImage('\${imageUrl.replace(/'/g, "\\\\'")}', '\${productId.replace(/'/g, "\\\\'")}')">
+                    <div style="width: 100%; aspect-ratio: 1; overflow: hidden; background: #f3f4f6;">
+                      <img src="\${imageUrl}" alt="Product image" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.parentElement.innerHTML='<div style=\\\\'display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;\\\\'>❌ Ошибка загрузки</div>'">
+                    </div>
+                    <div style="padding: 12px; font-size: 12px; color: #6b7280;">
+                      <div style="font-weight: 600; margin-bottom: 4px; color: #374151;">Используется в:</div>
+                      <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="\${productTitles}">\${productCount} товар(ов)</div>
+                    </div>
+                  </div>
+                \`;
+              });
+              
+              galleryContent.innerHTML = html;
+              
+              // Add hover effects
+              const galleryItems = galleryContent.querySelectorAll('.gallery-item');
+              galleryItems.forEach((item) => {
+                item.addEventListener('mouseenter', function() {
+                  this.style.borderColor = '#6366f1';
+                  this.style.transform = 'translateY(-4px)';
+                  this.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.2)';
+                });
+                item.addEventListener('mouseleave', function() {
+                  this.style.borderColor = '#e2e8f0';
+                  this.style.transform = 'translateY(0)';
+                  this.style.boxShadow = 'none';
+                });
+              });
+              
+            } catch (error) {
+              console.error('Error loading gallery images:', error);
+              galleryContent.innerHTML = \`
+                <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #dc3545;">
+                  <p style="font-size: 18px; margin-bottom: 8px;">❌ Ошибка загрузки изображений</p>
+                  <p style="font-size: 14px;">Попробуйте обновить страницу</p>
+                </div>
+              \`;
+            }
+          }
+          
+          window.selectGalleryImage = async function(imageUrl, productId) {
+            try {
+              const response = await fetch(\`/admin/api/products/\${productId}/select-image\`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                  imageUrl: imageUrl
+                })
+              });
+              
+              const result = await response.json();
+              
+              if (result.success) {
+                alert('✅ Изображение успешно привязано к товару!');
+                closeImageGallery();
+                location.reload();
+              } else {
+                alert('❌ Ошибка: ' + (result.error || 'Не удалось привязать изображение'));
+              }
+            } catch (error) {
+              console.error('Error selecting image:', error);
+              alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
+            }
+          };
+          
+          window.closeImageGallery = function() {
+            const modal = document.getElementById('imageGalleryModal');
+            if (modal) {
+              modal.remove();
+            }
+          };
         </script>
       </body>
       </html>
@@ -6158,6 +6327,106 @@ router.post('/api/import-siam-products', requireAdmin, async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message || 'Ошибка запуска импорта'
+    });
+  }
+});
+
+// Endpoint для получения всех загруженных изображений товаров
+router.get('/api/products/images', requireAdmin, async (req, res) => {
+  try {
+    const products = await prisma.product.findMany({
+      where: {
+        imageUrl: {
+          not: null
+        }
+      },
+      select: {
+        id: true,
+        title: true,
+        imageUrl: true
+      },
+      orderBy: {
+        updatedAt: 'desc'
+      }
+    });
+
+    // Группируем по URL изображения (убираем дубликаты)
+    const uniqueImages = new Map<string, { url: string; products: Array<{ id: string; title: string }> }>();
+    
+    products.forEach(product => {
+      if (product.imageUrl) {
+        if (!uniqueImages.has(product.imageUrl)) {
+          uniqueImages.set(product.imageUrl, {
+            url: product.imageUrl,
+            products: []
+          });
+        }
+        uniqueImages.get(product.imageUrl)!.products.push({
+          id: product.id,
+          title: product.title
+        });
+      }
+    });
+
+    const images = Array.from(uniqueImages.values());
+
+    res.json({
+      success: true,
+      images: images
+    });
+  } catch (error: any) {
+    console.error('❌ Error fetching product images:', error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Ошибка получения изображений'
+    });
+  }
+});
+
+// Endpoint для привязки существующего изображения к товару
+router.post('/api/products/:productId/select-image', requireAdmin, async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { imageUrl } = req.body as { imageUrl: string };
+
+    if (!imageUrl || !imageUrl.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'URL изображения не предоставлен'
+      });
+    }
+
+    // Проверяем существование товара
+    const product = await prisma.product.findUnique({
+      where: { id: productId }
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        error: 'Товар не найден'
+      });
+    }
+
+    // Обновляем товар
+    await prisma.product.update({
+      where: { id: productId },
+      data: { imageUrl: imageUrl.trim() }
+    });
+
+    console.log(`✅ Изображение привязано к товару: ${product.title}`);
+
+    return res.json({
+      success: true,
+      message: 'Изображение успешно привязано к товару',
+      imageUrl: imageUrl.trim()
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error selecting product image:', error);
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Ошибка привязки изображения'
     });
   }
 });
@@ -10804,6 +11073,396 @@ router.post('/products/:productId/save-instruction', requireAdmin, async (req, r
   } catch (error) {
     console.error('Save instruction error:', error);
     res.status(500).json({ success: false, error: 'Ошибка сохранения инструкции' });
+  }
+});
+
+// ========== Invoice Import Routes ==========
+// Import invoice import routes from separate module
+import invoiceImportRouter from './invoice-import.js';
+router.use('/admin', invoiceImportRouter);
+
+// GET: Settings page
+router.get('/admin/invoice-settings', requireAdmin, async (req, res) => {
+  try {
+    const { getImportSettings } = await import('../services/invoice-import-service.js');
+    const settings = await getImportSettings();
+    
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Настройки импорта инвойса - Админ панель</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
+          .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
+          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; }
+          .header h1 { font-size: 24px; margin-bottom: 10px; }
+          .content { padding: 30px; }
+          .form-group { margin-bottom: 20px; }
+          .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #333; }
+          .form-group input { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 16px; }
+          .form-group input:focus { outline: none; border-color: #667eea; }
+          .form-help { margin-top: 5px; font-size: 14px; color: #666; }
+          .btn { background: #667eea; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: 600; }
+          .btn:hover { background: #5568d3; }
+          .btn-secondary { background: #6c757d; }
+          .btn-secondary:hover { background: #5a6268; }
+          .back-link { display: inline-block; margin-bottom: 20px; color: #667eea; text-decoration: none; }
+          .alert { padding: 12px; border-radius: 6px; margin-bottom: 20px; }
+          .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+          .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+          .price-preview { background: #f8f9fa; padding: 15px; border-radius: 6px; margin-top: 15px; }
+          .price-preview h4 { margin-bottom: 10px; color: #333; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>⚙️ Настройки импорта инвойса</h1>
+            <p>Настройте курс валюты и мультипликатор для расчета продажных цен</p>
+          </div>
+          <div class="content">
+            <a href="/admin" class="back-link">← Вернуться в админ панель</a>
+            
+            <div id="alertContainer"></div>
+            
+            <form id="settingsForm">
+              <div class="form-group">
+                <label for="exchangeRate">Курс обмена (БАТ → Рубль)</label>
+                <input type="number" id="exchangeRate" name="exchangeRate" step="0.01" value="${settings.exchangeRate}" required>
+                <div class="form-help">Текущий курс обмена тайского бата в российские рубли</div>
+              </div>
+              
+              <div class="form-group">
+                <label for="priceMultiplier">Мультипликатор цены</label>
+                <input type="number" id="priceMultiplier" name="priceMultiplier" step="0.01" value="${settings.priceMultiplier}" required>
+                <div class="form-help">Мультипликатор для расчета продажной цены из закупочной</div>
+              </div>
+              
+              <div class="price-preview" id="pricePreview" style="display: none;">
+                <h4>Пример расчета:</h4>
+                <div id="previewContent"></div>
+              </div>
+              
+              <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button type="submit" class="btn">💾 Сохранить настройки</button>
+                <a href="/admin/invoice-import" class="btn btn-secondary">📥 Импорт инвойса</a>
+              </div>
+            </form>
+          </div>
+        </div>
+        
+        <script>
+          const form = document.getElementById('settingsForm');
+          const alertContainer = document.getElementById('alertContainer');
+          const exchangeRateInput = document.getElementById('exchangeRate');
+          const multiplierInput = document.getElementById('priceMultiplier');
+          const pricePreview = document.getElementById('pricePreview');
+          const previewContent = document.getElementById('previewContent');
+          
+          function showAlert(message, type = 'success') {
+            alertContainer.innerHTML = '<div class="alert alert-' + type + '">' + message + '</div>';
+            setTimeout(() => {
+              alertContainer.innerHTML = '';
+            }, 5000);
+          }
+          
+          function updatePreview() {
+            const rate = parseFloat(exchangeRateInput.value) || 0;
+            const mult = parseFloat(multiplierInput.value) || 0;
+            const testPrice = 100; // Тестовая цена 100 БАТ
+            
+            if (rate > 0 && mult > 0) {
+              const sellingPrice = (testPrice * rate * mult) / 100;
+              previewContent.innerHTML = \`
+                <p><strong>Закупочная цена:</strong> \${testPrice} БАТ</p>
+                <p><strong>Продажная цена:</strong> \${sellingPrice.toFixed(2)} PZ</p>
+                <p><small>Формула: (\${testPrice} × \${rate} × \${mult}) / 100 = \${sellingPrice.toFixed(2)} PZ</small></p>
+              \`;
+              pricePreview.style.display = 'block';
+            } else {
+              pricePreview.style.display = 'none';
+            }
+          }
+          
+          exchangeRateInput.addEventListener('input', updatePreview);
+          multiplierInput.addEventListener('input', updatePreview);
+          updatePreview();
+          
+          form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+              exchangeRate: parseFloat(exchangeRateInput.value),
+              priceMultiplier: parseFloat(multiplierInput.value)
+            };
+            
+            if (formData.exchangeRate <= 0 || formData.priceMultiplier <= 0) {
+              showAlert('Курс и мультипликатор должны быть положительными числами', 'error');
+              return;
+            }
+            
+            try {
+              const response = await fetch('/admin/api/import-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+              });
+              
+              const data = await response.json();
+              
+              if (data.success) {
+                showAlert('✅ Настройки успешно сохранены!', 'success');
+                updatePreview();
+              } else {
+                showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+              }
+            } catch (error) {
+              showAlert('❌ Ошибка при сохранении настроек', 'error');
+              console.error(error);
+            }
+          });
+        </script>
+      </body>
+      </html>
+    `);
+  } catch (error: any) {
+    console.error('Error loading invoice settings page:', error);
+    res.status(500).send('Ошибка загрузки страницы настроек');
+  }
+});
+
+// GET: Invoice import page
+router.get('/admin/invoice-import', requireAdmin, async (req, res) => {
+  try {
+    const { getImportSettings } = await import('../services/invoice-import-service.js');
+    const settings = await getImportSettings();
+    
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Импорт инвойса - Админ панель</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
+          .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
+          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; }
+          .header h1 { font-size: 24px; margin-bottom: 10px; }
+          .content { padding: 30px; }
+          .form-group { margin-bottom: 20px; }
+          .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #333; }
+          .form-group textarea { width: 100%; min-height: 400px; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; font-family: monospace; }
+          .form-group textarea:focus { outline: none; border-color: #667eea; }
+          .form-help { margin-top: 5px; font-size: 14px; color: #666; }
+          .btn { background: #667eea; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: 600; margin-right: 10px; }
+          .btn:hover { background: #5568d3; }
+          .btn-secondary { background: #6c757d; }
+          .btn-secondary:hover { background: #5a6268; }
+          .btn-success { background: #28a745; }
+          .btn-success:hover { background: #218838; }
+          .back-link { display: inline-block; margin-bottom: 20px; color: #667eea; text-decoration: none; }
+          .alert { padding: 12px; border-radius: 6px; margin-bottom: 20px; }
+          .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+          .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+          .alert-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+          .settings-info { background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
+          .settings-info h4 { margin-bottom: 10px; color: #333; }
+          #resultContainer { margin-top: 20px; }
+          .result-item { padding: 10px; margin: 5px 0; border-radius: 4px; }
+          .result-item.success { background: #d4edda; color: #155724; }
+          .result-item.error { background: #f8d7da; color: #721c24; }
+          .result-item.warning { background: #fff3cd; color: #856404; }
+          .loading { display: none; text-align: center; padding: 20px; }
+          .loading.active { display: block; }
+          .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto; }
+          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>📥 Импорт инвойса</h1>
+            <p>Импортируйте данные товаров из инвойса. Формат: SKU|Description|Qty|Rate|Amount</p>
+          </div>
+          <div class="content">
+            <a href="/admin" class="back-link">← Вернуться в админ панель</a>
+            <a href="/admin/invoice-settings" class="back-link" style="margin-left: 10px;">⚙️ Настройки</a>
+            
+            <div class="settings-info">
+              <h4>Текущие настройки:</h4>
+              <p>Курс обмена: <strong>${settings.exchangeRate}</strong> БАТ/Рубль</p>
+              <p>Мультипликатор: <strong>${settings.priceMultiplier}</strong></p>
+              <p><small>Формула расчета цены: (Цена в БАТ × Курс × Мультипликатор) / 100 = Цена в PZ</small></p>
+            </div>
+            
+            <div id="alertContainer"></div>
+            
+            <form id="importForm">
+              <div class="form-group">
+                <label for="invoiceText">Текст инвойса</label>
+                <textarea id="invoiceText" name="invoiceText" placeholder="FS1002-24|Rudis Oleum Botanical Face Care Night Formula 24 G -COSMOS Organic|20|453.86|9077.20
+FS0001-24|Natural Balance Face Serum 24 G -COSMOS Natural|6|348.72|2092.32
+..."></textarea>
+                <div class="form-help">
+                  Вставьте данные из инвойса. Формат: SKU|Описание|Количество|Цена в БАТ|Сумма<br>
+                  Каждый товар на новой строке. Товары с одинаковым SKU будут объединены.
+                </div>
+              </div>
+              
+              <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button type="submit" class="btn btn-success">📥 Импортировать (синхронно)</button>
+                <button type="button" id="asyncImportBtn" class="btn">🚀 Импортировать (фоновый режим)</button>
+                <button type="button" id="clearBtn" class="btn btn-secondary">🗑️ Очистить</button>
+              </div>
+            </form>
+            
+            <div class="loading" id="loadingIndicator">
+              <div class="spinner"></div>
+              <p style="margin-top: 10px;">Импорт в процессе...</p>
+            </div>
+            
+            <div id="resultContainer"></div>
+          </div>
+        </div>
+        
+        <script>
+          const form = document.getElementById('importForm');
+          const alertContainer = document.getElementById('alertContainer');
+          const invoiceTextArea = document.getElementById('invoiceText');
+          const resultContainer = document.getElementById('resultContainer');
+          const loadingIndicator = document.getElementById('loadingIndicator');
+          const asyncImportBtn = document.getElementById('asyncImportBtn');
+          const clearBtn = document.getElementById('clearBtn');
+          
+          function showAlert(message, type = 'success') {
+            alertContainer.innerHTML = '<div class="alert alert-' + type + '">' + message + '</div>';
+          }
+          
+          function showResult(result) {
+            let html = '<h3>Результаты импорта:</h3>';
+            html += '<p><strong>Всего товаров:</strong> ' + result.total + '</p>';
+            html += '<p><strong>Обновлено:</strong> ' + result.updated + '</p>';
+            html += '<p><strong>Создано:</strong> ' + result.created + '</p>';
+            html += '<p><strong>Ошибок:</strong> ' + result.failed + '</p>';
+            
+            if (result.lowStockWarnings && result.lowStockWarnings.length > 0) {
+              html += '<div class="result-item warning"><strong>⚠️ Низкий остаток:</strong><ul>';
+              result.lowStockWarnings.slice(0, 10).forEach(w => {
+                html += '<li>' + w + '</li>';
+              });
+              if (result.lowStockWarnings.length > 10) {
+                html += '<li>... и еще ' + (result.lowStockWarnings.length - 10) + ' товаров</li>';
+              }
+              html += '</ul></div>';
+            }
+            
+            if (result.outOfStock && result.outOfStock.length > 0) {
+              html += '<div class="result-item error"><strong>🛑 Товары закончились:</strong><ul>';
+              result.outOfStock.slice(0, 10).forEach(w => {
+                html += '<li>' + w + '</li>';
+              });
+              if (result.outOfStock.length > 10) {
+                html += '<li>... и еще ' + (result.outOfStock.length - 10) + ' товаров</li>';
+              }
+              html += '</ul></div>';
+            }
+            
+            if (result.errors && result.errors.length > 0) {
+              html += '<div class="result-item error"><strong>❌ Ошибки:</strong><ul>';
+              result.errors.slice(0, 10).forEach(e => {
+                html += '<li>' + e + '</li>';
+              });
+              if (result.errors.length > 10) {
+                html += '<li>... и еще ' + (result.errors.length - 10) + ' ошибок</li>';
+              }
+              html += '</ul></div>';
+            }
+            
+            resultContainer.innerHTML = html;
+          }
+          
+          form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const invoiceText = invoiceTextArea.value.trim();
+            if (!invoiceText) {
+              showAlert('Введите текст инвойса', 'error');
+              return;
+            }
+            
+            loadingIndicator.classList.add('active');
+            resultContainer.innerHTML = '';
+            
+            try {
+              const response = await fetch('/admin/api/import-invoice-sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ invoiceText })
+              });
+              
+              const data = await response.json();
+              loadingIndicator.classList.remove('active');
+              
+              if (data.success) {
+                showAlert('✅ Импорт завершен!', 'success');
+                showResult(data.result);
+              } else {
+                showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+              }
+            } catch (error) {
+              loadingIndicator.classList.remove('active');
+              showAlert('❌ Ошибка при импорте', 'error');
+              console.error(error);
+            }
+          });
+          
+          asyncImportBtn.addEventListener('click', async () => {
+            const invoiceText = invoiceTextArea.value.trim();
+            if (!invoiceText) {
+              showAlert('Введите текст инвойса', 'error');
+              return;
+            }
+            
+            showAlert('🚀 Импорт запущен в фоновом режиме. Результат будет отправлен в Telegram.', 'info');
+            
+            try {
+              const response = await fetch('/admin/api/import-invoice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ invoiceText })
+              });
+              
+              const data = await response.json();
+              
+              if (data.success) {
+                showAlert('✅ Импорт запущен! Обрабатывается ' + data.itemsCount + ' товаров.', 'success');
+              } else {
+                showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+              }
+            } catch (error) {
+              showAlert('❌ Ошибка при запуске импорта', 'error');
+              console.error(error);
+            }
+          });
+          
+          clearBtn.addEventListener('click', () => {
+            invoiceTextArea.value = '';
+            resultContainer.innerHTML = '';
+            alertContainer.innerHTML = '';
+          });
+        </script>
+      </body>
+      </html>
+    `);
+  } catch (error: any) {
+    console.error('Error loading invoice import page:', error);
+    res.status(500).send('Ошибка загрузки страницы импорта');
   }
 });
 

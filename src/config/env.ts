@@ -46,6 +46,9 @@ export const env = {
   openaiApiKey: process.env.OPENAI_API_KEY,
   openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
   openaiBaseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+  // Plazma API configuration (optional, for external product integration)
+  plazmaApiKey: process.env.PLAZMA_API_KEY || process.env.EXTERNAL_API_KEY,
+  plazmaApiUrl: process.env.PLAZMA_API_URL || 'https://plazma-production.up.railway.app/api/external',
 };
 
 // Helper function to get all admin chat IDs
