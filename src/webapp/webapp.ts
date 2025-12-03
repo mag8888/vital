@@ -1302,16 +1302,32 @@ router.get('/api/plazma/products', async (req, res) => {
     }
 
     const { region = 'RUSSIA', limit = 20 } = req.query;
-    const url = `${env.plazmaApiUrl}/products?region=${region}&limit=${limit}`;
+    
+    // Попробуем сначала /products, затем /catalog как fallback
+    let url = `${env.plazmaApiUrl}/products?region=${region}&limit=${limit}`;
+    let useCatalog = false;
 
     console.log('🔗 Fetching Plazma products from:', url);
     console.log('🔑 Using API key:', env.plazmaApiKey ? `${env.plazmaApiKey.substring(0, 10)}...` : 'NOT SET');
 
-    const response = await fetch(url, {
+    let response = await fetch(url, {
       headers: {
         'X-API-Key': env.plazmaApiKey
       }
     });
+
+    // Если /products не найден (404), пробуем /catalog
+    if (response.status === 404) {
+      console.log('⚠️ /products endpoint not found, trying /catalog...');
+      url = `${env.plazmaApiUrl}/catalog?region=${region}`;
+      useCatalog = true;
+      
+      response = await fetch(url, {
+        headers: {
+          'X-API-Key': env.plazmaApiKey
+        }
+      });
+    }
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unable to read error response');
@@ -1325,6 +1341,7 @@ router.get('/api/plazma/products', async (req, res) => {
 
     const data = await response.json();
     console.log('📦 Plazma API response:', {
+      endpoint: useCatalog ? '/catalog' : '/products',
       success: data.success,
       hasData: !!data.data,
       dataLength: Array.isArray(data.data) ? data.data.length : 'not array',
@@ -1334,14 +1351,28 @@ router.get('/api/plazma/products', async (req, res) => {
 
     // Обрабатываем разные форматы ответа
     let products = [];
-    if (data.success && Array.isArray(data.data)) {
-      products = data.data;
-    } else if (Array.isArray(data)) {
-      // Если ответ - это массив напрямую
-      products = data;
-    } else if (data.products && Array.isArray(data.products)) {
-      // Если товары в поле products
-      products = data.products;
+    
+    if (useCatalog) {
+      // Если использовали /catalog, извлекаем товары из категорий
+      if (data.success && Array.isArray(data.data)) {
+        // data.data - это массив категорий
+        data.data.forEach((category: any) => {
+          if (category.products && Array.isArray(category.products)) {
+            products.push(...category.products);
+          }
+        });
+      }
+    } else {
+      // Если использовали /products
+      if (data.success && Array.isArray(data.data)) {
+        products = data.data;
+      } else if (Array.isArray(data)) {
+        // Если ответ - это массив напрямую
+        products = data;
+      } else if (data.products && Array.isArray(data.products)) {
+        // Если товары в поле products
+        products = data.products;
+      }
     }
 
     console.log(`✅ Parsed ${products.length} products from Plazma API`);
