@@ -5719,28 +5719,44 @@ router.get('/products', requireAdmin, async (req, res) => {
     // Улучшенная функция экранирования для HTML атрибутов
     const escapeAttr = (str: string | null | undefined): string => {
       if (!str) return '';
-      // Сначала удаляем все проблемные символы и управляющие символы
-      let result = String(str)
-        .replace(/[\x00-\x1F\x7F-\u009F]/g, '') // Удаляем управляющие символы и null байты
-        .replace(/\u2028/g, ' ') // Удаляем line separator
-        .replace(/\u2029/g, ' ') // Удаляем paragraph separator
-        .replace(/\r?\n/g, ' ') // Заменяем переносы строк на пробелы
-        .replace(/\r/g, ' ') // Заменяем возврат каретки
-        .replace(/\t/g, ' '); // Заменяем табуляцию
-      
-      // Затем экранируем специальные символы HTML
-      result = result
-        .replace(/&/g, '&amp;') // Must be first - экранируем амперсанды
-        .replace(/</g, '&lt;') // Экранируем угловые скобки
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;') // Экранируем двойные кавычки
-        .replace(/'/g, '&#39;') // Экранируем одинарные кавычки
-        .replace(/`/g, '&#96;'); // Экранируем обратные кавычки
-      
-      // Обратные слеши не нужно экранировать для HTML атрибутов
-      // Они экранируются только в JavaScript строках
-      
-      return result;
+      try {
+        // Сначала нормализуем и очищаем строку
+        let result = String(str)
+          .trim()
+          // Удаляем все управляющие символы и null байты
+          .replace(/[\x00-\x1F\x7F-\u009F]/g, '')
+          // Удаляем специальные разделители строк
+          .replace(/\u2028/g, ' ')
+          .replace(/\u2029/g, ' ')
+          // Заменяем все виды переносов строк на пробелы
+          .replace(/[\r\n]+/g, ' ')
+          .replace(/\r/g, ' ')
+          .replace(/\n/g, ' ')
+          // Заменяем табуляцию и множественные пробелы
+          .replace(/\t/g, ' ')
+          .replace(/\s+/g, ' ')
+          // Удаляем потенциально проблемные символы Unicode
+          .replace(/[\u200B-\u200D\uFEFF]/g, '');
+        
+        // Затем экранируем специальные символы HTML в правильном порядке
+        result = result
+          .replace(/&/g, '&amp;') // Must be first
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;') // Двойные кавычки
+          .replace(/'/g, '&#39;') // Одинарные кавычки
+          .replace(/`/g, '&#96;'); // Обратные кавычки
+        
+        // Ограничиваем длину для предотвращения очень длинных атрибутов
+        if (result.length > 10000) {
+          result = result.substring(0, 10000) + '...';
+        }
+        
+        return result;
+      } catch (error) {
+        console.error('Error in escapeAttr:', error);
+        return ''; // В случае ошибки возвращаем пустую строку
+      }
     };
     
     // Helper function to escape HTML content safely
