@@ -5559,7 +5559,7 @@ router.get('/products', requireAdmin, async (req, res) => {
               if (window.showInstruction && typeof window.showInstruction === 'function') {
                 window.showInstruction(productId, decodedText);
               } else {
-                alert('Инструкция:\\n\\n' + (decodedText || 'Инструкция не добавлена'));
+                alert('Инструкция:\n\n' + (decodedText || 'Инструкция не добавлена'));
               }
             } catch (error) {
               console.error('Error showing instruction:', error);
@@ -5628,8 +5628,12 @@ router.get('/products', requireAdmin, async (req, res) => {
         .replace(/&/g, '&amp;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;')
+        .replace(/`/g, '&#96;') // Replace backticks
         .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+        .replace(/>/g, '&gt;')
+        .replace(/\r?\n/g, ' ') // Replace newlines with spaces
+        .replace(/\r/g, ' ') // Replace carriage returns
+        .replace(/\t/g, ' '); // Replace tabs with spaces
     };
     
     // Helper function to escape HTML content safely
@@ -6190,7 +6194,7 @@ router.get('/products', requireAdmin, async (req, res) => {
               if (window.showInstruction && typeof window.showInstruction === 'function') {
                 window.showInstruction(productId, decodedText);
               } else {
-                alert('Инструкция:\\n\\n' + (decodedText || 'Инструкция не добавлена'));
+                alert('Инструкция:\n\n' + (decodedText || 'Инструкция не добавлена'));
               }
             } catch (error) {
               console.error('Error showing instruction:', error);
