@@ -5415,6 +5415,158 @@ router.get('/products', requireAdmin, async (req, res) => {
             background: #5a6268;
           }
         </style>
+        <script>
+          // КРИТИЧНО: Определяем функции глобально ДО загрузки HTML, чтобы они были доступны для onclick обработчиков
+          window.editProduct = function(button) {
+            if (!button) {
+              console.error('editProduct: button is required');
+              return;
+            }
+            const productId = button.dataset.id;
+            const title = button.dataset.title || '';
+            const summary = button.dataset.summary || '';
+            const description = button.dataset.description || '';
+            const price = button.dataset.price || '0';
+            const categoryId = button.dataset.categoryId || '';
+            const isActive = button.dataset.active === 'true';
+            const availableInRussia = button.dataset.russia === 'true';
+            const availableInBali = button.dataset.bali === 'true';
+            const imageUrl = button.dataset.image || '';
+            
+            // Create modal if it doesn't exist
+            let modal = document.getElementById('editProductModal');
+            if (!modal) {
+              modal = document.createElement('div');
+              modal.id = 'editProductModal';
+              modal.innerHTML = '<div class="modal-overlay" onclick="window.closeEditModal()"><div class="modal-content" onclick="event.stopPropagation()"><div class="modal-header"><h2>✏️ Редактировать товар</h2><button class="close-btn" onclick="window.closeEditModal()">&times;</button></div><form id="editProductForm" enctype="multipart/form-data" class="modal-form"><input type="hidden" id="editProductId" name="productId" value=""><div class="form-section"><div class="form-section-title">Основная информация</div><div class="form-grid single"><div class="form-group"><label for="editProductName">Название товара</label><input type="text" id="editProductName" name="title" required placeholder="Введите название товара"></div></div><div class="form-grid"><div class="form-group"><label for="editProductPrice">Цена в PZ</label><div class="price-input"><input type="number" id="editProductPrice" name="price" step="0.01" required placeholder="0.00"></div></div><div class="form-group"><label for="editProductPriceRub">Цена в RUB</label><div class="price-input rub"><input type="number" id="editProductPriceRub" name="priceRub" step="0.01" readonly placeholder="0.00"></div></div></div><div class="form-grid"><div class="form-group"><label for="editProductStock">Остаток на складе</label><input type="number" id="editProductStock" name="stock" value="999" required placeholder="999"></div><div class="form-group"><label for="editProductCategory">Категория</label><select id="editProductCategory" name="categoryId" required><option value="">Загрузка категорий...</option></select></div></div></div><div class="form-section"><div class="form-section-title">Описание товара</div><div class="form-group"><label for="editProductSummary">Краткое описание</label><textarea id="editProductSummary" name="summary" rows="3" placeholder="Краткое описание для карточки товара"></textarea></div><div class="form-group"><label for="editProductDescription">Полное описание</label><textarea id="editProductDescription" name="description" rows="5" class="large" placeholder="Подробное описание товара, применение, состав и т.д."></textarea></div></div><div class="form-section"><div class="form-section-title">Настройки доставки</div><div class="form-group"><label>Регионы доставки</label><div class="regions-grid"><label class="switch-row"><input type="checkbox" id="editProductRussia" name="availableInRussia"><span class="switch-slider"></span><span class="switch-label">🇷🇺 Россия</span></label><label class="switch-row"><input type="checkbox" id="editProductBali" name="availableInBali"><span class="switch-slider"></span><span class="switch-label">🇮🇩 Бали</span></label></div></div></div><div class="form-section"><div class="form-section-title">Статус публикации</div><div class="status-section"><label class="status-row"><input type="checkbox" id="editProductStatus" name="isActive"><span class="switch-slider"></span><span class="status-label">✅ Товар активен и доступен для покупки</span></label></div></div><div class="form-actions"><button type="button" onclick="window.closeEditModal()">❌ Отмена</button><button type="submit">💾 Обновить товар</button></div></form></div></div>';
+              document.body.appendChild(modal);
+              
+              // Setup form submission handler
+              document.getElementById('editProductForm').onsubmit = function(e) {
+                e.preventDefault();
+                const formData = new FormData(this);
+                const productId = formData.get('productId');
+                
+                const formDataToSend = new FormData();
+                formDataToSend.append('productId', productId);
+                formDataToSend.append('title', formData.get('title') || '');
+                formDataToSend.append('price', formData.get('price') || '0');
+                formDataToSend.append('summary', formData.get('summary') || '');
+                formDataToSend.append('description', formData.get('description') || '');
+                formDataToSend.append('categoryId', formData.get('categoryId') || '');
+                formDataToSend.append('stock', formData.get('stock') || '999');
+                
+                if (document.getElementById('editProductStatus').checked) {
+                  formDataToSend.append('isActive', 'true');
+                }
+                if (document.getElementById('editProductRussia').checked) {
+                  formDataToSend.append('availableInRussia', 'true');
+                }
+                if (document.getElementById('editProductBali').checked) {
+                  formDataToSend.append('availableInBali', 'true');
+                }
+                
+                fetch('/admin/products/' + productId + '/update', {
+                  method: 'POST',
+                  body: formDataToSend,
+                  credentials: 'include'
+                })
+                .then(response => response.json())
+                .then(data => {
+                  if (data.success) {
+                    alert('Товар успешно обновлен!');
+                    window.closeEditModal();
+                    location.reload();
+                  } else {
+                    alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+                  }
+                })
+                .catch(error => {
+                  alert('Ошибка: ' + (error instanceof Error ? error.message : String(error)));
+                });
+              };
+            }
+            
+            // Fill form fields
+            document.getElementById('editProductId').value = productId || '';
+            document.getElementById('editProductName').value = title || '';
+            document.getElementById('editProductSummary').value = summary || '';
+            document.getElementById('editProductDescription').value = description || '';
+            document.getElementById('editProductPrice').value = price || '0';
+            document.getElementById('editProductPriceRub').value = ((parseFloat(price) || 0) * 100).toFixed(2);
+            document.getElementById('editProductStock').value = '999';
+            document.getElementById('editProductStatus').checked = isActive;
+            document.getElementById('editProductRussia').checked = availableInRussia;
+            document.getElementById('editProductBali').checked = availableInBali;
+            
+            // Load categories
+            fetch('/admin/api/categories', { credentials: 'include' })
+              .then(response => response.json())
+              .then(categories => {
+                const select = document.getElementById('editProductCategory');
+                if (select) {
+                  select.innerHTML = '<option value="">Выберите категорию</option>';
+                  categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category.id;
+                    option.textContent = category.name;
+                    if (category.id === categoryId) {
+                      option.selected = true;
+                    }
+                    select.appendChild(option);
+                  });
+                }
+              })
+              .catch(error => {
+                console.error('Error loading categories:', error);
+              });
+            
+            // Add price conversion
+            const priceInput = document.getElementById('editProductPrice');
+            const priceRubInput = document.getElementById('editProductPriceRub');
+            if (priceInput && priceRubInput) {
+              priceInput.oninput = function() {
+                const pzPrice = parseFloat(this.value) || 0;
+                priceRubInput.value = (pzPrice * 100).toFixed(2);
+              };
+              priceRubInput.oninput = function() {
+                const rubPrice = parseFloat(this.value) || 0;
+                priceInput.value = (rubPrice / 100).toFixed(2);
+              };
+            }
+            
+            // Show modal
+            modal.style.display = 'block';
+          };
+          
+          window.closeEditModal = function() {
+            const modal = document.getElementById('editProductModal');
+            if (modal) {
+              modal.style.display = 'none';
+            }
+          };
+          
+          window.showInstructionSafe = function(button) {
+            try {
+              const productId = button.dataset.instructionId;
+              const instructionText = button.dataset.instructionText || '';
+              // Decode HTML entities
+              const decodedText = instructionText
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/&#96;/g, String.fromCharCode(96));
+              
+              if (window.showInstruction && typeof window.showInstruction === 'function') {
+                window.showInstruction(productId, decodedText);
+              } else {
+                alert('Инструкция:\\n\\n' + (decodedText || 'Инструкция не добавлена'));
+              }
+            } catch (error) {
+              console.error('Error showing instruction:', error);
+              alert('Ошибка отображения инструкции');
+            }
+          };
+        </script>
       </head>
       <body>
         <h2>🛍 Управление товарами</h2>
@@ -5626,130 +5778,8 @@ router.get('/products', requireAdmin, async (req, res) => {
           // Определяем функции глобально ДО загрузки страницы - сразу, не в IIFE
           'use strict';
           
-          // CRITICAL: Define editProduct FIRST so it's available for onclick handlers
-          window.editProduct = function(button) {
-            if (!button) {
-              console.error('editProduct: button is required');
-              return;
-            }
-            const productId = button.dataset.id;
-            const title = button.dataset.title;
-            const summary = button.dataset.summary;
-            const description = button.dataset.description;
-            const price = button.dataset.price;
-            const categoryId = button.dataset.categoryId;
-            const isActive = button.dataset.active === 'true';
-            const availableInRussia = button.dataset.russia === 'true';
-            const availableInBali = button.dataset.bali === 'true';
-            const imageUrl = button.dataset.image;
-            
-            // Create modal if it doesn't exist
-            let modal = document.getElementById('editProductModal');
-            if (!modal) {
-              modal = document.createElement('div');
-              modal.id = 'editProductModal';
-              modal.innerHTML = '<div class="modal-overlay" onclick="window.closeEditModal()"><div class="modal-content" onclick="event.stopPropagation()"><div class="modal-header"><h2>✏️ Редактировать товар</h2><button class="close-btn" onclick="window.closeEditModal()">&times;</button></div><form id="editProductForm" enctype="multipart/form-data" class="modal-form"><input type="hidden" id="editProductId" name="productId" value=""><div class="form-section"><div class="form-section-title">Основная информация</div><div class="form-grid single"><div class="form-group"><label for="editProductName">Название товара</label><input type="text" id="editProductName" name="title" required placeholder="Введите название товара"></div></div><div class="form-grid"><div class="form-group"><label for="editProductPrice">Цена в PZ</label><div class="price-input"><input type="number" id="editProductPrice" name="price" step="0.01" required placeholder="0.00"></div></div><div class="form-group"><label for="editProductPriceRub">Цена в RUB</label><div class="price-input rub"><input type="number" id="editProductPriceRub" name="priceRub" step="0.01" readonly placeholder="0.00"></div></div></div><div class="form-grid"><div class="form-group"><label for="editProductStock">Остаток на складе</label><input type="number" id="editProductStock" name="stock" value="999" required placeholder="999"></div><div class="form-group"><label for="editProductCategory">Категория</label><select id="editProductCategory" name="categoryId" required><option value="">Загрузка категорий...</option></select></div></div></div><div class="form-section"><div class="form-section-title">Описание товара</div><div class="form-group"><label for="editProductSummary">Краткое описание</label><textarea id="editProductSummary" name="summary" rows="3" placeholder="Краткое описание для карточки товара"></textarea></div><div class="form-group"><label for="editProductDescription">Полное описание</label><textarea id="editProductDescription" name="description" rows="5" class="large" placeholder="Подробное описание товара, применение, состав и т.д."></textarea></div></div><div class="form-section"><div class="form-section-title">Настройки доставки</div><div class="form-group"><label>Регионы доставки</label><div class="regions-grid"><label class="switch-row"><input type="checkbox" id="editProductRussia" name="availableInRussia"><span class="switch-slider"></span><span class="switch-label">🇷🇺 Россия</span></label><label class="switch-row"><input type="checkbox" id="editProductBali" name="availableInBali"><span class="switch-slider"></span><span class="switch-label">🇮🇩 Бали</span></label></div></div></div><div class="form-section"><div class="form-section-title">Статус публикации</div><div class="status-section"><label class="status-row"><input type="checkbox" id="editProductStatus" name="isActive"><span class="switch-slider"></span><span class="status-label">✅ Товар активен и доступен для покупки</span></label></div></div><div class="form-actions"><button type="button" onclick="window.closeEditModal()">❌ Отмена</button><button type="submit">💾 Обновить товар</button></div></form></div></div>';
-              document.body.appendChild(modal);
-              
-              // Setup form submission handler
-              document.getElementById('editProductForm').onsubmit = function(e) {
-                e.preventDefault();
-                const formData = new FormData(this);
-                const productId = formData.get('productId');
-                
-                const formDataToSend = new FormData();
-                formDataToSend.append('productId', productId);
-                formDataToSend.append('title', formData.get('title') || '');
-                formDataToSend.append('price', formData.get('price') || '0');
-                formDataToSend.append('summary', formData.get('summary') || '');
-                formDataToSend.append('description', formData.get('description') || '');
-                formDataToSend.append('categoryId', formData.get('categoryId') || '');
-                formDataToSend.append('stock', formData.get('stock') || '999');
-                
-                if (document.getElementById('editProductStatus').checked) {
-                  formDataToSend.append('isActive', 'true');
-                }
-                if (document.getElementById('editProductRussia').checked) {
-                  formDataToSend.append('availableInRussia', 'true');
-                }
-                if (document.getElementById('editProductBali').checked) {
-                  formDataToSend.append('availableInBali', 'true');
-                }
-                
-                fetch('/admin/products/' + productId + '/update', {
-                  method: 'POST',
-                  body: formDataToSend,
-                  credentials: 'include'
-                })
-                .then(response => response.json())
-                .then(data => {
-                  if (data.success) {
-                    alert('Товар успешно обновлен!');
-                    window.closeEditModal();
-                    location.reload();
-                  } else {
-                    alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
-                  }
-                })
-                .catch(error => {
-                  alert('Ошибка: ' + (error instanceof Error ? error.message : String(error)));
-                });
-              };
-            }
-            
-            // Fill form fields
-            document.getElementById('editProductId').value = productId;
-            document.getElementById('editProductName').value = title;
-            document.getElementById('editProductSummary').value = summary;
-            document.getElementById('editProductDescription').value = description;
-            document.getElementById('editProductPrice').value = price;
-            document.getElementById('editProductPriceRub').value = (price * 100).toFixed(2);
-            document.getElementById('editProductStock').value = '999';
-            document.getElementById('editProductStatus').checked = isActive;
-            document.getElementById('editProductRussia').checked = availableInRussia;
-            document.getElementById('editProductBali').checked = availableInBali;
-            
-            // Load categories
-            fetch('/admin/api/categories', { credentials: 'include' })
-              .then(response => response.json())
-              .then(categories => {
-                const select = document.getElementById('editProductCategory');
-                select.innerHTML = '<option value="">Выберите категорию</option>';
-                categories.forEach(category => {
-                  const option = document.createElement('option');
-                  option.value = category.id;
-                  option.textContent = category.name;
-                  if (category.id === categoryId) {
-                    option.selected = true;
-                  }
-                  select.appendChild(option);
-                });
-              });
-            
-            // Add price conversion
-            const priceInput = document.getElementById('editProductPrice');
-            const priceRubInput = document.getElementById('editProductPriceRub');
-            if (priceInput && priceRubInput) {
-              priceInput.oninput = function() {
-                const pzPrice = parseFloat(this.value) || 0;
-                priceRubInput.value = (pzPrice * 100).toFixed(2);
-              };
-              priceRubInput.oninput = function() {
-                const rubPrice = parseFloat(this.value) || 0;
-                priceInput.value = (rubPrice / 100).toFixed(2);
-              };
-            }
-            
-            // Show modal
-            modal.style.display = 'block';
-          };
-          
-          window.closeEditModal = function() {
-            const modal = document.getElementById('editProductModal');
-            if (modal) {
-              modal.style.display = 'none';
-            }
-          };
+          // NOTE: window.editProduct, window.closeEditModal, и window.showInstructionSafe уже определены в <head>
+          // Они доступны ДО загрузки HTML, поэтому onclick обработчики будут работать
           
           // Category modal functions
           window.openAddCategoryModal = function() {
