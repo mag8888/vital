@@ -5656,7 +5656,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 <label for="subcategoryParent">Родительская категория</label>
                 <select id="subcategoryParent" name="parentId" required>
                   <option value="">Выберите категорию...</option>
-                  ${categories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('')}
+                  ${categories.map(cat => '<option value="' + cat.id + '">' + cat.name + '</option>').join('')}
                 </select>
               </div>
               <div class="form-group">
@@ -5677,21 +5677,107 @@ router.get('/products', requireAdmin, async (req, res) => {
           
           // Category modal functions
           window.openAddCategoryModal = function() {
-            document.getElementById('addCategoryModal').style.display = 'flex';
+            const modal = document.getElementById('addCategoryModal');
+            if (modal) {
+              modal.style.display = 'flex';
+            }
           };
           
           window.closeAddCategoryModal = function() {
-            document.getElementById('addCategoryModal').style.display = 'none';
-            document.getElementById('addCategoryForm').reset();
+            const modal = document.getElementById('addCategoryModal');
+            if (modal) {
+              modal.style.display = 'none';
+            }
+            const form = document.getElementById('addCategoryForm');
+            if (form) {
+              form.reset();
+            }
           };
           
           window.openAddSubcategoryModal = function() {
-            document.getElementById('addSubcategoryModal').style.display = 'flex';
+            const modal = document.getElementById('addSubcategoryModal');
+            if (modal) {
+              modal.style.display = 'flex';
+            }
           };
           
           window.closeAddSubcategoryModal = function() {
-            document.getElementById('addSubcategoryModal').style.display = 'none';
-            document.getElementById('addSubcategoryForm').reset();
+            const modal = document.getElementById('addSubcategoryModal');
+            if (modal) {
+              modal.style.display = 'none';
+            }
+            const form = document.getElementById('addSubcategoryForm');
+            if (form) {
+              form.reset();
+            }
+          };
+          
+          // Function to move all products to "Косметика" category
+          window.moveAllToCosmetics = async function() {
+            if (!confirm('⚠️ Переместить ВСЕ продукты в категорию "Косметика"?\\n\\nЭто действие изменит категорию для всех товаров в базе данных.')) {
+              return;
+            }
+            
+            try {
+              const response = await fetch('/admin/api/move-all-to-cosmetics', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              const result = await response.json();
+              
+              if (result.success) {
+                alert('✅ Успешно!\\n\\nПеремещено продуктов: ' + (result.movedCount || 0) + '\\nКатегория: "' + (result.categoryName || 'Косметика') + '"');
+                location.reload();
+              } else {
+                alert('❌ Ошибка: ' + (result.error || 'Не удалось переместить продукты'));
+              }
+            } catch (error) {
+              console.error('Error moving products:', error);
+              alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
+            }
+          };
+          
+          // Function to scrape all images
+          window.scrapeAllImages = async function() {
+            const statusDiv = document.getElementById('scraping-status');
+            const progressDiv = document.getElementById('scraping-progress');
+            
+            if (statusDiv) statusDiv.style.display = 'block';
+            
+            try {
+              if (progressDiv) progressDiv.textContent = '🚀 Запуск сбора фотографий...';
+              
+              const response = await fetch('/admin/api/scrape-all-images', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              if (!response.ok) {
+                throw new Error('Ошибка запуска сбора фотографий');
+              }
+              
+              // Открываем новую вкладку с логами или показываем статус
+              if (progressDiv) progressDiv.innerHTML = '✅ Сбор фотографий запущен! Проверьте логи в консоли сервера или подождите завершения...';
+              
+              // Через 5 секунд перезагружаем страницу для проверки результатов
+              setTimeout(() => {
+                window.location.href = '/admin/products?success=images_scraped';
+              }, 5000);
+              
+            } catch (error) {
+              console.error('Error scraping images:', error);
+              if (progressDiv) progressDiv.innerHTML = '❌ Ошибка: ' + (error instanceof Error ? error.message : String(error));
+              setTimeout(() => {
+                if (statusDiv) statusDiv.style.display = 'none';
+              }, 5000);
+            }
           };
           
           // Handle category form submission
@@ -5763,7 +5849,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                   
                   if (result.success) {
                     alert('✅ Подкатегория успешно создана!');
-                    closeAddSubcategoryModal();
+                    window.closeAddSubcategoryModal();
                     location.reload();
                   } else {
                     alert('❌ Ошибка: ' + (result.error || 'Не удалось создать подкатегорию'));
