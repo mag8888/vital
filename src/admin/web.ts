@@ -5790,8 +5790,7 @@ router.get('/products', requireAdmin, async (req, res) => {
           
           // Function to move all products to "Косметика" category
           window.moveAllToCosmetics = async function() {
-            const msg = '⚠️ Переместить ВСЕ продукты в категорию "Косметика"?\n\nЭто действие изменит категорию для всех товаров в базе данных.';
-            if (!confirm(msg)) {
+            if (!confirm('⚠️ Переместить ВСЕ продукты в категорию ' + String.fromCharCode(34) + 'Косметика' + String.fromCharCode(34) + '?\\n\\nЭто действие изменит категорию для всех товаров в базе данных.')) {
               return;
             }
             
@@ -6086,7 +6085,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 const escapedUrl = imageUrl ? imageUrl.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : '';
                 const escapedTitles = productTitles.replace(/"/g, '&quot;');
                 
-                html += '<div class="gallery-item" data-image-url="' + escapedUrl + '" data-product-id="' + productId + '" style="border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden; cursor: pointer; transition: all 0.2s; background: white;"><div style="width: 100%; aspect-ratio: 1; overflow: hidden; background: #f3f4f6;"><img src="' + escapedUrl + '" alt="Product image" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.onerror=null; this.style.display=\\'none\\';"></div><div style="padding: 12px; font-size: 12px; color: #6b7280;"><div style="font-weight: 600; margin-bottom: 4px; color: #374151;">Используется в:</div><div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + escapedTitles + '">' + productCount + ' товар(ов)</div></div></div>';
+                html += '<div class="gallery-item" data-image-url="' + escapedUrl + '" data-product-id="' + productId + '" style="border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden; cursor: pointer; transition: all 0.2s; background: white;"><div style="width: 100%; aspect-ratio: 1; overflow: hidden; background: #f3f4f6;"><img src="' + escapedUrl + '" alt="Product image" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.onerror=null;this.style.display=\'none\';"></div><div style="padding: 12px; font-size: 12px; color: #6b7280;"><div style="font-weight: 600; margin-bottom: 4px; color: #374151;">Используется в:</div><div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + escapedTitles + '">' + productCount + ' товар(ов)</div></div></div>';
               });
               
               galleryContent.innerHTML = html;
