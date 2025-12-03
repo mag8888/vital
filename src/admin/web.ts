@@ -5421,7 +5421,7 @@ router.get('/products', requireAdmin, async (req, res) => {
         <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
           <a href="/admin" class="btn">← Назад</a>
           <button onclick="scrapeAllImages()" class="btn" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">📸 Собрать ВСЕ фото с сайта</button>
-          <button onclick="moveAllToCosmetics()" class="btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🔄 Собрать в категорию "Косметика"</button>
+          <button onclick="moveAllToCosmetics()" class="btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🔄 Собрать в категорию &quot;Косметика&quot;</button>
         </div>
         
         ${req.query.success === 'image_updated' ? '<div class="alert alert-success">✅ Фото успешно обновлено!</div>' : ''}
@@ -5790,7 +5790,7 @@ router.get('/products', requireAdmin, async (req, res) => {
           
           // Function to move all products to "Косметика" category
           window.moveAllToCosmetics = async function() {
-            if (!confirm('⚠️ Переместить ВСЕ продукты в категорию "Косметика"?\n\nЭто действие изменит категорию для всех товаров в базе данных.')) {
+            if (!confirm('⚠️ Переместить ВСЕ продукты в категорию ' + String.fromCharCode(34) + 'Косметика' + String.fromCharCode(34) + '?\\n\\nЭто действие изменит категорию для всех товаров в базе данных.')) {
               return;
             }
             
