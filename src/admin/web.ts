@@ -6218,32 +6218,14 @@ router.get('/products', requireAdmin, async (req, res) => {
           
           // NOTE: window.editProduct уже определена выше на строке 5792, не дублируем!
           
-          // Instruction modal functions
+          // Instruction modal functions - используем обычные строки вместо шаблонных
           window.showInstruction = function(productId, instructionText) {
             const modal = document.createElement('div');
             modal.className = 'instruction-modal';
-            modal.innerHTML = \`
-              <div class="instruction-overlay" onclick="closeInstruction()">
-                <div class="instruction-content" onclick="event.stopPropagation()">
-                  <div class="instruction-header">
-                    <h3>📋 Инструкция по применению</h3>
-                    <button class="btn-close" onclick="closeInstruction()">×</button>
-                  </div>
-                  <div class="instruction-body">
-                    <div class="instruction-text" id="instructionText" style="display: none;">\${instructionText.replace(/\\n/g, '<br>')}</div>
-                    <div class="instruction-edit" id="instructionEdit" style="display: block;">
-                      <textarea id="instructionTextarea" placeholder="Введите инструкцию по применению товара..." style="width: 100%; height: 200px; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical;">\${instructionText}</textarea>
-                    </div>
-                  </div>
-                  <div class="instruction-footer">
-                    <button class="btn btn-save" onclick="saveInstruction('\${productId}')" style="background: #28a745; margin-right: 8px;">💾 Сохранить</button>
-                    <button class="btn btn-cancel" onclick="cancelInstruction()" style="background: #6c757d; margin-right: 8px;">❌ Отмена</button>
-                    <button class="btn btn-delete" onclick="deleteInstruction('\${productId}')" style="background: #dc3545; margin-right: 8px;">🗑️ Удалить</button>
-                    <button class="btn btn-secondary" onclick="closeInstruction()">Закрыть</button>
-                  </div>
-                </div>
-              </div>
-            \`;
+            const escapedInstruction = (instructionText || '').replace(/\n/g, '<br>').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+            const escapedProductId = String(productId || '').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+            const instructionForTextarea = (instructionText || '').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+            modal.innerHTML = '<div class="instruction-overlay" onclick="closeInstruction()"><div class="instruction-content" onclick="event.stopPropagation()"><div class="instruction-header"><h3>📋 Инструкция по применению</h3><button class="btn-close" onclick="closeInstruction()">×</button></div><div class="instruction-body"><div class="instruction-text" id="instructionText" style="display: none;">' + escapedInstruction + '</div><div class="instruction-edit" id="instructionEdit" style="display: block;"><textarea id="instructionTextarea" placeholder="Введите инструкцию по применению товара..." style="width: 100%; height: 200px; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical;">' + instructionForTextarea + '</textarea></div></div><div class="instruction-footer"><button class="btn btn-save" onclick="saveInstruction(\'' + escapedProductId + '\')" style="background: #28a745; margin-right: 8px;">💾 Сохранить</button><button class="btn btn-cancel" onclick="cancelInstruction()" style="background: #6c757d; margin-right: 8px;">❌ Отмена</button><button class="btn btn-delete" onclick="deleteInstruction(\'' + escapedProductId + '\')" style="background: #dc3545; margin-right: 8px;">🗑️ Удалить</button><button class="btn btn-secondary" onclick="closeInstruction()">Закрыть</button></div></div></div>';
             
             document.body.appendChild(modal);
             
