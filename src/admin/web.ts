@@ -4369,7 +4369,7 @@ router.get('/partners', requireAdmin, async (req, res) => {
           <button type="submit" class="btn" style="background: #28a745;" onclick="return confirm('🔧 Исправить бонусы Roman Arctur?')">🔧 Исправить бонусы Roman</button>
         </form>
         <form method="post" action="/admin/reset-all-partners" style="display: inline;">
-          <button type="submit" class="btn" style="background: #dc3545;" onclick="const confirmed = confirm('⚠️⚠️⚠️ КРИТИЧЕСКОЕ ПОДТВЕРЖДЕНИЕ!\n\nЭто удалит ВСЕ партнерские профили, рефералы и транзакции!\n\nЭто действие НЕОБРАТИМО!\n\nПродолжить?'); if (!confirmed) return false; const doubleCheck = prompt('Для подтверждения введите точно: УДАЛИТЬ ВСЕХ ПАРТНЕРОВ'); return doubleCheck === 'УДАЛИТЬ ВСЕХ ПАРТНЕРОВ';">🗑️ Сбросить всех партнёров</button>
+          <button type="submit" class="btn" style="background: #dc3545;" onclick="const confirmed = confirm('⚠️⚠️⚠️ КРИТИЧЕСКОЕ ПОДТВЕРЖДЕНИЕ!\\n\\nЭто удалит ВСЕ партнерские профили, рефералы и транзакции!\\n\\nЭто действие НЕОБРАТИМО!\\n\\nПродолжить?'); if (!confirmed) return false; const doubleCheck = prompt('Для подтверждения введите точно: УДАЛИТЬ ВСЕХ ПАРТНЕРОВ'); return doubleCheck === 'УДАЛИТЬ ВСЕХ ПАРТНЕРОВ';">🗑️ Сбросить всех партнёров</button>
         </form>
         
         <div style="background: linear-gradient(135deg, #e8f5e8 0%, #d4edda 100%); padding: 20px; border-radius: 12px; margin: 20px 0; text-align: center; border: 3px solid #28a745; box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2);">
