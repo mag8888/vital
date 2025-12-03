@@ -5444,7 +5444,93 @@ router.get('/products', requireAdmin, async (req, res) => {
               const content = document.createElement('div');
               content.className = 'modal-content';
               content.addEventListener('click', function(e) { e.stopPropagation(); });
-              content.innerHTML = '<div class="modal-header"><h2>✏️ Редактировать товар</h2><button class="close-btn" onclick="window.closeEditModal()">&times;</button></div><form id="editProductForm" enctype="multipart/form-data" class="modal-form"><input type="hidden" id="editProductId" name="productId" value=""><div class="form-section"><div class="form-section-title">Основная информация</div><div class="form-grid single"><div class="form-group"><label for="editProductName">Название товара</label><input type="text" id="editProductName" name="title" required placeholder="Введите название товара"></div></div><div class="form-grid"><div class="form-group"><label for="editProductPrice">Цена в PZ</label><div class="price-input"><input type="number" id="editProductPrice" name="price" step="0.01" required placeholder="0.00"></div></div><div class="form-group"><label for="editProductPriceRub">Цена в RUB</label><div class="price-input rub"><input type="number" id="editProductPriceRub" name="priceRub" step="0.01" readonly placeholder="0.00"></div></div></div><div class="form-grid"><div class="form-group"><label for="editProductStock">Остаток на складе</label><input type="number" id="editProductStock" name="stock" value="999" required placeholder="999"></div><div class="form-group"><label for="editProductCategory">Категория</label><select id="editProductCategory" name="categoryId" required><option value="">Загрузка категорий...</option></select></div></div></div><div class="form-section"><div class="form-section-title">Описание товара</div><div class="form-group"><label for="editProductSummary">Краткое описание</label><textarea id="editProductSummary" name="summary" rows="3" placeholder="Краткое описание для карточки товара"></textarea></div><div class="form-group"><label for="editProductDescription">Полное описание</label><textarea id="editProductDescription" name="description" rows="5" class="large" placeholder="Подробное описание товара, применение, состав и т.д."></textarea></div></div><div class="form-section"><div class="form-section-title">Настройки доставки</div><div class="form-group"><label>Регионы доставки</label><div class="regions-grid"><label class="switch-row"><input type="checkbox" id="editProductRussia" name="availableInRussia"><span class="switch-slider"></span><span class="switch-label">🇷🇺 Россия</span></label><label class="switch-row"><input type="checkbox" id="editProductBali" name="availableInBali"><span class="switch-slider"></span><span class="switch-label">🇮🇩 Бали</span></label></div></div></div><div class="form-section"><div class="form-section-title">Статус публикации</div><div class="status-section"><label class="status-row"><input type="checkbox" id="editProductStatus" name="isActive"><span class="switch-slider"></span><span class="status-label">✅ Товар активен и доступен для покупки</span></label></div></div><div class="form-actions"><button type="button" onclick="window.closeEditModal()">❌ Отмена</button><button type="submit">💾 Обновить товар</button></div></form>';
+              // Разбиваем длинную innerHTML строку на части для предотвращения SyntaxError
+              content.innerHTML = 
+                '<div class="modal-header">' +
+                  '<h2>✏️ Редактировать товар</h2>' +
+                  '<button class="close-btn" onclick="window.closeEditModal()">&times;</button>' +
+                '</div>' +
+                '<form id="editProductForm" enctype="multipart/form-data" class="modal-form">' +
+                  '<input type="hidden" id="editProductId" name="productId" value="">' +
+                  '<div class="form-section">' +
+                    '<div class="form-section-title">Основная информация</div>' +
+                    '<div class="form-grid single">' +
+                      '<div class="form-group">' +
+                        '<label for="editProductName">Название товара</label>' +
+                        '<input type="text" id="editProductName" name="title" required placeholder="Введите название товара">' +
+                      '</div>' +
+                    '</div>' +
+                    '<div class="form-grid">' +
+                      '<div class="form-group">' +
+                        '<label for="editProductPrice">Цена в PZ</label>' +
+                        '<div class="price-input">' +
+                          '<input type="number" id="editProductPrice" name="price" step="0.01" required placeholder="0.00">' +
+                        '</div>' +
+                      '</div>' +
+                      '<div class="form-group">' +
+                        '<label for="editProductPriceRub">Цена в RUB</label>' +
+                        '<div class="price-input rub">' +
+                          '<input type="number" id="editProductPriceRub" name="priceRub" step="0.01" readonly placeholder="0.00">' +
+                        '</div>' +
+                      '</div>' +
+                    '</div>' +
+                    '<div class="form-grid">' +
+                      '<div class="form-group">' +
+                        '<label for="editProductStock">Остаток на складе</label>' +
+                        '<input type="number" id="editProductStock" name="stock" value="999" required placeholder="999">' +
+                      '</div>' +
+                      '<div class="form-group">' +
+                        '<label for="editProductCategory">Категория</label>' +
+                        '<select id="editProductCategory" name="categoryId" required>' +
+                          '<option value="">Загрузка категорий...</option>' +
+                        '</select>' +
+                      '</div>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="form-section">' +
+                    '<div class="form-section-title">Описание товара</div>' +
+                    '<div class="form-group">' +
+                      '<label for="editProductSummary">Краткое описание</label>' +
+                      '<textarea id="editProductSummary" name="summary" rows="3" placeholder="Краткое описание для карточки товара"></textarea>' +
+                    '</div>' +
+                    '<div class="form-group">' +
+                      '<label for="editProductDescription">Полное описание</label>' +
+                      '<textarea id="editProductDescription" name="description" rows="5" class="large" placeholder="Подробное описание товара, применение, состав и т.д."></textarea>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="form-section">' +
+                    '<div class="form-section-title">Настройки доставки</div>' +
+                    '<div class="form-group">' +
+                      '<label>Регионы доставки</label>' +
+                      '<div class="regions-grid">' +
+                        '<label class="switch-row">' +
+                          '<input type="checkbox" id="editProductRussia" name="availableInRussia">' +
+                          '<span class="switch-slider"></span>' +
+                          '<span class="switch-label">🇷🇺 Россия</span>' +
+                        '</label>' +
+                        '<label class="switch-row">' +
+                          '<input type="checkbox" id="editProductBali" name="availableInBali">' +
+                          '<span class="switch-slider"></span>' +
+                          '<span class="switch-label">🇮🇩 Бали</span>' +
+                        '</label>' +
+                      '</div>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="form-section">' +
+                    '<div class="form-section-title">Статус публикации</div>' +
+                    '<div class="status-section">' +
+                      '<label class="status-row">' +
+                        '<input type="checkbox" id="editProductStatus" name="isActive">' +
+                        '<span class="switch-slider"></span>' +
+                        '<span class="status-label">✅ Товар активен и доступен для покупки</span>' +
+                      '</label>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="form-actions">' +
+                    '<button type="button" onclick="window.closeEditModal()">❌ Отмена</button>' +
+                    '<button type="submit">💾 Обновить товар</button>' +
+                  '</div>' +
+                '</form>';
               overlay.appendChild(content);
               modal.appendChild(overlay);
               document.body.appendChild(modal);
@@ -6013,7 +6099,20 @@ router.get('/products', requireAdmin, async (req, res) => {
             modal.style.alignItems = 'center';
             modal.style.justifyContent = 'center';
             
-            modal.innerHTML = "<div class=\"modal-content\" style=\"max-width: 90vw; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);\"><div class=\"modal-header\" style=\"padding: 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px 12px 0 0;\"><h2 style=\"margin: 0; font-size: 20px; font-weight: 600; color: white;\">🖼️ Выбрать изображение из загруженных</h2><button class=\"close-btn\" style=\"background: rgba(255,255,255,0.2); border: none; font-size: 24px; cursor: pointer; color: white; padding: 0; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center;\">&times;</button></div><div id=\"galleryContent\" style=\"padding: 20px; overflow-y: auto; flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;\"><div style=\"grid-column: 1 / -1; text-align: center; padding: 40px;\"><div class=\"loading-spinner\" style=\"width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px;\"></div><p style=\"color: #6b7280;\">Загрузка изображений...</p></div></div></div>";
+            // Разбиваем длинную innerHTML строку на части для предотвращения SyntaxError
+            modal.innerHTML = 
+              '<div class="modal-content" style="max-width: 90vw; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">' +
+                '<div class="modal-header" style="padding: 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px 12px 0 0;">' +
+                  '<h2 style="margin: 0; font-size: 20px; font-weight: 600; color: white;">🖼️ Выбрать изображение из загруженных</h2>' +
+                  '<button class="close-btn" style="background: rgba(255,255,255,0.2); border: none; font-size: 24px; cursor: pointer; color: white; padding: 0; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center;">&times;</button>' +
+                '</div>' +
+                '<div id="galleryContent" style="padding: 20px; overflow-y: auto; flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;">' +
+                  '<div style="grid-column: 1 / -1; text-align: center; padding: 40px;">' +
+                    '<div class="loading-spinner" style="width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px;"></div>' +
+                    '<p style="color: #6b7280;">Загрузка изображений...</p>' +
+                  '</div>' +
+                '</div>' +
+              '</div>';
             
             document.body.appendChild(modal);
             console.log('✅ Modal added to DOM');
@@ -6220,9 +6319,30 @@ router.get('/products', requireAdmin, async (req, res) => {
             const singleQuoteRegex = new RegExp("'", 'g');
             const doubleQuoteRegex = new RegExp('"', 'g');
             const escapedInstruction = (instructionText || '').replace(newlineRegex, '<br>').replace(singleQuoteRegex, '&#39;').replace(doubleQuoteRegex, '&quot;');
-            const escapedProductId = String(productId || '').replace(singleQuoteRegex, '&#39;').replace(doubleQuoteRegex, '&quot;');
-            const instructionForTextarea = (instructionText || '').replace(singleQuoteRegex, '&#39;').replace(doubleQuoteRegex, '&quot;');
-            modal.innerHTML = "<div class=\"instruction-overlay\" onclick=\"closeInstruction()\"><div class=\"instruction-content\" onclick=\"event.stopPropagation()\"><div class=\"instruction-header\"><h3>📋 Инструкция по применению</h3><button class=\"btn-close\" onclick=\"closeInstruction()\">×</button></div><div class=\"instruction-body\"><div class=\"instruction-text\" id=\"instructionText\" style=\"display: none;\">" + escapedInstruction + "</div><div class=\"instruction-edit\" id=\"instructionEdit\" style=\"display: block;\"><textarea id=\"instructionTextarea\" placeholder=\"Введите инструкцию по применению товара...\" style=\"width: 100%; height: 200px; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical;\">" + instructionForTextarea + "</textarea></div></div><div class=\"instruction-footer\"><button class=\"btn btn-save\" onclick=\"saveInstruction('" + escapedProductId + "')\" style=\"background: #28a745; margin-right: 8px;\">💾 Сохранить</button><button class=\"btn btn-cancel\" onclick=\"cancelInstruction()\" style=\"background: #6c757d; margin-right: 8px;\">❌ Отмена</button><button class=\"btn btn-delete\" onclick=\"deleteInstruction('" + escapedProductId + "')\" style=\"background: #dc3545; margin-right: 8px;\">🗑️ Удалить</button><button class=\"btn btn-secondary\" onclick=\"closeInstruction()\">Закрыть</button></div></div></div>";
+            const escapedProductId = String(productId || '').replace(singleQuoteRegex, '&#39;').replace(doubleQuoteRegex, '&quot;').replace(/\\/g, '\\\\');
+            const instructionForTextarea = (instructionText || '').replace(singleQuoteRegex, '&#39;').replace(doubleQuoteRegex, '&quot;').replace(/\\/g, '\\\\');
+            // Разбиваем длинную innerHTML строку на части для предотвращения SyntaxError
+            modal.innerHTML = 
+              '<div class="instruction-overlay" onclick="closeInstruction()">' +
+                '<div class="instruction-content" onclick="event.stopPropagation()">' +
+                  '<div class="instruction-header">' +
+                    '<h3>📋 Инструкция по применению</h3>' +
+                    '<button class="btn-close" onclick="closeInstruction()">×</button>' +
+                  '</div>' +
+                  '<div class="instruction-body">' +
+                    '<div class="instruction-text" id="instructionText" style="display: none;">' + escapedInstruction + '</div>' +
+                    '<div class="instruction-edit" id="instructionEdit" style="display: block;">' +
+                      '<textarea id="instructionTextarea" placeholder="Введите инструкцию по применению товара..." style="width: 100%; height: 200px; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical;">' + instructionForTextarea + '</textarea>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="instruction-footer">' +
+                    '<button class="btn btn-save" onclick="saveInstruction(\'' + escapedProductId + '\')" style="background: #28a745; margin-right: 8px;">💾 Сохранить</button>' +
+                    '<button class="btn btn-cancel" onclick="cancelInstruction()" style="background: #6c757d; margin-right: 8px;">❌ Отмена</button>' +
+                    '<button class="btn btn-delete" onclick="deleteInstruction(\'' + escapedProductId + '\')" style="background: #dc3545; margin-right: 8px;">🗑️ Удалить</button>' +
+                    '<button class="btn btn-secondary" onclick="closeInstruction()">Закрыть</button>' +
+                  '</div>' +
+                '</div>' +
+              '</div>';
             
             document.body.appendChild(modal);
             
