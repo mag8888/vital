@@ -3717,11 +3717,65 @@ router.post('/api/categories', requireAdmin, async (req, res) => {
     });
     
     res.json({ success: true, category });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Create category error:', error);
+    if (error.code === 'P2002') {
+      return res.status(400).json({ success: false, error: 'Категория с таким названием уже существует' });
+    }
     res.status(500).json({ success: false, error: 'Ошибка создания категории' });
   }
 });
+
+// API: Move all products to "Косметика" category
+router.post('/api/move-all-to-cosmetics', requireAdmin, async (req, res) => {
+  try {
+    // Find or create "Косметика" category
+    let cosmeticsCategory = await prisma.category.findFirst({
+      where: {
+        OR: [
+          { name: 'Косметика' },
+          { slug: 'kosmetika' }
+        ]
+      }
+    });
+    
+    if (!cosmeticsCategory) {
+      cosmeticsCategory = await prisma.category.create({
+        data: {
+          name: 'Косметика',
+          slug: 'kosmetika',
+          description: 'Категория косметических товаров',
+          isActive: true
+        }
+      });
+      console.log('✅ Создана категория "Косметика"');
+    }
+    
+    // Get all active products
+    const allProducts = await prisma.product.findMany({
+      where: { isActive: true }
+    });
+    
+    // Update all products to use "Косметика" category
+    const updateResult = await prisma.product.updateMany({
+      where: { isActive: true },
+      data: { categoryId: cosmeticsCategory.id }
+    });
+    
+    console.log(`✅ Перемещено ${updateResult.count} продуктов в категорию "Косметика"`);
+    
+    res.json({
+      success: true,
+      movedCount: updateResult.count,
+      categoryName: cosmeticsCategory.name,
+      categoryId: cosmeticsCategory.id
+    });
+  } catch (error: any) {
+    console.error('Move all to cosmetics error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Ошибка перемещения продуктов' });
+  }
+});
+
 // API: Create product
 router.post('/api/products', requireAdmin, upload.single('image'), async (req, res) => {
   try {
@@ -5026,8 +5080,25 @@ router.get('/products', requireAdmin, async (req, res) => {
         <meta charset="utf-8">
         <style>
           body { font-family: Arial, sans-serif; max-width: 1200px; margin: 20px auto; padding: 20px; background: #f5f5f5; }
-          a.btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 6px; margin: 5px 0 20px; transition: background 0.2s ease; }
-          a.btn:hover { background: #0056b3; }
+          a.btn, button.btn { 
+            display: inline-block; 
+            padding: 10px 20px; 
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white; 
+            text-decoration: none; 
+            border: none;
+            border-radius: 8px; 
+            margin: 5px 0 20px; 
+            transition: all 0.2s ease;
+            cursor: pointer;
+            font-weight: 600;
+            box-shadow: 0 2px 4px rgba(0,123,255,0.3);
+          }
+          a.btn:hover, button.btn:hover { 
+            background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,123,255,0.4);
+          }
           h2 { margin-top: 0; color: #1f2937; font-weight: 600; }
           .filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
           .filter-btn { padding: 8px 16px; border: none; border-radius: 999px; background: #e0e7ff; color: #1d4ed8; cursor: pointer; transition: all 0.2s ease; }
@@ -5225,15 +5296,56 @@ router.get('/products', requireAdmin, async (req, res) => {
             .regions-grid { grid-template-columns: 1fr; }
             .form-actions { flex-direction: column; }
           }
-          .product-actions button { padding: 6px 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; }
-          .product-actions .toggle-btn { background: #fbbf24; color: #92400e; }
-          .product-actions .toggle-btn:hover { background: #f59e0b; }
-          .product-actions .delete-btn { background: #f87171; color: #7f1d1d; }
-          .product-actions .delete-btn:hover { background: #ef4444; }
-          .product-actions .image-btn { background: #10b981; color: #064e3b; }
-          .product-actions .image-btn:hover { background: #059669; }
-          .product-actions .edit-btn { background: #e0e7ff; color: #1d4ed8; }
-          .product-actions .edit-btn:hover { background: #c7d2fe; }
+          .product-actions button { 
+            padding: 8px 14px; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 12px; 
+            font-weight: 600; 
+            white-space: nowrap;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          .product-actions button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+          }
+          .product-actions .toggle-btn { 
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            color: #fff;
+          }
+          .product-actions .toggle-btn:hover { 
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+          }
+          .product-actions .delete-btn { 
+            background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+            color: #fff;
+          }
+          .product-actions .delete-btn:hover { 
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+          }
+          .product-actions .image-btn { 
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #fff;
+          }
+          .product-actions .image-btn:hover { 
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+          }
+          .product-actions .edit-btn { 
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            color: #fff;
+          }
+          .product-actions .edit-btn:hover { 
+            background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+          }
+          .product-actions .instruction-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: #fff;
+          }
+          .product-actions .instruction-btn:hover {
+            background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%);
+          }
           .empty-state { text-align: center; padding: 60px 20px; color: #6b7280; background: #fff; border-radius: 12px; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08); }
           img.product-image { width: 100%; height: 200px; object-fit: cover; border-radius: 10px; }
           .product-image-placeholder { 
@@ -5355,8 +5467,11 @@ router.get('/products', requireAdmin, async (req, res) => {
       </head>
       <body>
         <h2>🛍 Управление товарами</h2>
-        <a href="/admin" class="btn">← Назад</a>
-        <button onclick="scrapeAllImages()" class="btn" style="background: #28a745; margin-left: 10px;">📸 Собрать ВСЕ фото с сайта</button>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
+          <a href="/admin" class="btn">← Назад</a>
+          <button onclick="scrapeAllImages()" class="btn" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">📸 Собрать ВСЕ фото с сайта</button>
+          <button onclick="moveAllToCosmetics()" class="btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🔄 Собрать в категорию "Косметика"</button>
+        </div>
         
         ${req.query.success === 'image_updated' ? '<div class="alert alert-success">✅ Фото успешно обновлено!</div>' : ''}
         ${req.query.error === 'no_image' ? '<div class="alert alert-error">❌ Файл не выбран</div>' : ''}
@@ -5380,6 +5495,12 @@ router.get('/products', requireAdmin, async (req, res) => {
     });
 
     html += `
+          <button type="button" class="filter-btn add-category-btn" onclick="openAddCategoryModal()" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; border: none;">
+            ➕ Категорию
+          </button>
+          <button type="button" class="filter-btn add-subcategory-btn" onclick="openAddSubcategoryModal()" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); color: white; border: none;">
+            ➕ Подкатегорию
+          </button>
         </div>
 
         <div class="product-grid">
@@ -5495,9 +5616,164 @@ router.get('/products', requireAdmin, async (req, res) => {
     html += `
         </div>
 
+        <!-- Modal for adding category -->
+        <div id="addCategoryModal" class="modal-overlay" style="display: none;">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2>➕ Добавить категорию</h2>
+              <button class="close-btn" onclick="closeAddCategoryModal()">&times;</button>
+            </div>
+            <form id="addCategoryForm" class="modal-form">
+              <div class="form-group">
+                <label for="categoryName">Название категории</label>
+                <input type="text" id="categoryName" name="name" required placeholder="Например: Косметика">
+              </div>
+              <div class="form-group">
+                <label for="categoryDescription">Описание (необязательно)</label>
+                <textarea id="categoryDescription" name="description" rows="3" placeholder="Описание категории"></textarea>
+              </div>
+              <div class="form-actions">
+                <button type="button" onclick="closeAddCategoryModal()">❌ Отмена</button>
+                <button type="submit">✅ Создать категорию</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Modal for adding subcategory -->
+        <div id="addSubcategoryModal" class="modal-overlay" style="display: none;">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2>➕ Добавить подкатегорию</h2>
+              <button class="close-btn" onclick="closeAddSubcategoryModal()">&times;</button>
+            </div>
+            <form id="addSubcategoryForm" class="modal-form">
+              <div class="form-group">
+                <label for="subcategoryName">Название подкатегории</label>
+                <input type="text" id="subcategoryName" name="name" required placeholder="Например: Кремы для лица">
+              </div>
+              <div class="form-group">
+                <label for="subcategoryParent">Родительская категория</label>
+                <select id="subcategoryParent" name="parentId" required>
+                  <option value="">Выберите категорию...</option>
+                  ${categories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="subcategoryDescription">Описание (необязательно)</label>
+                <textarea id="subcategoryDescription" name="description" rows="3" placeholder="Описание подкатегории"></textarea>
+              </div>
+              <div class="form-actions">
+                <button type="button" onclick="closeAddSubcategoryModal()">❌ Отмена</button>
+                <button type="submit">✅ Создать подкатегорию</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
         <script>
           // Определяем функции глобально ДО загрузки страницы - сразу, не в IIFE
           'use strict';
+          
+          // Category modal functions
+          window.openAddCategoryModal = function() {
+            document.getElementById('addCategoryModal').style.display = 'flex';
+          };
+          
+          window.closeAddCategoryModal = function() {
+            document.getElementById('addCategoryModal').style.display = 'none';
+            document.getElementById('addCategoryForm').reset();
+          };
+          
+          window.openAddSubcategoryModal = function() {
+            document.getElementById('addSubcategoryModal').style.display = 'flex';
+          };
+          
+          window.closeAddSubcategoryModal = function() {
+            document.getElementById('addSubcategoryModal').style.display = 'none';
+            document.getElementById('addSubcategoryForm').reset();
+          };
+          
+          // Handle category form submission
+          document.addEventListener('DOMContentLoaded', function() {
+            const categoryForm = document.getElementById('addCategoryForm');
+            if (categoryForm) {
+              categoryForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const name = document.getElementById('categoryName').value.trim();
+                const description = document.getElementById('categoryDescription').value.trim();
+                
+                if (!name) {
+                  alert('Введите название категории');
+                  return;
+                }
+                
+                try {
+                  const response = await fetch('/admin/api/categories', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ name, description })
+                  });
+                  
+                  const result = await response.json();
+                  
+                  if (result.success) {
+                    alert('✅ Категория успешно создана!');
+                    closeAddCategoryModal();
+                    location.reload();
+                  } else {
+                    alert('❌ Ошибка: ' + (result.error || 'Не удалось создать категорию'));
+                  }
+                } catch (error) {
+                  alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
+                }
+              });
+            }
+            
+            // Handle subcategory form submission (creates as regular category for now)
+            const subcategoryForm = document.getElementById('addSubcategoryForm');
+            if (subcategoryForm) {
+              subcategoryForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const name = document.getElementById('subcategoryName').value.trim();
+                const parentId = document.getElementById('subcategoryParent').value;
+                const description = document.getElementById('subcategoryDescription').value.trim();
+                
+                if (!name) {
+                  alert('Введите название подкатегории');
+                  return;
+                }
+                
+                if (!parentId) {
+                  alert('Выберите родительскую категорию');
+                  return;
+                }
+                
+                try {
+                  // For now, create as regular category (parentId support can be added later)
+                  const response = await fetch('/admin/api/categories', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ name, description, parentId })
+                  });
+                  
+                  const result = await response.json();
+                  
+                  if (result.success) {
+                    alert('✅ Подкатегория успешно создана!');
+                    closeAddSubcategoryModal();
+                    location.reload();
+                  } else {
+                    alert('❌ Ошибка: ' + (result.error || 'Не удалось создать подкатегорию'));
+                  }
+                } catch (error) {
+                  alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
+                }
+              });
+            }
+          });
           
           // Image Gallery Functions - определяем сразу глобально
           window.openImageGallery = function(productId) {
@@ -5740,8 +6016,8 @@ router.get('/products', requireAdmin, async (req, res) => {
             });
           });
           
-          // Safe function to show instruction
-          function showInstructionSafe(button) {
+          // Safe function to show instruction - ГЛОБАЛЬНАЯ
+          window.showInstructionSafe = function(button) {
             try {
               const productId = button.dataset.instructionId;
               const instructionText = button.dataset.instructionText || '';
@@ -5760,10 +6036,10 @@ router.get('/products', requireAdmin, async (req, res) => {
               console.error('Error showing instruction:', error);
               alert('Ошибка отображения инструкции');
             }
-          }
+          };
           
-          // Simple function for editing products
-          function editProduct(button) {
+          // Simple function for editing products - ГЛОБАЛЬНАЯ (перекрывает window.editProduct)
+          window.editProduct = function(button) {
             const productId = button.dataset.id;
             const title = button.dataset.title;
             const summary = button.dataset.summary;
@@ -5991,13 +6267,13 @@ router.get('/products', requireAdmin, async (req, res) => {
             };
           }
           
-          // Function to close edit modal
-          function closeEditModal() {
+          // Function to close edit modal - ГЛОБАЛЬНАЯ
+          window.closeEditModal = function() {
             const modal = document.getElementById('editProductModal');
             if (modal) {
               modal.style.display = 'none';
             }
-          }
+          };
           
           // Instruction modal functions
           window.showInstruction = function(productId, instructionText) {
@@ -6300,7 +6576,7 @@ router.post('/products/:id/toggle-active', requireAdmin, async (req, res) => {
     const product = await prisma.product.findUnique({ where: { id } });
     
     if (!product) {
-      return res.redirect('/admin?error=product_not_found');
+      return res.redirect('/admin/products?error=product_not_found');
     }
 
     await prisma.product.update({
@@ -6308,12 +6584,34 @@ router.post('/products/:id/toggle-active', requireAdmin, async (req, res) => {
       data: { isActive: !product.isActive }
     });
 
-    res.redirect('/admin?success=product_updated');
+    res.redirect('/admin/products?success=product_updated');
   } catch (error) {
     console.error('Product toggle error:', error);
-    res.redirect('/admin?error=product_toggle');
+    res.redirect('/admin/products?error=product_toggle');
   }
 });
+
+// Delete product
+router.post('/products/:id/delete', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const product = await prisma.product.findUnique({ where: { id } });
+    
+    if (!product) {
+      return res.redirect('/admin/products?error=product_not_found');
+    }
+
+    await prisma.product.delete({
+      where: { id }
+    });
+
+    res.redirect('/admin/products?success=product_deleted');
+  } catch (error) {
+    console.error('Product delete error:', error);
+    res.redirect('/admin/products?error=product_delete');
+  }
+});
+
 // Update product
 router.post('/products/:productId/update', requireAdmin, upload.single('image'), async (req, res) => {
   try {
@@ -6378,11 +6676,11 @@ router.post('/products/:productId/upload-image', requireAdmin, upload.single('im
     const { productId } = req.params;
     
     if (!req.file) {
-      return res.redirect(`/admin?error=no_image`);
+      return res.redirect(`/admin/products?error=no_image`);
     }
     
     if (!isCloudinaryConfigured()) {
-      return res.redirect(`/admin?error=cloudinary_not_configured`);
+      return res.redirect(`/admin/products?error=cloudinary_not_configured`);
     }
     
     try {
@@ -6398,14 +6696,14 @@ router.post('/products/:productId/upload-image', requireAdmin, upload.single('im
       });
       
       console.log('✅ Product image uploaded:', result.secureUrl);
-      res.redirect(`/admin?success=image_updated`);
+      res.redirect(`/admin/products?success=image_updated`);
     } catch (error: any) {
       console.error('Image upload error:', error);
-      res.redirect(`/admin?error=image_upload`);
+      res.redirect(`/admin/products?error=image_upload`);
     }
   } catch (error) {
     console.error('Upload product image error:', error);
-    res.redirect(`/admin?error=image_upload`);
+    res.redirect(`/admin/products?error=image_upload`);
   }
 });
 // Import Siam Botanicals products endpoint
