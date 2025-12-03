@@ -5675,120 +5675,7 @@ router.get('/products', requireAdmin, async (req, res) => {
           // Определяем функции глобально ДО загрузки страницы - сразу, не в IIFE
           'use strict';
           
-          // Category modal functions
-          window.openAddCategoryModal = function() {
-            const modal = document.getElementById('addCategoryModal');
-            if (modal) {
-              modal.style.display = 'flex';
-            }
-          };
-          
-          window.closeAddCategoryModal = function() {
-            const modal = document.getElementById('addCategoryModal');
-            if (modal) {
-              modal.style.display = 'none';
-            }
-            const form = document.getElementById('addCategoryForm');
-            if (form) {
-              form.reset();
-            }
-          };
-          
-          window.openAddSubcategoryModal = function() {
-            const modal = document.getElementById('addSubcategoryModal');
-            if (modal) {
-              modal.style.display = 'flex';
-            }
-          };
-          
-          window.closeAddSubcategoryModal = function() {
-            const modal = document.getElementById('addSubcategoryModal');
-            if (modal) {
-              modal.style.display = 'none';
-            }
-            const form = document.getElementById('addSubcategoryForm');
-            if (form) {
-              form.reset();
-            }
-          };
-          
-          // Function to move all products to "Косметика" category
-          window.moveAllToCosmetics = async function() {
-            if (!confirm('⚠️ Переместить ВСЕ продукты в категорию "Косметика"?\\n\\nЭто действие изменит категорию для всех товаров в базе данных.')) {
-              return;
-            }
-            
-            try {
-              const response = await fetch('/admin/api/move-all-to-cosmetics', {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                  'Content-Type': 'application/json'
-                }
-              });
-              
-              const result = await response.json();
-              
-              if (result.success) {
-                alert('✅ Успешно!\\n\\nПеремещено продуктов: ' + (result.movedCount || 0) + '\\nКатегория: "' + (result.categoryName || 'Косметика') + '"');
-                location.reload();
-              } else {
-                alert('❌ Ошибка: ' + (result.error || 'Не удалось переместить продукты'));
-              }
-            } catch (error) {
-              console.error('Error moving products:', error);
-              alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
-            }
-          };
-          
-          // Function to scrape all images
-          window.scrapeAllImages = async function() {
-            const statusDiv = document.getElementById('scraping-status');
-            const progressDiv = document.getElementById('scraping-progress');
-            
-            if (statusDiv) statusDiv.style.display = 'block';
-            
-            try {
-              if (progressDiv) progressDiv.textContent = '🚀 Запуск сбора фотографий...';
-              
-              const response = await fetch('/admin/api/scrape-all-images', {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                  'Content-Type': 'application/json'
-                }
-              });
-              
-              if (!response.ok) {
-                throw new Error('Ошибка запуска сбора фотографий');
-              }
-              
-              // Открываем новую вкладку с логами или показываем статус
-              if (progressDiv) progressDiv.innerHTML = '✅ Сбор фотографий запущен! Проверьте логи в консоли сервера или подождите завершения...';
-              
-              // Через 5 секунд перезагружаем страницу для проверки результатов
-              setTimeout(() => {
-                window.location.href = '/admin/products?success=images_scraped';
-              }, 5000);
-              
-            } catch (error) {
-              console.error('Error scraping images:', error);
-              if (progressDiv) progressDiv.innerHTML = '❌ Ошибка: ' + (error instanceof Error ? error.message : String(error));
-              setTimeout(() => {
-                if (statusDiv) statusDiv.style.display = 'none';
-              }, 5000);
-            }
-          };
-          
-          // Function to close edit modal - ГЛОБАЛЬНАЯ (определяем СРАЗУ в начале)
-          window.closeEditModal = function() {
-            const modal = document.getElementById('editProductModal');
-            if (modal) {
-              modal.style.display = 'none';
-            }
-          };
-          
-          // Function for editing products - ГЛОБАЛЬНАЯ (определяем СРАЗУ в начале, чтобы была доступна для onclick)
+          // CRITICAL: Define editProduct FIRST so it's available for onclick handlers
           window.editProduct = function(button) {
             if (!button) {
               console.error('editProduct: button is required');
@@ -5905,6 +5792,120 @@ router.get('/products', requireAdmin, async (req, res) => {
             // Show modal
             modal.style.display = 'block';
           };
+          
+          window.closeEditModal = function() {
+            const modal = document.getElementById('editProductModal');
+            if (modal) {
+              modal.style.display = 'none';
+            }
+          };
+          
+          // Category modal functions
+          window.openAddCategoryModal = function() {
+            const modal = document.getElementById('addCategoryModal');
+            if (modal) {
+              modal.style.display = 'flex';
+            }
+          };
+          
+          window.closeAddCategoryModal = function() {
+            const modal = document.getElementById('addCategoryModal');
+            if (modal) {
+              modal.style.display = 'none';
+            }
+            const form = document.getElementById('addCategoryForm');
+            if (form) {
+              form.reset();
+            }
+          };
+          
+          window.openAddSubcategoryModal = function() {
+            const modal = document.getElementById('addSubcategoryModal');
+            if (modal) {
+              modal.style.display = 'flex';
+            }
+          };
+          
+          window.closeAddSubcategoryModal = function() {
+            const modal = document.getElementById('addSubcategoryModal');
+            if (modal) {
+              modal.style.display = 'none';
+            }
+            const form = document.getElementById('addSubcategoryForm');
+            if (form) {
+              form.reset();
+            }
+          };
+          
+          // Function to move all products to "Косметика" category
+          window.moveAllToCosmetics = async function() {
+            if (!confirm('⚠️ Переместить ВСЕ продукты в категорию "Косметика"?\n\nЭто действие изменит категорию для всех товаров в базе данных.')) {
+              return;
+            }
+            
+            try {
+              const response = await fetch('/admin/api/move-all-to-cosmetics', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              const result = await response.json();
+              
+              if (result.success) {
+                alert('✅ Успешно!\n\nПеремещено продуктов: ' + (result.movedCount || 0) + '\nКатегория: "' + (result.categoryName || 'Косметика') + '"');
+                location.reload();
+              } else {
+                alert('❌ Ошибка: ' + (result.error || 'Не удалось переместить продукты'));
+              }
+            } catch (error) {
+              console.error('Error moving products:', error);
+              alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
+            }
+          };
+          
+          // Function to scrape all images
+          window.scrapeAllImages = async function() {
+            const statusDiv = document.getElementById('scraping-status');
+            const progressDiv = document.getElementById('scraping-progress');
+            
+            if (statusDiv) statusDiv.style.display = 'block';
+            
+            try {
+              if (progressDiv) progressDiv.textContent = '🚀 Запуск сбора фотографий...';
+              
+              const response = await fetch('/admin/api/scrape-all-images', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              if (!response.ok) {
+                throw new Error('Ошибка запуска сбора фотографий');
+              }
+              
+              // Открываем новую вкладку с логами или показываем статус
+              if (progressDiv) progressDiv.innerHTML = '✅ Сбор фотографий запущен! Проверьте логи в консоли сервера или подождите завершения...';
+              
+              // Через 5 секунд перезагружаем страницу для проверки результатов
+              setTimeout(() => {
+                window.location.href = '/admin/products?success=images_scraped';
+              }, 5000);
+              
+            } catch (error) {
+              console.error('Error scraping images:', error);
+              if (progressDiv) progressDiv.innerHTML = '❌ Ошибка: ' + (error instanceof Error ? error.message : String(error));
+              setTimeout(() => {
+                if (statusDiv) statusDiv.style.display = 'none';
+              }, 5000);
+            }
+          };
+          
+          // NOTE: window.editProduct and window.closeEditModal already defined at the beginning of script
           
           // Handle category form submission
           document.addEventListener('DOMContentLoaded', function() {
@@ -6222,9 +6223,12 @@ router.get('/products', requireAdmin, async (req, res) => {
           window.showInstruction = function(productId, instructionText) {
             const modal = document.createElement('div');
             modal.className = 'instruction-modal';
-            const escapedInstruction = (instructionText || '').replace(/\n/g, '<br>').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
-            const escapedProductId = String(productId || '').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
-            const instructionForTextarea = (instructionText || '').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+            const newlineRegex = new RegExp('\\n', 'g');
+            const singleQuoteRegex = new RegExp("'", 'g');
+            const doubleQuoteRegex = new RegExp('"', 'g');
+            const escapedInstruction = (instructionText || '').replace(newlineRegex, '<br>').replace(singleQuoteRegex, '&#39;').replace(doubleQuoteRegex, '&quot;');
+            const escapedProductId = String(productId || '').replace(singleQuoteRegex, '&#39;').replace(doubleQuoteRegex, '&quot;');
+            const instructionForTextarea = (instructionText || '').replace(singleQuoteRegex, '&#39;').replace(doubleQuoteRegex, '&quot;');
             modal.innerHTML = '<div class="instruction-overlay" onclick="closeInstruction()"><div class="instruction-content" onclick="event.stopPropagation()"><div class="instruction-header"><h3>📋 Инструкция по применению</h3><button class="btn-close" onclick="closeInstruction()">×</button></div><div class="instruction-body"><div class="instruction-text" id="instructionText" style="display: none;">' + escapedInstruction + '</div><div class="instruction-edit" id="instructionEdit" style="display: block;"><textarea id="instructionTextarea" placeholder="Введите инструкцию по применению товара..." style="width: 100%; height: 200px; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical;">' + instructionForTextarea + '</textarea></div></div><div class="instruction-footer"><button class="btn btn-save" onclick="saveInstruction(\'' + escapedProductId + '\')" style="background: #28a745; margin-right: 8px;">💾 Сохранить</button><button class="btn btn-cancel" onclick="cancelInstruction()" style="background: #6c757d; margin-right: 8px;">❌ Отмена</button><button class="btn btn-delete" onclick="deleteInstruction(\'' + escapedProductId + '\')" style="background: #dc3545; margin-right: 8px;">🗑️ Удалить</button><button class="btn btn-secondary" onclick="closeInstruction()">Закрыть</button></div></div></div>';
             
             document.body.appendChild(modal);
