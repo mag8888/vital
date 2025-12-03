@@ -5716,18 +5716,21 @@ router.get('/products', requireAdmin, async (req, res) => {
       return res.send(html);
     }
     // Helper function to escape HTML attributes safely
+    // Улучшенная функция экранирования для HTML атрибутов
     const escapeAttr = (str: string | null | undefined): string => {
       if (!str) return '';
       return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;')
-        .replace(/`/g, '&#96;') // Replace backticks
-        .replace(/</g, '&lt;')
+        .replace(/&/g, '&amp;') // Must be first - экранируем амперсанды
+        .replace(/</g, '&lt;') // Экранируем угловые скобки
         .replace(/>/g, '&gt;')
-        .replace(/\r?\n/g, ' ') // Replace newlines with spaces
-        .replace(/\r/g, ' ') // Replace carriage returns
-        .replace(/\t/g, ' '); // Replace tabs with spaces
+        .replace(/"/g, '&quot;') // Экранируем двойные кавычки
+        .replace(/'/g, '&#39;') // Экранируем одинарные кавычки
+        .replace(/`/g, '&#96;') // Экранируем обратные кавычки
+        .replace(/\r?\n/g, ' ') // Заменяем переносы строк на пробелы
+        .replace(/\r/g, ' ') // Заменяем возврат каретки
+        .replace(/\t/g, ' ') // Заменяем табуляцию
+        .replace(/\x00/g, '') // Удаляем null байты
+        .replace(/[\u0000-\u001F\u007F-\u009F]/g, ''); // Удаляем управляющие символы
     };
     
     // Helper function to escape HTML content safely
@@ -5785,6 +5788,7 @@ router.get('/products', requireAdmin, async (req, res) => {
               <button 
                 type="button" 
                 class="edit-btn"
+                data-edit-product
                 data-id="${escapeAttr(product.id)}"
                 data-title="${escapeAttr(product.title)}"
                 data-summary="${escapeAttr(product.summary)}"
@@ -5796,17 +5800,16 @@ router.get('/products', requireAdmin, async (req, res) => {
                 data-russia="${(product as any).availableInRussia ? 'true' : 'false'}"
                 data-bali="${(product as any).availableInBali ? 'true' : 'false'}"
                 data-image="${escapeAttr(product.imageUrl)}"
-                onclick="editProduct(this)"
               >✏️ Редактировать</button>
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/toggle-active">
                 <button type="submit" class="toggle-btn">${product.isActive ? 'Отключить' : 'Включить'}</button>
               </form>
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/upload-image" enctype="multipart/form-data" style="display: inline;">
                 <input type="file" name="image" accept="image/*" style="display: none;" id="image-${escapeAttr(product.id)}" onchange="this.form.submit()">
-                <button type="button" class="image-btn" onclick="document.getElementById('image-${escapeAttr(product.id)}').click()">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</button>
+                <button type="button" class="image-btn" data-image-input-id="image-${escapeAttr(product.id)}">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</button>
               </form>
               <button type="button" class="image-btn select-image-btn" style="background: #6366f1;" data-product-id="${escapeAttr(product.id)}">🖼️ Выбрать из загруженных</button>
-              <button class="instruction-btn" data-instruction-id="${escapeAttr(product.id)}" data-instruction-text="${escapeAttr((product as any).instruction)}" onclick="showInstructionSafe(this)" style="background: #28a745;">📋 Инструкция</button>
+              <button type="button" class="instruction-btn" data-instruction-id="${escapeAttr(product.id)}" data-instruction-text="${escapeAttr(String((product as any).instruction || ''))}">📋 Инструкция</button>
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/delete" onsubmit="return confirm('Удалить товар?')">
                 <button type="submit" class="delete-btn">Удалить</button>
               </form>
@@ -6567,17 +6570,19 @@ router.get('/products', requireAdmin, async (req, res) => {
           // openImageGallery, loadGalleryImages, selectGalleryImage, closeImageGallery
           // доступны глобально через window.*
           
-          // Event delegation для кнопки "Выбрать из загруженных" - работает сразу, без DOMContentLoaded
+          // Event delegation для кнопок - работает сразу, без DOMContentLoaded
           (function() {
             // Устанавливаем обработчик сразу, но он сработает только после загрузки DOM
             function initEventDelegation() {
               document.addEventListener('click', function(event) {
                 const target = event.target;
-                const button = target.closest('.select-image-btn');
-                if (button) {
+                
+                // Обработка кнопки "Выбрать из загруженных"
+                const selectImageBtn = target.closest('.select-image-btn');
+                if (selectImageBtn) {
                   event.preventDefault();
                   event.stopPropagation();
-                  const productId = button.getAttribute('data-product-id');
+                  const productId = selectImageBtn.getAttribute('data-product-id');
                   if (productId && typeof window.openImageGallery === 'function') {
                     window.openImageGallery(productId);
                   } else {
@@ -6588,6 +6593,41 @@ router.get('/products', requireAdmin, async (req, res) => {
                     });
                     alert('Ошибка: функция выбора изображения не доступна. Пожалуйста, обновите страницу.');
                   }
+                  return;
+                }
+                
+                // Обработка кнопки загрузки изображения через data-атрибут
+                const imageBtn = target.closest('.image-btn[data-image-input-id]');
+                if (imageBtn) {
+                  event.preventDefault();
+                  const inputId = imageBtn.getAttribute('data-image-input-id');
+                  const fileInput = document.getElementById(inputId);
+                  if (fileInput) {
+                    fileInput.click();
+                  }
+                  return;
+                }
+                
+                // Обработка кнопки инструкции
+                const instructionBtn = target.closest('.instruction-btn');
+                if (instructionBtn) {
+                  event.preventDefault();
+                  if (typeof window.showInstructionSafe === 'function') {
+                    window.showInstructionSafe(instructionBtn);
+                  } else {
+                    const productId = instructionBtn.getAttribute('data-instruction-id');
+                    const instructionText = instructionBtn.getAttribute('data-instruction-text') || '';
+                    alert('Инструкция:\\n\\n' + (instructionText || 'Инструкция не добавлена'));
+                  }
+                  return;
+                }
+                
+                // Обработка кнопки редактирования товара
+                const editBtn = target.closest('.edit-btn[data-edit-product]');
+                if (editBtn && typeof window.editProduct === 'function') {
+                  event.preventDefault();
+                  window.editProduct(editBtn);
+                  return;
                 }
               });
             }
