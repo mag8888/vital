@@ -5730,7 +5730,10 @@ router.get('/products', requireAdmin, async (req, res) => {
         .replace(/\r/g, ' ') // Заменяем возврат каретки
         .replace(/\t/g, ' ') // Заменяем табуляцию
         .replace(/\x00/g, '') // Удаляем null байты
-        .replace(/[\u0000-\u001F\u007F-\u009F]/g, ''); // Удаляем управляющие символы
+        .replace(/\\/g, '\\\\') // Экранируем обратные слеши
+        .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Удаляем управляющие символы
+        .replace(/\u2028/g, ' ') // Удаляем line separator
+        .replace(/\u2029/g, ' '); // Удаляем paragraph separator
     };
     
     // Helper function to escape HTML content safely
@@ -5751,7 +5754,7 @@ router.get('/products', requireAdmin, async (req, res) => {
       const placeholderId = `product-placeholder-${product.id.replace(/[^a-zA-Z0-9]/g, '-')}`;
       
       const imageSection = product.imageUrl
-        ? `<img id="${imageId}" src="${escapeAttr(product.imageUrl)}" alt="${escapeAttr(product.title)}" class="product-image" loading="lazy" onerror="var i=document.getElementById('${imageId}');var p=document.getElementById('${placeholderId}');if(i)i.style.display='none';if(p)p.style.display='flex';">
+        ? `<img id="${imageId}" src="${escapeAttr(product.imageUrl)}" alt="${escapeAttr(product.title)}" class="product-image" loading="lazy" data-onerror-img="${imageId}" data-onerror-placeholder="${placeholderId}">
            <div id="${placeholderId}" class="product-image-placeholder" style="display: none;">
              <span class="placeholder-icon">📷</span>
              <span class="placeholder-text">Нет фото</span>
@@ -5804,13 +5807,13 @@ router.get('/products', requireAdmin, async (req, res) => {
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/toggle-active">
                 <button type="submit" class="toggle-btn">${product.isActive ? 'Отключить' : 'Включить'}</button>
               </form>
-              <form method="post" action="/admin/products/${escapeAttr(product.id)}/upload-image" enctype="multipart/form-data" style="display: inline;">
-                <input type="file" name="image" accept="image/*" style="display: none;" id="image-${escapeAttr(product.id)}" onchange="this.form.submit()">
+              <form method="post" action="/admin/products/${escapeAttr(product.id)}/upload-image" enctype="multipart/form-data" style="display: inline;" class="upload-image-form" data-product-id="${escapeAttr(product.id)}">
+                <input type="file" name="image" accept="image/*" style="display: none;" id="image-${escapeAttr(product.id)}" class="product-image-input">
                 <button type="button" class="image-btn" data-image-input-id="image-${escapeAttr(product.id)}">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</button>
               </form>
               <button type="button" class="image-btn select-image-btn" style="background: #6366f1;" data-product-id="${escapeAttr(product.id)}">🖼️ Выбрать из загруженных</button>
-              <button type="button" class="instruction-btn" data-instruction-id="${escapeAttr(product.id)}" data-instruction-text="${escapeAttr(String((product as any).instruction || ''))}">📋 Инструкция</button>
-              <form method="post" action="/admin/products/${escapeAttr(product.id)}/delete" onsubmit="return confirm('Удалить товар?')">
+              <button type="button" class="instruction-btn" data-instruction-id="${escapeAttr(product.id)}" data-instruction-text="${escapeAttr(String((product as any).instruction || '').replace(/[\r\n\t]/g, ' ').replace(/[\x00-\x1F\x7F]/g, ''))}">📋 Инструкция</button>
+              <form method="post" action="/admin/products/${escapeAttr(product.id)}/delete" class="delete-product-form" data-product-id="${escapeAttr(product.id)}">
                 <button type="submit" class="delete-btn">Удалить</button>
               </form>
             </div>
@@ -6229,7 +6232,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 const escapedUrl = imageUrl ? imageUrl.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : '';
                 const escapedTitles = productTitles.replace(/"/g, '&quot;');
                 
-                html += "<div class=\"gallery-item\" data-image-url=\"" + escapedUrl + "\" data-product-id=\"" + productId + "\" style=\"border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden; cursor: pointer; transition: all 0.2s; background: white;\"><div style=\"width: 100%; aspect-ratio: 1; overflow: hidden; background: #f3f4f6;\"><img src=\"" + escapedUrl + "\" alt=\"Product image\" style=\"width: 100%; height: 100%; object-fit: cover;\" onerror=\"this.onerror=null;this.style.display='none';\"></div><div style=\"padding: 12px; font-size: 12px; color: #6b7280;\"><div style=\"font-weight: 600; margin-bottom: 4px; color: #374151;\">Используется в:</div><div style=\"overflow: hidden; text-overflow: ellipsis; white-space: nowrap;\" title=\"" + escapedTitles + "\">" + productCount + " товар(ов)</div></div></div>";
+                html += "<div class=\"gallery-item\" data-image-url=\"" + escapedUrl + "\" data-product-id=\"" + productId + "\" style=\"border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden; cursor: pointer; transition: all 0.2s; background: white;\"><div style=\"width: 100%; aspect-ratio: 1; overflow: hidden; background: #f3f4f6;\"><img src=\"" + escapedUrl + "\" alt=\"Product image\" class=\"gallery-image\" style=\"width: 100%; height: 100%; object-fit: cover;\" data-onerror-hide=\"true\"></div><div style=\"padding: 12px; font-size: 12px; color: #6b7280;\"><div style=\"font-weight: 600; margin-bottom: 4px; color: #374151;\">Используется в:</div><div style=\"overflow: hidden; text-overflow: ellipsis; white-space: nowrap;\" title=\"" + escapedTitles + "\">" + productCount + " товар(ов)</div></div></div>";
               });
               
               galleryContent.innerHTML = html;
@@ -6617,7 +6620,8 @@ router.get('/products', requireAdmin, async (req, res) => {
                   } else {
                     const productId = instructionBtn.getAttribute('data-instruction-id');
                     const instructionText = instructionBtn.getAttribute('data-instruction-text') || '';
-                    alert('Инструкция:\\n\\n' + (instructionText || 'Инструкция не добавлена'));
+                    const safeText = (instructionText || 'Инструкция не добавлена').replace(/[\r\n]+/g, ' ').replace(/[\\"']/g, '');
+                    alert('Инструкция:\n\n' + safeText);
                   }
                   return;
                 }
@@ -6629,7 +6633,47 @@ router.get('/products', requireAdmin, async (req, res) => {
                   window.editProduct(editBtn);
                   return;
                 }
+                
+                // Обработка формы удаления товара
+                const deleteForm = target.closest('.delete-product-form');
+                if (deleteForm) {
+                  event.preventDefault();
+                  if (confirm('Удалить товар?')) {
+                    deleteForm.submit();
+                  }
+                  return;
+                }
               });
+              
+              // Обработка загрузки изображений
+              document.addEventListener('change', function(event) {
+                const target = event.target;
+                if (target && target.classList && target.classList.contains('product-image-input')) {
+                  const form = target.closest('.upload-image-form');
+                  if (form && target.files && target.files.length > 0) {
+                    form.submit();
+                  }
+                }
+              });
+              
+              // Обработка ошибок загрузки изображений
+              document.addEventListener('error', function(event) {
+                const target = event.target;
+                if (target && target.tagName === 'IMG') {
+                  if (target.hasAttribute('data-onerror-img') || target.hasAttribute('data-onerror-hide')) {
+                    target.style.display = 'none';
+                  }
+                  if (target.hasAttribute('data-onerror-img')) {
+                    const placeholderId = target.getAttribute('data-onerror-placeholder');
+                    if (placeholderId) {
+                      const placeholder = document.getElementById(placeholderId);
+                      if (placeholder) {
+                        placeholder.style.display = 'flex';
+                      }
+                    }
+                  }
+                }
+              }, true);
             }
             
             // Инициализируем сразу, если DOM уже загружен
