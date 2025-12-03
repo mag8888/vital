@@ -5483,7 +5483,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 <input type="file" name="image" accept="image/*" style="display: none;" id="image-${escapeAttr(product.id)}" onchange="this.form.submit()">
                 <button type="button" class="image-btn" onclick="document.getElementById('image-${escapeAttr(product.id)}').click()">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</button>
               </form>
-              <button type="button" class="image-btn" style="background: #6366f1;" onclick="openImageGallery('${escapeAttr(product.id)}')">🖼️ Выбрать из загруженных</button>
+              <button type="button" class="image-btn select-image-btn" style="background: #6366f1;" data-product-id="${escapeAttr(product.id)}">🖼️ Выбрать из загруженных</button>
               <button class="instruction-btn" data-instruction-id="${escapeAttr(product.id)}" data-instruction-text="${escapeAttr((product as any).instruction)}" onclick="showInstructionSafe(this)" style="background: #28a745;">📋 Инструкция</button>
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/delete" onsubmit="return confirm('Удалить товар?')">
                 <button type="submit" class="delete-btn">Удалить</button>
@@ -5496,231 +5496,229 @@ router.get('/products', requireAdmin, async (req, res) => {
         </div>
 
         <script>
-          // Определяем функции глобально ДО загрузки страницы
-          (function() {
-            'use strict';
+          // Определяем функции глобально ДО загрузки страницы - сразу, не в IIFE
+          'use strict';
+          
+          // Image Gallery Functions - определяем сразу глобально
+          window.openImageGallery = function(productId) {
+            console.log('🖼️ Opening image gallery for product:', productId);
             
-            // Image Gallery Functions - определяем сразу
-            window.openImageGallery = function(productId) {
-              console.log('🖼️ Opening image gallery for product:', productId);
-              
-              if (!productId) {
-                console.error('❌ Product ID is required');
-                alert('Ошибка: не указан ID товара');
-                return;
-              }
-              
-              // Закрываем предыдущее модальное окно, если оно открыто
-              const existingModal = document.getElementById('imageGalleryModal');
-              if (existingModal) {
-                console.log('🗑️ Removing existing modal');
-                existingModal.remove();
-              }
-              
-              // Создаем модальное окно
-              const modal = document.createElement('div');
-              modal.id = 'imageGalleryModal';
-              modal.className = 'modal-overlay';
-              modal.style.position = 'fixed';
-              modal.style.top = '0';
-              modal.style.left = '0';
-              modal.style.width = '100%';
-              modal.style.height = '100%';
-              modal.style.background = 'rgba(0,0,0,0.6)';
-              modal.style.zIndex = '10000';
-              modal.style.display = 'flex';
-              modal.style.alignItems = 'center';
-              modal.style.justifyContent = 'center';
-              
-              modal.innerHTML = \`
-                <div class="modal-content" style="max-width: 90vw; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
-                  <div class="modal-header" style="padding: 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px 12px 0 0;">
-                    <h2 style="margin: 0; font-size: 20px; font-weight: 600; color: white;">🖼️ Выбрать изображение из загруженных</h2>
-                    <button class="close-btn" style="background: rgba(255,255,255,0.2); border: none; font-size: 24px; cursor: pointer; color: white; padding: 0; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center;">&times;</button>
-                  </div>
-                  <div id="galleryContent" style="padding: 20px; overflow-y: auto; flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;">
-                    <div style="grid-column: 1 / -1; text-align: center; padding: 40px;">
-                      <div class="loading-spinner" style="width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px;"></div>
-                      <p style="color: #6b7280;">Загрузка изображений...</p>
-                    </div>
+            if (!productId) {
+              console.error('❌ Product ID is required');
+              alert('Ошибка: не указан ID товара');
+              return;
+            }
+            
+            // Закрываем предыдущее модальное окно, если оно открыто
+            const existingModal = document.getElementById('imageGalleryModal');
+            if (existingModal) {
+              console.log('🗑️ Removing existing modal');
+              existingModal.remove();
+            }
+            
+            // Создаем модальное окно
+            const modal = document.createElement('div');
+            modal.id = 'imageGalleryModal';
+            modal.className = 'modal-overlay';
+            modal.style.position = 'fixed';
+            modal.style.top = '0';
+            modal.style.left = '0';
+            modal.style.width = '100%';
+            modal.style.height = '100%';
+            modal.style.background = 'rgba(0,0,0,0.6)';
+            modal.style.zIndex = '10000';
+            modal.style.display = 'flex';
+            modal.style.alignItems = 'center';
+            modal.style.justifyContent = 'center';
+            
+            modal.innerHTML = \`
+              <div class="modal-content" style="max-width: 90vw; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+                <div class="modal-header" style="padding: 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px 12px 0 0;">
+                  <h2 style="margin: 0; font-size: 20px; font-weight: 600; color: white;">🖼️ Выбрать изображение из загруженных</h2>
+                  <button class="close-btn" style="background: rgba(255,255,255,0.2); border: none; font-size: 24px; cursor: pointer; color: white; padding: 0; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center;">&times;</button>
+                </div>
+                <div id="galleryContent" style="padding: 20px; overflow-y: auto; flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;">
+                  <div style="grid-column: 1 / -1; text-align: center; padding: 40px;">
+                    <div class="loading-spinner" style="width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px;"></div>
+                    <p style="color: #6b7280;">Загрузка изображений...</p>
                   </div>
                 </div>
-              \`;
+              </div>
+            \`;
+            
+            document.body.appendChild(modal);
+            console.log('✅ Modal added to DOM');
+            
+            // Обработчик закрытия по клику на overlay
+            modal.addEventListener('click', function(e) {
+              const target = e.target;
+              if (target === modal || target.classList.contains('close-btn')) {
+                console.log('🔄 Closing gallery');
+                window.closeImageGallery();
+              }
+            });
+            
+            // Предотвращаем закрытие при клике внутри контента
+            const modalContent = modal.querySelector('.modal-content');
+            if (modalContent) {
+              modalContent.addEventListener('click', function(e) {
+                e.stopPropagation();
+              });
+            }
+            
+            // Загружаем изображения
+            console.log('📥 Loading gallery images...');
+            window.loadGalleryImages(productId);
+          };
+          
+          window.closeImageGallery = function() {
+            const modal = document.getElementById('imageGalleryModal');
+            if (modal) {
+              modal.remove();
+            }
+          };
+          
+          // Определяем selectGalleryImage глобально, чтобы она была доступна для loadGalleryImages
+          window.selectGalleryImage = async function(imageUrl, productId) {
+            if (!imageUrl || !productId) {
+              console.error('Missing parameters:', { imageUrl, productId });
+              alert('❌ Ошибка: Не указаны параметры изображения или товара');
+              return;
+            }
+            
+            try {
+              console.log('Selecting image:', imageUrl, 'for product:', productId);
               
-              document.body.appendChild(modal);
-              console.log('✅ Modal added to DOM');
-              
-              // Обработчик закрытия по клику на overlay
-              modal.addEventListener('click', function(e) {
-                const target = e.target;
-                if (target === modal || target.classList.contains('close-btn')) {
-                  console.log('🔄 Closing gallery');
-                  window.closeImageGallery();
-                }
+              const response = await fetch(\`/admin/api/products/\${encodeURIComponent(productId)}/select-image\`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                  imageUrl: String(imageUrl).trim()
+                })
               });
               
-              // Предотвращаем закрытие при клике внутри контента
-              const modalContent = modal.querySelector('.modal-content');
-              if (modalContent) {
-                modalContent.addEventListener('click', function(e) {
-                  e.stopPropagation();
-                });
+              if (!response.ok) {
+                const errorText = await response.text().catch(() => 'Unknown error');
+                throw new Error(\`HTTP \${response.status}: \${errorText}\`);
               }
               
-              // Загружаем изображения
-              console.log('📥 Loading gallery images...');
-              window.loadGalleryImages(productId);
-            };
+              const result = await response.json();
+              
+              if (result.success) {
+                alert('✅ Изображение успешно привязано к товару!');
+                window.closeImageGallery();
+                setTimeout(() => {
+                  location.reload();
+                }, 500);
+              } else {
+                alert('❌ Ошибка: ' + (result.error || 'Не удалось привязать изображение'));
+              }
+            } catch (error) {
+              console.error('Error selecting image:', error);
+              alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
+            }
+          };
+          
+          // Определяем loadGalleryImages глобально, чтобы она была доступна
+          window.loadGalleryImages = async function(productId) {
+            const galleryContent = document.getElementById('galleryContent');
+            if (!galleryContent) {
+              console.error('Gallery content element not found');
+              return;
+            }
             
-            window.closeImageGallery = function() {
-              const modal = document.getElementById('imageGalleryModal');
-              if (modal) {
-                modal.remove();
-              }
-            };
+            galleryContent.dataset.currentProductId = productId;
             
-            // Определяем selectGalleryImage глобально, чтобы она была доступна для loadGalleryImages
-            window.selectGalleryImage = async function(imageUrl, productId) {
-              if (!imageUrl || !productId) {
-                console.error('Missing parameters:', { imageUrl, productId });
-                alert('❌ Ошибка: Не указаны параметры изображения или товара');
-                return;
+            try {
+              console.log('Loading gallery images for product:', productId);
+              const response = await fetch('/admin/api/products/images', {
+                credentials: 'include'
+              });
+              
+              if (!response.ok) {
+                throw new Error(\`HTTP error! status: \${response.status}\`);
               }
               
-              try {
-                console.log('Selecting image:', imageUrl, 'for product:', productId);
-                
-                const response = await fetch(\`/admin/api/products/\${encodeURIComponent(productId)}/select-image\`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  credentials: 'include',
-                  body: JSON.stringify({
-                    imageUrl: String(imageUrl).trim()
-                  })
-                });
-                
-                if (!response.ok) {
-                  const errorText = await response.text().catch(() => 'Unknown error');
-                  throw new Error(\`HTTP \${response.status}: \${errorText}\`);
-                }
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                  alert('✅ Изображение успешно привязано к товару!');
-                  window.closeImageGallery();
-                  setTimeout(() => {
-                    location.reload();
-                  }, 500);
-                } else {
-                  alert('❌ Ошибка: ' + (result.error || 'Не удалось привязать изображение'));
-                }
-              } catch (error) {
-                console.error('Error selecting image:', error);
-                alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
-              }
-            };
-            
-            // Определяем loadGalleryImages глобально, чтобы она была доступна
-            window.loadGalleryImages = async function(productId) {
-              const galleryContent = document.getElementById('galleryContent');
-              if (!galleryContent) {
-                console.error('Gallery content element not found');
-                return;
-              }
+              const result = await response.json();
+              console.log('Gallery images response:', result);
               
-              galleryContent.dataset.currentProductId = productId;
-              
-              try {
-                console.log('Loading gallery images for product:', productId);
-                const response = await fetch('/admin/api/products/images', {
-                  credentials: 'include'
-                });
-                
-                if (!response.ok) {
-                  throw new Error(\`HTTP error! status: \${response.status}\`);
-                }
-                
-                const result = await response.json();
-                console.log('Gallery images response:', result);
-                
-                if (!result.success || !result.images || result.images.length === 0) {
-                  galleryContent.innerHTML = \`
-                    <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #6b7280;">
-                      <p style="font-size: 18px; margin-bottom: 8px;">📦 Нет загруженных изображений</p>
-                      <p style="font-size: 14px;">Сначала загрузите изображения для товаров</p>
-                    </div>
-                  \`;
-                  return;
-                }
-                
-                let html = '';
-                result.images.forEach((imageData) => {
-                  const imageUrl = imageData.url;
-                  const productTitles = imageData.products ? imageData.products.map((p) => p.title).join(', ') : '';
-                  const productCount = imageData.products ? imageData.products.length : (imageData.count || 0);
-                  const escapedUrl = imageUrl ? imageUrl.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : '';
-                  
-                  html += \`
-                    <div class="gallery-item" 
-                         data-image-url="\${escapedUrl}" 
-                         data-product-id="\${productId}" 
-                         style="border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden; cursor: pointer; transition: all 0.2s; background: white;">
-                      <div style="width: 100%; aspect-ratio: 1; overflow: hidden; background: #f3f4f6;">
-                        <img src="\${escapedUrl}" alt="Product image" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.parentElement.innerHTML='<div style=\\\\'display:flex;align-items:center;justify-content:center;height:100%;color:#9ca3af;\\\\'>❌ Ошибка загрузки</div>'">
-                      </div>
-                      <div style="padding: 12px; font-size: 12px; color: #6b7280;">
-                        <div style="font-weight: 600; margin-bottom: 4px; color: #374151;">Используется в:</div>
-                        <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="\${productTitles.replace(/"/g, '&quot;')}">\${productCount} товар(ов)</div>
-                      </div>
-                    </div>
-                  \`;
-                });
-                
-                galleryContent.innerHTML = html;
-                
-                const newHandler = function(e) {
-                  const target = e.target;
-                  const galleryItem = target.closest('.gallery-item');
-                  if (galleryItem) {
-                    const imageUrl = galleryItem.dataset.imageUrl;
-                    const currentProductId = galleryItem.dataset.productId || galleryContent.dataset.currentProductId;
-                    if (imageUrl && currentProductId && window.selectGalleryImage) {
-                      console.log('Selecting image:', imageUrl, 'for product:', currentProductId);
-                      window.selectGalleryImage(imageUrl, currentProductId);
-                    }
-                  }
-                };
-                
-                galleryContent.removeEventListener('click', newHandler);
-                galleryContent.addEventListener('click', newHandler);
-                
-                const galleryItems = galleryContent.querySelectorAll('.gallery-item');
-                galleryItems.forEach((item) => {
-                  item.addEventListener('mouseenter', function() {
-                    this.style.borderColor = '#6366f1';
-                    this.style.transform = 'translateY(-4px)';
-                    this.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.2)';
-                  });
-                  item.addEventListener('mouseleave', function() {
-                    this.style.borderColor = '#e2e8f0';
-                    this.style.transform = 'translateY(0)';
-                    this.style.boxShadow = 'none';
-                  });
-                });
-              } catch (error) {
-                console.error('Error loading gallery images:', error);
+              if (!result.success || !result.images || result.images.length === 0) {
                 galleryContent.innerHTML = \`
-                  <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #dc3545;">
-                    <p style="font-size: 18px; margin-bottom: 8px;">❌ Ошибка загрузки изображений</p>
-                    <p style="font-size: 14px;">\${error instanceof Error ? error.message : 'Попробуйте обновить страницу'}</p>
+                  <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #6b7280;">
+                    <p style="font-size: 18px; margin-bottom: 8px;">📦 Нет загруженных изображений</p>
+                    <p style="font-size: 14px;">Сначала загрузите изображения для товаров</p>
                   </div>
                 \`;
+                return;
               }
-            };
-          })();
+              
+              let html = '';
+              result.images.forEach((imageData) => {
+                const imageUrl = imageData.url;
+                const productTitles = imageData.products ? imageData.products.map((p) => p.title).join(', ') : '';
+                const productCount = imageData.products ? imageData.products.length : (imageData.count || 0);
+                const escapedUrl = imageUrl ? imageUrl.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : '';
+                
+                html += \`
+                  <div class="gallery-item" 
+                       data-image-url="\${escapedUrl}" 
+                       data-product-id="\${productId}" 
+                       style="border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden; cursor: pointer; transition: all 0.2s; background: white;">
+                    <div style="width: 100%; aspect-ratio: 1; overflow: hidden; background: #f3f4f6;">
+                      <img src="\${escapedUrl}" alt="Product image" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.onerror=null; this.style.display='none';">
+                    </div>
+                    <div style="padding: 12px; font-size: 12px; color: #6b7280;">
+                      <div style="font-weight: 600; margin-bottom: 4px; color: #374151;">Используется в:</div>
+                      <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="\${productTitles.replace(/"/g, '&quot;')}">\${productCount} товар(ов)</div>
+                    </div>
+                  </div>
+                \`;
+              });
+              
+              galleryContent.innerHTML = html;
+              
+              const newHandler = function(e) {
+                const target = e.target;
+                const galleryItem = target.closest('.gallery-item');
+                if (galleryItem) {
+                  const imageUrl = galleryItem.dataset.imageUrl;
+                  const currentProductId = galleryItem.dataset.productId || galleryContent.dataset.currentProductId;
+                  if (imageUrl && currentProductId && window.selectGalleryImage) {
+                    console.log('Selecting image:', imageUrl, 'for product:', currentProductId);
+                    window.selectGalleryImage(imageUrl, currentProductId);
+                  }
+                }
+              };
+              
+              galleryContent.removeEventListener('click', newHandler);
+              galleryContent.addEventListener('click', newHandler);
+              
+              const galleryItems = galleryContent.querySelectorAll('.gallery-item');
+              galleryItems.forEach((item) => {
+                item.addEventListener('mouseenter', function() {
+                  this.style.borderColor = '#6366f1';
+                  this.style.transform = 'translateY(-4px)';
+                  this.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.2)';
+                });
+                item.addEventListener('mouseleave', function() {
+                  this.style.borderColor = '#e2e8f0';
+                  this.style.transform = 'translateY(0)';
+                  this.style.boxShadow = 'none';
+                });
+              });
+            } catch (error) {
+              console.error('Error loading gallery images:', error);
+              galleryContent.innerHTML = \`
+                <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #dc3545;">
+                  <p style="font-size: 18px; margin-bottom: 8px;">❌ Ошибка загрузки изображений</p>
+                  <p style="font-size: 14px;">\${error instanceof Error ? error.message : 'Попробуйте обновить страницу'}</p>
+                </div>
+              \`;
+            }
+          };
           
           const filterButtons = document.querySelectorAll('.filter-btn');
           const cards = document.querySelectorAll('.product-card');
@@ -6250,6 +6248,39 @@ router.get('/products', requireAdmin, async (req, res) => {
           // Image Gallery Functions - все функции уже определены в начале скрипта в IIFE
           // openImageGallery, loadGalleryImages, selectGalleryImage, closeImageGallery
           // доступны глобально через window.*
+          
+          // Event delegation для кнопки "Выбрать из загруженных" - работает сразу, без DOMContentLoaded
+          (function() {
+            // Устанавливаем обработчик сразу, но он сработает только после загрузки DOM
+            function initEventDelegation() {
+              document.addEventListener('click', function(event) {
+                const target = event.target;
+                const button = target.closest('.select-image-btn');
+                if (button) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const productId = button.getAttribute('data-product-id');
+                  if (productId && typeof window.openImageGallery === 'function') {
+                    window.openImageGallery(productId);
+                  } else {
+                    console.error('❌ Product ID not found or openImageGallery not defined:', { 
+                      productId, 
+                      hasFunction: typeof window.openImageGallery,
+                      openImageGallery: window.openImageGallery
+                    });
+                    alert('Ошибка: функция выбора изображения не доступна. Пожалуйста, обновите страницу.');
+                  }
+                }
+              });
+            }
+            
+            // Инициализируем сразу, если DOM уже загружен
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', initEventDelegation);
+            } else {
+              initEventDelegation();
+            }
+          })();
         </script>
       </body>
       </html>

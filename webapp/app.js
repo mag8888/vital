@@ -905,22 +905,62 @@ async function loadProductsOnMainPage() {
         const products = await response.json();
         console.log(`✅ Loaded ${products?.length || 0} products`);
         
-        const scrollWrapper = container.querySelector('.products-scroll-wrapper');
-        const horizontalContainer = scrollWrapper ? scrollWrapper.querySelector('.products-horizontal') : null;
-        
-        if (!horizontalContainer) {
-            console.error('❌ Horizontal container not found');
-            return;
-        }
-        
         if (products && Array.isArray(products) && products.length > 0) {
-            let html = '';
+            // Группируем товары по категориям
+            const productsByCategory = {};
             products.forEach(product => {
-                html += renderProductCardHorizontal(product);
+                const categoryName = product.category?.name || 'Без категории';
+                const categoryId = product.category?.id || 'uncategorized';
+                
+                if (!productsByCategory[categoryId]) {
+                    productsByCategory[categoryId] = {
+                        name: categoryName,
+                        products: []
+                    };
+                }
+                productsByCategory[categoryId].products.push(product);
             });
-            horizontalContainer.innerHTML = html;
+            
+            // Определяем порядок категорий: Косметика, Живая вода, Практики, остальные
+            const categoryOrder = ['Косметика', 'Живая вода', 'Практики'];
+            const sortedCategories = Object.keys(productsByCategory).sort((a, b) => {
+                const nameA = productsByCategory[a].name;
+                const nameB = productsByCategory[b].name;
+                const indexA = categoryOrder.indexOf(nameA);
+                const indexB = categoryOrder.indexOf(nameB);
+                
+                if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+                if (indexA !== -1) return -1;
+                if (indexB !== -1) return 1;
+                return nameA.localeCompare(nameB);
+            });
+            
+            let html = '';
+            sortedCategories.forEach(categoryId => {
+                const category = productsByCategory[categoryId];
+                html += `
+                    <div class="products-scroll-container">
+                        <div class="section-header-inline">
+                            <h2 class="section-title-inline">${escapeHtml(category.name)}</h2>
+                        </div>
+                        <div class="products-scroll-wrapper">
+                            <div class="products-horizontal">
+                `;
+                
+                category.products.forEach(product => {
+                    html += renderProductCardHorizontal(product);
+                });
+                
+                html += `
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
         } else {
-            horizontalContainer.innerHTML = `
+            container.innerHTML = `
                 <div class="empty-state" style="padding: 40px 20px; text-align: center;">
                     <p style="font-size: 18px; margin-bottom: 20px;">📦 Каталог пока пуст</p>
                 </div>
@@ -932,10 +972,8 @@ async function loadProductsOnMainPage() {
         
     } catch (error) {
         console.error('❌ Error loading products:', error);
-        const scrollWrapper = container?.querySelector('.products-scroll-wrapper');
-        const horizontalContainer = scrollWrapper?.querySelector('.products-horizontal');
-        if (horizontalContainer) {
-            horizontalContainer.innerHTML = `
+        if (container) {
+            container.innerHTML = `
                 <div class="error-message" style="padding: 40px 20px; text-align: center;">
                     <p>Ошибка загрузки товаров</p>
                     <button class="btn" onclick="loadProductsOnMainPage()" style="margin-top: 20px;">
@@ -1423,7 +1461,7 @@ async function loadAboutContent() {
     return `
         <div class="content-section">
             <h3>О нас</h3>
-            <p>Добро пожаловать в магазин полезных продуктов Vital!</p>
+            <p>Добро пожаловать в Портал здоровья и молодости Vital!</p>
             <p>🛍️ Мы предлагаем широкий ассортимент качественных товаров для здоровья, красоты и благополучия.</p>
             
             <div style="margin: 20px 0;">

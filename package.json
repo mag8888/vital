@@ -35,7 +35,8 @@
     "import-invoice-images-now": "npm run build && node scripts/import-invoice-images-now.js",
     "test-scrape": "ts-node --esm scripts/test-scrape-shop.ts",
     "upload-image": "node scripts/upload-product-image.js",
-    "upload-all-images": "node scripts/upload-all-product-images.js"
+    "upload-all-images": "node scripts/upload-all-product-images.js",
+    "add-praktiki-category": "ts-node --esm scripts/add-praktiki-category.ts"
   },
   "dependencies": {
     "@adminjs/express": "^6.1.1",
