@@ -1479,8 +1479,9 @@ router.post('/api/plazma/orders', async (req, res) => {
     const data = await response.json();
 
     // Also create order request in our database for tracking
+    let order = null;
     try {
-      await createOrderRequest({
+      order = await createOrderRequest({
         userId: user?.id || '',
         contact: contact,
         items: [{
@@ -1491,14 +1492,92 @@ router.post('/api/plazma/orders', async (req, res) => {
         }],
         message: `Заказ товара "${productTitle}" из Plazma через Vital магазин. Order ID: ${data.data?.orderId || 'N/A'}`
       });
+      console.log('✅ Order saved to VITAL database:', order?.id);
     } catch (dbError) {
       console.warn('⚠️ Failed to save order to local database:', dbError);
       // Continue anyway - the order was created in Plazma
     }
 
+    // Send notification to admin about Plazma order
+    try {
+      const { getBotInstance } = await import('../lib/bot-instance.js');
+      const { getAdminChatIds } = await import('../config/env.js');
+      const bot = await getBotInstance();
+      
+      if (bot && user) {
+        const adminIds = getAdminChatIds();
+        const totalPrice = price * quantity;
+        const plazmaOrderId = data.data?.orderId || 'N/A';
+        
+        // Format order message
+        let contactInfo = '';
+        if (user.phone) {
+          contactInfo += `📱 Телефон: ${user.phone}\n`;
+        }
+        if (user.deliveryAddress) {
+          contactInfo += `📍 Адрес доставки: ${user.deliveryAddress}\n`;
+        }
+        if (telegramUser.username) {
+          contactInfo += `👤 Telegram: @${telegramUser.username}\n`;
+        }
+        contactInfo += `🆔 User ID: ${user.id}\n`;
+        contactInfo += `🆔 Telegram ID: ${telegramUser.id}`;
+        
+        const orderMessage = 
+          '🛍️ <b>Новый заказ Plazma от пользователя</b>\n\n' +
+          `👤 <b>Пользователь:</b> ${user.firstName || ''} ${user.lastName || ''}\n` +
+          `${contactInfo}\n\n` +
+          `📦 <b>Товар:</b> ${productTitle}\n` +
+          `📊 <b>Количество:</b> ${quantity} шт.\n` +
+          `💰 <b>Цена:</b> ${price.toFixed(2)} PZ × ${quantity} = ${totalPrice.toFixed(2)} PZ\n\n` +
+          `🔗 <b>Plazma Order ID:</b> <code>${plazmaOrderId}</code>\n` +
+          (order ? `🆔 <b>VITAL Order ID:</b> <code>${order.id}</code>\n` : '') +
+          `📅 <b>Дата:</b> ${new Date().toLocaleString('ru-RU')}\n\n` +
+          `ℹ️ <i>Заказ отправлен в Plazma API и сохранен в базе VITAL</i>`;
+        
+        // Send to all admins
+        for (const adminId of adminIds) {
+          try {
+            await bot.telegram.sendMessage(adminId, orderMessage, {
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    {
+                      text: '💬 Написать пользователю',
+                      url: telegramUser.username 
+                        ? `https://t.me/${telegramUser.username}` 
+                        : `tg://user?id=${telegramUser.id}`
+                    },
+                    {
+                      text: '🤖 Писать через бот',
+                      callback_data: `admin_reply:${telegramUser.id}:${user.firstName || 'Пользователь'}`
+                    }
+                  ],
+                  ...(order ? [[
+                    {
+                      text: '📋 Просмотреть в админ-панели VITAL',
+                      url: `${env.webappUrl || 'https://vital-production-82b0.up.railway.app'}/admin/resources/order-requests/${order.id}`
+                    }
+                  ]] : [])
+                ]
+              }
+            });
+            console.log(`✅ Plazma order notification sent to admin: ${adminId}`);
+          } catch (error: any) {
+            console.error(`❌ Failed to send Plazma order notification to admin ${adminId}:`, error?.message || error);
+          }
+        }
+      }
+    } catch (notificationError) {
+      console.error('❌ Error sending Plazma order notification to admins:', notificationError);
+      // Don't fail the order creation if notification fails
+    }
+
     res.json({ 
       success: true, 
       orderId: data.data?.orderId,
+      vitalOrderId: order?.id,
       message: 'Заказ успешно создан! Администратор свяжется с вами.'
     });
   } catch (error: any) {
