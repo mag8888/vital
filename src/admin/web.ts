@@ -2064,28 +2064,28 @@ router.get('/', requireAdmin, async (req, res) => {
           window.showInstruction = function(productId, instructionText) {
             const modal = document.createElement('div');
             modal.className = 'instruction-modal';
-            modal.innerHTML = \`
-              <div class="instruction-overlay" onclick="closeInstruction()">
-                <div class="instruction-content" onclick="event.stopPropagation()">
-                  <div class="instruction-header">
-                    <h3>📋 Инструкция по применению</h3>
-                    <button class="btn-close" onclick="closeInstruction()">×</button>
-                  </div>
-                  <div class="instruction-body">
-                    <div class="instruction-text" id="instructionText" style="display: none;">\${instructionText.replace(/\\n/g, '<br>')}</div>
-                    <div class="instruction-edit" id="instructionEdit" style="display: block;">
-                      <textarea id="instructionTextarea" placeholder="Введите инструкцию по применению товара..." style="width: 100%; height: 200px; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical;">\${instructionText}</textarea>
-                    </div>
-                  </div>
-                  <div class="instruction-footer">
-                    <button class="btn btn-save" onclick="saveInstruction('\${productId}')" style="background: #28a745; margin-right: 8px;">💾 Сохранить</button>
-                    <button class="btn btn-cancel" onclick="cancelInstruction()" style="background: #6c757d; margin-right: 8px;">❌ Отмена</button>
-                    <button class="btn btn-delete" onclick="deleteInstruction('\${productId}')" style="background: #dc3545; margin-right: 8px;">🗑️ Удалить</button>
-                    <button class="btn btn-secondary" onclick="closeInstruction()">Закрыть</button>
-                  </div>
-                </div>
-              </div>
-            \`;
+            const escapedInstructionText = (instructionText || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/\\/g, '\\\\');
+            const formattedInstructionText = (instructionText || '').replace(/\\n/g, '<br>').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            modal.innerHTML = '<div class="instruction-overlay" onclick="closeInstruction()">' +
+              '<div class="instruction-content" onclick="event.stopPropagation()">' +
+              '<div class="instruction-header">' +
+              '<h3>📋 Инструкция по применению</h3>' +
+              '<button class="btn-close" onclick="closeInstruction()">×</button>' +
+              '</div>' +
+              '<div class="instruction-body">' +
+              '<div class="instruction-text" id="instructionText" style="display: none;">' + formattedInstructionText + '</div>' +
+              '<div class="instruction-edit" id="instructionEdit" style="display: block;">' +
+              '<textarea id="instructionTextarea" placeholder="Введите инструкцию по применению товара..." style="width: 100%; height: 200px; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical;">' + escapedInstructionText + '</textarea>' +
+              '</div>' +
+              '</div>' +
+              '<div class="instruction-footer">' +
+              '<button class="btn btn-save" onclick="saveInstruction(' + "'" + productId + "'" + ')" style="background: #28a745; margin-right: 8px;">💾 Сохранить</button>' +
+              '<button class="btn btn-cancel" onclick="cancelInstruction()" style="background: #6c757d; margin-right: 8px;">❌ Отмена</button>' +
+              '<button class="btn btn-delete" onclick="deleteInstruction(' + "'" + productId + "'" + ')" style="background: #dc3545; margin-right: 8px;">🗑️ Удалить</button>' +
+              '<button class="btn btn-secondary" onclick="closeInstruction()">Закрыть</button>' +
+              '</div>' +
+              '</div>' +
+              '</div>';
             
             document.body.appendChild(modal);
             
@@ -6208,7 +6208,7 @@ router.get('/products', requireAdmin, async (req, res) => {
               if (window.showInstruction && typeof window.showInstruction === 'function') {
                 window.showInstruction(productId, decodedText);
               } else {
-                alert('Инструкция:\n\n' + (decodedText || 'Инструкция не добавлена'));
+                alert('Инструкция:\\n\\n' + (decodedText || 'Инструкция не добавлена'));
               }
             } catch (error) {
               console.error('Error showing instruction:', error);
