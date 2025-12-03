@@ -6019,20 +6019,7 @@ router.get('/products', requireAdmin, async (req, res) => {
             modal.style.alignItems = 'center';
             modal.style.justifyContent = 'center';
             
-            modal.innerHTML = \`
-              <div class="modal-content" style="max-width: 90vw; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
-                <div class="modal-header" style="padding: 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px 12px 0 0;">
-                  <h2 style="margin: 0; font-size: 20px; font-weight: 600; color: white;">🖼️ Выбрать изображение из загруженных</h2>
-                  <button class="close-btn" style="background: rgba(255,255,255,0.2); border: none; font-size: 24px; cursor: pointer; color: white; padding: 0; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center;">&times;</button>
-                </div>
-                <div id="galleryContent" style="padding: 20px; overflow-y: auto; flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;">
-                  <div style="grid-column: 1 / -1; text-align: center; padding: 40px;">
-                    <div class="loading-spinner" style="width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px;"></div>
-                    <p style="color: #6b7280;">Загрузка изображений...</p>
-                  </div>
-                </div>
-              </div>
-            \`;
+            modal.innerHTML = '<div class="modal-content" style="max-width: 90vw; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);"><div class="modal-header" style="padding: 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px 12px 0 0;"><h2 style="margin: 0; font-size: 20px; font-weight: 600; color: white;">🖼️ Выбрать изображение из загруженных</h2><button class="close-btn" style="background: rgba(255,255,255,0.2); border: none; font-size: 24px; cursor: pointer; color: white; padding: 0; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center;">&times;</button></div><div id="galleryContent" style="padding: 20px; overflow-y: auto; flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;"><div style="grid-column: 1 / -1; text-align: center; padding: 40px;"><div class="loading-spinner" style="width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px;"></div><p style="color: #6b7280;">Загрузка изображений...</p></div></div></div>';
             
             document.body.appendChild(modal);
             console.log('✅ Modal added to DOM');
