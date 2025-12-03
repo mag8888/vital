@@ -5719,21 +5719,28 @@ router.get('/products', requireAdmin, async (req, res) => {
     // Улучшенная функция экранирования для HTML атрибутов
     const escapeAttr = (str: string | null | undefined): string => {
       if (!str) return '';
-      return String(str)
+      // Сначала удаляем все проблемные символы и управляющие символы
+      let result = String(str)
+        .replace(/[\x00-\x1F\x7F-\u009F]/g, '') // Удаляем управляющие символы и null байты
+        .replace(/\u2028/g, ' ') // Удаляем line separator
+        .replace(/\u2029/g, ' ') // Удаляем paragraph separator
+        .replace(/\r?\n/g, ' ') // Заменяем переносы строк на пробелы
+        .replace(/\r/g, ' ') // Заменяем возврат каретки
+        .replace(/\t/g, ' '); // Заменяем табуляцию
+      
+      // Затем экранируем специальные символы HTML
+      result = result
         .replace(/&/g, '&amp;') // Must be first - экранируем амперсанды
         .replace(/</g, '&lt;') // Экранируем угловые скобки
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;') // Экранируем двойные кавычки
         .replace(/'/g, '&#39;') // Экранируем одинарные кавычки
-        .replace(/`/g, '&#96;') // Экранируем обратные кавычки
-        .replace(/\r?\n/g, ' ') // Заменяем переносы строк на пробелы
-        .replace(/\r/g, ' ') // Заменяем возврат каретки
-        .replace(/\t/g, ' ') // Заменяем табуляцию
-        .replace(/\x00/g, '') // Удаляем null байты
-        .replace(/\\/g, '\\\\') // Экранируем обратные слеши
-        .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Удаляем управляющие символы
-        .replace(/\u2028/g, ' ') // Удаляем line separator
-        .replace(/\u2029/g, ' '); // Удаляем paragraph separator
+        .replace(/`/g, '&#96;'); // Экранируем обратные кавычки
+      
+      // Обратные слеши не нужно экранировать для HTML атрибутов
+      // Они экранируются только в JavaScript строках
+      
+      return result;
     };
     
     // Helper function to escape HTML content safely
@@ -5812,7 +5819,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 <button type="button" class="image-btn" data-image-input-id="image-${escapeAttr(product.id)}">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</button>
               </form>
               <button type="button" class="image-btn select-image-btn" style="background: #6366f1;" data-product-id="${escapeAttr(product.id)}">🖼️ Выбрать из загруженных</button>
-              <button type="button" class="instruction-btn" data-instruction-id="${escapeAttr(product.id)}" data-instruction-text="${escapeAttr(String((product as any).instruction || '').replace(/[\r\n\t]/g, ' ').replace(/[\x00-\x1F\x7F]/g, ''))}">📋 Инструкция</button>
+              <button type="button" class="instruction-btn" data-instruction-id="${escapeAttr(product.id)}" data-instruction-text="${escapeAttr((product as any).instruction || '')}">📋 Инструкция</button>
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/delete" class="delete-product-form" data-product-id="${escapeAttr(product.id)}">
                 <button type="submit" class="delete-btn">Удалить</button>
               </form>
@@ -6322,18 +6329,17 @@ router.get('/products', requireAdmin, async (req, res) => {
             const modal = document.createElement('div');
             modal.className = 'instruction-modal';
             const newlineRegex = new RegExp('\\n', 'g');
-            const singleQuoteRegex = new RegExp("'", 'g');
-            const doubleQuoteRegex = new RegExp('"', 'g');
-            const escapedInstruction = (instructionText || '').replace(newlineRegex, '<br>').replace(singleQuoteRegex, '&#39;').replace(doubleQuoteRegex, '&quot;');
-            const escapedProductId = String(productId || '').replace(singleQuoteRegex, '&#39;').replace(doubleQuoteRegex, '&quot;').replace(/\\/g, '\\\\');
-            const instructionForTextarea = (instructionText || '').replace(singleQuoteRegex, '&#39;').replace(doubleQuoteRegex, '&quot;').replace(/\\/g, '\\\\');
+            const escapedInstruction = (instructionText || '').replace(newlineRegex, '<br>').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const instructionForTextarea = (instructionText || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            const safeProductId = String(productId || '').replace(/[^a-zA-Z0-9-_]/g, '');
+            
             // Разбиваем длинную innerHTML строку на части для предотвращения SyntaxError
             modal.innerHTML = 
-              '<div class="instruction-overlay" onclick="closeInstruction()">' +
-                '<div class="instruction-content" onclick="event.stopPropagation()">' +
+              '<div class="instruction-overlay" data-close-instruction="true">' +
+                '<div class="instruction-content">' +
                   '<div class="instruction-header">' +
                     '<h3>📋 Инструкция по применению</h3>' +
-                    '<button class="btn-close" onclick="closeInstruction()">×</button>' +
+                    '<button class="btn-close" data-close-instruction="true">×</button>' +
                   '</div>' +
                   '<div class="instruction-body">' +
                     '<div class="instruction-text" id="instructionText" style="display: none;">' + escapedInstruction + '</div>' +
@@ -6342,13 +6348,61 @@ router.get('/products', requireAdmin, async (req, res) => {
                     '</div>' +
                   '</div>' +
                   '<div class="instruction-footer">' +
-                    '<button class="btn btn-save" onclick="saveInstruction(\'' + escapedProductId + '\')" style="background: #28a745; margin-right: 8px;">💾 Сохранить</button>' +
-                    '<button class="btn btn-cancel" onclick="cancelInstruction()" style="background: #6c757d; margin-right: 8px;">❌ Отмена</button>' +
-                    '<button class="btn btn-delete" onclick="deleteInstruction(\'' + escapedProductId + '\')" style="background: #dc3545; margin-right: 8px;">🗑️ Удалить</button>' +
-                    '<button class="btn btn-secondary" onclick="closeInstruction()">Закрыть</button>' +
+                    '<button class="btn btn-save" data-save-instruction data-product-id="' + safeProductId + '" style="background: #28a745; margin-right: 8px;">💾 Сохранить</button>' +
+                    '<button class="btn btn-cancel" data-cancel-instruction style="background: #6c757d; margin-right: 8px;">❌ Отмена</button>' +
+                    '<button class="btn btn-delete" data-delete-instruction data-product-id="' + safeProductId + '" style="background: #dc3545; margin-right: 8px;">🗑️ Удалить</button>' +
+                    '<button class="btn btn-secondary" data-close-instruction="true">Закрыть</button>' +
                   '</div>' +
                 '</div>' +
               '</div>';
+            
+            // Добавляем обработчики событий через addEventListener
+            const overlay = modal.querySelector('.instruction-overlay');
+            if (overlay) {
+              overlay.addEventListener('click', function(e) {
+                if (e.target === overlay || e.target.getAttribute('data-close-instruction') === 'true') {
+                  if (typeof window.closeInstruction === 'function') {
+                    window.closeInstruction();
+                  }
+                }
+              });
+            }
+            
+            const content = modal.querySelector('.instruction-content');
+            if (content) {
+              content.addEventListener('click', function(e) {
+                e.stopPropagation();
+              });
+            }
+            
+            const saveBtn = modal.querySelector('[data-save-instruction]');
+            if (saveBtn) {
+              saveBtn.addEventListener('click', function() {
+                const productId = this.getAttribute('data-product-id');
+                if (productId && typeof window.saveInstruction === 'function') {
+                  window.saveInstruction(productId);
+                }
+              });
+            }
+            
+            const deleteBtn = modal.querySelector('[data-delete-instruction]');
+            if (deleteBtn) {
+              deleteBtn.addEventListener('click', function() {
+                const productId = this.getAttribute('data-product-id');
+                if (productId && typeof window.deleteInstruction === 'function') {
+                  window.deleteInstruction(productId);
+                }
+              });
+            }
+            
+            const cancelBtn = modal.querySelector('[data-cancel-instruction]');
+            if (cancelBtn) {
+              cancelBtn.addEventListener('click', function() {
+                if (typeof window.cancelInstruction === 'function') {
+                  window.cancelInstruction();
+                }
+              });
+            }
             
             document.body.appendChild(modal);
             
