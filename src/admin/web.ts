@@ -5606,6 +5606,50 @@ router.post('/products/:id/delete', requireAdmin, async (req, res) => {
   }
 });
 
+// Upload product image
+router.post('/products/:id/upload-image', requireAdmin, upload.single('image'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const product = await prisma.product.findUnique({ where: { id } });
+    
+    if (!product) {
+      const fallback = req.get('referer') || '/admin/products';
+      return res.redirect(`${fallback}?error=product_not_found`);
+    }
+
+    if (!req.file) {
+      const fallback = req.get('referer') || '/admin/products';
+      return res.redirect(`${fallback}?error=no_image`);
+    }
+
+    // Upload to Cloudinary
+    const result = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        { resource_type: 'auto', folder: 'plazma-bot/products' },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      ).end(req.file!.buffer);
+    });
+
+    const imageUrl = (result as any).secure_url;
+
+    // Update product with new image
+    await prisma.product.update({
+      where: { id },
+      data: { imageUrl }
+    });
+
+    const redirectUrl = req.get('referer') || '/admin/products';
+    res.redirect(`${redirectUrl}?success=image_updated`);
+  } catch (error) {
+    console.error('Image upload error:', error);
+    const fallback = req.get('referer') || '/admin/products';
+    res.redirect(`${fallback}?error=image_upload`);
+  }
+});
+
 // Update product
 router.post('/products/:productId/update', requireAdmin, upload.single('image'), async (req, res) => {
   try {
