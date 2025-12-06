@@ -4918,9 +4918,11 @@ router.get('/products', requireAdmin, async (req, res) => {
         <a href="/admin" class="btn">← Назад</a>
         
         ${req.query.success === 'image_updated' ? '<div class="alert alert-success">✅ Фото успешно обновлено!</div>' : ''}
+        ${req.query.success === 'product_deleted' ? '<div class="alert alert-success">✅ Товар успешно удален!</div>' : ''}
         ${req.query.error === 'no_image' ? '<div class="alert alert-error">❌ Файл не выбран</div>' : ''}
         ${req.query.error === 'image_upload' ? '<div class="alert alert-error">❌ Ошибка загрузки фото</div>' : ''}
         ${req.query.error === 'product_not_found' ? '<div class="alert alert-error">❌ Товар не найден</div>' : ''}
+        ${req.query.error === 'product_delete_failed' ? '<div class="alert alert-error">❌ Ошибка удаления товара</div>' : ''}
 
         <div class="filters">
           <button type="button" class="filter-btn active" data-filter="all">Все категории (${allProducts.length})</button>
@@ -5432,6 +5434,27 @@ router.post('/products/:id/toggle-active', requireAdmin, async (req, res) => {
         console.error('Product toggle error:', error);
         const fallback = req.get('referer') || '/admin/products';
         res.redirect(`${fallback}?error=product_toggle`);
+    }
+});
+// Delete product
+router.post('/products/:id/delete', requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const product = await prisma.product.findUnique({ where: { id } });
+        if (!product) {
+            const fallback = req.get('referer') || '/admin/products';
+            return res.redirect(`${fallback}?error=product_not_found`);
+        }
+        await prisma.product.delete({
+            where: { id }
+        });
+        const redirectUrl = req.get('referer') || '/admin/products';
+        res.redirect(`${redirectUrl}?success=product_deleted`);
+    }
+    catch (error) {
+        console.error('Product delete error:', error);
+        const fallback = req.get('referer') || '/admin/products';
+        res.redirect(`${fallback}?error=product_delete_failed`);
     }
 });
 // Update product
