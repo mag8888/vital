@@ -46,7 +46,6 @@ jspm_packages/
 # dotenv environment variables file
 .env
 .env.test
-.env.local
 .env.production
 
 # parcel-bundler cache
@@ -70,6 +69,9 @@ jspm_packages/
 
 # DynamoDB Local files
 .dynamodb/
+
+# TernJS port file
+.tern-port
 
 # OS generated files
 .DS_Store
