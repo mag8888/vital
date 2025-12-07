@@ -197,6 +197,20 @@ model AudioFile {
   updatedAt   DateTime @updatedAt
 }
 
+model MediaFile {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String?
+  url         String   // Cloudinary URL
+  type        String   // 'photo' or 'video'
+  fileSize    Int?     // File size in bytes
+  mimeType    String?
+  isActive    Boolean  @default(true)
+  category    String?  // For grouping (e.g., "welcome", "promo", etc.)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model BotContent {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   key         String   @unique // Уникальный ключ для контента (например: "welcome_message", "about_text")

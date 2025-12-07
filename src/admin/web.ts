@@ -5,6 +5,7 @@ import { v2 as cloudinary } from 'cloudinary';
 import { prisma } from '../lib/prisma.js';
 import { recalculatePartnerBonuses, activatePartnerProfile, checkPartnerActivation, calculateDualSystemBonuses } from '../services/partner-service.js';
 import { ordersModule } from './orders-module.js';
+import { env } from '../config/env.js';
 
 // Configure Cloudinary
 cloudinary.config({
@@ -18,7 +19,7 @@ const router = express.Router();
 // Configure multer for file uploads
 const upload = multer({ 
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit for videos
 });
 
 // Middleware to check admin access
@@ -875,10 +876,12 @@ router.get('/', requireAdmin, async (req, res) => {
                 <a href="/admin/products" class="btn">🛍️ Товары</a>
                 <a href="/admin/reviews" class="btn">⭐ Отзывы</a>
                 <a href="/admin/orders" class="btn">📦 Заказы</a>
+                <a href="/admin/media" class="btn">📸🎥 Медиа</a>
+                <a href="/admin/audio" class="btn">🎵 Аудио</a>
                 <button class="btn" onclick="openAddProductModal()" style="background: #28a745;">➕ Добавить товар</button>
               </div>
             </div>
-            <p>Управление каталогом товаров, отзывами и заказами.</p>
+            <p>Управление каталогом товаров, отзывами, заказами, медиафайлами и аудио.</p>
           </div>
           
           <!-- Tools Tab -->
@@ -3385,21 +3388,57 @@ router.post('/send-messages', requireAdmin, async (req, res) => {
         
         // Send message via Telegram bot
         try {
-          // Экранируем Markdown символы
-          const escapeMarkdown = (text: string) => {
-            return text.replace(/([_*\[\]()~`>#+=|{}.!-])/g, '\\$1');
+          // Поддержка HTML ссылок в тексте
+          // Экранируем HTML символы для безопасной отправки (кроме уже существующих ссылок)
+          const escapeHtmlForTelegram = (text: string): string => {
+            // Если текст уже содержит HTML ссылки, обрабатываем их отдельно
+            if (text.includes('<a href=')) {
+              // Разделяем текст на части: ссылки и обычный текст
+              const parts = text.split(/(<a href="[^"]*">[^<]*<\/a>)/g);
+              return parts.map(part => {
+                if (part.match(/^<a href=/)) {
+                  return part; // Это ссылка, оставляем как есть
+                }
+                // Экранируем HTML символы в обычном тексте
+                return part
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;');
+              }).join('');
+            }
+            // Если нет HTML ссылок, просто экранируем весь текст
+            return text
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;');
           };
           
-          const escapedMessageText = escapeMarkdown(messageText);
+          const processedText = escapeHtmlForTelegram(messageText);
           
           try {
-            await bot.telegram.sendMessage(user.telegramId, escapedMessageText, {
-              parse_mode: 'Markdown'
+            // Пробуем отправить с HTML форматированием
+            await bot.telegram.sendMessage(user.telegramId, processedText, {
+              parse_mode: 'HTML'
             });
-          } catch (markdownError) {
-            console.log(`⚠️ Markdown отправка не удалась, пробуем без Markdown: ${markdownError instanceof Error ? markdownError.message : String(markdownError)}`);
-            // Если Markdown не работает, отправляем без форматирования
-            await bot.telegram.sendMessage(user.telegramId, messageText);
+          } catch (htmlError) {
+            console.log(`⚠️ HTML отправка не удалась, пробуем Markdown: ${htmlError instanceof Error ? htmlError.message : String(htmlError)}`);
+            // Экранируем Markdown символы
+            const escapeMarkdown = (text: string) => {
+              return text.replace(/([_*\[\]()~`>#+=|{}.!-])/g, '\\$1');
+            };
+            const escapedMessageText = escapeMarkdown(messageText);
+            try {
+              await bot.telegram.sendMessage(user.telegramId, escapedMessageText, {
+                parse_mode: 'Markdown'
+              });
+            } catch (markdownError) {
+              console.log(`⚠️ Markdown отправка не удалась, отправляем без форматирования: ${markdownError instanceof Error ? markdownError.message : String(markdownError)}`);
+              // Если Markdown не работает, отправляем без форматирования
+              // Telegram автоматически сделает ссылки из URL
+              await bot.telegram.sendMessage(user.telegramId, messageText);
+            }
           }
           
           // Add buttons if requested
@@ -5090,10 +5129,15 @@ router.get('/products', requireAdmin, async (req, res) => {
       `;
       return res.send(html);
     }
+    // Prepare webapp URL for product links
+    const baseUrl = env.webappUrl || env.publicBaseUrl || 'https://plazma-production.up.railway.app';
+    const webappBaseUrl = baseUrl.endsWith('/webapp') ? baseUrl : `${baseUrl}/webapp`;
+
     allProducts.forEach((product) => {
       const rubPrice = (product.price * 100).toFixed(2);
       const priceFormatted = `${rubPrice} ₽ / ${product.price.toFixed(2)} PZ`;
       const createdAt = new Date(product.createdAt).toLocaleDateString();
+      const productUrl = `${webappBaseUrl}?product=${product.id}`;
       const imageSection = product.imageUrl
         ? `<img src="${product.imageUrl}" alt="${product.title}" class="product-image" loading="lazy">`
         : `<div class="product-image-placeholder">
@@ -5149,6 +5193,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 <button type="button" class="image-btn" onclick="document.getElementById('image-${product.id}').click()">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</button>
               </form>
               <button class="instruction-btn" onclick="showInstruction('${product.id}', \`${((product as any).instruction || '').replace(/`/g, '\\`').replace(/'/g, "\\'")}\`)" style="background: #28a745;">📋 Инструкция</button>
+              <a href="${productUrl}" target="_blank" class="order-btn" style="display: inline-block; padding: 8px 16px; background: #007bff; color: white; text-decoration: none; border-radius: 6px; font-size: 14px; margin: 4px;">🛒 Заказать</a>
               <form method="post" action="/admin/products/${product.id}/delete" onsubmit="return confirm('Удалить товар «${product.title}»?')">
                 <button type="submit" class="delete-btn">Удалить</button>
               </form>
@@ -10127,6 +10172,298 @@ router.post('/products/:productId/save-instruction', requireAdmin, async (req, r
   } catch (error) {
     console.error('Save instruction error:', error);
     res.status(500).json({ success: false, error: 'Ошибка сохранения инструкции' });
+  }
+});
+
+// Media files management routes
+router.get('/media', requireAdmin, async (req, res) => {
+  try {
+    const mediaFiles = await prisma.mediaFile.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const mediaFilesHtml = mediaFiles.map(file => `
+      <div class="media-file-card">
+        <div class="media-file-header">
+          <h3>${file.type === 'photo' ? '📷' : '🎥'} ${file.title}</h3>
+          <div class="media-file-status ${file.isActive ? 'active' : 'inactive'}">
+            ${file.isActive ? '✅ Активен' : '❌ Неактивен'}
+          </div>
+        </div>
+        <div class="media-file-preview">
+          ${file.type === 'photo' 
+            ? `<img src="${file.url}" alt="${file.title}" class="media-preview-image">`
+            : `<video src="${file.url}" controls class="media-preview-video"></video>`
+          }
+        </div>
+        <div class="media-file-info">
+          <p><strong>Описание:</strong> ${file.description || 'Не указано'}</p>
+          <p><strong>Тип:</strong> ${file.type === 'photo' ? 'Фото' : 'Видео'}</p>
+          <p><strong>Категория:</strong> ${file.category || 'Не указана'}</p>
+          <p><strong>Размер:</strong> ${file.fileSize ? Math.round(file.fileSize / 1024) + ' KB' : 'Неизвестно'}</p>
+          <p><strong>URL:</strong> <a href="${file.url}" target="_blank">${file.url.substring(0, 50)}...</a></p>
+          <p><strong>Загружен:</strong> ${file.createdAt.toLocaleDateString('ru-RU')}</p>
+        </div>
+        <div class="media-file-actions">
+          <button onclick="toggleMediaStatus('${file.id}')" class="toggle-btn ${file.isActive ? 'deactivate' : 'activate'}">
+            ${file.isActive ? '❌ Деактивировать' : '✅ Активировать'}
+          </button>
+          <button onclick="deleteMediaFile('${file.id}')" class="delete-btn">🗑️ Удалить</button>
+        </div>
+      </div>
+    `).join('');
+
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Управление медиафайлами - Plazma Bot Admin Panel</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+          .header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .upload-section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .upload-form { display: grid; gap: 15px; }
+          .form-group { display: flex; flex-direction: column; }
+          .form-group label { margin-bottom: 5px; font-weight: bold; color: #333; }
+          .form-group input, .form-group textarea, .form-group select { padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+          .form-group textarea { min-height: 80px; resize: vertical; }
+          .upload-btn { padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; }
+          .upload-btn:hover { background: #0056b3; }
+          .media-file-card { background: white; padding: 20px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .media-file-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+          .media-file-header h3 { margin: 0; color: #333; }
+          .media-file-status.active { color: #28a745; font-weight: bold; }
+          .media-file-status.inactive { color: #dc3545; font-weight: bold; }
+          .media-file-preview { margin: 15px 0; text-align: center; }
+          .media-preview-image { max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+          .media-preview-video { max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+          .media-file-info { margin: 15px 0; }
+          .media-file-info p { margin: 5px 0; color: #666; }
+          .media-file-info a { color: #007bff; text-decoration: none; }
+          .media-file-info a:hover { text-decoration: underline; }
+          .media-file-actions { display: flex; gap: 10px; margin-top: 15px; }
+          .toggle-btn, .delete-btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+          .toggle-btn.activate { background: #28a745; color: white; }
+          .toggle-btn.deactivate { background: #ffc107; color: black; }
+          .delete-btn { background: #dc3545; color: white; }
+          .toggle-btn:hover, .delete-btn:hover { opacity: 0.8; }
+          .back-btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; margin-bottom: 20px; }
+          .back-btn:hover { background: #0056b3; }
+          .alert { padding: 12px 16px; margin: 16px 0; border-radius: 8px; font-weight: 500; }
+          .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+          .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        </style>
+      </head>
+      <body>
+        <a href="/admin" class="back-btn">← Назад в админ-панель</a>
+        <div class="header">
+          <h1>📸🎥 Управление медиафайлами</h1>
+          <p>Здесь вы можете загружать и управлять фото и видео для отображения в боте</p>
+        </div>
+        
+        <div class="upload-section">
+          <h2>📤 Загрузить новый файл</h2>
+          <form class="upload-form" action="/admin/media/upload" method="post" enctype="multipart/form-data">
+            <div class="form-group">
+              <label>Тип файла:</label>
+              <select name="type" required>
+                <option value="photo">📷 Фото</option>
+                <option value="video">🎥 Видео</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Название:</label>
+              <input type="text" name="title" required placeholder="Введите название файла">
+            </div>
+            <div class="form-group">
+              <label>Описание (необязательно):</label>
+              <textarea name="description" placeholder="Введите описание файла"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Категория (необязательно):</label>
+              <input type="text" name="category" placeholder="Например: welcome, promo, etc.">
+            </div>
+            <div class="form-group">
+              <label>Файл:</label>
+              <input type="file" name="file" accept="image/*,video/*" required>
+            </div>
+            <button type="submit" class="upload-btn">📤 Загрузить файл</button>
+          </form>
+        </div>
+        
+        ${req.query.success === 'uploaded' ? '<div class="alert alert-success">✅ Файл успешно загружен!</div>' : ''}
+        ${req.query.error === 'upload_failed' ? '<div class="alert alert-error">❌ Ошибка при загрузке файла</div>' : ''}
+        ${req.query.error === 'upload_failed' && req.query.message ? `<div class="alert alert-error">❌ ${req.query.message}</div>` : ''}
+        
+        <div class="header">
+          <h2>📋 Загруженные файлы</h2>
+        </div>
+        ${mediaFilesHtml || '<p>Пока нет загруженных медиафайлов.</p>'}
+        
+        <script>
+          async function toggleMediaStatus(fileId) {
+            if (confirm('Вы уверены, что хотите изменить статус файла?')) {
+              try {
+                const response = await fetch('/admin/media/toggle', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ fileId })
+                });
+                if (response.ok) {
+                  location.reload();
+                } else {
+                  alert('Ошибка при изменении статуса файла');
+                }
+              } catch (error) {
+                alert('Ошибка при изменении статуса файла');
+              }
+            }
+          }
+
+          async function deleteMediaFile(fileId) {
+            if (confirm('Вы уверены, что хотите удалить этот файл? Это действие нельзя отменить.')) {
+              try {
+                const response = await fetch('/admin/media/delete', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ fileId })
+                });
+                if (response.ok) {
+                  location.reload();
+                } else {
+                  alert('Ошибка при удалении файла');
+                }
+              } catch (error) {
+                alert('Ошибка при удалении файла');
+              }
+            }
+          }
+        </script>
+      </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error('Error loading media files:', error);
+    res.status(500).send('Ошибка загрузки медиафайлов');
+  }
+});
+
+// Upload media file
+router.post('/media/upload', requireAdmin, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.redirect('/admin/media?error=upload_failed&message=Файл не выбран');
+    }
+
+    const { title, description, category, type } = req.body;
+
+    if (!title || !type) {
+      return res.redirect('/admin/media?error=upload_failed&message=Заполните все обязательные поля');
+    }
+
+    // Validate file type
+    const isPhoto = type === 'photo';
+    const isVideo = type === 'video';
+    const fileMimeType = req.file.mimetype;
+
+    if (isPhoto && !fileMimeType.startsWith('image/')) {
+      return res.redirect('/admin/media?error=upload_failed&message=Выбранный файл не является изображением');
+    }
+    if (isVideo && !fileMimeType.startsWith('video/')) {
+      return res.redirect('/admin/media?error=upload_failed&message=Выбранный файл не является видео');
+    }
+
+    // Upload to Cloudinary
+    const result = await new Promise((resolve, reject) => {
+      const folder = isPhoto ? 'plazma-bot/photos' : 'plazma-bot/videos';
+      cloudinary.uploader.upload_stream(
+        { 
+          resource_type: isVideo ? 'video' : 'image',
+          folder: folder,
+          allowed_formats: isPhoto ? ['jpg', 'jpeg', 'png', 'gif', 'webp'] : ['mp4', 'mov', 'avi', 'webm']
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      ).end(req.file!.buffer);
+    });
+
+    const mediaUrl = (result as any).secure_url;
+
+    // Save to database
+    await prisma.mediaFile.create({
+      data: {
+        title: title.trim(),
+        description: description?.trim() || null,
+        category: category?.trim() || null,
+        type: type,
+        url: mediaUrl,
+        fileSize: req.file.size,
+        mimeType: req.file.mimetype,
+        isActive: true
+      }
+    });
+
+    res.redirect('/admin/media?success=uploaded');
+  } catch (error) {
+    console.error('Error uploading media file:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
+    res.redirect(`/admin/media?error=upload_failed&message=${encodeURIComponent(errorMessage)}`);
+  }
+});
+
+// Toggle media file status
+router.post('/media/toggle', requireAdmin, async (req, res) => {
+  try {
+    const { fileId } = req.body;
+    
+    const mediaFile = await prisma.mediaFile.findUnique({
+      where: { id: fileId }
+    });
+
+    if (!mediaFile) {
+      return res.status(404).json({ error: 'Медиафайл не найден' });
+    }
+
+    await prisma.mediaFile.update({
+      where: { id: fileId },
+      data: { isActive: !mediaFile.isActive }
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error toggling media file status:', error);
+    res.status(500).json({ error: 'Ошибка изменения статуса файла' });
+  }
+});
+
+// Delete media file
+router.post('/media/delete', requireAdmin, async (req, res) => {
+  try {
+    const { fileId } = req.body;
+    
+    const mediaFile = await prisma.mediaFile.findUnique({
+      where: { id: fileId }
+    });
+
+    if (!mediaFile) {
+      return res.status(404).json({ error: 'Медиафайл не найден' });
+    }
+
+    // Delete from Cloudinary (optional - you might want to keep files in Cloudinary)
+    // For now, we'll just delete from database
+    
+    await prisma.mediaFile.delete({
+      where: { id: fileId }
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting media file:', error);
+    res.status(500).json({ error: 'Ошибка удаления файла' });
   }
 });
 
