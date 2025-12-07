@@ -10463,6 +10463,7 @@ router.post('/media/delete', requireAdmin, async (req, res) => {
 // Database backup endpoint
 router.post('/backup', requireAdmin, async (req, res) => {
   try {
+    // @ts-ignore - скрипт не имеет типов
     const { exportDatabase } = await import('../../scripts/backup-database-railway.js');
     const result = await exportDatabase();
     
