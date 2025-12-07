@@ -14,7 +14,7 @@ import { webappRouter } from './webapp/webapp.js';
 import { externalApiRouter } from './api/external.js';
 import lavaWebhook from './webhooks/lava.js';
 import { setBotInstance } from './lib/bot-instance.js';
-import cron from 'node-cron';
+import * as cron from 'node-cron';
 
 async function bootstrap() {
   try {
