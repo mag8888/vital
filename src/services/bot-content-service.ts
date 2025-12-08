@@ -8,6 +8,8 @@ export interface BotContentData {
   category?: string | null;
   language?: string;
   isActive?: boolean;
+  updatedAt?: Date;
+  createdAt?: Date;
 }
 
 /**

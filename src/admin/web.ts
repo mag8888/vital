@@ -10565,12 +10565,12 @@ router.post('/media/delete', requireAdmin, async (req, res) => {
 // Bot content management page
 router.get('/content', requireAdmin, async (req, res) => {
   try {
-    const { getAllBotContents } = await import('../../services/bot-content-service.js');
+    const { getAllBotContents } = await import('../services/bot-content-service.js');
     const contents = await getAllBotContents();
     
     // Group by category
     const contentsByCategory: Record<string, typeof contents> = {};
-    contents.forEach(content => {
+    contents.forEach((content: typeof contents[0]) => {
       const category = content.category || 'other';
       if (!contentsByCategory[category]) {
         contentsByCategory[category] = [];
@@ -10578,8 +10578,8 @@ router.get('/content', requireAdmin, async (req, res) => {
       contentsByCategory[category].push(content);
     });
 
-    const contentsHtml = Object.entries(contentsByCategory).map(([category, items]) => {
-      const itemsHtml = items.map(content => `
+    const contentsHtml = Object.entries(contentsByCategory).map(([category, items]: [string, typeof contents]) => {
+      const itemsHtml = items.map((content: typeof contents[0]) => `
         <div class="content-card" data-key="${content.key}">
           <div class="content-header">
             <h3>${content.title}</h3>
@@ -10597,7 +10597,7 @@ router.get('/content', requireAdmin, async (req, res) => {
             <div class="content-text">${content.content.substring(0, 150)}${content.content.length > 150 ? '...' : ''}</div>
           </div>
           <div class="content-meta">
-            <span>Обновлен: ${new Date(content.updatedAt).toLocaleDateString()}</span>
+            <span>Обновлен: ${content.updatedAt ? new Date(content.updatedAt).toLocaleDateString() : 'Неизвестно'}</span>
           </div>
           <div class="content-actions">
             <button class="btn-edit" onclick="editContent('${content.key}')">✏️ Редактировать</button>
@@ -10852,7 +10852,7 @@ router.post('/content/create', requireAdmin, async (req, res) => {
       return res.redirect('/admin/content?error=duplicate_key');
     }
     
-    const { upsertBotContent } = await import('../../services/bot-content-service.js');
+    const { upsertBotContent } = await import('../services/bot-content-service.js');
     await upsertBotContent({
       key,
       title,
@@ -10883,7 +10883,7 @@ router.post('/content/update', requireAdmin, async (req, res) => {
       return res.redirect('/admin/content?error=not_found');
     }
     
-    const { upsertBotContent } = await import('../../services/bot-content-service.js');
+    const { upsertBotContent } = await import('../services/bot-content-service.js');
     await upsertBotContent({
       key,
       title,
@@ -10931,7 +10931,7 @@ router.post('/content/delete', requireAdmin, async (req, res) => {
   try {
     const { key } = req.body;
     
-    const { deleteBotContent } = await import('../../services/bot-content-service.js');
+    const { deleteBotContent } = await import('../services/bot-content-service.js');
     const success = await deleteBotContent(key);
     
     if (!success) {
