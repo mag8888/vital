@@ -6355,85 +6355,158 @@ router.get('/products', requireAdmin, async (req, res) => {
           
           // NOTE: window.editProduct уже определена выше на строке 5792, не дублируем!
           
-          // Instruction modal functions - используем обычные строки вместо шаблонных
+          // Helper function to escape JavaScript string literals
+          const escapeJs = function(s) {
+            if (s == null) return '';
+            return String(s)
+              .replace(/\\/g, '\\\\')  // Escape backslashes first
+              .replace(/'/g, "\\'")     // Escape single quotes
+              .replace(/`/g, '\\`')    // Escape backticks
+              .replace(/\u2028/g, ' ') // Replace line separator
+              .replace(/\u2029/g, ' ') // Replace paragraph separator
+              .replace(/\r?\n/g, '\\n') // Escape newlines
+              .replace(/\r/g, '\\r');   // Escape carriage returns
+          };
+          
+          // Helper function to escape HTML content
+          const escapeHtmlContent = function(s) {
+            if (s == null) return '';
+            return String(s)
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;')
+              .replace(/`/g, '&#96;');
+          };
+          
+          // Instruction modal functions - используем DOM API вместо строковой конкатенации
           window.showInstruction = function(productId, instructionText) {
             const modal = document.createElement('div');
             modal.className = 'instruction-modal';
-            const newlineRegex = new RegExp('\\n', 'g');
-            const escapedInstruction = (instructionText || '').replace(newlineRegex, '<br>').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            const instructionForTextarea = (instructionText || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const safeProductId = String(productId || '').replace(/[^a-zA-Z0-9-_]/g, '');
+            const safeInstructionText = String(instructionText || '');
             
-            // Разбиваем длинную innerHTML строку на части для предотвращения SyntaxError
-            modal.innerHTML = 
-              '<div class="instruction-overlay" data-close-instruction="true">' +
-                '<div class="instruction-content">' +
-                  '<div class="instruction-header">' +
-                    '<h3>📋 Инструкция по применению</h3>' +
-                    '<button class="btn-close" data-close-instruction="true">×</button>' +
-                  '</div>' +
-                  '<div class="instruction-body">' +
-                    '<div class="instruction-text" id="instructionText" style="display: none;">' + escapedInstruction + '</div>' +
-                    '<div class="instruction-edit" id="instructionEdit" style="display: block;">' +
-                      '<textarea id="instructionTextarea" placeholder="Введите инструкцию по применению товара..." style="width: 100%; height: 200px; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical;">' + instructionForTextarea + '</textarea>' +
-                    '</div>' +
-                  '</div>' +
-                  '<div class="instruction-footer">' +
-                    '<button class="btn btn-save" data-save-instruction data-product-id="' + safeProductId + '" style="background: #28a745; margin-right: 8px;">💾 Сохранить</button>' +
-                    '<button class="btn btn-cancel" data-cancel-instruction style="background: #6c757d; margin-right: 8px;">❌ Отмена</button>' +
-                    '<button class="btn btn-delete" data-delete-instruction data-product-id="' + safeProductId + '" style="background: #dc3545; margin-right: 8px;">🗑️ Удалить</button>' +
-                    '<button class="btn btn-secondary" data-close-instruction="true">Закрыть</button>' +
-                  '</div>' +
-                '</div>' +
-              '</div>';
+            // Создаём структуру модального окна через DOM API
+            const overlay = document.createElement('div');
+            overlay.className = 'instruction-overlay';
+            overlay.setAttribute('data-close-instruction', 'true');
+            
+            const content = document.createElement('div');
+            content.className = 'instruction-content';
+            
+            // Header
+            const header = document.createElement('div');
+            header.className = 'instruction-header';
+            const headerTitle = document.createElement('h3');
+            headerTitle.textContent = '📋 Инструкция по применению';
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'btn-close';
+            closeBtn.setAttribute('data-close-instruction', 'true');
+            closeBtn.textContent = '×';
+            header.appendChild(headerTitle);
+            header.appendChild(closeBtn);
+            
+            // Body
+            const body = document.createElement('div');
+            body.className = 'instruction-body';
+            
+            // Instruction text (hidden, for display)
+            const instructionTextDiv = document.createElement('div');
+            instructionTextDiv.className = 'instruction-text';
+            instructionTextDiv.id = 'instructionText';
+            instructionTextDiv.style.display = 'none';
+            instructionTextDiv.textContent = safeInstructionText.replace(/\r?\n/g, '\n');
+            
+            // Instruction edit (visible, for editing)
+            const instructionEdit = document.createElement('div');
+            instructionEdit.className = 'instruction-edit';
+            instructionEdit.id = 'instructionEdit';
+            instructionEdit.style.display = 'block';
+            
+            const textarea = document.createElement('textarea');
+            textarea.id = 'instructionTextarea';
+            textarea.placeholder = 'Введите инструкцию по применению товара...';
+            textarea.style.cssText = 'width: 100%; height: 200px; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical;';
+            textarea.value = safeInstructionText; // Безопасно устанавливаем значение через DOM API
+            
+            instructionEdit.appendChild(textarea);
+            body.appendChild(instructionTextDiv);
+            body.appendChild(instructionEdit);
+            
+            // Footer
+            const footer = document.createElement('div');
+            footer.className = 'instruction-footer';
+            
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'btn btn-save';
+            saveBtn.setAttribute('data-save-instruction', '');
+            saveBtn.setAttribute('data-product-id', safeProductId);
+            saveBtn.style.cssText = 'background: #28a745; margin-right: 8px;';
+            saveBtn.textContent = '💾 Сохранить';
+            
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'btn btn-cancel';
+            cancelBtn.setAttribute('data-cancel-instruction', '');
+            cancelBtn.style.cssText = 'background: #6c757d; margin-right: 8px;';
+            cancelBtn.textContent = '❌ Отмена';
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn btn-delete';
+            deleteBtn.setAttribute('data-delete-instruction', '');
+            deleteBtn.setAttribute('data-product-id', safeProductId);
+            deleteBtn.style.cssText = 'background: #dc3545; margin-right: 8px;';
+            deleteBtn.textContent = '🗑️ Удалить';
+            
+            const closeBtn2 = document.createElement('button');
+            closeBtn2.className = 'btn btn-secondary';
+            closeBtn2.setAttribute('data-close-instruction', 'true');
+            closeBtn2.textContent = 'Закрыть';
+            
+            footer.appendChild(saveBtn);
+            footer.appendChild(cancelBtn);
+            footer.appendChild(deleteBtn);
+            footer.appendChild(closeBtn2);
+            
+            // Собираем структуру
+            content.appendChild(header);
+            content.appendChild(body);
+            content.appendChild(footer);
+            overlay.appendChild(content);
+            modal.appendChild(overlay);
             
             // Добавляем обработчики событий через addEventListener
-            const overlay = modal.querySelector('.instruction-overlay');
-            if (overlay) {
-              overlay.addEventListener('click', function(e) {
-                if (e.target === overlay || e.target.getAttribute('data-close-instruction') === 'true') {
-                  if (typeof window.closeInstruction === 'function') {
-                    window.closeInstruction();
-                  }
+            overlay.addEventListener('click', function(e) {
+              if (e.target === overlay || e.target.getAttribute('data-close-instruction') === 'true') {
+                if (typeof window.closeInstruction === 'function') {
+                  window.closeInstruction();
                 }
-              });
-            }
+              }
+            });
             
-            const content = modal.querySelector('.instruction-content');
-            if (content) {
-              content.addEventListener('click', function(e) {
-                e.stopPropagation();
-              });
-            }
+            content.addEventListener('click', function(e) {
+              e.stopPropagation();
+            });
             
-            const saveBtn = modal.querySelector('[data-save-instruction]');
-            if (saveBtn) {
-              saveBtn.addEventListener('click', function() {
-                const productId = this.getAttribute('data-product-id');
-                if (productId && typeof window.saveInstruction === 'function') {
-                  window.saveInstruction(productId);
-                }
-              });
-            }
+            saveBtn.addEventListener('click', function() {
+              const productId = this.getAttribute('data-product-id');
+              if (productId && typeof window.saveInstruction === 'function') {
+                window.saveInstruction(productId);
+              }
+            });
             
-            const deleteBtn = modal.querySelector('[data-delete-instruction]');
-            if (deleteBtn) {
-              deleteBtn.addEventListener('click', function() {
-                const productId = this.getAttribute('data-product-id');
-                if (productId && typeof window.deleteInstruction === 'function') {
-                  window.deleteInstruction(productId);
-                }
-              });
-            }
+            deleteBtn.addEventListener('click', function() {
+              const productId = this.getAttribute('data-product-id');
+              if (productId && typeof window.deleteInstruction === 'function') {
+                window.deleteInstruction(productId);
+              }
+            });
             
-            const cancelBtn = modal.querySelector('[data-cancel-instruction]');
-            if (cancelBtn) {
-              cancelBtn.addEventListener('click', function() {
-                if (typeof window.cancelInstruction === 'function') {
-                  window.cancelInstruction();
-                }
-              });
-            }
+            cancelBtn.addEventListener('click', function() {
+              if (typeof window.cancelInstruction === 'function') {
+                window.cancelInstruction();
+              }
+            });
             
             document.body.appendChild(modal);
             
