@@ -200,8 +200,10 @@ function setUiMode(ctx, mode) {
 }
 async function sendWelcomeVideo(ctx) {
     try {
-        // Send video directly
+        // Send video directly with streaming support for auto-play
         await ctx.replyWithVideo(WELCOME_VIDEO_URL, {
+            supports_streaming: true, // Позволяет видео воспроизводиться сразу, не дожидаясь полной загрузки
+            disable_notification: false,
             reply_markup: {
                 inline_keyboard: [
                     [
