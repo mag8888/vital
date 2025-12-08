@@ -50,3 +50,4 @@ import { setupProductsRoutes } from './products/routes';
 setupProductsRoutes(router, requireAdmin, upload);
 ```
 
+

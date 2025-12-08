@@ -162,3 +162,4 @@ curl -X GET "https://plazma-production.up.railway.app/api/external/products?regi
 Все эти записи помогут понять, где именно проблема.
 
 
+

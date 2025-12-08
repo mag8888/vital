@@ -97,3 +97,4 @@ content.innerHTML =
 - `vital/src/admin/products-helpers.ts` - вспомогательные функции (создан)
 - `vital/src/admin/products-styles.ts` - CSS стили (создан)
 
+

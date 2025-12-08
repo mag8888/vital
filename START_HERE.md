@@ -57,3 +57,4 @@ cd vital && npm run build && node scripts/import-invoice-images-now.js
 - `COMPLETE_IMPORT_INSTRUCTIONS.md` - полная документация
 
 
+

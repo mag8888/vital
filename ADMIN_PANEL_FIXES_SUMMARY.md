@@ -64,3 +64,4 @@ c4bc4af Fix: Remove duplicate showInstruction function to prevent syntax errors
 4. Укажите, на какой кнопке возникает ошибка
 
 
+

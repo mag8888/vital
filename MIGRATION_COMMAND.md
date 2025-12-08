@@ -32,3 +32,4 @@ cd vital && bash scripts/run-migration.sh
 - Страница импорта: https://vital-production-82b0.up.railway.app/admin/invoice-import
 
 
+

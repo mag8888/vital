@@ -38,3 +38,4 @@ railway run npm run migrate:deploy
 3. Начните импортировать товары из инвойса
 
 
+

@@ -109,3 +109,4 @@ if (editBtn && typeof window.editProduct === 'function') {
 - Используется делегирование событий для динамических элементов
 - Нет inline JavaScript в HTML
 
+

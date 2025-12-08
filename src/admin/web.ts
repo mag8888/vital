@@ -5422,16 +5422,17 @@ router.get('/products', requireAdmin, async (req, res) => {
               console.error('editProduct: button is required');
               return;
             }
-            const productId = button.dataset.id;
-            const title = button.dataset.title || '';
-            const summary = button.dataset.summary || '';
-            const description = button.dataset.description || '';
-            const price = button.dataset.price || '0';
-            const categoryId = button.dataset.categoryId || '';
-            const isActive = button.dataset.active === 'true';
-            const availableInRussia = button.dataset.russia === 'true';
-            const availableInBali = button.dataset.bali === 'true';
-            const imageUrl = button.dataset.image || '';
+            // Safely extract data from button attributes
+            const productId = String(button.dataset.id || '').trim();
+            const title = String(button.dataset.title || '').trim();
+            const summary = String(button.dataset.summary || '').trim();
+            const description = String(button.dataset.description || '').trim();
+            const price = String(button.dataset.price || '0').trim();
+            const categoryId = String(button.dataset.categoryId || '').trim();
+            const isActive = String(button.dataset.active || 'false').trim() === 'true';
+            const availableInRussia = String(button.dataset.russia || 'false').trim() === 'true';
+            const availableInBali = String(button.dataset.bali || 'false').trim() === 'true';
+            const imageUrl = String(button.dataset.image || '').trim();
             
             // Create modal if it doesn't exist
             let modal = document.getElementById('editProductModal');
@@ -5581,17 +5582,31 @@ router.get('/products', requireAdmin, async (req, res) => {
               };
             }
             
-            // Fill form fields
-            document.getElementById('editProductId').value = productId || '';
-            document.getElementById('editProductName').value = title || '';
-            document.getElementById('editProductSummary').value = summary || '';
-            document.getElementById('editProductDescription').value = description || '';
-            document.getElementById('editProductPrice').value = price || '0';
-            document.getElementById('editProductPriceRub').value = ((parseFloat(price) || 0) * 100).toFixed(2);
-            document.getElementById('editProductStock').value = '999';
-            document.getElementById('editProductStatus').checked = isActive;
-            document.getElementById('editProductRussia').checked = availableInRussia;
-            document.getElementById('editProductBali').checked = availableInBali;
+            // Helper function to decode HTML entities safely
+            const decodeHtml = function(html) {
+              if (!html) return '';
+              const txt = document.createElement('textarea');
+              txt.innerHTML = html;
+              return txt.value;
+            };
+            
+            // Fill form fields with decoded values
+            try {
+              document.getElementById('editProductId').value = productId || '';
+              document.getElementById('editProductName').value = decodeHtml(title) || '';
+              document.getElementById('editProductSummary').value = decodeHtml(summary) || '';
+              document.getElementById('editProductDescription').value = decodeHtml(description) || '';
+              document.getElementById('editProductPrice').value = price || '0';
+              document.getElementById('editProductPriceRub').value = ((parseFloat(price) || 0) * 100).toFixed(2);
+              document.getElementById('editProductStock').value = '999';
+              document.getElementById('editProductStatus').checked = isActive;
+              document.getElementById('editProductRussia').checked = availableInRussia;
+              document.getElementById('editProductBali').checked = availableInBali;
+            } catch (error) {
+              console.error('Error filling form fields:', error);
+              alert('Ошибка при загрузке данных товара. Пожалуйста, обновите страницу.');
+              return;
+            }
             
             // Load categories
             fetch('/admin/api/categories', { credentials: 'include' })
