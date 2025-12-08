@@ -10,6 +10,7 @@ export declare function ensureUser(ctx: Context): Promise<{
     selectedRegion: import(".prisma/client").$Enums.Region | null;
     deliveryAddress: string | null;
     balance: number;
+    uiMode: import(".prisma/client").$Enums.UiMode | null;
     createdAt: Date;
     updatedAt: Date;
 } | {

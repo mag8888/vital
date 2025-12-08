@@ -1,6 +1,7 @@
 import { Markup, Input } from 'telegraf';
 import { logUserAction, ensureUser, checkUserContact } from '../../services/user-history.js';
 import { upsertPartnerReferral, recordPartnerTransaction } from '../../services/partner-service.js';
+import { prisma } from '../../lib/prisma.js';
 import { env } from '../../config/env.js';
 const greeting = `🌀 Добро пожаловать в эру будущего!
 
@@ -177,16 +178,47 @@ const navigationItems = [
         handler: showSupport,
     },
 ];
-function getUiMode(ctx) {
-    const mode = ctx.session?.uiMode;
-    if (mode === 'app' || mode === 'classic') {
-        return mode;
+async function getUiMode(ctx) {
+    // Сначала проверяем сессию (для быстрого доступа)
+    const sessionMode = ctx.session?.uiMode;
+    if (sessionMode === 'app' || sessionMode === 'classic') {
+        return sessionMode;
     }
-    ctx.session.uiMode = DEFAULT_UI_MODE;
-    return DEFAULT_UI_MODE;
+    // Если в сессии нет, загружаем из базы данных
+    try {
+        const user = await ensureUser(ctx);
+        if (user && 'uiMode' in user && user.uiMode) {
+            const dbMode = user.uiMode;
+            // Сохраняем в сессию для быстрого доступа
+            ctx.session.uiMode = dbMode;
+            return dbMode;
+        }
+    }
+    catch (error) {
+        console.error('Error loading uiMode from database:', error);
+    }
+    // Если ничего не найдено, используем дефолт
+    const defaultMode = DEFAULT_UI_MODE;
+    ctx.session.uiMode = defaultMode;
+    return defaultMode;
 }
-function setUiMode(ctx, mode) {
+async function setUiMode(ctx, mode) {
+    // Сохраняем в сессию
     ctx.session.uiMode = mode;
+    // Сохраняем в базу данных для постоянного хранения
+    try {
+        const user = await ensureUser(ctx);
+        if (user && 'telegramId' in user) {
+            await prisma.user.update({
+                where: { telegramId: user.telegramId },
+                data: { uiMode: mode },
+            });
+        }
+    }
+    catch (error) {
+        console.error('Error saving uiMode to database:', error);
+        // Не прерываем выполнение, если не удалось сохранить в БД
+    }
 }
 async function sendWelcomeVideo(ctx) {
     try {
@@ -246,7 +278,7 @@ async function sendAppHome(ctx, options = {}) {
     await sendNavigationMenu(ctx);
 }
 async function renderHome(ctx) {
-    if (getUiMode(ctx) === 'app') {
+    if (await getUiMode(ctx) === 'app') {
         await sendAppHome(ctx);
     }
     else {
@@ -254,7 +286,7 @@ async function renderHome(ctx) {
     }
 }
 async function exitAppInterface(ctx) {
-    setUiMode(ctx, 'classic');
+    await setUiMode(ctx, 'classic');
     await sendClassicHome(ctx);
 }
 function chunkArray(items, size) {
