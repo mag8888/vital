@@ -13,7 +13,7 @@ const router = express.Router();
 // Configure multer for file uploads
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+    limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit for videos
 });
 // Middleware to check admin access
 const requireAdmin = (req, res, next) => {
@@ -843,10 +843,12 @@ router.get('/', requireAdmin, async (req, res) => {
                 <a href="/admin/products" class="btn">🛍️ Товары</a>
                 <a href="/admin/reviews" class="btn">⭐ Отзывы</a>
                 <a href="/admin/orders" class="btn">📦 Заказы</a>
+                <a href="/admin/media" class="btn" style="background: #17a2b8; color: white; font-weight: bold;">📸🎥 Медиа</a>
                 <button class="btn" onclick="openAddProductModal()" style="background: #28a745;">➕ Добавить товар</button>
+                <button class="btn" onclick="createBackup()" style="background: #6f42c1; color: white;">💾 Создать бэкап БД</button>
               </div>
             </div>
-            <p>Управление каталогом товаров, отзывами и заказами.</p>
+            <p>Управление каталогом товаров, отзывами, заказами и медиафайлами.</p>
           </div>
           
           <!-- Tools Tab -->
@@ -1088,6 +1090,47 @@ router.get('/', requireAdmin, async (req, res) => {
           
           window.showUserDetails = function(userId) {
             window.open(\`/admin/users/\${userId}\`, '_blank', 'width=600,height=400');
+          }
+          
+          window.createBackup = async function() {
+            if (!confirm('Создать резервную копию базы данных? Это может занять несколько минут.')) {
+              return;
+            }
+            
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '⏳ Создание бэкапа...';
+            
+            try {
+              const response = await fetch('/admin/backup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+              });
+              
+              const result = await response.json();
+              
+              if (result.success) {
+                let message = \`✅ Резервная копия создана успешно!\\n\\n\`;
+                message += \`📄 Файл: \${result.filename}\\n\`;
+                message += \`📊 Размер: \${result.fileSize}\\n\`;
+                if (result.cloudinaryUrl) {
+                  message += \`☁️ URL: \${result.cloudinaryUrl}\\n\`;
+                }
+                message += \`\\n📈 Статистика:\\n\`;
+                message += \`   - Пользователей: \${result.statistics.totalUsers}\\n\`;
+                message += \`   - Товаров: \${result.statistics.totalProducts}\\n\`;
+                message += \`   - Заказов: \${result.statistics.totalOrders}\`;
+                alert(message);
+              } else {
+                alert(\`❌ Ошибка: \${result.error || result.message || 'Неизвестная ошибка'}\`);
+              }
+            } catch (error) {
+              alert(\`❌ Ошибка при создании бэкапа: \${error.message}\`);
+            } finally {
+              btn.disabled = false;
+              btn.textContent = originalText;
+            }
           }
           
           window.openChangeInviter = async function(userId, userName) {
@@ -9748,6 +9791,410 @@ router.post('/products/:productId/save-instruction', requireAdmin, async (req, r
     catch (error) {
         console.error('Save instruction error:', error);
         res.status(500).json({ success: false, error: 'Ошибка сохранения инструкции' });
+    }
+});
+// Media files management routes
+router.get('/media', requireAdmin, async (req, res) => {
+    try {
+        const mediaFiles = await prisma.mediaFile.findMany({
+            orderBy: { createdAt: 'desc' }
+        });
+        const mediaFilesHtml = mediaFiles.map(file => {
+            const fileSizeKB = file.fileSize ? Math.round(file.fileSize / 1024) : 0;
+            const fileSizeMB = fileSizeKB > 1024 ? (fileSizeKB / 1024).toFixed(2) + ' MB' : fileSizeKB + ' KB';
+            const dateStr = new Date(file.createdAt).toLocaleDateString('ru-RU', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            return `
+      <div class="media-file-card">
+        <div class="media-file-header">
+          <h3 style="font-size: 16px; margin: 0;">${file.type === 'photo' ? '📷' : '🎥'} ${file.title}</h3>
+          <div class="media-file-status ${file.isActive ? 'active' : 'inactive'}" style="font-size: 12px; padding: 4px 8px; border-radius: 4px; background: ${file.isActive ? '#dcfce7' : '#fee2e2'};">
+            ${file.isActive ? '✅ Активен' : '❌ Неактивен'}
+          </div>
+        </div>
+        <div class="media-file-preview" style="background: #f8f9fa; padding: 10px; border-radius: 8px; margin: 15px 0;">
+          ${file.type === 'photo'
+                ? `<img src="${file.url}" alt="${file.title}" class="media-preview-image" style="cursor: pointer;" onclick="window.open('${file.url}', '_blank')">`
+                : `<video src="${file.url}" controls class="media-preview-video" style="cursor: pointer;"></video>`}
+        </div>
+        <div class="media-file-info" style="font-size: 13px;">
+          ${file.description ? `<p style="margin: 8px 0;"><strong>📝 Описание:</strong> ${file.description}</p>` : ''}
+          <p style="margin: 8px 0;"><strong>🏷️ Тип:</strong> ${file.type === 'photo' ? 'Фото' : 'Видео'}</p>
+          ${file.category ? `<p style="margin: 8px 0;"><strong>📁 Категория:</strong> ${file.category}</p>` : ''}
+          <p style="margin: 8px 0;"><strong>💾 Размер:</strong> ${fileSizeMB}</p>
+          <p style="margin: 8px 0;"><strong>📅 Загружен:</strong> ${dateStr}</p>
+          <p style="margin: 8px 0;">
+            <strong>🔗 URL:</strong> 
+            <a href="${file.url}" target="_blank" style="color: #007bff; word-break: break-all; font-size: 11px;">${file.url.substring(0, 40)}...</a>
+            <button onclick="navigator.clipboard.writeText('${file.url}'); alert('URL скопирован!');" style="margin-left: 5px; padding: 2px 6px; background: #6c757d; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 10px;">📋</button>
+          </p>
+        </div>
+        <div class="media-file-actions" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e9ecef;">
+          <button onclick="toggleMediaStatus('${file.id}')" class="toggle-btn ${file.isActive ? 'deactivate' : 'activate'}" style="flex: 1;">
+            ${file.isActive ? '❌ Деактивировать' : '✅ Активировать'}
+          </button>
+          <button onclick="deleteMediaFile('${file.id}')" class="delete-btn" style="flex: 1;">🗑️ Удалить</button>
+        </div>
+      </div>
+    `;
+        }).join('');
+        res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Управление медиафайлами - Plazma Bot Admin Panel</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+          .header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .upload-section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .upload-form { display: grid; gap: 15px; }
+          .form-group { display: flex; flex-direction: column; }
+          .form-group label { margin-bottom: 5px; font-weight: bold; color: #333; }
+          .form-group input, .form-group textarea, .form-group select { padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+          .form-group textarea { min-height: 80px; resize: vertical; }
+          .upload-btn { padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; }
+          .upload-btn:hover { background: #0056b3; }
+          .media-file-card { background: white; padding: 20px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .media-file-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+          .media-file-header h3 { margin: 0; color: #333; }
+          .media-file-status.active { color: #28a745; font-weight: bold; }
+          .media-file-status.inactive { color: #dc3545; font-weight: bold; }
+          .media-file-preview { margin: 15px 0; text-align: center; }
+          .media-preview-image { max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+          .media-preview-video { max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+          .media-file-info { margin: 15px 0; }
+          #filePreview { margin-top: 15px; }
+          #previewContent img { max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+          #previewContent video { max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+          .upload-progress { display: none; margin-top: 15px; padding: 15px; background: #e7f3ff; border-radius: 8px; }
+          .progress-bar { width: 100%; height: 20px; background: #dee2e6; border-radius: 10px; overflow: hidden; margin-top: 10px; }
+          .progress-fill { height: 100%; background: linear-gradient(90deg, #007bff, #0056b3); width: 0%; transition: width 0.3s ease; }
+          .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin-top: 20px; }
+          .media-file-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+          .media-file-card:hover { transform: translateY(-5px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+          .media-file-info p { margin: 5px 0; color: #666; }
+          .media-file-info a { color: #007bff; text-decoration: none; }
+          .media-file-info a:hover { text-decoration: underline; }
+          .media-file-actions { display: flex; gap: 10px; margin-top: 15px; }
+          .toggle-btn, .delete-btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+          .toggle-btn.activate { background: #28a745; color: white; }
+          .toggle-btn.deactivate { background: #ffc107; color: black; }
+          .delete-btn { background: #dc3545; color: white; }
+          .toggle-btn:hover, .delete-btn:hover { opacity: 0.8; }
+          .back-btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; margin-bottom: 20px; }
+          .back-btn:hover { background: #0056b3; }
+          .alert { padding: 12px 16px; margin: 16px 0; border-radius: 8px; font-weight: 500; }
+          .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+          .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        </style>
+      </head>
+      <body>
+        <a href="/admin" class="back-btn">← Назад в админ-панель</a>
+        <div class="header">
+          <h1>📸🎥 Управление медиафайлами</h1>
+          <p>Здесь вы можете загружать и управлять фото и видео для отображения в боте</p>
+        </div>
+        
+        <div class="upload-section">
+          <h2>📤 Загрузить новый файл</h2>
+          <form class="upload-form" action="/admin/media/upload" method="post" enctype="multipart/form-data">
+            <div class="form-group">
+              <label>Тип файла:</label>
+              <select name="type" required>
+                <option value="photo">📷 Фото</option>
+                <option value="video">🎥 Видео</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Название:</label>
+              <input type="text" name="title" required placeholder="Введите название файла">
+            </div>
+            <div class="form-group">
+              <label>Описание (необязательно):</label>
+              <textarea name="description" placeholder="Введите описание файла"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Категория (необязательно):</label>
+              <input type="text" name="category" placeholder="Например: welcome, promo, etc.">
+            </div>
+            <div class="form-group">
+              <label>Файл:</label>
+              <input type="file" name="file" id="mediaFileInput" accept="image/*,video/*" required onchange="previewMediaFile(this)">
+              <div id="filePreview" style="margin-top: 15px; display: none;">
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 2px dashed #dee2e6;">
+                  <p style="margin: 0 0 10px 0; font-weight: bold; color: #495057;">📎 Выбранный файл:</p>
+                  <div id="previewContent" style="text-align: center;"></div>
+                  <p id="fileInfo" style="margin: 10px 0 0 0; font-size: 12px; color: #6c757d;"></p>
+                </div>
+              </div>
+            </div>
+            <button type="submit" class="upload-btn" id="uploadBtn">📤 Загрузить файл</button>
+          </form>
+        </div>
+        
+        ${req.query.success === 'uploaded' ? '<div class="alert alert-success">✅ Файл успешно загружен!</div>' : ''}
+        ${req.query.error === 'upload_failed' ? '<div class="alert alert-error">❌ Ошибка при загрузке файла</div>' : ''}
+        
+        <div class="header">
+          <h2>📋 Загруженные файлы (${mediaFiles.length})</h2>
+        </div>
+        <div class="media-grid">
+          ${mediaFilesHtml || '<p style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #6c757d;">Пока нет загруженных медиафайлов. Загрузите первый файл выше.</p>'}
+        </div>
+        
+        <div class="upload-progress" id="uploadProgress">
+          <p style="margin: 0 0 10px 0; font-weight: bold; color: #007bff;">⏳ Загрузка файла...</p>
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+          <p id="progressText" style="margin: 10px 0 0 0; font-size: 12px; color: #6c757d;">0%</p>
+        </div>
+        
+        <script>
+          function previewMediaFile(input) {
+            const preview = document.getElementById('filePreview');
+            const previewContent = document.getElementById('previewContent');
+            const fileInfo = document.getElementById('fileInfo');
+            
+            if (input.files && input.files[0]) {
+              const file = input.files[0];
+              const fileSize = (file.size / 1024 / 1024).toFixed(2);
+              const fileType = file.type;
+              
+              preview.style.display = 'block';
+              fileInfo.textContent = \`Размер: \${fileSize} MB | Тип: \${fileType}\`;
+              
+              if (fileType.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                  previewContent.innerHTML = \`<img src="\${e.target.result}" alt="Превью" style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">\`;
+                };
+                reader.readAsDataURL(file);
+              } else if (fileType.startsWith('video/')) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                  previewContent.innerHTML = \`<video src="\${e.target.result}" controls style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></video>\`;
+                };
+                reader.readAsDataURL(file);
+              } else {
+                previewContent.innerHTML = \`<p style="padding: 20px; color: #6c757d;">📄 Файл: \${file.name}</p>\`;
+              }
+            } else {
+              preview.style.display = 'none';
+            }
+          }
+          
+          // Показываем прогресс загрузки
+          document.querySelector('.upload-form').addEventListener('submit', function(e) {
+            const uploadBtn = document.getElementById('uploadBtn');
+            const progressDiv = document.getElementById('uploadProgress');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = '⏳ Загрузка...';
+            progressDiv.style.display = 'block';
+            
+            // Симуляция прогресса (реальный прогресс будет через XMLHttpRequest)
+            let progress = 0;
+            const interval = setInterval(() => {
+              progress += Math.random() * 15;
+              if (progress > 90) progress = 90;
+              progressFill.style.width = progress + '%';
+              progressText.textContent = Math.round(progress) + '%';
+            }, 200);
+            
+            // Очистка интервала после отправки формы
+            setTimeout(() => {
+              clearInterval(interval);
+            }, 5000);
+          });
+          
+          async function toggleMediaStatus(fileId) {
+            if (confirm('Вы уверены, что хотите изменить статус файла?')) {
+              try {
+                const response = await fetch('/admin/media/toggle', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ fileId })
+                });
+                if (response.ok) {
+                  location.reload();
+                } else {
+                  alert('Ошибка при изменении статуса файла');
+                }
+              } catch (error) {
+                alert('Ошибка при изменении статуса файла');
+              }
+            }
+          }
+
+          async function deleteMediaFile(fileId) {
+            if (confirm('Вы уверены, что хотите удалить этот файл? Это действие нельзя отменить.')) {
+              try {
+                const response = await fetch('/admin/media/delete', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ fileId })
+                });
+                if (response.ok) {
+                  location.reload();
+                } else {
+                  alert('Ошибка при удалении файла');
+                }
+              } catch (error) {
+                alert('Ошибка при удалении файла');
+              }
+            }
+          }
+        </script>
+      </body>
+      </html>
+    `);
+    }
+    catch (error) {
+        console.error('Error loading media files:', error);
+        res.status(500).send('Ошибка загрузки медиафайлов');
+    }
+});
+// Upload media file
+router.post('/media/upload', requireAdmin, upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.redirect('/admin/media?error=upload_failed');
+        }
+        const { title, description, category, type } = req.body;
+        if (!title || !type) {
+            return res.redirect('/admin/media?error=upload_failed');
+        }
+        // Validate file type
+        const isPhoto = type === 'photo';
+        const isVideo = type === 'video';
+        const fileMimeType = req.file.mimetype;
+        if (isPhoto && !fileMimeType.startsWith('image/')) {
+            return res.redirect('/admin/media?error=upload_failed');
+        }
+        if (isVideo && !fileMimeType.startsWith('video/')) {
+            return res.redirect('/admin/media?error=upload_failed');
+        }
+        // Upload to Cloudinary
+        const result = await new Promise((resolve, reject) => {
+            const folder = isPhoto ? 'plazma-bot/photos' : 'plazma-bot/videos';
+            cloudinary.uploader.upload_stream({
+                resource_type: isVideo ? 'video' : 'image',
+                folder: folder,
+                allowed_formats: isPhoto ? ['jpg', 'jpeg', 'png', 'gif', 'webp'] : ['mp4', 'mov', 'avi', 'webm']
+            }, (error, result) => {
+                if (error)
+                    reject(error);
+                else
+                    resolve(result);
+            }).end(req.file.buffer);
+        });
+        const mediaUrl = result.secure_url;
+        // Save to database
+        await prisma.mediaFile.create({
+            data: {
+                title: title.trim(),
+                description: description?.trim() || null,
+                category: category?.trim() || null,
+                type: type,
+                url: mediaUrl,
+                fileSize: req.file.size,
+                mimeType: req.file.mimetype,
+                isActive: true
+            }
+        });
+        res.redirect('/admin/media?success=uploaded');
+    }
+    catch (error) {
+        console.error('Error uploading media file:', error);
+        res.redirect('/admin/media?error=upload_failed');
+    }
+});
+// Toggle media file status
+router.post('/media/toggle', requireAdmin, async (req, res) => {
+    try {
+        const { fileId } = req.body;
+        const mediaFile = await prisma.mediaFile.findUnique({
+            where: { id: fileId }
+        });
+        if (!mediaFile) {
+            return res.status(404).json({ error: 'Медиафайл не найден' });
+        }
+        await prisma.mediaFile.update({
+            where: { id: fileId },
+            data: { isActive: !mediaFile.isActive }
+        });
+        res.json({ success: true });
+    }
+    catch (error) {
+        console.error('Error toggling media file status:', error);
+        res.status(500).json({ error: 'Ошибка изменения статуса файла' });
+    }
+});
+// Delete media file
+router.post('/media/delete', requireAdmin, async (req, res) => {
+    try {
+        const { fileId } = req.body;
+        const mediaFile = await prisma.mediaFile.findUnique({
+            where: { id: fileId }
+        });
+        if (!mediaFile) {
+            return res.status(404).json({ error: 'Медиафайл не найден' });
+        }
+        await prisma.mediaFile.delete({
+            where: { id: fileId }
+        });
+        res.json({ success: true });
+    }
+    catch (error) {
+        console.error('Error deleting media file:', error);
+        res.status(500).json({ error: 'Ошибка удаления файла' });
+    }
+});
+// Database backup endpoint
+router.post('/backup', requireAdmin, async (req, res) => {
+    try {
+        // @ts-ignore - скрипт не имеет типов
+        const { exportDatabase } = await import('../../scripts/backup-database-railway.js');
+        const result = await exportDatabase();
+        res.json({
+            success: true,
+            message: 'Резервная копия создана успешно',
+            ...result
+        });
+    }
+    catch (error) {
+        console.error('Error creating backup:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Ошибка создания резервной копии',
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+// Get backup status
+router.get('/backup/status', requireAdmin, async (req, res) => {
+    try {
+        // Можно добавить логику проверки последнего бэкапа
+        res.json({
+            success: true,
+            lastBackup: null, // TODO: сохранять информацию о последнем бэкапе
+            autoBackupEnabled: true,
+            schedule: 'Ежедневно в 02:00 UTC'
+        });
+    }
+    catch (error) {
+        console.error('Error getting backup status:', error);
+        res.status(500).json({ error: 'Ошибка получения статуса' });
     }
 });
 export { router as adminWebRouter };

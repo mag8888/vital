@@ -876,6 +876,7 @@ router.get('/', requireAdmin, async (req, res) => {
                 <a href="/admin/reviews" class="btn">⭐ Отзывы</a>
                 <a href="/admin/orders" class="btn">📦 Заказы</a>
                 <a href="/admin/media" class="btn" style="background: #17a2b8; color: white; font-weight: bold;">📸🎥 Медиа</a>
+                <a href="/admin/content" class="btn" style="background: #6f42c1; color: white; font-weight: bold;">📝 Контент бота</a>
                 <button class="btn" onclick="openAddProductModal()" style="background: #28a745;">➕ Добавить товар</button>
                 <button class="btn" onclick="createBackup()" style="background: #6f42c1; color: white;">💾 Создать бэкап БД</button>
               </div>
@@ -10558,6 +10559,389 @@ router.post('/media/delete', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Error deleting media file:', error);
     res.status(500).json({ error: 'Ошибка удаления файла' });
+  }
+});
+
+// Bot content management page
+router.get('/content', requireAdmin, async (req, res) => {
+  try {
+    const { getAllBotContents } = await import('../../services/bot-content-service.js');
+    const contents = await getAllBotContents();
+    
+    // Group by category
+    const contentsByCategory: Record<string, typeof contents> = {};
+    contents.forEach(content => {
+      const category = content.category || 'other';
+      if (!contentsByCategory[category]) {
+        contentsByCategory[category] = [];
+      }
+      contentsByCategory[category].push(content);
+    });
+
+    const contentsHtml = Object.entries(contentsByCategory).map(([category, items]) => {
+      const itemsHtml = items.map(content => `
+        <div class="content-card" data-key="${content.key}">
+          <div class="content-header">
+            <h3>${content.title}</h3>
+            <div class="content-badges">
+              <span class="badge badge-key">${content.key}</span>
+              <span class="badge badge-language">${content.language}</span>
+              <span class="badge badge-status ${content.isActive ? 'active' : 'inactive'}">
+                ${content.isActive ? '✅ Активен' : '❌ Неактивен'}
+              </span>
+            </div>
+          </div>
+          ${content.description ? `<p class="content-description">${content.description}</p>` : ''}
+          <div class="content-preview">
+            <strong>Контент:</strong>
+            <div class="content-text">${content.content.substring(0, 150)}${content.content.length > 150 ? '...' : ''}</div>
+          </div>
+          <div class="content-meta">
+            <span>Обновлен: ${new Date(content.updatedAt).toLocaleDateString()}</span>
+          </div>
+          <div class="content-actions">
+            <button class="btn-edit" onclick="editContent('${content.key}')">✏️ Редактировать</button>
+            <form method="post" action="/admin/content/toggle" style="display: inline;">
+              <input type="hidden" name="key" value="${content.key}">
+              <button type="submit" class="btn-toggle ${content.isActive ? 'deactivate' : 'activate'}">
+                ${content.isActive ? '⏸️ Деактивировать' : '▶️ Активировать'}
+              </button>
+            </form>
+            <form method="post" action="/admin/content/delete" onsubmit="return confirm('Удалить контент «${content.title}»?')" style="display: inline;">
+              <input type="hidden" name="key" value="${content.key}">
+              <button type="submit" class="btn-delete">🗑️ Удалить</button>
+            </form>
+          </div>
+        </div>
+      `).join('');
+
+      return `
+        <div class="category-section">
+          <h2 class="category-title">${category === 'other' ? '📝 Другое' : `📁 ${category}`}</h2>
+          <div class="content-grid">
+            ${itemsHtml}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Управление контентом бота - Plazma Bot Admin Panel</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+          .header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .upload-section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .upload-form { display: grid; gap: 15px; }
+          .form-group { display: flex; flex-direction: column; }
+          .form-group label { margin-bottom: 5px; font-weight: bold; color: #333; }
+          .form-group input, .form-group textarea, .form-group select { padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+          .form-group textarea { min-height: 120px; resize: vertical; }
+          .upload-btn { padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; }
+          .upload-btn:hover { background: #0056b3; }
+          .back-btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; margin-bottom: 20px; }
+          .back-btn:hover { background: #0056b3; }
+          .alert { padding: 12px 16px; margin: 16px 0; border-radius: 8px; font-weight: 500; }
+          .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+          .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+          .category-section { margin-bottom: 30px; }
+          .category-title { color: #333; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #007bff; }
+          .content-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; }
+          .content-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.2s ease, box-shadow 0.2s ease; }
+          .content-card:hover { transform: translateY(-5px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+          .content-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+          .content-header h3 { margin: 0; color: #333; font-size: 18px; }
+          .content-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+          .badge { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+          .badge-key { background: #e3f2fd; color: #1976d2; }
+          .badge-language { background: #f3e5f5; color: #7b1fa2; }
+          .badge-status.active { background: #dcfce7; color: #166534; }
+          .badge-status.inactive { background: #fee2e2; color: #991b1b; }
+          .content-description { color: #666; font-size: 14px; margin: 10px 0; }
+          .content-preview { margin: 15px 0; padding: 10px; background: #f8f9fa; border-radius: 4px; }
+          .content-preview strong { display: block; margin-bottom: 5px; color: #333; }
+          .content-text { color: #555; font-size: 13px; line-height: 1.5; }
+          .content-meta { font-size: 12px; color: #999; margin: 10px 0; }
+          .content-actions { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+          .btn-edit, .btn-toggle, .btn-delete { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+          .btn-edit { background: #007bff; color: white; }
+          .btn-edit:hover { background: #0056b3; }
+          .btn-toggle.activate { background: #28a745; color: white; }
+          .btn-toggle.deactivate { background: #ffc107; color: black; }
+          .btn-toggle:hover { opacity: 0.8; }
+          .btn-delete { background: #dc3545; color: white; }
+          .btn-delete:hover { background: #c82333; }
+          .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+          .modal-content { background: white; border-radius: 8px; padding: 0; max-width: 700px; width: 95%; max-height: 90vh; overflow-y: auto; }
+          .modal-header { padding: 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
+          .modal-header h2 { margin: 0; color: #333; }
+          .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #999; }
+          .close-btn:hover { color: #333; }
+          .modal-form { padding: 20px; }
+          .modal-footer { padding: 20px; border-top: 1px solid #ddd; display: flex; justify-content: flex-end; gap: 10px; }
+        </style>
+      </head>
+      <body>
+        <a href="/admin" class="back-btn">← Назад в админ-панель</a>
+        <div class="header">
+          <h1>📝 Управление контентом бота</h1>
+          <p>Здесь вы можете создавать и редактировать текстовый контент бота</p>
+        </div>
+        
+        <div class="upload-section">
+          <h2>➕ Создать новый контент</h2>
+          <form class="upload-form" action="/admin/content/create" method="post">
+            <div class="form-group">
+              <label>Ключ (уникальный идентификатор) *</label>
+              <input type="text" name="key" required placeholder="например: welcome_message" pattern="[a-z0-9_]+" title="Только строчные буквы, цифры и подчеркивания">
+              <small style="color: #666; font-size: 12px; margin-top: 5px;">Только строчные буквы, цифры и подчеркивания. Например: welcome_message, about_text</small>
+            </div>
+            <div class="form-group">
+              <label>Название (для админки) *</label>
+              <input type="text" name="title" required placeholder="Например: Приветственное сообщение">
+            </div>
+            <div class="form-group">
+              <label>Описание (для админки)</label>
+              <textarea name="description" placeholder="Описание контента"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Категория</label>
+              <select name="category">
+                <option value="">Без категории</option>
+                <option value="messages">Сообщения</option>
+                <option value="descriptions">Описания</option>
+                <option value="buttons">Кнопки</option>
+                <option value="errors">Ошибки</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Язык *</label>
+              <select name="language" required>
+                <option value="ru">Русский</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Контент *</label>
+              <textarea name="content" required placeholder="Введите текст контента"></textarea>
+            </div>
+            <div class="form-group">
+              <label>
+                <input type="checkbox" name="isActive" checked> Контент активен
+              </label>
+            </div>
+            <button type="submit" class="upload-btn">💾 Создать контент</button>
+          </form>
+        </div>
+        
+        ${req.query.success === 'created' ? '<div class="alert alert-success">✅ Контент успешно создан!</div>' : ''}
+        ${req.query.success === 'updated' ? '<div class="alert alert-success">✅ Контент успешно обновлен!</div>' : ''}
+        ${req.query.success === 'deleted' ? '<div class="alert alert-success">✅ Контент успешно удален!</div>' : ''}
+        ${req.query.error === 'duplicate_key' ? '<div class="alert alert-error">❌ Контент с таким ключом уже существует</div>' : ''}
+        ${req.query.error === 'not_found' ? '<div class="alert alert-error">❌ Контент не найден</div>' : ''}
+        ${req.query.error === 'invalid_key' ? '<div class="alert alert-error">❌ Неверный формат ключа. Используйте только строчные буквы, цифры и подчеркивания</div>' : ''}
+        
+        <div class="header">
+          <h2>📋 Существующий контент (${contents.length})</h2>
+        </div>
+        
+        ${contents.length === 0 ? '<p style="text-align: center; padding: 40px; color: #6c757d;">Пока нет созданного контента. Создайте первый контент выше.</p>' : contentsHtml}
+        
+        <!-- Edit Modal -->
+        <div id="editModal" class="modal-overlay" style="display: none;" onclick="if(event.target === this) closeEditModal()">
+          <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+              <h2>✏️ Редактировать контент</h2>
+              <button class="close-btn" onclick="closeEditModal()">&times;</button>
+            </div>
+            <form id="editForm" class="modal-form" method="post" action="/admin/content/update">
+              <input type="hidden" id="editKey" name="key" value="">
+              <div class="form-group">
+                <label>Название (для админки) *</label>
+                <input type="text" id="editTitle" name="title" required>
+              </div>
+              <div class="form-group">
+                <label>Описание (для админки)</label>
+                <textarea id="editDescription" name="description"></textarea>
+              </div>
+              <div class="form-group">
+                <label>Категория</label>
+                <select id="editCategory" name="category">
+                  <option value="">Без категории</option>
+                  <option value="messages">Сообщения</option>
+                  <option value="descriptions">Описания</option>
+                  <option value="buttons">Кнопки</option>
+                  <option value="errors">Ошибки</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Язык *</label>
+                <select id="editLanguage" name="language" required>
+                  <option value="ru">Русский</option>
+                  <option value="en">English</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Контент *</label>
+                <textarea id="editContent" name="content" required></textarea>
+              </div>
+              <div class="form-group">
+                <label>
+                  <input type="checkbox" id="editIsActive" name="isActive"> Контент активен
+                </label>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn-toggle" onclick="closeEditModal()" style="background: #6c757d; color: white;">Отмена</button>
+                <button type="submit" class="upload-btn">💾 Сохранить изменения</button>
+              </div>
+            </form>
+          </div>
+        </div>
+        
+        <script>
+          const contents = ${JSON.stringify(contents)};
+          
+          function editContent(key) {
+            const content = contents.find(c => c.key === key);
+            if (!content) return;
+            
+            document.getElementById('editKey').value = content.key;
+            document.getElementById('editTitle').value = content.title;
+            document.getElementById('editDescription').value = content.description || '';
+            document.getElementById('editCategory').value = content.category || '';
+            document.getElementById('editLanguage').value = content.language || 'ru';
+            document.getElementById('editContent').value = content.content;
+            document.getElementById('editIsActive').checked = content.isActive;
+            
+            document.getElementById('editModal').style.display = 'flex';
+          }
+          
+          function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+          }
+        </script>
+      </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error('Error loading content page:', error);
+    res.status(500).send('Ошибка загрузки страницы контента');
+  }
+});
+
+// Create content
+router.post('/content/create', requireAdmin, async (req, res) => {
+  try {
+    const { key, title, description, category, language, content, isActive } = req.body;
+    
+    // Validate key format
+    if (!/^[a-z0-9_]+$/.test(key)) {
+      return res.redirect('/admin/content?error=invalid_key');
+    }
+    
+    // Check for duplicate
+    const existing = await prisma.botContent.findUnique({
+      where: { key }
+    });
+    
+    if (existing) {
+      return res.redirect('/admin/content?error=duplicate_key');
+    }
+    
+    const { upsertBotContent } = await import('../../services/bot-content-service.js');
+    await upsertBotContent({
+      key,
+      title,
+      description: description || null,
+      category: category || null,
+      language: language || 'ru',
+      content,
+      isActive: isActive === 'on'
+    });
+    
+    res.redirect('/admin/content?success=created');
+  } catch (error) {
+    console.error('Error creating content:', error);
+    res.redirect('/admin/content?error=create_failed');
+  }
+});
+
+// Update content
+router.post('/content/update', requireAdmin, async (req, res) => {
+  try {
+    const { key, title, description, category, language, content, isActive } = req.body;
+    
+    const existing = await prisma.botContent.findUnique({
+      where: { key }
+    });
+    
+    if (!existing) {
+      return res.redirect('/admin/content?error=not_found');
+    }
+    
+    const { upsertBotContent } = await import('../../services/bot-content-service.js');
+    await upsertBotContent({
+      key,
+      title,
+      description: description || null,
+      category: category || null,
+      language: language || 'ru',
+      content,
+      isActive: isActive === 'on'
+    });
+    
+    res.redirect('/admin/content?success=updated');
+  } catch (error) {
+    console.error('Error updating content:', error);
+    res.redirect('/admin/content?error=update_failed');
+  }
+});
+
+// Toggle content status
+router.post('/content/toggle', requireAdmin, async (req, res) => {
+  try {
+    const { key } = req.body;
+    
+    const content = await prisma.botContent.findUnique({
+      where: { key }
+    });
+    
+    if (!content) {
+      return res.status(404).json({ error: 'Контент не найден' });
+    }
+    
+    await prisma.botContent.update({
+      where: { key },
+      data: { isActive: !content.isActive }
+    });
+    
+    res.redirect('/admin/content');
+  } catch (error) {
+    console.error('Error toggling content status:', error);
+    res.redirect('/admin/content?error=toggle_failed');
+  }
+});
+
+// Delete content
+router.post('/content/delete', requireAdmin, async (req, res) => {
+  try {
+    const { key } = req.body;
+    
+    const { deleteBotContent } = await import('../../services/bot-content-service.js');
+    const success = await deleteBotContent(key);
+    
+    if (!success) {
+      return res.redirect('/admin/content?error=not_found');
+    }
+    
+    res.redirect('/admin/content?success=deleted');
+  } catch (error) {
+    console.error('Error deleting content:', error);
+    res.redirect('/admin/content?error=delete_failed');
   }
 });
 
