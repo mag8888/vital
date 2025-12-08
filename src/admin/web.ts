@@ -7339,6 +7339,51 @@ router.get('/reviews', requireAdmin, async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
+    // Helper functions for escaping
+    const escapeAttr = (str: string | null | undefined): string => {
+      if (!str) return '';
+      try {
+        let result = String(str)
+          .replace(/[\x00-\x1F\x7F-\u009F]/g, '')
+          .replace(/\u2028/g, ' ')
+          .replace(/\u2029/g, ' ')
+          .replace(/[\r\n]+/g, ' ')
+          .replace(/\t/g, ' ')
+          .replace(/\s+/g, ' ')
+          .replace(/[\u200B-\u200D\uFEFF]/g, '');
+        result = result
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;')
+          .replace(/`/g, '&#96;');
+        if (result.length > 10000) {
+          result = result.substring(0, 10000) + '...';
+        }
+        return result;
+      } catch (error) {
+        console.error('Error in escapeAttr:', error);
+        return '';
+      }
+    };
+
+    const escapeHtml = (str: string | null | undefined): string => {
+      if (!str) return '';
+      try {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;')
+          .replace(/`/g, '&#96;');
+      } catch (error) {
+        console.error('Error in escapeHtml:', error);
+        return '';
+      }
+    };
+
     let html = `
       <!DOCTYPE html>
       <html>
@@ -7406,8 +7451,13 @@ router.get('/reviews', requireAdmin, async (req, res) => {
     `;
 
     reviews.forEach(review => {
+      const safeId = escapeAttr(review.id);
+      const safeName = escapeHtml(review.name || '');
+      const safeContent = escapeHtml(review.content || '');
+      const safePhotoUrl = escapeAttr(review.photoUrl || '');
+      
       const imageSection = review.photoUrl
-        ? `<img src="${review.photoUrl}" alt="${review.name}" class="review-image" loading="lazy">`
+        ? `<img src="${safePhotoUrl}" alt="${safeName}" class="review-image" loading="lazy">`
         : `<div class="review-image-placeholder">
              <span class="placeholder-icon">👤</span>
              <span class="placeholder-text">Нет фото</span>
@@ -7417,8 +7467,8 @@ router.get('/reviews', requireAdmin, async (req, res) => {
         <div class="review-card">
           ${imageSection}
           <div class="review-header">
-            <h3 class="review-name">${review.name}</h3>
-            <form method="post" action="/admin/reviews/${review.id}/toggle-active" style="display: inline;">
+            <h3 class="review-name">${safeName}</h3>
+            <form method="post" action="/admin/reviews/${safeId}/toggle-active" style="display: inline;">
               <button type="submit" class="status-btn ${review.isActive ? 'active' : 'inactive'}" style="border: none; background: none; cursor: pointer; font-size: 12px; padding: 4px 8px; border-radius: 4px;">
                 ${review.isActive ? '✅ Активен' : '❌ Неактивен'}
               </button>
@@ -7427,20 +7477,20 @@ router.get('/reviews', requireAdmin, async (req, res) => {
           <div class="review-badges">
             <span class="badge ${review.isPinned ? 'badge-pinned' : 'badge-not-pinned'}">${review.isPinned ? '📌 Закреплён' : '❌ Не закреплён'}</span>
           </div>
-          <p class="review-content">${review.content}</p>
+          <p class="review-content">${safeContent}</p>
           <div class="review-meta">
             <span>Создан: ${new Date(review.createdAt).toLocaleDateString()}</span>
-            <span>ID: ${review.id.slice(0, 8)}...</span>
+            <span>ID: ${escapeHtml(review.id.slice(0, 8))}...</span>
           </div>
           <div class="review-actions">
-            <form method="post" action="/admin/reviews/${review.id}/toggle-pinned">
+            <form method="post" action="/admin/reviews/${safeId}/toggle-pinned">
               <button type="submit" class="toggle-btn">${review.isPinned ? 'Открепить' : 'Закрепить'}</button>
             </form>
-            <form method="post" action="/admin/reviews/${review.id}/upload-image" enctype="multipart/form-data" style="display: inline;">
-              <input type="file" name="image" accept="image/*" style="display: none;" id="review-image-${review.id}" onchange="this.form.submit()">
-              <button type="button" class="image-btn" onclick="document.getElementById('review-image-${review.id}').click()">📷 ${review.photoUrl ? 'Изменить фото' : 'Добавить фото'}</button>
+            <form method="post" action="/admin/reviews/${safeId}/upload-image" enctype="multipart/form-data" style="display: inline;">
+              <input type="file" name="image" accept="image/*" style="display: none;" id="review-image-${safeId}" onchange="this.form.submit()">
+              <button type="button" class="image-btn" onclick="document.getElementById('review-image-${safeId}').click()">📷 ${review.photoUrl ? 'Изменить фото' : 'Добавить фото'}</button>
             </form>
-            <form method="post" action="/admin/reviews/${review.id}/delete" onsubmit="return confirm('Удалить отзыв от «${review.name}»?')">
+            <form method="post" action="/admin/reviews/${safeId}/delete" onsubmit="return confirm('Удалить отзыв от «${safeName}»?')">
               <button type="submit" class="delete-btn">Удалить</button>
             </form>
           </div>
