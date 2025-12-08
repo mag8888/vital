@@ -1,4 +1,4 @@
-import { Telegraf, Markup } from 'telegraf';
+import { Telegraf, Markup, Input } from 'telegraf';
 import { Context } from '../../bot/context.js';
 import { BotModule } from '../../bot/types.js';
 import { logUserAction, ensureUser, checkUserContact, handlePhoneNumber } from '../../services/user-history.js';
@@ -234,22 +234,36 @@ function setUiMode(ctx: Context, mode: UiMode) {
 
 async function sendWelcomeVideo(ctx: Context) {
   try {
-    // Send video with text as caption - единое сообщение с видео и текстом
-    await ctx.replyWithVideo(WELCOME_VIDEO_URL, {
-      caption: greeting, // Текст прикрепляется к видео как подпись
-      supports_streaming: true, // Позволяет видео воспроизводиться сразу, не дожидаясь полной загрузки
-      disable_notification: false,
-      parse_mode: 'HTML', // Поддержка форматирования в тексте
-      // Без кнопок - видео открывается прямо в Telegram
-    });
+    // Используем Input.fromURL для правильной загрузки и отправки видео
+    // Это гарантирует, что видео будет отображаться как встроенное, а не ссылка
+    await ctx.replyWithVideo(
+      Input.fromURL(WELCOME_VIDEO_URL),
+      {
+        caption: greeting, // Текст прикрепляется к видео как подпись
+        supports_streaming: true, // Позволяет видео воспроизводиться сразу
+        parse_mode: 'HTML', // Поддержка форматирования в тексте
+      }
+    );
   } catch (error) {
     console.error('Error sending welcome video:', error);
-    // Fallback: попробуем отправить как обычное видео без streaming
+    // Fallback: пробуем скачать и отправить как буфер
     try {
-      await ctx.replyWithVideo(WELCOME_VIDEO_URL, {
-        caption: greeting,
-        parse_mode: 'HTML',
-      });
+      const response = await fetch(WELCOME_VIDEO_URL);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch video: ${response.statusText}`);
+      }
+      
+      const videoBuffer = await response.arrayBuffer();
+      const videoStream = Buffer.from(videoBuffer);
+      
+      await ctx.replyWithVideo(
+        { source: videoStream, filename: 'welcome-video.mp4' },
+        {
+          caption: greeting,
+          supports_streaming: true,
+          parse_mode: 'HTML',
+        }
+      );
     } catch (fallbackError) {
       console.error('Fallback video send also failed:', fallbackError);
       // Последний вариант - текст с ссылкой
@@ -584,16 +598,39 @@ export const navigationModule: BotModule = {
 ${greeting}`;
           
           try {
-            await ctx.replyWithVideo(WELCOME_VIDEO_URL, {
-              caption: referralGreeting,
-              supports_streaming: true,
-              parse_mode: 'HTML',
-            });
+            // Используем Input.fromURL для правильной загрузки видео
+            await ctx.replyWithVideo(
+              Input.fromURL(WELCOME_VIDEO_URL),
+              {
+                caption: referralGreeting,
+                supports_streaming: true,
+                parse_mode: 'HTML',
+              }
+            );
           } catch (error) {
             console.error('Error sending referral welcome video:', error);
-            // Fallback
-            await ctx.reply(referralGreeting);
-            await ctx.replyWithVideo(WELCOME_VIDEO_URL);
+            // Fallback: пробуем скачать и отправить как буфер
+            try {
+              const response = await fetch(WELCOME_VIDEO_URL);
+              if (response.ok) {
+                const videoBuffer = await response.arrayBuffer();
+                const videoStream = Buffer.from(videoBuffer);
+                await ctx.replyWithVideo(
+                  { source: videoStream, filename: 'welcome-video.mp4' },
+                  {
+                    caption: referralGreeting,
+                    supports_streaming: true,
+                    parse_mode: 'HTML',
+                  }
+                );
+              } else {
+                throw new Error('Failed to fetch video');
+              }
+            } catch (fallbackError) {
+              console.error('Fallback video send failed:', fallbackError);
+              // Последний вариант
+              await ctx.reply(referralGreeting);
+            }
           }
           
           console.log('🔗 Referral: Welcome message sent');
