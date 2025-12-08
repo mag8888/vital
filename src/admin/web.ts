@@ -6355,31 +6355,6 @@ router.get('/products', requireAdmin, async (req, res) => {
           
           // NOTE: window.editProduct уже определена выше на строке 5792, не дублируем!
           
-          // Helper function to escape JavaScript string literals
-          const escapeJs = function(s) {
-            if (s == null) return '';
-            return String(s)
-              .replace(/\\/g, '\\\\')  // Escape backslashes first
-              .replace(/'/g, "\\'")     // Escape single quotes
-              .replace(/`/g, '\\`')    // Escape backticks
-              .replace(/\u2028/g, ' ') // Replace line separator
-              .replace(/\u2029/g, ' ') // Replace paragraph separator
-              .replace(/\r?\n/g, '\\n') // Escape newlines
-              .replace(/\r/g, '\\r');   // Escape carriage returns
-          };
-          
-          // Helper function to escape HTML content
-          const escapeHtmlContent = function(s) {
-            if (s == null) return '';
-            return String(s)
-              .replace(/&/g, '&amp;')
-              .replace(/</g, '&lt;')
-              .replace(/>/g, '&gt;')
-              .replace(/"/g, '&quot;')
-              .replace(/'/g, '&#39;')
-              .replace(/`/g, '&#96;');
-          };
-          
           // Instruction modal functions - используем DOM API вместо строковой конкатенации
           window.showInstruction = function(productId, instructionText) {
             const modal = document.createElement('div');
