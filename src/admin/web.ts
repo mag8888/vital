@@ -6360,7 +6360,9 @@ router.get('/products', requireAdmin, async (req, res) => {
             const modal = document.createElement('div');
             modal.className = 'instruction-modal';
             const safeProductId = String(productId || '').replace(/[^a-zA-Z0-9-_]/g, '');
-            const safeInstructionText = String(instructionText || '');
+            const safeInstructionText = String(instructionText || '')
+              .replace(/[\u2028\u2029]/g, ' ')
+              .replace(/\r\n?/g, '\n');
             
             // Создаём структуру модального окна через DOM API
             const overlay = document.createElement('div');
@@ -12198,3 +12200,4 @@ FS0001-24|Natural Balance Face Serum 24 G -COSMOS Natural|6|348.72|2092.32
 });
 
 export { router as adminWebRouter };
+
