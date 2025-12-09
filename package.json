@@ -25,6 +25,7 @@
     "import-siam": "ts-node --esm scripts/import-siam-botanicals.ts",
     "import-invoice": "ts-node --esm scripts/import-invoice-direct.ts",
     "fetch-siam-images": "ts-node --esm scripts/fetch-images-from-siam.ts",
+    "translate-and-fetch-images": "ts-node --esm scripts/translate-products-and-fetch-images.ts",
     "delete-all-products": "ts-node --esm scripts/delete-all-products.ts",
     "import-now": "npm run build && node dist/scripts/run-import-direct.js",
     "update-images": "node scripts/update-images-now.js",
