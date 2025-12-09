@@ -10,14 +10,26 @@
 
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
+import { readFileSync } from 'fs';
 import { getImportSettings, calculateSellingPrice } from '../src/services/invoice-import-service.js';
 import { AITranslationService } from '../src/services/ai-translation-service.js';
 
 const prisma = new PrismaClient();
 const translationService = new AITranslationService();
 
-// Данные из инвойса
-const invoiceData = `
+// Читаем данные из файла PARSED_INVOICE.txt
+let invoiceData = '';
+try {
+  invoiceData = readFileSync('./PARSED_INVOICE.txt', 'utf-8');
+  // Убираем комментарии и пустые строки
+  invoiceData = invoiceData.split('\n')
+    .filter(line => line.trim() && !line.trim().startsWith('#'))
+    .join('\n');
+  console.log('✅ Данные загружены из PARSED_INVOICE.txt\n');
+} catch (error) {
+  console.warn('⚠️  Не удалось прочитать PARSED_INVOICE.txt, используем встроенные данные\n');
+  // Данные из инвойса (резервный вариант)
+  invoiceData = `
 FS1002-24|Rudis Oleum Botanical Face Care Night Formula 24 G -COSMOS Organic certified by IONC Germany|18|453.86|8169.48
 FS1002-24|Natural Balance Face Serum 24 G -COSMOS Natural certified by INC Germany|6|348.72|2092.32
 FS1006-24|Rudis Oleum Botanical Face Care Repair Formula 24 G -COSMOS Organic certified by IONC Germany|2|488.91|977.82
@@ -40,6 +52,8 @@ FB0001-20|Argan & Moringa Face Polish 20 G -COSMOS Organic certified by IONC Ger
 FB0001-20|Argan & Moringa Face Polish 20 G -COSMOS Organic certified by IONC Germany|1|243.58|243.58
 FB0003-20|Forest Berry Face Polish 20 G -COSMOS Natural certified by IONC Germany|20|243.58|4871.60
 FS0016-50|Rose Water & Glycerin Facial Tonic 50 G -COSMOS Organic certified by IONC Germany|13|310.17|4032.21
+\`;
+}
 FS0016-50|Rose Water & Glycerin Facial Tonic 50 G -COSMOS Organic certified by IONC Germany|7|310.17|2171.19
 FS0018-50|Witch Hazel & Tea Tree Facial Tonic 50 G -COSMOS Organic certified by IONC Germany|3|310.17|930.51
 FS0018-50|Witch Hazel & Tea Tree Facial Tonic 50 G -COSMOS Organic certified by IONC Germany|17|310.17|5272.89
