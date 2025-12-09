@@ -7009,6 +7009,11 @@ router.get('/product2', requireAdmin, async (req, res) => {
               <h3>Добавить товар</h3>
               <p>Создать новый товар с фото</p>
             </div>
+            <div class="action-card" onclick="fetchSiamImages()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+              <div class="action-icon">📷</div>
+              <h3>Загрузить фото с Siam Botanicals</h3>
+              <p>Обновить изображения товаров с сайта</p>
+            </div>
           </div>
         </div>
 
@@ -7629,6 +7634,32 @@ router.get('/product2', requireAdmin, async (req, res) => {
             document.getElementById('imageSelectorModal').dataset.forEdit = 'true';
           }
           
+          // Fetch images from Siam Botanicals
+          async function fetchSiamImages() {
+            if (!confirm('Загрузить изображения товаров с сайта Siam Botanicals? Это может занять несколько минут.')) {
+              return;
+            }
+            
+            showAlert('🔄 Загрузка изображений начата... Это может занять несколько минут.', 'success');
+            
+            try {
+              const res = await fetch('/admin/api/product2/fetch-siam-images', {
+                method: 'POST',
+                credentials: 'include'
+              });
+              
+              const data = await res.json();
+              if (data.success) {
+                showAlert(\`✅ \${data.message || 'Загрузка запущена'}\`, 'success');
+                setTimeout(() => location.reload(), 3000);
+              } else {
+                showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+              }
+            } catch (error) {
+              showAlert('❌ Ошибка: ' + error.message, 'error');
+            }
+          }
+          
           // Update selectImage to handle edit mode
           const originalSelectImage = window.selectImage || selectImage;
           window.selectImage = function(imageUrl, productId) {
@@ -7860,6 +7891,56 @@ router.get('/api/product2/category/:categoryId/products', requireAdmin, async (r
   } catch (error: any) {
     console.error('Get category products error:', error);
     res.status(500).json({ success: false, error: error.message || 'Ошибка загрузки товаров' });
+  }
+});
+
+// Fetch images from Siam Botanicals
+router.post('/api/product2/fetch-siam-images', requireAdmin, async (req, res) => {
+  try {
+    // Запускаем скрипт в фоне
+    const { spawn } = await import('child_process');
+    const scriptPath = process.cwd() + '/scripts/fetch-images-from-siam.ts';
+    
+    const child = spawn('npx', ['ts-node', '--esm', scriptPath], {
+      cwd: process.cwd(),
+      detached: true,
+      stdio: 'ignore'
+    });
+    
+    child.unref();
+    
+    res.json({ 
+      success: true, 
+      message: 'Загрузка изображений запущена в фоновом режиме. Проверьте логи через несколько минут.' 
+    });
+  } catch (error: any) {
+    console.error('Error starting image fetch:', error);
+    res.status(500).json({ success: false, error: error.message || 'Ошибка запуска загрузки изображений' });
+  }
+});
+
+// Fetch images from Siam Botanicals
+router.post('/api/product2/fetch-siam-images', requireAdmin, async (req, res) => {
+  try {
+    // Запускаем скрипт в фоне
+    const { spawn } = await import('child_process');
+    const scriptPath = process.cwd() + '/scripts/fetch-images-from-siam.ts';
+    
+    const child = spawn('npx', ['ts-node', '--esm', scriptPath], {
+      cwd: process.cwd(),
+      detached: true,
+      stdio: 'ignore'
+    });
+    
+    child.unref();
+    
+    res.json({ 
+      success: true, 
+      message: 'Загрузка изображений запущена в фоновом режиме. Проверьте логи через несколько минут.' 
+    });
+  } catch (error: any) {
+    console.error('Error starting image fetch:', error);
+    res.status(500).json({ success: false, error: error.message || 'Ошибка запуска загрузки изображений' });
   }
 });
 
