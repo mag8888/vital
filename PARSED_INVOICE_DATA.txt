@@ -1,0 +1,44 @@
+FS1002-24|Rudis Oleum Botanical Face Care Night Formula 24 G -COSMOS Organic certified by IONC Germany|20|453.86|955.72
+FS1006-24|Rudis Oleum Botanical Face Care Repair Formula 24 G -COSMOS Organic certified by IONC Germany|20|488.91|20
+FS1007-24|Rudis Oleum Botanical Face Care Replenish Formula 24 G -COSMOS Organic certified by IONC Germany|20|453.86|20
+FS0001-24|Natural Balance Face Serum 24 G -COSMOS Natural certified by INC Germany|20|348.72|40
+FO0001-30|Organic Rosehip & Jojoba Facial Oil 30 G -COSMOS Organic certified by IONC Germany|20|413.55|100
+FO0002-30|Organic Cranberry & Jojoba Facial Oil 30 G -COSMOS Organic certified by IONC Germany|20|488.91|517.9100000000001
+FC0001-45|Rose Hip & Tea Tree Face Cleanser 45 G -COSMOS Organic certified by IONC Germany|20|278.63|60
+FC0023-90|Aloe Pure Milk Cleanser 90 G 2 348.72 697.44|2|348.72|697.44
+FB0001-20|Argan & Moringa Face Polish 20 G -COSMOS Organic certified by IONC Germany|20|243.58|345.58000000000004
+FB0003-20|Forest Berry Face Polish 20 G -COSMOS Natural certified by IONC Germany|20|243.58|60
+FS0016-50|Rose Water & Glycerin Facial Tonic 50 G -COSMOS Organic certified by IONC Germany Name / Address SPA Consultant Company Ivanovskaya 19, Himki Town, Moscow, Russia SPA Consultant Company Ivanovskaya 19, Himki Town, Moscow, Russia No.12 Soi Chaloemphrakiat Ratchakarn Prawet, Bangkok 10250 In Advance /FOB Air|16|48|29
+FS0018-50|Witch Hazel & Tea Tree Facial Tonic 50 G -COSMOS Organic certified by IONC Germany|20|310.17|1019.51
+FS0015-50|Witch Hazel Facial Toner 50 G -COSMOS Organic certified by IONC Germany|20|310.17|40
+FS0010-50|Rose Water 100% Pure Bulgarian 50 G -COSMOS Organic certified by IONC Germany|20|310.17|40
+FM0001-20|Tamanu & Cucumber Face Balm 20 G -COSMOS Natural certified by IONC Germany|20|205.03|666.09
+BA1001-12|Coconut Lip Balm 12 G -COSMOS Natural certified by IONC Germany|20|115.66|20
+BA1002-12|Orange Lip Balm 12 G -COSMOS Natural certified by IONC Germany|20|115.66|120
+BA1003-12|Peppermint Lip Balm 12 G -COSMOS Natural certified by IONC Germany|20|115.66|717.96
+SC1005-90|Organic Siam Roots Skin Conditioner 90 G -COSMOS Organic certified by IONC Germany|15|348.72|80
+SC1006-90|Oriental Jasmine & Ylang Ylang Skin Conditioner 90 G -COSMOS Natural certified by IONC Germany|15|385.52|80
+SC1007-90|Organic Revive Rosemary & Peppermint Skin Conditioner 90 G -COSMOS Organic certified by IONC Germany|15|348.72|80
+BL1003-220|Body Lotion Revive 220 G 2 329.45 658.90|2|329.45|658.9
+BL1003-90|Body Lotion Revive 90 G 4 206.78 827.12 Name / Address SPA Consultant Company Ivanovskaya 19, Himki Town, Moscow, Russia SPA Consultant Company Ivanovskaya 19, Himki Town, Moscow, Russia No.12 Soi Chaloemphrakiat Ratchakarn Prawet, Bangkok 10250 In Advance /FOB Air|9|48|10
+BG0001-50|Bio Guard with Lemon Eucalyptus 50 G Alu -COSMOS Natural certified by IONC Germany|15|185.75|978.75
+SP0022-100|Body Wash Revive 100 G 6 138.44 830.64|6|138.44|830.64
+BP0001-250|Virgin Coconut Body Scrub 250 G -COSMOS Natural certified by IONC Germany|15|243.58|70
+BP0002-250|Passionfruit & Lime Body Scrub 250 G -COSMOS Natural certified by IONC Germany|15|243.58|70
+HT0011-45|Argan & Lemon Balm Hair Treatment 45 G -COSMOS Organic certified by IONC Germany|15|348.72|80
+HT0012-45|Coconut & Curry Leaf Hair Treatment 45 G -COSMOS Organic|15|243.58|70
+HT0001-220|Hair Conditioner Siam Roots 220 G 15 348.72 5,230.80 Name / Address SPA Consultant Company Ivanovskaya 19, Himki Town, Moscow, Russia SPA Consultant Company Ivanovskaya 19, Himki Town, Moscow, Russia No.12 Soi Chaloemphrakiat Ratchakarn Prawet, Bangkok 10250 In Advance /FOB Air|9|48|10
+HT0002-220|Hair Conditioner Oriental 220 G 1 392.53 392.53|2|392.53|785.06
+PE1001-12|Oriental Solid Perfume 12 g -COSMOS Natural certified by IONC Germany|15|243.58|70
+PE1003-12|Jasmine Rose Solid Perfume 12 g -COSMOS Natural 15 243.58 3,653.70 IONC Germany by IONC Germany IONC Germany IONC Germany|20|82.37|40
+BA0002-25|Rejuvenating Balm 25 G -COSMOS Natural certified by IONC Germany|15|164.72|80
+BA0003-25|Night Time Balm 25 G -COSMOS Natural certified by IONC Germany|15|164.72|80
+BOA0001-90|Relaxing Bath Oil 90 G -COSMOS Natural certified by IONC Germany|15|122.67|5
+BOA0002-90|Reviving Bath Oil 90 G -COSMOS Natural certified by IONC Germany|15|122.67|5
+BOA0003-90|Refreshing Bath Oil 90 G -COSMOS Natural certified by IONC Germany|15|122.67|5
+SI0044-45|Organic Moringa Oil 45 G -COSMOS Organic certified by IONC Germany|15|508.18|70
+SI0046-45|Organic Argan Oil 45 G -COSMOS Organic certified by IONC Germany|15|329.45|75
+SI0057-45|Organic Rosehip Oil with Vitamin E 45 G -COSMOS Organic certified by IONC Germany|15|508.18|70
+SI0045-45|Organic Tamanu Oil with Vitamin E 45 G -COSMOS Organic certified by IONC Germany Name / Address SPA Consultant Company Ivanovskaya 19, Himki Town, Moscow, Russia SPA Consultant Company Ivanovskaya 19, Himki Town, Moscow, Russia No.12 Soi Chaloemphrakiat Ratchakarn Prawet, Bangkok 10250 In Advance /FOB Air|9|48|10
+SI0104-45|Organic Sweet Almond Oil with Vitamin E 45 G -COSMOS Organic certified by IONC Germany|15|243.58|70
+SI0100-45|Organic Apricot Kernel Oil with Vitamin E 45 G -COSMOS Organic certified by IONC Germany Please make payment to: Bangkok Bank Public Company Ltd. Account Name: Wai Thai Co. Ltd. Swift Code:BKKBTHBK|5|5|5
