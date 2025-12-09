@@ -1,43 +1,83 @@
 # Данные инвойса в формате: SKU|Description|Qty|Rate|Amount
 
 FS1002-24|Rudis Oleum Botanical Face Care Night Formula 24 G -COSMOS Organic certified by IONC Germany|20|453.86|9076.72
-FS1006-24|Rudis Oleum Botanical Face Care Repair Formula 24 G -COSMOS Organic certified by IONC Germany|20|488.91|9778
-FS1007-24|Rudis Oleum Botanical Face Care Replenish Formula 24 G -COSMOS Organic certified by IONC Germany|20|453.86|9077
-FS0001-24|Natural Balance Face Serum 24 G -COSMOS Natural certified by INC Germany|20|348.72|6974
-FO0001-30|Organic Rosehip & Jojoba Facial Oil 30 G -COSMOS Organic certified by IONC Germany|20|413.55|8270
+FS1006-24|Rudis Oleum Botanical Face Care Repair Formula 24 G -COSMOS Organic certified by IONC Germany|20|488.91|9778.00
+FS1007-24|Rudis Oleum Botanical Face Care Replenish Formula 24 G -COSMOS Organic certified by IONC Germany|20|453.86|9077.00
+FS0001-24|Natural Balance Face Serum 24 G -COSMOS Natural certified by INC Germany|20|348.72|6974.00
+FO0001-30|Organic Rosehip & Jojoba Facial Oil 30 G -COSMOS Organic certified by IONC Germany|20|413.55|8270.00
 FO0002-30|Organic Cranberry & Jojoba Facial Oil 30 G -COSMOS Organic certified by IONC Germany|20|488.91|9777.91
-FC0001-45|Rose Hip & Tea Tree Face Cleanser 45 G -COSMOS Organic certified by IONC Germany|20|278.63|5572
-FC0023-90|Aloe Pure Milk Cleanser 90 G 2 348.72 697.44|2|348.72|697.44
+SP0016-95|Pre Serum Face Wash  G   1,976.|190|6|658.90
+FC0001-45|Rose Hip & Tea Tree Face Cleanser 45 G -COSMOS Organic certified by IONC Germany|20|278.63|5572.00
+FC0021-90|Face Milk Cleanser Siam Roots  G   1,394.|180|4|697.44
+FC0023-90|Aloe Pure Milk Cleanser  G   1,394.|270|2|1046.16
+FC0020-90|Face Milk Cleanser Nurture  G   6,974.|90|20|348.72
 FB0001-20|Argan & Moringa Face Polish 20 G -COSMOS Organic certified by IONC Germany|20|243.58|4870.58
-FB0003-20|Forest Berry Face Polish 20 G -COSMOS Natural certified by IONC Germany|20|243.58|4871
-FS0016-50|Rose Water & Glycerin Facial Tonic 50 G -COSMOS Organic certified by IONC Germany Name / Address SPA Consultant Company Ivanovskaya 19, Himki Town, Moscow, Russia SPA Consultant Company Ivanovskaya 19, Himki Town, Moscow, Russia No.12 Soi Chaloemphrakiat Ratchakarn Prawet, Bangkok 10250 In Advance /FOB Air|20|310.17|6203
+FB0003-20|Forest Berry Face Polish 20 G -COSMOS Natural certified by IONC Germany|20|243.58|4871.00
+FS0016-50|Rose Water & Glycerin Facial Tonic 50 G -COSMOS Organic certified by IONC Germany  In Advance /FOB Air|20|310.17|6203.00
 FS0018-50|Witch Hazel & Tea Tree Facial Tonic 50 G -COSMOS Organic certified by IONC Germany|20|310.17|6202.51
-FS0015-50|Witch Hazel Facial Toner 50 G -COSMOS Organic certified by IONC Germany|20|310.17|6203
+FS0015-50|Witch Hazel Facial Toner 50 G -COSMOS Organic certified by IONC Germany|20|310.17|6203.00
+FS0010-50|Rose Water % Pure Bulgarian  G -COSMOS Organic certified by IONC Germany|100|50|5000.00
+PB0008-100|White Clay Facial Powder  G   9,077.|100|20|453.86
+PB0011-180|Jasmine Rice Facial Powder  G   2,679.|360|11|487.16
 FM0001-20|Tamanu & Cucumber Face Balm 20 G -COSMOS Natural certified by IONC Germany|20|205.03|4100.09
-BA1001-12|Coconut Lip Balm 12 G -COSMOS Natural certified by IONC Germany|20|115.66|2313
-BA1002-12|Orange Lip Balm 12 G -COSMOS Natural certified by IONC Germany|20|115.66|2312
+BA1001-12|Coconut Lip Balm 12 G -COSMOS Natural certified by IONC Germany|20|115.66|2313.00
+BA1002-12|Orange Lip Balm 12 G -COSMOS Natural certified by IONC Germany|20|115.66|2312.00
 BA1003-12|Peppermint Lip Balm 12 G -COSMOS Natural certified by IONC Germany|20|115.66|2312.96
-SC1005-90|Organic Siam Roots Skin Conditioner 90 G -COSMOS Organic certified by IONC Germany|15|348.72|5230
-SC1006-90|Oriental Jasmine & Ylang Ylang Skin Conditioner 90 G -COSMOS Natural certified by IONC Germany|15|385.52|5782
-SC1007-90|Organic Revive Rosemary & Peppermint Skin Conditioner 90 G -COSMOS Organic certified by IONC Germany|15|348.72|5230
-BL1003-220|Body Lotion Revive 220 G 2 329.45 658.90|2|329.45|658.9
-BL1003-90|Body Lotion Revive 90 G 4 206.78 827.12 Name / Address SPA Consultant Company Ivanovskaya 19, Himki Town, Moscow, Russia SPA Consultant Company Ivanovskaya 19, Himki Town, Moscow, Russia No.12 Soi Chaloemphrakiat Ratchakarn Prawet, Bangkok 10250 In Advance /FOB Air|4|206.78|827.12
+SC1005-90|Organic Siam Roots Skin Conditioner 90 G -COSMOS Organic certified by IONC Germany|15|348.72|5230.00
+SC1006-90|Oriental Jasmine & Ylang Ylang Skin Conditioner 90 G -COSMOS Natural certified by IONC Germany|15|385.52|5782.00
+SC1007-90|Organic Revive Rosemary & Peppermint Skin Conditioner 90 G -COSMOS Organic certified by IONC Germany|15|348.72|5230.00
+BL1001-220|Body Lotion Siam Roots  G   4,941.|220|15|329.45
+BL1002-220|Body Lotion Oriental  G   1,394.|440|4|697.44
+BL1003-220|Body Lotion Revive  G   4,282.|440|2|658.90
+BL1001-90|Body Lotion Siam Roots  G   3,101.|90|15|206.78
+BL1002-90|Body Lotion Oriental  G   3,417.|90|15|227.81
+BL1003-90|Body Lotion Revive  G  In Advance /FOB Air|180|4|413.56
 BG0001-50|Bio Guard with Lemon Eucalyptus 50 G Alu -COSMOS Natural certified by IONC Germany|15|185.75|2785.75
-SP0022-100|Body Wash Revive 100 G 6 138.44 830.64|6|138.44|830.64
-BP0001-250|Virgin Coconut Body Scrub 250 G -COSMOS Natural certified by IONC Germany|15|243.58|3653
-BP0002-250|Passionfruit & Lime Body Scrub 250 G -COSMOS Natural certified by IONC Germany|15|243.58|3653
-HT0011-45|Argan & Lemon Balm Hair Treatment 45 G -COSMOS Organic certified by IONC Germany|15|348.72|5230
-HT0012-45|Coconut & Curry Leaf Hair Treatment 45 G -COSMOS Organic|15|243.58|3653
-HT0002-220|Hair Conditioner Oriental 220 G 1 392.53 392.53|2|392.53|785.06
-PE1001-12|Oriental Solid Perfume 12 g -COSMOS Natural certified by IONC Germany|15|243.58|3653
-BA0002-25|Rejuvenating Balm 25 G -COSMOS Natural certified by IONC Germany|15|164.72|2470
-BA0003-25|Night Time Balm 25 G -COSMOS Natural certified by IONC Germany|15|164.72|2470
-BOA0001-90|Relaxing Bath Oil 90 G -COSMOS Natural certified by IONC Germany|15|122.67|1840
-BOA0002-90|Reviving Bath Oil 90 G -COSMOS Natural certified by IONC Germany|15|122.67|1840
-BOA0003-90|Refreshing Bath Oil 90 G -COSMOS Natural certified by IONC Germany|15|122.67|1840
-SI0044-45|Organic Moringa Oil 45 G -COSMOS Organic certified by IONC Germany|15|508.18|7622
-SI0046-45|Organic Argan Oil 45 G -COSMOS Organic certified by IONC Germany|15|329.45|4941
-SI0057-45|Organic Rosehip Oil with Vitamin E 45 G -COSMOS Organic certified by IONC Germany|15|508.18|7622
-SI0045-45|Organic Tamanu Oil with Vitamin E 45 G -COSMOS Organic certified by IONC Germany Name / Address SPA Consultant Company Ivanovskaya 19, Himki Town, Moscow, Russia SPA Consultant Company Ivanovskaya 19, Himki Town, Moscow, Russia No.12 Soi Chaloemphrakiat Ratchakarn Prawet, Bangkok 10250 In Advance /FOB Air|15|494.16|7412
-SI0104-45|Organic Sweet Almond Oil with Vitamin E 45 G -COSMOS Organic certified by IONC Germany|15|243.58|3653
-SI0100-45|Organic Apricot Kernel Oil with Vitamin E 45 G -COSMOS Organic certified by IONC Germany Please make payment to: Bangkok Bank Public Company Ltd. Account Name: Wai Thai Co. Ltd. Swift Code:BKKBTHBK|15|243.58|3653
+BG0002-25|Bio Guard Face Mineral Sun Protection  G   6,203.|25|30|206.78
+BG0004-250|Shea Butter & Zinc Body Lotion with Amyris  G   7,859.|250|15|523.95
+BG0003-250|Shea Butter & Zinc Body Lotion with Tea Tree  G   7,859.|250|15|523.95
+SP0020-230|Body Wash Siam Roots  G   3,653.|230|15|243.58
+SP0021-230|Body Wash Oriental  G   4,179.|230|15|278.63
+SP0022-230|Body Wash Revive  G   3,653.|230|15|243.58
+SP0020-100|Body Wash Siam Roots  G   2,076.|100|15|138.44
+SP0021-100|Body Wash Oriental  G   1,317.|200|8|329.44
+SP0022-100|Body Wash Revive  G   1,245.|200|9|276.88
+SP0003-50|Natural Ginger Soap  G   1,840.|50|30|61.34
+SP0014-50|Salt Soap - Lemongrass  G   1,840.|50|30|61.34
+SP0015-50|Salt Scrub Soap - Clove  G   1,840.|50|30|61.34
+SP0014-100|Salt Soap - Lemongrass  G   3,101.|100|30|103.39
+SP0015-100|Salt Scrub Soap - Clove  G   3,101.|100|30|103.39
+SP0004-50|Natural Kaffir Lime Shampoo Bar  G   1,840.|50|30|61.34
+BP0001-250|Virgin Coconut Body Scrub 250 G -COSMOS Natural certified by IONC Germany|15|243.58|3653.00
+BP0002-250|Passionfruit & Lime Body Scrub 250 G -COSMOS Natural certified by IONC Germany|15|243.58|3653.00
+HT0011-45|Argan & Lemon Balm Hair Treatment 45 G -COSMOS Organic certified by IONC Germany|15|348.72|5230.00
+HT0012-45|Coconut & Curry Leaf Hair Treatment 45 G -COSMOS Organic|15|243.58|3653.00
+SH0001-230|Shampoo Siam Roots  G   4,337.|230|15|289.14
+SH0002-230|Shampoo Oriental  G   5,.|230|15|348.72
+SH0003-230|Shampoo Revive  G   4,337.|230|15|289.14
+SH0001-100|Shampoo Siam Roots  G   2,470.|100|15|164.72
+SH0002-100|Shampoo Oriental  G   2,786.|100|15|185.75
+SH0003-100|Shampoo Revive  G   2,470.|100|15|164.72
+HT0001-220|Hair Conditioner Siam Roots  G   5,230.  In Advance /FOB Air|220|15|348.72
+HT0002-220|Hair Conditioner Oriental  G   5,102.|660|1|1177.59
+HT0003-220|Hair Conditioner Revive  G   5,230.|220|15|348.72
+HT0001-90|Hair Conditioner Siam Roots  G   2,786.|90|15|185.75
+HT0002-90|Hair Conditioner Oriental  G   3,101.|90|15|206.78
+HT0003-90|Hair Conditioner Revive  G   2,786.|90|15|185.75
+PE1001-12|Oriental Solid Perfume 12 g -COSMOS Natural certified by IONC Germany|15|243.58|3653.00
+PE1002-12|Siam Spice Solid Perfume  g -COSMOS Natural   3,653.|12|15|243.58
+PE1003-12|Jasmine Rose Solid Perfume  g -COSMOS Natural   3,653. BOR001-5 Soothing Body Roll-on 5 G -COSMOS Organic certified by IONC Germany BOR002-5 Rejuvenating Body Roll-on 5 G -COSMOS Organic certified by IONC Germany BOR003-5 Night Time Body Roll-on 5 G -COSMOS Organic certified by IONC Germany BOR004-5 Meditation Body Roll-on 5 G -COSMOS Organic certified by IONC Germany|12|15|243.58
+BA0002-25|Rejuvenating Balm 25 G -COSMOS Natural certified by IONC Germany|15|164.72|2470.00
+BA0003-25|Night Time Balm 25 G -COSMOS Natural certified by IONC Germany|15|164.72|2470.00
+BA0004-25|Meditation Balm  G -COSMOS Natural   2,470.|25|15|164.72
+BOA0001-90|Relaxing Bath Oil 90 G -COSMOS Natural certified by IONC Germany|15|122.67|1840.00
+BOA0002-90|Reviving Bath Oil 90 G -COSMOS Natural certified by IONC Germany|15|122.67|1840.00
+BOA0003-90|Refreshing Bath Oil 90 G -COSMOS Natural certified by IONC Germany|15|122.67|1840.00
+SI0044-45|Organic Moringa Oil 45 G -COSMOS Organic certified by IONC Germany|15|508.18|7622.00
+SI0046-45|Organic Argan Oil 45 G -COSMOS Organic certified by IONC Germany|15|329.45|4941.00
+SI0103-45|Organic Jojoba Oil  G -COSMOS Organic   4,021.|45|15|268.11
+SI0077-45|Cold Pressed Guava Oil  G -COSMOS Natural   ,409.|45|30|346.97
+SI0057-45|Organic Rosehip Oil with Vitamin E 45 G -COSMOS Organic certified by IONC Germany|15|508.18|7622.00
+SI0045-45|Organic Tamanu Oil with Vitamin E 45 G -COSMOS Organic certified by IONC Germany  In Advance /FOB Air|15|494.16|7412.00
+SI0104-45|Organic Sweet Almond Oil with Vitamin E 45 G -COSMOS Organic certified by IONC Germany|15|243.58|3653.00
+SI0100-45|Organic Apricot Kernel Oil with Vitamin E 45 G -COSMOS Organic certified by IONC Germany FWH001-50 His Skin Tea Tree & Lime Face Wash 50g 20 205.03 4,100.60 FLH001-50 His Skin Tea Tree & Lime Face Lotion 50g 20 243.58 4,871.60 FOH001-50 His Skin Turmeric & Lime Face Oil 50g 20 534.47 10,689.40 ORDER DEPOSIT Deposit paid -121,496.00 -121,496.00  Out-of-state sale, exempt from sales tax 0.00% 0.00 _____________________________________	THB 283,784.30|15|243.58|3653.00
