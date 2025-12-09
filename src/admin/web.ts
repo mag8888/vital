@@ -2878,10 +2878,29 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             window.open('/admin/users/' + userId, '_blank', 'width=600,height=400');
           };
           
-          // Функция searchByUsername уже определена в head секции
           window.showHierarchy = function(userId) {
             window.open('/admin/partners-hierarchy?user=' + userId, '_blank', 'width=800,height=600');
           };
+          
+          // Привязываем обработчик кнопки поиска после загрузки DOM
+          (function() {
+            function initSearchButton() {
+              const searchButton = document.getElementById('searchButton');
+              if (searchButton) {
+                searchButton.addEventListener('click', function() {
+                  window.searchByUsername();
+                });
+              } else {
+                // Если кнопка еще не загружена, пробуем снова через небольшую задержку
+                setTimeout(initSearchButton, 100);
+              }
+            }
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', initSearchButton);
+            } else {
+              initSearchButton();
+            }
+          })();
           
           // Функции для массового выбора пользователей
           window.toggleAllUsers = function(checked) {
