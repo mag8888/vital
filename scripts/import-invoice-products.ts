@@ -192,6 +192,11 @@ async function translateToRussian(text: string): Promise<string> {
 async function main() {
   console.log('🚀 Начало импорта товаров из инвойса\n');
   
+  // Удаляем все существующие товары
+  console.log('🗑️  Удаление всех существующих товаров...');
+  const deleteResult = await prisma.product.deleteMany({});
+  console.log(`   ✅ Удалено товаров: ${deleteResult.count}\n`);
+  
   // Получаем настройки
   const settings = await getImportSettings();
   console.log(`📊 Настройки импорта:`);
@@ -219,7 +224,6 @@ async function main() {
   }
   
   let created = 0;
-  let updated = 0;
   let failed = 0;
   
   for (const item of items) {
@@ -242,42 +246,25 @@ async function main() {
       const russianTitle = await translateToRussian(item.description);
       console.log(`   → ${russianTitle}`);
       
-      if (existingProduct) {
-        // Обновляем существующий товар
-        await prisma.product.update({
-          where: { id: existingProduct.id },
-          data: {
-            title: russianTitle,
-            purchasePrice: item.rate,
-            price: sellingPrice,
-            stock: item.quantity,
-            sku: item.sku,
-            isActive: item.quantity > 0
-          }
-        });
-        updated++;
-        console.log(`   ✅ Обновлен (остаток: ${item.quantity}, цена: ${sellingPrice.toFixed(2)} PZ)\n`);
-      } else {
-        // Создаем новый товар
-        await prisma.product.create({
-          data: {
-            title: russianTitle,
-            summary: russianTitle,
-            description: item.description,
-            price: sellingPrice,
-            purchasePrice: item.rate,
-            sku: item.sku,
-            stock: item.quantity,
-            isActive: item.quantity > 0,
-            categoryId: defaultCategory.id,
-            availableInRussia: true,
-            availableInBali: false,
-            lowStockThreshold: 3
-          }
-        });
-        created++;
-        console.log(`   ✅ Создан (остаток: ${item.quantity}, цена: ${sellingPrice.toFixed(2)} PZ)\n`);
-      }
+      // Всегда создаем новый товар (так как все старые удалены)
+      await prisma.product.create({
+        data: {
+          title: russianTitle,
+          summary: russianTitle,
+          description: item.description,
+          price: sellingPrice,
+          purchasePrice: item.rate,
+          sku: item.sku,
+          stock: item.quantity, // Используем остаток из инвойса
+          isActive: item.quantity > 0,
+          categoryId: defaultCategory.id,
+          availableInRussia: true,
+          availableInBali: false,
+          lowStockThreshold: 3
+        }
+      });
+      created++;
+      console.log(`   ✅ Создан (остаток: ${item.quantity}, цена: ${sellingPrice.toFixed(2)} PZ)\n`);
       
       // Пауза между запросами (чтобы не перегружать API перевода)
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -290,7 +277,6 @@ async function main() {
   
   console.log('\n✅ Импорт завершен!');
   console.log(`   Создано: ${created}`);
-  console.log(`   Обновлено: ${updated}`);
   console.log(`   Ошибок: ${failed}`);
   console.log(`   Всего: ${items.length}`);
 }
