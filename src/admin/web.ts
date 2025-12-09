@@ -7294,6 +7294,7 @@ router.get('/product2', requireAdmin, async (req, res) => {
                         <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; position: relative;">
                           \${product.imageUrl ? \`<img src="\${product.imageUrl}" alt="\${product.title}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 6px; margin-bottom: 10px;">\` : '<div style="width: 100%; height: 150px; background: #e9ecef; border-radius: 6px; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; color: #6c757d;">📷 Нет фото</div>'}
                           <div style="font-weight: 600; color: #333; margin-bottom: 5px;">\${product.title}</div>
+                          \${product.sku ? \`<div style="font-size: 11px; color: #6b7280; margin-bottom: 5px;"><strong>ID товара (Item):</strong> <span style="color: #1f2937; font-weight: 600;">\${product.sku}</span></div>\` : ''}
                           <div style="font-size: 12px; color: #6c757d; margin-bottom: 5px;">\${product.summary || 'Нет описания'}</div>
                           <div style="font-size: 14px; font-weight: 600; color: #28a745; margin-bottom: 5px;">
                             \${rubPrice} руб. / \${product.price.toFixed(2)} PZ
@@ -7304,7 +7305,7 @@ router.get('/product2', requireAdmin, async (req, res) => {
                           <div style="font-size: 11px; color: #6c757d; margin-bottom: 10px;">
                             Статус: \${product.isActive ? '✅ Активен' : '❌ Неактивен'}
                           </div>
-                          <button onclick="editProductFromList('\${product.id}', '\${product.title.replace(/'/g, "\\'")}', '\${(product.summary || '').replace(/'/g, "\\'")}', '\${(product.description || '').replace(/'/g, "\\'")}', \${product.price}, '\${product.categoryId}', \${product.isActive}, \${product.availableInRussia || false}, \${product.availableInBali || false}, '\${product.imageUrl || ''}', \${stock})" 
+                          <button onclick="editProductFromList('\${product.id}', '\${product.title.replace(/'/g, "\\'")}', '\${(product.summary || '').replace(/'/g, "\\'")}', '\${(product.description || '').replace(/'/g, "\\'")}', \${product.price}, '\${product.categoryId}', \${product.isActive}, \${product.availableInRussia || false}, \${product.availableInBali || false}, '\${product.imageUrl || ''}', \${stock}, '\${(product.sku || '').replace(/'/g, "\\'")}')" 
                                   style="width: 100%; padding: 8px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px;">
                             ✏️ Редактировать
                           </button>
@@ -7446,7 +7447,7 @@ router.get('/product2', requireAdmin, async (req, res) => {
           };
 
           // Edit product from list
-          function editProductFromList(productId, title, summary, description, price, categoryId, isActive, availableInRussia, availableInBali, imageUrl, stock) {
+          function editProductFromList(productId, title, summary, description, price, categoryId, isActive, availableInRussia, availableInBali, imageUrl, stock, sku) {
             // Create edit modal if it doesn't exist
             let editModal = document.getElementById('editProductModal2');
             if (!editModal) {
@@ -7461,6 +7462,10 @@ router.get('/product2', requireAdmin, async (req, res) => {
                   </div>
                   <form id="editProductForm2" class="modal-body" enctype="multipart/form-data">
                     <input type="hidden" id="editProductId2" name="productId">
+                    <div class="form-group">
+                      <label>ID товара (Item/SKU)</label>
+                      <input type="text" id="editProductSku2" placeholder="Например: FS1002-24">
+                    </div>
                     <div class="form-group">
                       <label>Название товара *</label>
                       <input type="text" id="editProductName2" required>
@@ -7531,6 +7536,7 @@ router.get('/product2', requireAdmin, async (req, res) => {
                 e.preventDefault();
                 const formData = new FormData();
                 formData.append('productId', document.getElementById('editProductId2').value);
+                formData.append('sku', document.getElementById('editProductSku2').value || '');
                 formData.append('title', document.getElementById('editProductName2').value);
                 formData.append('summary', document.getElementById('editProductSummary2').value);
                 formData.append('description', document.getElementById('editProductDescription2').value);
@@ -7819,7 +7825,7 @@ router.post('/api/product2/product', requireAdmin, upload.single('image'), async
 // Update product for Product2
 router.post('/api/product2/product/update', requireAdmin, upload.single('image'), async (req, res) => {
   try {
-    const { productId, title, summary, description, price, stock, categoryId, isActive, availableInRussia, availableInBali, imageUrl } = req.body;
+    const { productId, title, summary, description, price, stock, categoryId, isActive, availableInRussia, availableInBali, imageUrl, sku } = req.body;
     
     if (!productId || !title || !summary || !price || !stock) {
       return res.status(400).json({ success: false, error: 'Все обязательные поля должны быть заполнены' });
@@ -7848,6 +7854,10 @@ router.post('/api/product2/product/update', requireAdmin, upload.single('image')
       availableInRussia: availableInRussia === 'true' || availableInRussia === true,
       availableInBali: availableInBali === 'true' || availableInBali === true,
     };
+
+    if (sku !== undefined) {
+      updateData.sku = sku || null;
+    }
 
     if (finalImageUrl !== undefined) {
       updateData.imageUrl = finalImageUrl;
@@ -7884,6 +7894,7 @@ router.get('/api/product2/category/:categoryId/products', requireAdmin, async (r
         availableInRussia: true,
         availableInBali: true,
         categoryId: true,
+        sku: true,
       },
       orderBy: { createdAt: 'desc' },
     });
