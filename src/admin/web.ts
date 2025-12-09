@@ -13185,15 +13185,17 @@ router.get('/admin/invoice-import', requireAdmin, async (req, res) => {
             <p>Импортируйте данные товаров из инвойса. Формат: SKU|Description|Qty|Rate|Amount</p>
           </div>
           <div class="content">
-            <a href="/admin" class="back-link">← Вернуться в админ панель</a>
-            <a href="/admin/invoice-settings" class="back-link" style="margin-left: 10px;">⚙️ Настройки</a>
+            <div style="margin-bottom: 20px;">
+              <a href="/admin" class="back-link">← Вернуться в админ панель</a>
+              <a href="/admin/invoice-settings" class="back-link" style="margin-left: 10px;">⚙️ Настройки импорта</a>
+            </div>
             
             <div class="settings-info">
               <h4>Текущие настройки:</h4>
               <p>Курс обмена: <strong>${settings.exchangeRate}</strong> БАТ/Рубль</p>
               <p>Мультипликатор: <strong>${settings.priceMultiplier}</strong></p>
-              <p><small>Формула расчета цены: Цена закупки × ${settings.priceMultiplier} × ${settings.exchangeRate} = Цена в рублях, затем ÷ 100 = Цена в PZ</small></p>
-              <p><small>Пример: 453.86 × ${settings.priceMultiplier} × ${settings.exchangeRate} = ${(453.86 * settings.priceMultiplier * settings.exchangeRate).toFixed(2)} руб. = ${((453.86 * settings.priceMultiplier * settings.exchangeRate) / 100).toFixed(2)} PZ</small></p>
+              <p><small>Формула расчета цены: Цена в БАТ × ${settings.priceMultiplier} × ${settings.exchangeRate} = ${(100 * settings.priceMultiplier * settings.exchangeRate).toFixed(2)} руб. = ${(100 * settings.priceMultiplier * settings.exchangeRate / 100).toFixed(2)} PZ</small></p>
+              <p><small>Пример: 100 БАТ × ${settings.priceMultiplier} × ${settings.exchangeRate} = ${(100 * settings.priceMultiplier * settings.exchangeRate).toFixed(2)} руб. = ${(100 * settings.priceMultiplier * settings.exchangeRate / 100).toFixed(2)} PZ</small></p>
             </div>
             
             <div id="alertContainer"></div>
