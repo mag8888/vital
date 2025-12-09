@@ -134,7 +134,7 @@ router.get('/api/test-price-calculation', requireAdmin, async (req, res) => {
         exchangeRate: settings.exchangeRate,
         multiplier: settings.priceMultiplier,
         sellingPricePZ: sellingPrice,
-        formula: `${parseFloat(purchasePrice as string)} × ${settings.exchangeRate} × ${settings.priceMultiplier} = ${sellingPrice.toFixed(2)} PZ`
+        formula: `${parseFloat(purchasePrice as string)} × ${settings.priceMultiplier} × ${settings.exchangeRate} = ${(parseFloat(purchasePrice as string) * settings.priceMultiplier * settings.exchangeRate).toFixed(2)} руб. = ${sellingPrice.toFixed(2)} PZ`
       }
     });
   } catch (error: any) {
