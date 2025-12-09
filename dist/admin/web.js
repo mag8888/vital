@@ -2634,7 +2634,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
               <div class="sort-group" style="position: relative;">
                 <label>Найти по юзернейм или телефону:</label>
                 <input type="text" id="searchUsername" placeholder="@username или +7999..." style="padding:8px 12px; border:1px solid #ced4da; border-radius:6px; font-size:14px;" autocomplete="off" />
-                <button onclick="searchByUsername()">🔎 Найти</button>
+                <button id="searchButton" type="button">🔎 Найти</button>
                 <div id="searchSuggestions" style="position:absolute; top:36px; left:0; background:#fff; border:1px solid #e5e7eb; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,.1); width:260px; max-height:220px; overflow:auto; display:none; z-index:5"></div>
               </div>
               <div class="sort-group">
