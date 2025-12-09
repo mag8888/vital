@@ -3149,9 +3149,6 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             });
           };
           
-          // Переопределяем функцию из head секции полной реализацией
-          window.openMessageModal = window._openMessageModalFull;
-          
           window.closeMessageModal = function() {
             const modal = document.getElementById('messageModal');
             if (modal) {
