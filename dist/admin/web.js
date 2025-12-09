@@ -2351,12 +2351,41 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
         <title>Детальная информация о пользователях - Plazma Water Admin</title>
         <meta charset="utf-8">
         <script>
-          // Определяем функцию поиска ДО загрузки DOM
+          // Определяем все функции ДО загрузки DOM для использования в inline обработчиках
           window.searchByUsername = function(){
             var q = document.getElementById('searchUsername').value.trim();
             if(!q) return;
             if(q.startsWith('@')) q = q.slice(1);
             window.location.href = '/admin/users-detailed?search=' + encodeURIComponent(q);
+          };
+          
+          window.updateSelectedUsers = function() {
+            const checkboxes = document.querySelectorAll('.user-checkbox');
+            const checkedCount = document.querySelectorAll('.user-checkbox:checked').length;
+            const selectAllCheckbox = document.getElementById('selectAllUsers');
+            if (selectAllCheckbox) {
+              selectAllCheckbox.checked = checkedCount === checkboxes.length;
+              selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+            }
+          };
+          
+          window.openMessageModal = function() {
+            const selectedCheckboxes = document.querySelectorAll('.user-checkbox:checked');
+            if (selectedCheckboxes.length === 0) {
+              alert('Выберите пользователей для отправки сообщения');
+              return;
+            }
+            // Эта функция будет переопределена в основном скрипте с полной реализацией
+            // Здесь только заглушка для предотвращения ошибок
+            console.log('openMessageModal called, but full implementation is in main script');
+          };
+          
+          window.toggleAllUsers = function(checked) {
+            const checkboxes = document.querySelectorAll('.user-checkbox');
+            checkboxes.forEach(checkbox => {
+              checkbox.checked = checked;
+            });
+            updateSelectedUsers();
           };
         </script>
         <style>
@@ -3058,6 +3087,9 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
               charCount.textContent = this.value.length;
             });
           };
+          
+          // Переопределяем функцию из head секции полной реализацией
+          window.openMessageModal = window._openMessageModalFull;
           
           window.closeMessageModal = function() {
             const modal = document.getElementById('messageModal');
