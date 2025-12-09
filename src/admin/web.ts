@@ -3273,12 +3273,16 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                         photos.map(function(photo) {
                           const safeUrl = photo.url.replace(/'/g, "\\'").replace(/"/g, '&quot;');
                           const safeTitle = photo.title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-                          return '<div style="cursor: pointer; border: 2px solid #dee2e6; border-radius: 8px; overflow: hidden; transition: all 0.2s;" ' +
-                                 'onmouseover="this.style.borderColor=\'#007bff\'; this.style.transform=\'scale(1.05)\'" ' +
-                                 'onmouseout="this.style.borderColor=\'#dee2e6\'; this.style.transform=\'scale(1)\'" ' +
+                          const colorHover = '#007bff';
+                          const colorDefault = '#dee2e6';
+                          const colorBg = '#f8f9fa';
+                          const colorText = '#333';
+                          return '<div style="cursor: pointer; border: 2px solid ' + colorDefault + '; border-radius: 8px; overflow: hidden; transition: all 0.2s;" ' +
+                                 'onmouseover="this.style.borderColor=\'' + colorHover + '\'; this.style.transform=\'scale(1.05)\'" ' +
+                                 'onmouseout="this.style.borderColor=\'' + colorDefault + '\'; this.style.transform=\'scale(1)\'" ' +
                                  'onclick="selectPhotoFromGallery(\'' + safeUrl + '\', \'' + safeTitle + '\')">' +
-                                 '<img src="' + photo.url + '" alt="' + safeTitle + '" style="width: 100%; height: 150px; object-fit: cover;">' +
-                                 '<div style="padding: 8px; background: #f8f9fa; font-size: 12px; color: #333; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' +
+                                 '<img src="' + photo.url.replace(/"/g, '&quot;') + '" alt="' + safeTitle + '" style="width: 100%; height: 150px; object-fit: cover;">' +
+                                 '<div style="padding: 8px; background: ' + colorBg + '; font-size: 12px; color: ' + colorText + '; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' +
                                  safeTitle +
                                  '</div>' +
                                  '</div>';
