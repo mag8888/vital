@@ -23,6 +23,7 @@
     "compress-video": "./scripts/compress-video.sh",
     "refactor:test": "npm run build:refactored && npm run start:refactored",
     "import-siam": "ts-node --esm scripts/import-siam-botanicals.ts",
+    "import-invoice": "ts-node --esm scripts/import-invoice-products.ts",
     "import-now": "npm run build && node dist/scripts/run-import-direct.js",
     "update-images": "node scripts/update-images-now.js",
     "scrape-images": "ts-node --esm scripts/scrape-product-images.ts",

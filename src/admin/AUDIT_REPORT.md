@@ -110,3 +110,4 @@ if (editBtn && typeof window.editProduct === 'function') {
 - Нет inline JavaScript в HTML
 
 
+

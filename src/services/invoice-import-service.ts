@@ -121,10 +121,10 @@ export async function saveImportSettings(exchangeRate: number, priceMultiplier: 
 
 /**
  * Рассчитывает продажную цену из закупочной
- * Формула: (Цена в БАТ * курс * мультипликатор) / 100
+ * Формула: Цена в БАТ * курс * мультипликатор
  */
 export function calculateSellingPrice(purchasePriceBAT: number, exchangeRate: number, multiplier: number): number {
-  return (purchasePriceBAT * exchangeRate * multiplier) / 100;
+  return purchasePriceBAT * exchangeRate * multiplier;
 }
 
 /**

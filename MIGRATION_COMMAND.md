@@ -33,3 +33,4 @@ cd vital && bash scripts/run-migration.sh
 
 
 
+

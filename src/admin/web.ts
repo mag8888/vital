@@ -905,7 +905,7 @@ router.get('/', requireAdmin, async (req, res) => {
                 <li>Вставьте данные в форму импорта и нажмите "Импортировать"</li>
                 <li>Система автоматически:
                   <ul style="margin-top: 10px;">
-                    <li>Рассчитает продажные цены по формуле: (Цена в БАТ × Курс × Мультипликатор) / 100</li>
+                    <li>Рассчитает продажные цены по формуле: Цена в БАТ × Курс × Мультипликатор</li>
                     <li>Обновит количество товаров</li>
                     <li>Отправит уведомления при низком остатке (≤3 шт)</li>
                     <li>Деактивирует товары с нулевым остатком</li>
@@ -12637,11 +12637,11 @@ router.get('/admin/invoice-settings', requireAdmin, async (req, res) => {
             const testPrice = 100; // Тестовая цена 100 БАТ
             
             if (rate > 0 && mult > 0) {
-              const sellingPrice = (testPrice * rate * mult) / 100;
+              const sellingPrice = testPrice * rate * mult;
               previewContent.innerHTML = \`
                 <p><strong>Закупочная цена:</strong> \${testPrice} БАТ</p>
                 <p><strong>Продажная цена:</strong> \${sellingPrice.toFixed(2)} PZ</p>
-                <p><small>Формула: (\${testPrice} × \${rate} × \${mult}) / 100 = \${sellingPrice.toFixed(2)} PZ</small></p>
+                <p><small>Формула: \${testPrice} × \${rate} × \${mult} = \${sellingPrice.toFixed(2)} PZ</small></p>
               \`;
               pricePreview.style.display = 'block';
             } else {
@@ -12759,7 +12759,7 @@ router.get('/admin/invoice-import', requireAdmin, async (req, res) => {
               <h4>Текущие настройки:</h4>
               <p>Курс обмена: <strong>${settings.exchangeRate}</strong> БАТ/Рубль</p>
               <p>Мультипликатор: <strong>${settings.priceMultiplier}</strong></p>
-              <p><small>Формула расчета цены: (Цена в БАТ × Курс × Мультипликатор) / 100 = Цена в PZ</small></p>
+              <p><small>Формула расчета цены: Цена в БАТ × Курс × Мультипликатор = Цена в PZ</small></p>
             </div>
             
             <div id="alertContainer"></div>

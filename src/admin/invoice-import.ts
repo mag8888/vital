@@ -133,7 +133,7 @@ router.get('/api/test-price-calculation', requireAdmin, async (req, res) => {
         exchangeRate: settings.exchangeRate,
         multiplier: settings.priceMultiplier,
         sellingPricePZ: sellingPrice,
-        formula: `(${parseFloat(purchasePrice as string)} × ${settings.exchangeRate} × ${settings.priceMultiplier}) / 100 = ${sellingPrice.toFixed(2)} PZ`
+        formula: `${parseFloat(purchasePrice as string)} × ${settings.exchangeRate} × ${settings.priceMultiplier} = ${sellingPrice.toFixed(2)} PZ`
       }
     });
   } catch (error: any) {
@@ -143,6 +143,7 @@ router.get('/api/test-price-calculation', requireAdmin, async (req, res) => {
 });
 
 export default router;
+
 
 
 
