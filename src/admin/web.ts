@@ -13192,7 +13192,8 @@ router.get('/admin/invoice-import', requireAdmin, async (req, res) => {
               <h4>Текущие настройки:</h4>
               <p>Курс обмена: <strong>${settings.exchangeRate}</strong> БАТ/Рубль</p>
               <p>Мультипликатор: <strong>${settings.priceMultiplier}</strong></p>
-              <p><small>Формула расчета цены: Цена закупки × ${settings.priceMultiplier} × ${settings.exchangeRate} = Цена в рублях, затем / 100 = Цена в PZ</small></p>
+              <p><small>Формула расчета цены: Цена закупки × ${settings.priceMultiplier} × ${settings.exchangeRate} = Цена в рублях, затем ÷ 100 = Цена в PZ</small></p>
+              <p><small>Пример: 453.86 × ${settings.priceMultiplier} × ${settings.exchangeRate} = ${(453.86 * settings.priceMultiplier * settings.exchangeRate).toFixed(2)} руб. = ${((453.86 * settings.priceMultiplier * settings.exchangeRate) / 100).toFixed(2)} PZ</small></p>
             </div>
             
             <div id="alertContainer"></div>
