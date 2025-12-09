@@ -79,14 +79,18 @@ export async function showCategories(ctx: Context, region?: string) {
         partnerInfo = '\n\n❌ У вас не активна бонус программа, для активации нужно сделать покупку на 120PZ=12000р';
       }
       
-      // Отправляем фото перед описанием каталога
+      // Отправляем фото с описанием каталога в качестве caption
+      const catalogText = `🛍️ Каталог товаров Plazma Water\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ${partnerInfo}\n\nКаталог пока пуст. Добавьте категории и товары в админке.`;
+      
       try {
-        await ctx.replyWithPhoto(SHOP_PHOTO_URL);
+        await ctx.replyWithPhoto(SHOP_PHOTO_URL, {
+          caption: catalogText,
+        });
       } catch (error) {
         console.error('Error sending shop photo:', error);
+        // Fallback: отправляем без фото, если ошибка
+        await ctx.reply(catalogText);
       }
-      
-      await ctx.reply(`🛍️ Каталог товаров Plazma Water\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ${partnerInfo}\n\nКаталог пока пуст. Добавьте категории и товары в админке.`);
       return;
     }
 
@@ -143,18 +147,25 @@ export async function showCategories(ctx: Context, region?: string) {
       partnerInfo = '\n\n❌ У вас не активна бонус программа, для активации нужно сделать покупку на 120PZ=12000р';
     }
     
-    // Отправляем фото перед описанием каталога
+    // Отправляем фото с описанием каталога в качестве caption
+    const catalogText = `🛍️ Каталог товаров Plazma Water\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ\n📍 Регион: ${regionEmoji} ${regionText}${partnerInfo}\n\nВыберите категорию:`;
+    
     try {
-      await ctx.replyWithPhoto(SHOP_PHOTO_URL);
+      await ctx.replyWithPhoto(SHOP_PHOTO_URL, {
+        caption: catalogText,
+        reply_markup: {
+          inline_keyboard: keyboard,
+        },
+      });
     } catch (error) {
       console.error('Error sending shop photo:', error);
+      // Fallback: отправляем без фото, если ошибка
+      await ctx.reply(catalogText, {
+        reply_markup: {
+          inline_keyboard: keyboard,
+        },
+      });
     }
-    
-    await ctx.reply(`🛍️ Каталог товаров Plazma Water\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ\n📍 Регион: ${regionEmoji} ${regionText}${partnerInfo}\n\nВыберите категорию:`, {
-      reply_markup: {
-        inline_keyboard: keyboard,
-      },
-    });
   } catch (error) {
     console.error('Error loading categories:', error);
     // Получаем баланс пользователя
@@ -174,14 +185,18 @@ export async function showCategories(ctx: Context, region?: string) {
       partnerInfo = '\n\n❌ У вас не активна бонус программа, для активации нужно сделать покупку на 120PZ=12000р';
     }
     
-    // Отправляем фото перед описанием каталога
+    // Отправляем фото с описанием каталога в качестве caption
+    const catalogText = `🛍️ Каталог товаров Plazma Water\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ${partnerInfo}\n\n❌ Ошибка загрузки каталога. Попробуйте позже.`;
+    
     try {
-      await ctx.replyWithPhoto(SHOP_PHOTO_URL);
+      await ctx.replyWithPhoto(SHOP_PHOTO_URL, {
+        caption: catalogText,
+      });
     } catch (error) {
       console.error('Error sending shop photo:', error);
+      // Fallback: отправляем без фото, если ошибка
+      await ctx.reply(catalogText);
     }
-    
-    await ctx.reply(`🛍️ Каталог товаров Plazma Water\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ${partnerInfo}\n\n❌ Ошибка загрузки каталога. Попробуйте позже.`);
   }
 }
 
