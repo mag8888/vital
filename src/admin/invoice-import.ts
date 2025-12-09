@@ -10,17 +10,14 @@ const router = Router();
 const prisma = new PrismaClient();
 
 // Middleware для проверки админа
-// Используем тот же middleware, что и в web.ts
 function requireAdmin(req: any, res: any, next: any) {
-  const session = req.session as any;
-  if (!session || !session.isAdmin) {
+  if (!req.session || !req.session.isAdmin) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   next();
 }
 
 // GET: Получить настройки импорта
-// Путь будет /admin/api/import-settings (т.к. роутер подключен к /admin)
 router.get('/api/import-settings', requireAdmin, async (req, res) => {
   try {
     const settings = await getImportSettings();
