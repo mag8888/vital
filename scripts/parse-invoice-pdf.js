@@ -185,8 +185,10 @@ async function main() {
       `${item.sku}|${item.description}|${item.quantity}|${item.rate}|${item.amount}`
     ).join('\n');
     
-    const outputPath = './PARSED_INVOICE_DATA.txt';
-    fs.writeFileSync(outputPath, importData, 'utf-8');
+    // Обновляем PARSED_INVOICE.txt
+    const outputPath = './PARSED_INVOICE.txt';
+    const header = '# Данные инвойса в формате: SKU|Description|Qty|Rate|Amount\n\n';
+    fs.writeFileSync(outputPath, header + importData, 'utf-8');
     
     console.log(`\n✅ Данные сохранены в: ${outputPath}`);
     console.log(`\n📊 Итого:`);
