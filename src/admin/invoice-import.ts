@@ -10,8 +10,10 @@ const router = Router();
 const prisma = new PrismaClient();
 
 // Middleware для проверки админа
+// Используем тот же middleware, что и в web.ts
 function requireAdmin(req: any, res: any, next: any) {
-  if (!req.session || !req.session.isAdmin) {
+  const session = req.session as any;
+  if (!session || !session.isAdmin) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   next();
