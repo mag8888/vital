@@ -866,6 +866,7 @@ router.get('/', requireAdmin, async (req, res) => {
                 <a href="/admin/reviews" class="btn">⭐ Отзывы</a>
                 <a href="/admin/orders" class="btn">📦 Заказы</a>
                 <button class="btn" onclick="openAddProductModal()" style="background: #28a745;">➕ Добавить товар</button>
+                <a href="/admin/product2" class="btn" style="background: #9c27b0;">🛍️ Товар 2</a>
                 <button class="btn import-siam-btn" style="background: #17a2b8; cursor: pointer; pointer-events: auto !important;">🤖 Импорт Siam Botanicals</button>
               </div>
             </div>
@@ -6827,6 +6828,499 @@ router.get('/products', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Products page error:', error);
     res.status(500).send('Ошибка загрузки товаров');
+  }
+});
+
+// Product2 module - управление товарами через веб-интерфейс
+router.get('/product2', requireAdmin, async (req, res) => {
+  try {
+    const categories = await prisma.category.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+    });
+
+    const products = await prisma.product.findMany({
+      where: { imageUrl: { not: null }, isActive: true },
+      select: { id: true, title: true, imageUrl: true },
+      take: 50,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Товар 2 - Управление товарами</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+          }
+          .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 30px; }
+          .header { margin-bottom: 30px; border-bottom: 2px solid #e9ecef; padding-bottom: 20px; }
+          .header h1 { color: #9c27b0; font-size: 28px; margin-bottom: 10px; }
+          .header p { color: #6c757d; }
+          .back-link { display: inline-block; margin-bottom: 20px; color: #667eea; text-decoration: none; font-weight: 600; }
+          .back-link:hover { text-decoration: underline; }
+          .actions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+          .action-card { 
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border: 2px solid #dee2e6;
+            border-radius: 12px;
+            padding: 25px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+          }
+          .action-card:hover { 
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            border-color: #9c27b0;
+          }
+          .action-card h3 { color: #333; margin-bottom: 10px; font-size: 20px; }
+          .action-card p { color: #6c757d; font-size: 14px; }
+          .action-icon { font-size: 48px; margin-bottom: 15px; }
+          .modal-overlay { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); 
+            z-index: 1000; display: none; align-items: center; justify-content: center; 
+          }
+          .modal-overlay.active { display: flex; }
+          .modal-content { 
+            background: white; border-radius: 16px; padding: 0; max-width: 600px; width: 90%; 
+            max-height: 90vh; overflow-y: auto; box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+          }
+          .modal-header { 
+            background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%);
+            color: white; padding: 20px 25px; border-radius: 16px 16px 0 0;
+            display: flex; justify-content: space-between; align-items: center;
+          }
+          .modal-header h2 { margin: 0; font-size: 22px; }
+          .close-btn { background: rgba(255,255,255,0.2); border: none; color: white; font-size: 24px; cursor: pointer; width: 32px; height: 32px; border-radius: 6px; }
+          .close-btn:hover { background: rgba(255,255,255,0.3); }
+          .modal-body { padding: 25px; }
+          .form-group { margin-bottom: 20px; }
+          .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #333; }
+          .form-group input, .form-group select, .form-group textarea { 
+            width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; 
+            font-size: 14px; transition: all 0.2s;
+          }
+          .form-group input:focus, .form-group select:focus, .form-group textarea:focus { 
+            outline: none; border-color: #9c27b0; box-shadow: 0 0 0 3px rgba(156,39,176,0.1);
+          }
+          .form-group textarea { min-height: 100px; resize: vertical; }
+          .form-actions { 
+            display: flex; gap: 12px; justify-content: flex-end; 
+            padding: 20px 25px; border-top: 1px solid #e9ecef;
+          }
+          .btn { 
+            padding: 12px 24px; border: none; border-radius: 8px; 
+            font-weight: 600; cursor: pointer; transition: all 0.2s;
+          }
+          .btn-primary { background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%); color: white; }
+          .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(156,39,176,0.4); }
+          .btn-secondary { background: #e9ecef; color: #333; }
+          .btn-secondary:hover { background: #dee2e6; }
+          .alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; }
+          .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+          .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+          .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; margin-top: 15px; max-height: 400px; overflow-y: auto; }
+          .image-item { 
+            border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden; cursor: pointer;
+            transition: all 0.2s;
+          }
+          .image-item:hover { border-color: #9c27b0; transform: scale(1.05); }
+          .image-item.selected { border-color: #9c27b0; box-shadow: 0 0 0 3px rgba(156,39,176,0.3); }
+          .image-item img { width: 100%; height: 150px; object-fit: cover; }
+          .image-item-title { padding: 8px; font-size: 12px; text-align: center; color: #333; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <a href="/admin" class="back-link">← Вернуться в админ панель</a>
+          <div class="header">
+            <h1>🛍️ Товар 2 - Управление товарами</h1>
+            <p>Добавление категорий, подкатегорий и товаров с фото</p>
+          </div>
+          
+          <div id="alertContainer"></div>
+          
+          <div class="actions-grid">
+            <div class="action-card" onclick="openAddCategoryModal()">
+              <div class="action-icon">📂</div>
+              <h3>Добавить категорию</h3>
+              <p>Создать новую категорию товаров</p>
+            </div>
+            <div class="action-card" onclick="openAddSubcategoryModal()">
+              <div class="action-icon">📁</div>
+              <h3>Добавить подкатегорию</h3>
+              <p>Создать подкатегорию в существующей категории</p>
+            </div>
+            <div class="action-card" onclick="openAddProductModal()">
+              <div class="action-icon">➕</div>
+              <h3>Добавить товар</h3>
+              <p>Создать новый товар с фото</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Add Category Modal -->
+        <div id="categoryModal" class="modal-overlay">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2>📂 Добавить категорию</h2>
+              <button class="close-btn" onclick="closeModal('categoryModal')">&times;</button>
+            </div>
+            <form id="categoryForm" class="modal-body">
+              <div class="form-group">
+                <label>Название категории *</label>
+                <input type="text" id="categoryName" required placeholder="Введите название категории">
+              </div>
+              <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('categoryModal')">Отмена</button>
+                <button type="submit" class="btn btn-primary">Создать категорию</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Add Subcategory Modal -->
+        <div id="subcategoryModal" class="modal-overlay">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2>📁 Добавить подкатегорию</h2>
+              <button class="close-btn" onclick="closeModal('subcategoryModal')">&times;</button>
+            </div>
+            <form id="subcategoryForm" class="modal-body">
+              <div class="form-group">
+                <label>Родительская категория *</label>
+                <select id="parentCategory" required>
+                  <option value="">Выберите категорию</option>
+                  ${categories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Название подкатегории *</label>
+                <input type="text" id="subcategoryName" required placeholder="Введите название подкатегории">
+              </div>
+              <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('subcategoryModal')">Отмена</button>
+                <button type="submit" class="btn btn-primary">Создать подкатегорию</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Add Product Modal -->
+        <div id="productModal" class="modal-overlay">
+          <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+              <h2>➕ Добавить товар</h2>
+              <button class="close-btn" onclick="closeModal('productModal')">&times;</button>
+            </div>
+            <form id="productForm" class="modal-body" enctype="multipart/form-data">
+              <div class="form-group">
+                <label>Категория *</label>
+                <select id="productCategory" required>
+                  <option value="">Выберите категорию</option>
+                  ${categories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Название товара *</label>
+                <input type="text" id="productName" required placeholder="Введите название товара">
+              </div>
+              <div class="form-group">
+                <label>Краткое описание *</label>
+                <textarea id="productSummary" required placeholder="Краткое описание товара"></textarea>
+              </div>
+              <div class="form-group">
+                <label>Цена в PZ *</label>
+                <input type="number" id="productPrice" step="0.01" required placeholder="0.00">
+              </div>
+              <div class="form-group">
+                <label>Фото товара</label>
+                <input type="file" id="productImage" accept="image/*">
+                <button type="button" class="btn btn-secondary" onclick="openImageSelector()" style="margin-top: 10px;">📂 Выбрать из загруженных</button>
+              </div>
+              <input type="hidden" id="selectedImageUrl" value="">
+              <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('productModal')">Отмена</button>
+                <button type="submit" class="btn btn-primary">Создать товар</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Image Selector Modal -->
+        <div id="imageSelectorModal" class="modal-overlay">
+          <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+              <h2>📷 Выбрать фото</h2>
+              <button class="close-btn" onclick="closeModal('imageSelectorModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+              <div class="image-grid" id="imageGrid">
+                ${products.map(p => `
+                  <div class="image-item" onclick="selectImage('${p.imageUrl}', '${p.id}')">
+                    <img src="${p.imageUrl}" alt="${p.title}">
+                    <div class="image-item-title">${p.title}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <script>
+          function showAlert(message, type = 'success') {
+            const container = document.getElementById('alertContainer');
+            container.innerHTML = \`<div class="alert alert-\${type}">\${message}</div>\`;
+            setTimeout(() => container.innerHTML = '', 5000);
+          }
+
+          function openModal(modalId) {
+            document.getElementById(modalId).classList.add('active');
+          }
+
+          function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+          }
+
+          function openAddCategoryModal() {
+            document.getElementById('categoryForm').reset();
+            openModal('categoryModal');
+          }
+
+          function openAddSubcategoryModal() {
+            document.getElementById('subcategoryForm').reset();
+            openModal('subcategoryModal');
+          }
+
+          function openAddProductModal() {
+            document.getElementById('productForm').reset();
+            document.getElementById('selectedImageUrl').value = '';
+            openModal('productModal');
+          }
+
+          function openImageSelector() {
+            openModal('imageSelectorModal');
+          }
+
+          function selectImage(imageUrl, productId) {
+            document.getElementById('selectedImageUrl').value = imageUrl;
+            document.getElementById('productImage').value = '';
+            closeModal('imageSelectorModal');
+            showAlert('Фото выбрано: ' + document.querySelector(\`[onclick*="'\${productId}'"]\`).querySelector('.image-item-title').textContent);
+          }
+
+          // Category Form
+          document.getElementById('categoryForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('categoryName').value;
+            
+            try {
+              const res = await fetch('/admin/api/product2/category', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ name })
+              });
+              
+              const data = await res.json();
+              if (data.success) {
+                showAlert('✅ Категория успешно создана!');
+                closeModal('categoryModal');
+                setTimeout(() => location.reload(), 1000);
+              } else {
+                showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+              }
+            } catch (error) {
+              showAlert('❌ Ошибка: ' + error.message, 'error');
+            }
+          };
+
+          // Subcategory Form
+          document.getElementById('subcategoryForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const categoryId = document.getElementById('parentCategory').value;
+            const name = document.getElementById('subcategoryName').value;
+            
+            try {
+              const res = await fetch('/admin/api/product2/subcategory', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ categoryId, name })
+              });
+              
+              const data = await res.json();
+              if (data.success) {
+                showAlert('✅ Подкатегория успешно создана!');
+                closeModal('subcategoryModal');
+                setTimeout(() => location.reload(), 1000);
+              } else {
+                showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+              }
+            } catch (error) {
+              showAlert('❌ Ошибка: ' + error.message, 'error');
+            }
+          };
+
+          // Product Form
+          document.getElementById('productForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('categoryId', document.getElementById('productCategory').value);
+            formData.append('name', document.getElementById('productName').value);
+            formData.append('summary', document.getElementById('productSummary').value);
+            formData.append('price', document.getElementById('productPrice').value);
+            
+            const imageFile = document.getElementById('productImage').files[0];
+            const selectedImageUrl = document.getElementById('selectedImageUrl').value;
+            
+            if (imageFile) {
+              formData.append('image', imageFile);
+            } else if (selectedImageUrl) {
+              formData.append('imageUrl', selectedImageUrl);
+            }
+            
+            try {
+              const res = await fetch('/admin/api/product2/product', {
+                method: 'POST',
+                credentials: 'include',
+                body: formData
+              });
+              
+              const data = await res.json();
+              if (data.success) {
+                showAlert('✅ Товар успешно создан!');
+                closeModal('productModal');
+                setTimeout(() => location.reload(), 1000);
+              } else {
+                showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+              }
+            } catch (error) {
+              showAlert('❌ Ошибка: ' + error.message, 'error');
+            }
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    res.send(html);
+  } catch (error) {
+    console.error('Product2 page error:', error);
+    res.status(500).send('Ошибка загрузки страницы Товар 2');
+  }
+});
+
+// API routes for Product2
+router.post('/api/product2/category', requireAdmin, async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ success: false, error: 'Название категории обязательно' });
+    }
+
+    const slug = name.toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .substring(0, 50) || \`category-\${Date.now()}\`;
+
+    const category = await prisma.category.create({
+      data: {
+        name,
+        slug,
+        isActive: true,
+      },
+    });
+
+    res.json({ success: true, category });
+  } catch (error: any) {
+    console.error('Create category error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Ошибка создания категории' });
+  }
+});
+
+router.post('/api/product2/subcategory', requireAdmin, async (req, res) => {
+  try {
+    const { categoryId, name } = req.body;
+    if (!categoryId || !name) {
+      return res.status(400).json({ success: false, error: 'Категория и название обязательны' });
+    }
+
+    const parentCategory = await prisma.category.findUnique({
+      where: { id: categoryId },
+    });
+
+    if (!parentCategory) {
+      return res.status(404).json({ success: false, error: 'Родительская категория не найдена' });
+    }
+
+    const slug = \`\${parentCategory.slug}-\${name.toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .substring(0, 30)}\` || \`subcategory-\${Date.now()}\`;
+
+    const subcategory = await prisma.category.create({
+      data: {
+        name: \`\${parentCategory.name} > \${name}\`,
+        slug,
+        isActive: true,
+      },
+    });
+
+    res.json({ success: true, subcategory });
+  } catch (error: any) {
+    console.error('Create subcategory error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Ошибка создания подкатегории' });
+  }
+});
+
+router.post('/api/product2/product', requireAdmin, upload.single('image'), async (req, res) => {
+  try {
+    const { categoryId, name, summary, price, imageUrl } = req.body;
+    
+    if (!categoryId || !name || !summary || !price) {
+      return res.status(400).json({ success: false, error: 'Все поля обязательны' });
+    }
+
+    let finalImageUrl = imageUrl || null;
+
+    // Если загружено новое фото
+    if (req.file) {
+      const uploadResult = await uploadImage(req.file.buffer, {
+        folder: 'plazma/products',
+        publicId: \`product-\${Date.now()}\`,
+        resourceType: 'image',
+      });
+      finalImageUrl = uploadResult.secureUrl;
+    }
+
+    const product = await prisma.product.create({
+      data: {
+        title: name,
+        summary,
+        price: parseFloat(price),
+        imageUrl: finalImageUrl,
+        categoryId,
+        isActive: true,
+        stock: 999,
+        availableInRussia: true,
+        availableInBali: true,
+      },
+    });
+
+    res.json({ success: true, product });
+  } catch (error: any) {
+    console.error('Create product error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Ошибка создания товара' });
   }
 });
 
