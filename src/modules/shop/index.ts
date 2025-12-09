@@ -40,10 +40,12 @@ export async function showRegionSelection(ctx: Context) {
 }
 
 export async function showCategories(ctx: Context, region?: string) {
+  console.log('🛍️ showCategories called, region:', region);
   // If region not provided, try to get it from user
   if (!region) {
     const user = await ensureUser(ctx);
     region = (user as any)?.selectedRegion || 'RUSSIA';
+    console.log('🛍️ Region from user:', region);
   }
   
   await logUserAction(ctx, 'shop:open', { region });
