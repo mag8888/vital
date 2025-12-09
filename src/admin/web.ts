@@ -7231,7 +7231,7 @@ router.post('/api/product2/category', requireAdmin, async (req, res) => {
     const slug = name.toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
-      .substring(0, 50) || \`category-\${Date.now()}\`;
+      .substring(0, 50) || `category-${Date.now()}`;
 
     const category = await prisma.category.create({
       data: {
@@ -7263,14 +7263,14 @@ router.post('/api/product2/subcategory', requireAdmin, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Родительская категория не найдена' });
     }
 
-    const slug = \`\${parentCategory.slug}-\${name.toLowerCase()
+    const slug = `${parentCategory.slug}-${name.toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
-      .substring(0, 30)}\` || \`subcategory-\${Date.now()}\`;
+      .substring(0, 30)}` || `subcategory-${Date.now()}`;
 
     const subcategory = await prisma.category.create({
       data: {
-        name: \`\${parentCategory.name} > \${name}\`,
+        name: `${parentCategory.name} > ${name}`,
         slug,
         isActive: true,
       },
@@ -7297,7 +7297,7 @@ router.post('/api/product2/product', requireAdmin, upload.single('image'), async
     if (req.file) {
       const uploadResult = await uploadImage(req.file.buffer, {
         folder: 'plazma/products',
-        publicId: \`product-\${Date.now()}\`,
+        publicId: `product-${Date.now()}`,
         resourceType: 'image',
       });
       finalImageUrl = uploadResult.secureUrl;
