@@ -52,8 +52,6 @@ FB0001-20|Argan & Moringa Face Polish 20 G -COSMOS Organic certified by IONC Ger
 FB0001-20|Argan & Moringa Face Polish 20 G -COSMOS Organic certified by IONC Germany|1|243.58|243.58
 FB0003-20|Forest Berry Face Polish 20 G -COSMOS Natural certified by IONC Germany|20|243.58|4871.60
 FS0016-50|Rose Water & Glycerin Facial Tonic 50 G -COSMOS Organic certified by IONC Germany|13|310.17|4032.21
-\`;
-}
 FS0018-50|Witch Hazel & Tea Tree Facial Tonic 50 G -COSMOS Organic certified by IONC Germany|3|310.17|930.51
 FS0018-50|Witch Hazel & Tea Tree Facial Tonic 50 G -COSMOS Organic certified by IONC Germany|17|310.17|5272.89
 FS0015-50|Witch Hazel Facial Toner 50 G -COSMOS Organic certified by IONC Germany|20|310.17|6203.40
