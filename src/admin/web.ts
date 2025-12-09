@@ -2408,7 +2408,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
         <title>Детальная информация о пользователях - Plazma Water Admin</title>
         <meta charset="utf-8">
         <script>
-          // Определяем функцию поиска ДО загрузки HTML, чтобы она была доступна из onclick
+          // Определяем функцию поиска ДО загрузки DOM
           window.searchByUsername = function(){
             var q = document.getElementById('searchUsername').value.trim();
             if(!q) return;
@@ -2691,7 +2691,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
               <div class="sort-group" style="position: relative;">
                 <label>Найти по юзернейм или телефону:</label>
                 <input type="text" id="searchUsername" placeholder="@username или +7999..." style="padding:8px 12px; border:1px solid #ced4da; border-radius:6px; font-size:14px;" autocomplete="off" />
-                <button id="searchButton" type="button">🔎 Найти</button>
+                <button onclick="searchByUsername()">🔎 Найти</button>
                 <div id="searchSuggestions" style="position:absolute; top:36px; left:0; background:#fff; border:1px solid #e5e7eb; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,.1); width:260px; max-height:220px; overflow:auto; display:none; z-index:5"></div>
               </div>
               <div class="sort-group">
@@ -2878,15 +2878,13 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             window.open('/admin/users/' + userId, '_blank', 'width=600,height=400');
           };
           
-          // Функция searchByUsername уже определена в <head>, но добавляем обработчик для кнопки
-          document.addEventListener('DOMContentLoaded', function() {
-            const searchButton = document.getElementById('searchButton');
-            if (searchButton) {
-              searchButton.addEventListener('click', function() {
-                window.searchByUsername();
-              });
-            }
-          });
+          // Функция поиска по username - должна быть определена первой
+          window.searchByUsername = function(){
+            var q = document.getElementById('searchUsername').value.trim();
+            if(!q) return;
+            if(q.startsWith('@')) q = q.slice(1);
+            window.location.href = '/admin/users-detailed?search=' + encodeURIComponent(q);
+          };
           
           window.showHierarchy = function(userId) {
             window.open('/admin/partners-hierarchy?user=' + userId, '_blank', 'width=800,height=600');
