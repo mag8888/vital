@@ -150,6 +150,7 @@ export async function showCategories(ctx: Context, region?: string) {
     // Отправляем фото с описанием каталога в качестве caption
     const catalogText = `🛍️ Каталог товаров Plazma Water\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ\n📍 Регион: ${regionEmoji} ${regionText}${partnerInfo}\n\nВыберите категорию:`;
     
+    console.log('🛍️ Sending shop photo with URL:', SHOP_PHOTO_URL);
     try {
       await ctx.replyWithPhoto(SHOP_PHOTO_URL, {
         caption: catalogText,
@@ -157,9 +158,11 @@ export async function showCategories(ctx: Context, region?: string) {
           inline_keyboard: keyboard,
         },
       });
+      console.log('✅ Shop photo sent successfully');
     } catch (error) {
-      console.error('Error sending shop photo:', error);
+      console.error('❌ Error sending shop photo:', error);
       // Fallback: отправляем без фото, если ошибка
+      console.log('🔄 Falling back to text-only message');
       await ctx.reply(catalogText, {
         reply_markup: {
           inline_keyboard: keyboard,
