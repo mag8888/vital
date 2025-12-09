@@ -7908,7 +7908,7 @@ router.get('/api/product2/category/:categoryId/products', requireAdmin, async (r
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json({ success: true, products: productsWithNote });
+    res.json({ success: true, products });
   } catch (error: any) {
     console.error('Get category products error:', error);
     res.status(500).json({ success: false, error: error.message || 'Ошибка загрузки товаров' });
