@@ -13101,6 +13101,7 @@ router.get('/admin/invoice-settings', requireAdmin, async (req, res) => {
             
             try {
               const response = await fetch('/admin/api/import-settings', {
+                credentials: 'include',
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
@@ -13297,6 +13298,7 @@ FS0001-24|Natural Balance Face Serum 24 G -COSMOS Natural|6|348.72|2092.32
               const response = await fetch('/admin/api/import-invoice-sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({ invoiceText })
               });
               
@@ -13329,6 +13331,7 @@ FS0001-24|Natural Balance Face Serum 24 G -COSMOS Natural|6|348.72|2092.32
               const response = await fetch('/admin/api/import-invoice', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({ invoiceText })
               });
               
