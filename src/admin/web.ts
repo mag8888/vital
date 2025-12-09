@@ -7198,10 +7198,49 @@ router.get('/product2', requireAdmin, async (req, res) => {
           }
 
           function selectImage(imageUrl, productId) {
-            document.getElementById('selectedImageUrl').value = imageUrl;
-            document.getElementById('productImage').value = '';
+            // Check if selecting for edit modal
+            const imageSelectorModal = document.getElementById('imageSelectorModal');
+            if (imageSelectorModal && imageSelectorModal.dataset.forEdit === 'true') {
+              const editSelectedImageUrl = document.getElementById('editSelectedImageUrl2');
+              const previewImg = document.getElementById('editProductImagePreviewImg2');
+              if (editSelectedImageUrl) {
+                editSelectedImageUrl.value = imageUrl;
+              }
+              if (previewImg) {
+                previewImg.src = imageUrl;
+                previewImg.style.display = 'block';
+              }
+              const editImageInput = document.getElementById('editProductImage2');
+              if (editImageInput) {
+                editImageInput.value = '';
+              }
+              imageSelectorModal.dataset.forEdit = 'false';
+              closeModal('imageSelectorModal');
+              showAlert('Фото выбрано');
+              return;
+            }
+            
+            // Original behavior for product creation
+            const selectedImageUrlEl = document.getElementById('selectedImageUrl');
+            const productImageEl = document.getElementById('productImage');
+            if (selectedImageUrlEl) {
+              selectedImageUrlEl.value = imageUrl;
+            }
+            if (productImageEl) {
+              productImageEl.value = '';
+            }
             closeModal('imageSelectorModal');
-            showAlert('Фото выбрано: ' + document.querySelector(\`[onclick*="'\${productId}'"]\`).querySelector('.image-item-title').textContent);
+            const imageItem = document.querySelector(\`[onclick*="'\${productId}'"]\`);
+            if (imageItem) {
+              const titleElement = imageItem.querySelector('.image-item-title');
+              if (titleElement) {
+                showAlert('Фото выбрано: ' + titleElement.textContent);
+              } else {
+                showAlert('Фото выбрано');
+              }
+            } else {
+              showAlert('Фото выбрано');
+            }
           }
 
           function openMoveToSubcategoryModal(categoryId, categoryName) {
@@ -7222,6 +7261,11 @@ router.get('/product2', requireAdmin, async (req, res) => {
           async function showCategoryProducts(categoryId, categoryName) {
             document.getElementById('categoryProductsTitle').textContent = \`📦 Товары категории: \${categoryName}\`;
             const listContainer = document.getElementById('categoryProductsList');
+            const modal = document.getElementById('categoryProductsModal');
+            if (modal) {
+              modal.dataset.categoryId = categoryId;
+              modal.dataset.categoryName = categoryName;
+            }
             listContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #6c757d;"><div class="spinner" style="margin: 0 auto 20px;"></div><p>Загрузка товаров...</p></div>';
             openModal('categoryProductsModal');
             
@@ -7236,18 +7280,31 @@ router.get('/product2', requireAdmin, async (req, res) => {
                   listContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #6c757d;"><p>В этой категории пока нет товаров</p></div>';
                 } else {
                   listContainer.innerHTML = \`
-                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px;">
-                      \${data.products.map(product => \`
-                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef;">
-                          \${product.imageUrl ? \`<img src="\${product.imageUrl}" alt="\${product.title}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 6px; margin-bottom: 10px;">\` : ''}
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;">
+                      \${data.products.map(product => {
+                        const rubPrice = (product.price * 100).toFixed(2);
+                        const stock = product.stock || 0;
+                        return \`
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; position: relative;">
+                          \${product.imageUrl ? \`<img src="\${product.imageUrl}" alt="\${product.title}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 6px; margin-bottom: 10px;">\` : '<div style="width: 100%; height: 150px; background: #e9ecef; border-radius: 6px; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; color: #6c757d;">📷 Нет фото</div>'}
                           <div style="font-weight: 600; color: #333; margin-bottom: 5px;">\${product.title}</div>
                           <div style="font-size: 12px; color: #6c757d; margin-bottom: 5px;">\${product.summary || 'Нет описания'}</div>
-                          <div style="font-size: 14px; font-weight: 600; color: #28a745;">\${product.price.toFixed(2)} PZ</div>
-                          <div style="font-size: 11px; color: #6c757d; margin-top: 5px;">
+                          <div style="font-size: 14px; font-weight: 600; color: #28a745; margin-bottom: 5px;">
+                            \${rubPrice} руб. / \${product.price.toFixed(2)} PZ
+                          </div>
+                          <div style="font-size: 12px; color: #6c757d; margin-bottom: 5px;">
+                            Остаток: <strong style="color: \${stock > 0 ? stock <= 3 ? '#ffc107' : '#28a745' : '#dc3545'}">\${stock} шт.</strong>
+                          </div>
+                          <div style="font-size: 11px; color: #6c757d; margin-bottom: 10px;">
                             Статус: \${product.isActive ? '✅ Активен' : '❌ Неактивен'}
                           </div>
+                          <button onclick="editProductFromList('\${product.id}', '\${product.title.replace(/'/g, "\\'")}', '\${(product.summary || '').replace(/'/g, "\\'")}', '\${(product.description || '').replace(/'/g, "\\'")}', \${product.price}, '\${product.categoryId}', \${product.isActive}, \${product.availableInRussia || false}, \${product.availableInBali || false}, '\${product.imageUrl || ''}', \${stock})" 
+                                  style="width: 100%; padding: 8px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            ✏️ Редактировать
+                          </button>
                         </div>
-                      \`).join('')}
+                      \`;
+                      }).join('')}
                     </div>
                   \`;
                 }
@@ -7381,6 +7438,236 @@ router.get('/product2', requireAdmin, async (req, res) => {
               showAlert('❌ Ошибка: ' + error.message, 'error');
             }
           };
+
+          // Edit product from list
+          function editProductFromList(productId, title, summary, description, price, categoryId, isActive, availableInRussia, availableInBali, imageUrl, stock) {
+            // Create edit modal if it doesn't exist
+            let editModal = document.getElementById('editProductModal2');
+            if (!editModal) {
+              editModal = document.createElement('div');
+              editModal.id = 'editProductModal2';
+              editModal.className = 'modal-overlay';
+              editModal.innerHTML = \`
+                <div class="modal-content" style="max-width: 800px;">
+                  <div class="modal-header">
+                    <h2>✏️ Редактировать товар</h2>
+                    <button class="close-btn" onclick="closeEditProductModal2()">&times;</button>
+                  </div>
+                  <form id="editProductForm2" class="modal-body" enctype="multipart/form-data">
+                    <input type="hidden" id="editProductId2" name="productId">
+                    <div class="form-group">
+                      <label>Название товара *</label>
+                      <input type="text" id="editProductName2" required>
+                    </div>
+                    <div class="form-group">
+                      <label>Краткое описание *</label>
+                      <textarea id="editProductSummary2" required></textarea>
+                    </div>
+                    <div class="form-group">
+                      <label>Полное описание</label>
+                      <textarea id="editProductDescription2" rows="4"></textarea>
+                    </div>
+                    <div class="form-group">
+                      <label>Цена в PZ *</label>
+                      <input type="number" id="editProductPrice2" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                      <label>Цена в рублях</label>
+                      <input type="number" id="editProductPriceRub2" step="0.01" readonly>
+                    </div>
+                    <div class="form-group">
+                      <label>Остаток на складе *</label>
+                      <input type="number" id="editProductStock2" required>
+                    </div>
+                    <div class="form-group">
+                      <label>Категория *</label>
+                      <select id="editProductCategory2" required>
+                        <option value="">Загрузка категорий...</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label>Фото товара</label>
+                      <div id="editProductImagePreview2" style="margin-bottom: 10px;">
+                        <img id="editProductImagePreviewImg2" src="" style="max-width: 200px; max-height: 200px; display: none; border-radius: 8px;">
+                      </div>
+                      <input type="file" id="editProductImage2" accept="image/*">
+                      <button type="button" onclick="openImageSelectorForEdit()" style="margin-top: 10px; padding: 8px 16px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                        📂 Выбрать из загруженных
+                      </button>
+                      <input type="hidden" id="editSelectedImageUrl2" value="">
+                    </div>
+                    <div class="form-group">
+                      <label>
+                        <input type="checkbox" id="editProductActive2"> Товар активен
+                      </label>
+                    </div>
+                    <div class="form-group">
+                      <label>
+                        <input type="checkbox" id="editProductRussia2"> Доступен в России
+                      </label>
+                    </div>
+                    <div class="form-group">
+                      <label>
+                        <input type="checkbox" id="editProductBali2"> Доступен на Бали
+                      </label>
+                    </div>
+                    <div class="form-actions">
+                      <button type="button" class="btn btn-secondary" onclick="closeEditProductModal2()">Отмена</button>
+                      <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                    </div>
+                  </form>
+                </div>
+              \`;
+              document.body.appendChild(editModal);
+              
+              // Setup form submission
+              document.getElementById('editProductForm2').onsubmit = async function(e) {
+                e.preventDefault();
+                const formData = new FormData();
+                formData.append('productId', document.getElementById('editProductId2').value);
+                formData.append('title', document.getElementById('editProductName2').value);
+                formData.append('summary', document.getElementById('editProductSummary2').value);
+                formData.append('description', document.getElementById('editProductDescription2').value);
+                formData.append('price', document.getElementById('editProductPrice2').value);
+                formData.append('stock', document.getElementById('editProductStock2').value);
+                formData.append('categoryId', document.getElementById('editProductCategory2').value);
+                formData.append('isActive', document.getElementById('editProductActive2').checked);
+                formData.append('availableInRussia', document.getElementById('editProductRussia2').checked);
+                formData.append('availableInBali', document.getElementById('editProductBali2').checked);
+                
+                const imageFile = document.getElementById('editProductImage2').files[0];
+                const selectedImageUrl = document.getElementById('editSelectedImageUrl2').value;
+                
+                if (imageFile) {
+                  formData.append('image', imageFile);
+                } else if (selectedImageUrl) {
+                  formData.append('imageUrl', selectedImageUrl);
+                }
+                
+                try {
+                  const res = await fetch('/admin/api/product2/product/update', {
+                    method: 'POST',
+                    credentials: 'include',
+                    body: formData
+                  });
+                  
+                  const data = await res.json();
+                  if (data.success) {
+                    showAlert('✅ Товар успешно обновлен!');
+                    closeEditProductModal2();
+                    // Reload category products if modal is open
+                    const categoryModal = document.getElementById('categoryProductsModal');
+                    if (categoryModal && categoryModal.classList.contains('active')) {
+                      const currentCategoryId = categoryModal.dataset.categoryId;
+                      const currentCategoryName = categoryModal.dataset.categoryName;
+                      if (currentCategoryId) {
+                        showCategoryProducts(currentCategoryId, currentCategoryName);
+                      }
+                    }
+                  } else {
+                    showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+                  }
+                } catch (error) {
+                  showAlert('❌ Ошибка: ' + error.message, 'error');
+                }
+              };
+              
+              // Price conversion
+              document.getElementById('editProductPrice2').addEventListener('input', function() {
+                const pzPrice = parseFloat(this.value) || 0;
+                document.getElementById('editProductPriceRub2').value = (pzPrice * 100).toFixed(2);
+              });
+            }
+            
+            // Fill form
+            document.getElementById('editProductId2').value = productId;
+            document.getElementById('editProductName2').value = title;
+            document.getElementById('editProductSummary2').value = summary;
+            document.getElementById('editProductDescription2').value = description;
+            document.getElementById('editProductPrice2').value = price;
+            document.getElementById('editProductPriceRub2').value = (price * 100).toFixed(2);
+            document.getElementById('editProductStock2').value = stock;
+            document.getElementById('editProductActive2').checked = isActive;
+            document.getElementById('editProductRussia2').checked = availableInRussia;
+            document.getElementById('editProductBali2').checked = availableInBali;
+            
+            if (imageUrl) {
+              document.getElementById('editProductImagePreviewImg2').src = imageUrl;
+              document.getElementById('editProductImagePreviewImg2').style.display = 'block';
+            } else {
+              document.getElementById('editProductImagePreviewImg2').style.display = 'none';
+            }
+            
+            // Load categories
+            fetch('/admin/api/categories', { credentials: 'include' })
+              .then(res => res.json())
+              .then(categories => {
+                const select = document.getElementById('editProductCategory2');
+                select.innerHTML = '<option value="">Выберите категорию</option>';
+                categories.forEach(cat => {
+                  const option = document.createElement('option');
+                  option.value = cat.id;
+                  option.textContent = cat.name;
+                  if (cat.id === categoryId) option.selected = true;
+                  select.appendChild(option);
+                });
+              });
+            
+            editModal.classList.add('active');
+          }
+          
+          function closeEditProductModal2() {
+            const modal = document.getElementById('editProductModal2');
+            if (modal) {
+              modal.classList.remove('active');
+            }
+          }
+          
+          function openImageSelectorForEdit() {
+            openModal('imageSelectorModal');
+            // Store that we're selecting for edit
+            document.getElementById('imageSelectorModal').dataset.forEdit = 'true';
+          }
+          
+          // Update selectImage to handle edit mode
+          const originalSelectImage = window.selectImage || selectImage;
+          window.selectImage = function(imageUrl, productId) {
+            // Check if selecting for edit modal
+            const imageSelectorModal = document.getElementById('imageSelectorModal');
+            if (imageSelectorModal && imageSelectorModal.dataset.forEdit === 'true') {
+              document.getElementById('editSelectedImageUrl2').value = imageUrl;
+              const previewImg = document.getElementById('editProductImagePreviewImg2');
+              if (previewImg) {
+                previewImg.src = imageUrl;
+                previewImg.style.display = 'block';
+              }
+              document.getElementById('editProductImage2').value = '';
+              imageSelectorModal.dataset.forEdit = 'false';
+              closeModal('imageSelectorModal');
+              showAlert('Фото выбрано');
+              return;
+            }
+            
+            // Original behavior for product creation
+            if (document.getElementById('selectedImageUrl')) {
+              document.getElementById('selectedImageUrl').value = imageUrl;
+            }
+            if (document.getElementById('productImage')) {
+              document.getElementById('productImage').value = '';
+            }
+            closeModal('imageSelectorModal');
+            const imageItem = document.querySelector(\`[onclick*="'\${productId}'"]\`);
+            if (imageItem) {
+              const titleElement = imageItem.querySelector('.image-item-title');
+              if (titleElement) {
+                showAlert('Фото выбрано: ' + titleElement.textContent);
+              } else {
+                showAlert('Фото выбрано');
+              }
+            } else {
+              showAlert('Фото выбрано');
+            }
+          };
         </script>
       </body>
       </html>
@@ -7497,6 +7784,55 @@ router.post('/api/product2/product', requireAdmin, upload.single('image'), async
   }
 });
 
+// Update product for Product2
+router.post('/api/product2/product/update', requireAdmin, upload.single('image'), async (req, res) => {
+  try {
+    const { productId, title, summary, description, price, stock, categoryId, isActive, availableInRussia, availableInBali, imageUrl } = req.body;
+    
+    if (!productId || !title || !summary || !price || !stock) {
+      return res.status(400).json({ success: false, error: 'Все обязательные поля должны быть заполнены' });
+    }
+
+    let finalImageUrl = imageUrl || undefined;
+
+    // Если загружено новое фото
+    if (req.file) {
+      const uploadResult = await uploadImage(req.file.buffer, {
+        folder: 'plazma/products',
+        publicId: `product-${Date.now()}`,
+        resourceType: 'image',
+      });
+      finalImageUrl = uploadResult.secureUrl;
+    }
+
+    const updateData: any = {
+      title,
+      summary,
+      description: description || null,
+      price: parseFloat(price),
+      stock: parseInt(stock),
+      categoryId,
+      isActive: isActive === 'true' || isActive === true,
+      availableInRussia: availableInRussia === 'true' || availableInRussia === true,
+      availableInBali: availableInBali === 'true' || availableInBali === true,
+    };
+
+    if (finalImageUrl !== undefined) {
+      updateData.imageUrl = finalImageUrl;
+    }
+
+    const product = await prisma.product.update({
+      where: { id: productId },
+      data: updateData,
+    });
+
+    res.json({ success: true, product });
+  } catch (error: any) {
+    console.error('Update product error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Ошибка обновления товара' });
+  }
+});
+
 // Get products by category
 router.get('/api/product2/category/:categoryId/products', requireAdmin, async (req, res) => {
   try {
@@ -7504,6 +7840,19 @@ router.get('/api/product2/category/:categoryId/products', requireAdmin, async (r
     
     const products = await prisma.product.findMany({
       where: { categoryId },
+      select: {
+        id: true,
+        title: true,
+        summary: true,
+        description: true,
+        price: true,
+        stock: true,
+        imageUrl: true,
+        isActive: true,
+        availableInRussia: true,
+        availableInBali: true,
+        categoryId: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
 
