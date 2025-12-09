@@ -5814,6 +5814,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 </button>
               </form>
             </div>
+            ${(product as any).sku ? `<div style="margin: 4px 0; font-size: 12px; color: #6b7280;"><strong>ID товара (Item):</strong> <span style="color: #1f2937; font-weight: 600;">${escapeHtml((product as any).sku)}</span></div>` : ''}
             <span class="badge badge-category">${escapeHtml(product.categoryName)}</span>
             <div style="margin: 8px 0;">
               <span style="font-size: 12px; color: #666;">Регионы:</span>
