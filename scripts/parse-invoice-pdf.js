@@ -69,21 +69,24 @@ async function parseInvoiceText(text) {
         currentDescription.push(descPart);
       }
       
-      // Пробуем найти числа в этой строке
-      const numbers = line.match(/\d+[.,]?\d*/g);
+      // Пробуем найти числа в этой строке (но не в начале, так как это SKU)
+      const afterSku = line.substring(skuMatch[0].length);
+      const numbers = afterSku.match(/\d+[.,]?\d*/g);
       if (numbers && numbers.length >= 2) {
         // Ищем последние 3 числа (Qty, Rate, Amount)
-        const nums = numbers.slice(-3).map(n => parseFloat(n.replace(',', '')));
+        const nums = numbers.slice(-3).map(n => parseFloat(n.replace(/,/g, '')));
         if (nums.length >= 2) {
-          // Количество обычно целое и меньше 1000
-          if (nums[0] < 1000 && nums[0] === Math.floor(nums[0])) {
-            currentQty = nums[0];
-            currentRate = nums[1];
-            currentAmount = nums[2] || null;
-          } else if (nums[1] < 1000 && nums[1] === Math.floor(nums[1])) {
-            currentQty = nums[1];
-            currentRate = nums[0];
-            currentAmount = nums[2] || null;
+          // Количество обычно целое и меньше 1000, Rate обычно 100-1000, Amount больше
+          for (let j = 0; j < nums.length; j++) {
+            if (nums[j] < 1000 && nums[j] === Math.floor(nums[j]) && !currentQty) {
+              currentQty = nums[j];
+              // Rate обычно следующий после Qty
+              if (j + 1 < nums.length && nums[j + 1] > 50 && nums[j + 1] < 1000) {
+                currentRate = nums[j + 1];
+                currentAmount = nums[j + 2] || null;
+              }
+              break;
+            }
           }
         }
       }
@@ -93,14 +96,17 @@ async function parseInvoiceText(text) {
       const numbers = line.match(/\d+[.,]?\d*/g);
       if (numbers && numbers.length >= 2) {
         // Это строка с данными о количестве и цене
-        const nums = numbers.map(n => parseFloat(n.replace(',', '')));
+        const nums = numbers.map(n => parseFloat(n.replace(/,/g, '')));
         if (nums.length >= 2) {
           // Ищем количество (целое число меньше 1000)
           for (let j = 0; j < nums.length; j++) {
-            if (nums[j] < 1000 && nums[j] === Math.floor(nums[j])) {
+            if (nums[j] < 1000 && nums[j] === Math.floor(nums[j]) && !currentQty) {
               currentQty = nums[j];
-              currentRate = nums[j + 1] || nums[j - 1] || currentRate;
-              currentAmount = nums[nums.length - 1] || null;
+              // Rate обычно следующий после Qty
+              if (j + 1 < nums.length && nums[j + 1] > 50 && nums[j + 1] < 1000) {
+                currentRate = nums[j + 1];
+                currentAmount = nums[j + 2] || null;
+              }
               break;
             }
           }
