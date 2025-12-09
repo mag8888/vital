@@ -1,0 +1,79 @@
+# Development files
+*.md
+!README.md
+docs/
+scripts/
+check-products.js
+
+# Config files for local development
+.env*
+!.env.example
+
+# Test files
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Backup files
+*.backup
+*.bak
+*.old
+
+# Documentation files (except main README)
+ADMIN_*.md
+ARCHITECTURE.md
+BOT_CONTENT_MANAGEMENT.md
+CART_FIXES.md
+CLOUDINARY_SETUP.md
+CONTENT_MANAGEMENT_RESTORED.md
+DEPLOYMENT.md
+DUPLICATE_BONUSES_FIX.md
+ENV_SETUP.md
+MINIAPP_TEST_PLAN.md
+PARTNER_*.md
+PHONE_ADDRESS_FEATURE.md
+PUBLISH_TO_PUBLIC_REPO.md
+QUICK_START_WEBAPP.md
+RAILWAY_*.md
+railway-deploy.md
+README_ADMIN_PACKAGE.md
+README_PRIVATE.md
+REFACTORING_REPORT.md
+SETUP_QUICK.md
+TELEGRAM_WEBAPP_SETUP.md
+TEST_RESULTS.md
+TESTING_INSTRUCTIONS.md
+VIDEO_*.md
+WEBAPP_DEPLOYMENT.md
+
+# Build outputs (will be generated on Railway)
+dist/
+
+# Node modules (will be installed on Railway)
+node_modules/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
