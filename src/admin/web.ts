@@ -6835,8 +6835,7 @@ router.get('/products', requireAdmin, async (req, res) => {
 router.get('/product2', requireAdmin, async (req, res) => {
   try {
     const categories = await prisma.category.findMany({
-      where: { isActive: true },
-      orderBy: { name: 'asc' },
+      orderBy: { createdAt: 'desc' },
     });
 
     const products = await prisma.product.findMany({
@@ -6948,6 +6947,26 @@ router.get('/product2', requireAdmin, async (req, res) => {
           </div>
           
           <div id="alertContainer"></div>
+          
+          <!-- Categories List -->
+          <div style="margin-bottom: 30px; background: #f8f9fa; padding: 20px; border-radius: 12px;">
+            <h3 style="margin-bottom: 15px; color: #333;">📂 Созданные категории (${categories.length})</h3>
+            ${categories.length > 0 ? `
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">
+                ${categories.map(cat => `
+                  <div style="background: white; padding: 15px; border-radius: 8px; border: 2px solid #e9ecef;">
+                    <div style="font-weight: 600; color: #333; margin-bottom: 5px;">${cat.name}</div>
+                    <div style="font-size: 12px; color: #6c757d;">Слаг: ${cat.slug}</div>
+                    <div style="font-size: 12px; color: ${cat.isActive ? '#28a745' : '#dc3545'}; margin-top: 5px;">
+                      ${cat.isActive ? '✅ Активна' : '❌ Неактивна'}
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            ` : `
+              <p style="color: #6c757d; text-align: center; padding: 20px;">Категории пока не созданы. Создайте первую категорию!</p>
+            `}
+          </div>
           
           <div class="actions-grid">
             <div class="action-card" onclick="openAddCategoryModal()">
