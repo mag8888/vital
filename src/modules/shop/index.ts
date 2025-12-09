@@ -15,6 +15,7 @@ const PRODUCT_CART_PREFIX = 'shop:prod:cart:';
 const PRODUCT_BUY_PREFIX = 'shop:prod:buy:';
 const PRODUCT_INSTRUCTION_PREFIX = 'shop:prod:instruction:';
 const REGION_SELECT_PREFIX = 'shop:region:';
+const SHOP_PHOTO_URL = 'https://res.cloudinary.com/dt4r1tigf/image/upload/v1765250936/plazma-bot/photos/a1zkrn91ay1mm6r7vysh.jpg';
 
 export async function showRegionSelection(ctx: Context) {
   await logUserAction(ctx, 'shop:region_selection');
@@ -78,6 +79,13 @@ export async function showCategories(ctx: Context, region?: string) {
         partnerInfo = '\n\n❌ У вас не активна бонус программа, для активации нужно сделать покупку на 120PZ=12000р';
       }
       
+      // Отправляем фото перед описанием каталога
+      try {
+        await ctx.replyWithPhoto(SHOP_PHOTO_URL);
+      } catch (error) {
+        console.error('Error sending shop photo:', error);
+      }
+      
       await ctx.reply(`🛍️ Каталог товаров Plazma Water\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ${partnerInfo}\n\nКаталог пока пуст. Добавьте категории и товары в админке.`);
       return;
     }
@@ -135,6 +143,13 @@ export async function showCategories(ctx: Context, region?: string) {
       partnerInfo = '\n\n❌ У вас не активна бонус программа, для активации нужно сделать покупку на 120PZ=12000р';
     }
     
+    // Отправляем фото перед описанием каталога
+    try {
+      await ctx.replyWithPhoto(SHOP_PHOTO_URL);
+    } catch (error) {
+      console.error('Error sending shop photo:', error);
+    }
+    
     await ctx.reply(`🛍️ Каталог товаров Plazma Water\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ\n📍 Регион: ${regionEmoji} ${regionText}${partnerInfo}\n\nВыберите категорию:`, {
       reply_markup: {
         inline_keyboard: keyboard,
@@ -157,6 +172,13 @@ export async function showCategories(ctx: Context, region?: string) {
       partnerInfo = '\n\n🎁 Ваша скидка 10%\n✅ У вас активная партнерская программа';
     } else {
       partnerInfo = '\n\n❌ У вас не активна бонус программа, для активации нужно сделать покупку на 120PZ=12000р';
+    }
+    
+    // Отправляем фото перед описанием каталога
+    try {
+      await ctx.replyWithPhoto(SHOP_PHOTO_URL);
+    } catch (error) {
+      console.error('Error sending shop photo:', error);
     }
     
     await ctx.reply(`🛍️ Каталог товаров Plazma Water\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ${partnerInfo}\n\n❌ Ошибка загрузки каталога. Попробуйте позже.`);
