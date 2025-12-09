@@ -6936,6 +6936,19 @@ router.get('/product2', requireAdmin, async (req, res) => {
           .image-item.selected { border-color: #9c27b0; box-shadow: 0 0 0 3px rgba(156,39,176,0.3); }
           .image-item img { width: 100%; height: 150px; object-fit: cover; }
           .image-item-title { padding: 8px; font-size: 12px; text-align: center; color: #333; }
+          .spinner { 
+            border: 4px solid #f3f3f3; 
+            border-top: 4px solid #9c27b0; 
+            border-radius: 50%; 
+            width: 40px; 
+            height: 40px; 
+            animation: spin 1s linear infinite; 
+            margin: 0 auto; 
+          }
+          @keyframes spin { 
+            0% { transform: rotate(0deg); } 
+            100% { transform: rotate(360deg); } 
+          }
         </style>
       </head>
       <body>
@@ -6952,13 +6965,25 @@ router.get('/product2', requireAdmin, async (req, res) => {
           <div style="margin-bottom: 30px; background: #f8f9fa; padding: 20px; border-radius: 12px;">
             <h3 style="margin-bottom: 15px; color: #333;">📂 Созданные категории (${categories.length})</h3>
             ${categories.length > 0 ? `
-              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;">
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px;">
                 ${categories.map(cat => `
-                  <div style="background: white; padding: 15px; border-radius: 8px; border: 2px solid #e9ecef;">
-                    <div style="font-weight: 600; color: #333; margin-bottom: 5px;">${cat.name}</div>
+                  <div style="background: white; padding: 15px; border-radius: 8px; border: 2px solid #e9ecef; cursor: pointer; transition: all 0.2s;" 
+                       onclick="showCategoryProducts('${cat.id}', '${cat.name.replace(/'/g, "\\'")}')"
+                       onmouseover="this.style.borderColor='#9c27b0'; this.style.boxShadow='0 4px 12px rgba(156,39,176,0.2)'"
+                       onmouseout="this.style.borderColor='#e9ecef'; this.style.boxShadow='none'">
+                    <div style="font-weight: 600; color: #333; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
+                      <span>${cat.name}</span>
+                      <span style="font-size: 10px; color: #6c757d;">📦</span>
+                    </div>
                     <div style="font-size: 12px; color: #6c757d;">Слаг: ${cat.slug}</div>
                     <div style="font-size: 12px; color: ${cat.isActive ? '#28a745' : '#dc3545'}; margin-top: 5px;">
                       ${cat.isActive ? '✅ Активна' : '❌ Неактивна'}
+                    </div>
+                    <div style="margin-top: 10px; display: flex; gap: 8px;">
+                      <button onclick="event.stopPropagation(); openMoveToSubcategoryModal('${cat.id}', '${cat.name.replace(/'/g, "\\'")}')" 
+                              style="flex: 1; padding: 6px 12px; background: #9c27b0; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">
+                        📁 В подкатегорию
+                      </button>
                     </div>
                   </div>
                 `).join('')}
@@ -7095,6 +7120,48 @@ router.get('/product2', requireAdmin, async (req, res) => {
           </div>
         </div>
 
+        <!-- Move to Subcategory Modal -->
+        <div id="moveToSubcategoryModal" class="modal-overlay">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2>📁 Перенести в подкатегорию</h2>
+              <button class="close-btn" onclick="closeModal('moveToSubcategoryModal')">&times;</button>
+            </div>
+            <form id="moveToSubcategoryForm" class="modal-body">
+              <input type="hidden" id="moveCategoryId" value="">
+              <div class="form-group">
+                <label>Родительская категория *</label>
+                <select id="moveParentCategory" required>
+                  <option value="">Выберите родительскую категорию</option>
+                  ${categories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('moveToSubcategoryModal')">Отмена</button>
+                <button type="submit" class="btn btn-primary">Перенести</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Category Products Modal -->
+        <div id="categoryProductsModal" class="modal-overlay">
+          <div class="modal-content" style="max-width: 1000px;">
+            <div class="modal-header">
+              <h2 id="categoryProductsTitle">📦 Товары категории</h2>
+              <button class="close-btn" onclick="closeModal('categoryProductsModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+              <div id="categoryProductsList" style="min-height: 200px;">
+                <div style="text-align: center; padding: 40px; color: #6c757d;">
+                  <div class="spinner" style="margin: 0 auto 20px;"></div>
+                  <p>Загрузка товаров...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <script>
           function showAlert(message, type = 'success') {
             const container = document.getElementById('alertContainer');
@@ -7135,6 +7202,61 @@ router.get('/product2', requireAdmin, async (req, res) => {
             document.getElementById('productImage').value = '';
             closeModal('imageSelectorModal');
             showAlert('Фото выбрано: ' + document.querySelector(\`[onclick*="'\${productId}'"]\`).querySelector('.image-item-title').textContent);
+          }
+
+          function openMoveToSubcategoryModal(categoryId, categoryName) {
+            document.getElementById('moveCategoryId').value = categoryId;
+            document.getElementById('moveParentCategory').value = '';
+            // Исключаем текущую категорию из списка родительских
+            const select = document.getElementById('moveParentCategory');
+            Array.from(select.options).forEach(option => {
+              if (option.value === categoryId) {
+                option.style.display = 'none';
+              } else {
+                option.style.display = 'block';
+              }
+            });
+            openModal('moveToSubcategoryModal');
+          }
+
+          async function showCategoryProducts(categoryId, categoryName) {
+            document.getElementById('categoryProductsTitle').textContent = \`📦 Товары категории: \${categoryName}\`;
+            const listContainer = document.getElementById('categoryProductsList');
+            listContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #6c757d;"><div class="spinner" style="margin: 0 auto 20px;"></div><p>Загрузка товаров...</p></div>';
+            openModal('categoryProductsModal');
+            
+            try {
+              const res = await fetch(\`/admin/api/product2/category/\${categoryId}/products\`, {
+                credentials: 'include'
+              });
+              
+              const data = await res.json();
+              if (data.success && data.products) {
+                if (data.products.length === 0) {
+                  listContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #6c757d;"><p>В этой категории пока нет товаров</p></div>';
+                } else {
+                  listContainer.innerHTML = \`
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px;">
+                      \${data.products.map(product => \`
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef;">
+                          \${product.imageUrl ? \`<img src="\${product.imageUrl}" alt="\${product.title}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 6px; margin-bottom: 10px;">\` : ''}
+                          <div style="font-weight: 600; color: #333; margin-bottom: 5px;">\${product.title}</div>
+                          <div style="font-size: 12px; color: #6c757d; margin-bottom: 5px;">\${product.summary || 'Нет описания'}</div>
+                          <div style="font-size: 14px; font-weight: 600; color: #28a745;">\${product.price.toFixed(2)} PZ</div>
+                          <div style="font-size: 11px; color: #6c757d; margin-top: 5px;">
+                            Статус: \${product.isActive ? '✅ Активен' : '❌ Неактивен'}
+                          </div>
+                        </div>
+                      \`).join('')}
+                    </div>
+                  \`;
+                }
+              } else {
+                listContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #dc3545;"><p>Ошибка загрузки товаров</p></div>';
+              }
+            } catch (error) {
+              listContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #dc3545;"><p>Ошибка: ' + error.message + '</p></div>';
+            }
           }
 
           // Category Form
@@ -7219,6 +7341,38 @@ router.get('/product2', requireAdmin, async (req, res) => {
               if (data.success) {
                 showAlert('✅ Товар успешно создан!');
                 closeModal('productModal');
+                setTimeout(() => location.reload(), 1000);
+              } else {
+                showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+              }
+            } catch (error) {
+              showAlert('❌ Ошибка: ' + error.message, 'error');
+            }
+          };
+
+          // Move to Subcategory Form
+          document.getElementById('moveToSubcategoryForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const categoryId = document.getElementById('moveCategoryId').value;
+            const parentCategoryId = document.getElementById('moveParentCategory').value;
+            
+            if (!parentCategoryId) {
+              showAlert('❌ Выберите родительскую категорию', 'error');
+              return;
+            }
+            
+            try {
+              const res = await fetch('/admin/api/product2/category/move', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ categoryId, parentCategoryId })
+              });
+              
+              const data = await res.json();
+              if (data.success) {
+                showAlert('✅ Категория успешно перенесена в подкатегорию!');
+                closeModal('moveToSubcategoryModal');
                 setTimeout(() => location.reload(), 1000);
               } else {
                 showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
@@ -7340,6 +7494,67 @@ router.post('/api/product2/product', requireAdmin, upload.single('image'), async
   } catch (error: any) {
     console.error('Create product error:', error);
     res.status(500).json({ success: false, error: error.message || 'Ошибка создания товара' });
+  }
+});
+
+// Get products by category
+router.get('/api/product2/category/:categoryId/products', requireAdmin, async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+    
+    const products = await prisma.product.findMany({
+      where: { categoryId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({ success: true, products });
+  } catch (error: any) {
+    console.error('Get category products error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Ошибка загрузки товаров' });
+  }
+});
+
+// Move category to subcategory
+router.post('/api/product2/category/move', requireAdmin, async (req, res) => {
+  try {
+    const { categoryId, parentCategoryId } = req.body;
+    
+    if (!categoryId || !parentCategoryId) {
+      return res.status(400).json({ success: false, error: 'Категория и родительская категория обязательны' });
+    }
+
+    if (categoryId === parentCategoryId) {
+      return res.status(400).json({ success: false, error: 'Нельзя перенести категорию в саму себя' });
+    }
+
+    const category = await prisma.category.findUnique({
+      where: { id: categoryId },
+    });
+
+    const parentCategory = await prisma.category.findUnique({
+      where: { id: parentCategoryId },
+    });
+
+    if (!category || !parentCategory) {
+      return res.status(404).json({ success: false, error: 'Категория не найдена' });
+    }
+
+    // Обновляем название и slug категории, чтобы она стала подкатегорией
+    const newSlug = `${parentCategory.slug}-${category.slug}`;
+    const newName = `${parentCategory.name} > ${category.name}`;
+
+    const updatedCategory = await prisma.category.update({
+      where: { id: categoryId },
+      data: {
+        name: newName,
+        slug: newSlug,
+      },
+    });
+
+    res.json({ success: true, category: updatedCategory });
+  } catch (error: any) {
+    console.error('Move category error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Ошибка переноса категории' });
   }
 });
 
