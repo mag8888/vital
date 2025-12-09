@@ -18,6 +18,7 @@ function requireAdmin(req: any, res: any, next: any) {
 }
 
 // GET: Получить настройки импорта
+// Путь будет /admin/api/import-settings (т.к. роутер подключен к /admin)
 router.get('/api/import-settings', requireAdmin, async (req, res) => {
   try {
     const settings = await getImportSettings();
