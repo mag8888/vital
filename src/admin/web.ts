@@ -7593,6 +7593,7 @@ router.get('/product2', requireAdmin, async (req, res) => {
             
             // Fill form
             document.getElementById('editProductId2').value = productId;
+            document.getElementById('editProductSku2').value = sku || '';
             document.getElementById('editProductName2').value = title;
             document.getElementById('editProductSummary2').value = summary;
             document.getElementById('editProductDescription2').value = description;
