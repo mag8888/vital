@@ -9268,6 +9268,7 @@ router.post('/messages/send', requireAdmin, async (req, res) => {
                         payload: {
                             subject,
                             text,
+                            photoUrl: photoUrl || null,
                             sentBy: 'admin'
                         }
                     }
