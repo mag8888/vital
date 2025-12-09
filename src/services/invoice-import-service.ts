@@ -121,10 +121,17 @@ export async function saveImportSettings(exchangeRate: number, priceMultiplier: 
 
 /**
  * Рассчитывает продажную цену из закупочной
- * Формула: Цена в БАТ * курс * мультипликатор
+ * Формула: Цена закупки * 8 * 2.45 = цена в рублях
+ * Затем конвертируем в PZ: цена в рублях / 100
+ * 
+ * Или напрямую: Цена закупки * 8 * 2.45 / 100 = цена в PZ
  */
 export function calculateSellingPrice(purchasePriceBAT: number, exchangeRate: number, multiplier: number): number {
-  return purchasePriceBAT * exchangeRate * multiplier;
+  // Формула: цена_закупки * 8 * 2.45 = цена в рублях
+  // Затем делим на 100, чтобы получить цену в PZ (1 PZ = 100 руб)
+  const priceInRubles = purchasePriceBAT * multiplier * exchangeRate;
+  const priceInPZ = priceInRubles / 100;
+  return Math.round(priceInPZ * 100) / 100; // Округляем до 2 знаков
 }
 
 /**

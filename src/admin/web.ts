@@ -13067,11 +13067,13 @@ router.get('/admin/invoice-settings', requireAdmin, async (req, res) => {
             const testPrice = 100; // Тестовая цена 100 БАТ
             
             if (rate > 0 && mult > 0) {
-              const sellingPrice = testPrice * rate * mult;
+              // Формула: цена_закупки * 8 * 2.45 = цена в рублях, затем / 100 для PZ
+              const priceInRubles = testPrice * mult * rate;
+              const sellingPrice = priceInRubles / 100; // Конвертируем в PZ (1 PZ = 100 руб)
               previewContent.innerHTML = \`
                 <p><strong>Закупочная цена:</strong> \${testPrice} БАТ</p>
-                <p><strong>Продажная цена:</strong> \${sellingPrice.toFixed(2)} PZ</p>
-                <p><small>Формула: \${testPrice} × \${rate} × \${mult} = \${sellingPrice.toFixed(2)} PZ</small></p>
+                <p><strong>Продажная цена:</strong> \${sellingPrice.toFixed(2)} PZ (\${priceInRubles.toFixed(2)} руб.)</p>
+                <p><small>Формула: \${testPrice} × \${mult} × \${rate} = \${priceInRubles.toFixed(2)} руб. = \${sellingPrice.toFixed(2)} PZ</small></p>
               \`;
               pricePreview.style.display = 'block';
             } else {
