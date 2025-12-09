@@ -5807,13 +5807,17 @@ router.get('/products', requireAdmin, async (req, res) => {
           <div class="product-card" data-category="${escapeAttr(product.categoryId)}" data-id="${escapeAttr(product.id)}">
             ${imageSection}
             <div class="product-header">
-              <h3 class="product-title">${escapeHtml(product.title)}</h3>
+              <h3 class="product-title">
+                ${escapeHtml(product.title)}
+                ${(product.description || '').includes('скопировано') ? ' 📷' : ''}
+              </h3>
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/toggle-active" style="display: inline;">
                 <button type="submit" class="status-btn ${product.isActive ? 'active' : 'inactive'}" style="border: none; background: none; cursor: pointer; font-size: 12px; padding: 4px 8px; border-radius: 4px;">
                   ${product.isActive ? '✅ Активен' : '❌ Неактивен'}
                 </button>
               </form>
             </div>
+            ${(product.description || '').includes('скопировано') ? '<div style="margin: 4px 0; font-size: 11px; color: #f59e0b; background: #fef3c7; padding: 4px 8px; border-radius: 4px; display: inline-block;"><strong>📷 Копия фото</strong></div>' : ''}
             ${(product as any).sku ? `<div style="margin: 4px 0; font-size: 12px; color: #6b7280;"><strong>ID товара (Item):</strong> <span style="color: #1f2937; font-weight: 600;">${escapeHtml((product as any).sku)}</span></div>` : ''}
             <span class="badge badge-category">${escapeHtml(product.categoryName)}</span>
             <div style="margin: 8px 0;">

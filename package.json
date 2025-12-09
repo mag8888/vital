@@ -27,6 +27,7 @@
     "fetch-siam-images": "ts-node --esm scripts/fetch-images-from-siam.ts",
     "translate-and-fetch-images": "ts-node --esm scripts/translate-products-and-fetch-images.ts",
     "fetch-all-images": "ts-node --esm scripts/fetch-all-product-images.ts",
+    "copy-images-and-organize": "ts-node --esm scripts/copy-images-and-organize-categories.ts",
     "delete-all-products": "ts-node --esm scripts/delete-all-products.ts",
     "import-now": "npm run build && node dist/scripts/run-import-direct.js",
     "update-images": "node scripts/update-images-now.js",
