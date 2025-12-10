@@ -2462,6 +2462,18 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             console.log('closePhotoGallery: waiting for full implementation');
           };
           
+          window.addMessageButton = function() {
+            console.log('addMessageButton: waiting for full implementation');
+          };
+          
+          window.removeMessageButton = function() {
+            console.log('removeMessageButton: waiting for full implementation');
+          };
+          
+          window.toggleButtonFields = function() {
+            console.log('toggleButtonFields: waiting for full implementation');
+          };
+          
           window.selectPhotoFromGallery = function() {
             console.log('selectPhotoFromGallery: waiting for full implementation');
           };
@@ -3411,6 +3423,137 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             const preview = document.getElementById('selectedPhotoPreview');
             if (urlInput) urlInput.value = '';
             if (preview) preview.style.display = 'none';
+          };
+          
+          // Инициализация переменных для кнопок
+          if (!window.buttonCounter) {
+            window.buttonCounter = 0;
+          }
+          if (!window.productsList) {
+            window.productsList = [];
+          }
+          
+          // Загрузка списка товаров для кнопок
+          window.loadProductsForButtons = async function() {
+            try {
+              const response = await fetch('/admin/api/products', {
+                credentials: 'include'
+              });
+              if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.data) {
+                  window.productsList = result.data;
+                } else {
+                  window.productsList = await response.json();
+                }
+              }
+            } catch (error) {
+              console.error('Ошибка загрузки товаров:', error);
+            }
+          };
+          
+          // Загрузка товаров в выпадающий список
+          window.loadProductsIntoSelect = function(selectId) {
+            const select = document.getElementById(selectId);
+            if (!select) {
+              setTimeout(() => window.loadProductsIntoSelect(selectId), 500);
+              return;
+            }
+            
+            if (!window.productsList || window.productsList.length === 0) {
+              setTimeout(() => window.loadProductsIntoSelect(selectId), 500);
+              return;
+            }
+            
+            select.innerHTML = '<option value="">Выберите товар...</option>';
+            window.productsList.forEach(product => {
+              const option = document.createElement('option');
+              option.value = product.id;
+              const title = product.title || '';
+              const price = product.price || 0;
+              const categoryName = product.category?.name || '';
+              option.textContent = title + ' (' + price + ' PZ' + (categoryName ? ', ' + categoryName : '') + ')';
+              select.appendChild(option);
+            });
+          };
+          
+          // Добавление кнопки к сообщению
+          window.addMessageButton = function() {
+            window.buttonCounter++;
+            const buttonCounter = window.buttonCounter;
+            const container = document.getElementById('buttonsContainer');
+            if (!container) return;
+            
+            const buttonDiv = document.createElement('div');
+            buttonDiv.id = 'button-' + buttonCounter;
+            buttonDiv.className = 'message-button-item';
+            buttonDiv.style.cssText = 'margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 6px; border: 1px solid #dee2e6;';
+            
+            buttonDiv.innerHTML = 
+              '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">' +
+                '<strong>Кнопка ' + buttonCounter + '</strong>' +
+                '<button type="button" onclick="window.removeMessageButton(' + buttonCounter + ')" style="background: #dc3545; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer;">✕ Удалить</button>' +
+              '</div>' +
+              '<div style="margin-bottom: 10px;">' +
+                '<label style="display: block; margin-bottom: 5px;">Тип кнопки:</label>' +
+                '<select id="buttonType-' + buttonCounter + '" onchange="window.toggleButtonFields(' + buttonCounter + ')" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">' +
+                  '<option value="url">🔗 Ссылка</option>' +
+                  '<option value="product">🛍️ Товар</option>' +
+                '</select>' +
+              '</div>' +
+              '<div id="buttonUrlFields-' + buttonCounter + '">' +
+                '<div style="margin-bottom: 10px;">' +
+                  '<label style="display: block; margin-bottom: 5px;">Текст кнопки:</label>' +
+                  '<input type="text" id="buttonText-' + buttonCounter + '" placeholder="Например: Перейти на сайт" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">' +
+                '</div>' +
+                '<div>' +
+                  '<label style="display: block; margin-bottom: 5px;">URL:</label>' +
+                  '<input type="url" id="buttonUrl-' + buttonCounter + '" placeholder="https://example.com" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">' +
+                '</div>' +
+              '</div>' +
+              '<div id="buttonProductFields-' + buttonCounter + '" style="display: none;">' +
+                '<div style="margin-bottom: 10px;">' +
+                  '<label style="display: block; margin-bottom: 5px;">Выберите товар:</label>' +
+                  '<select id="buttonProduct-' + buttonCounter + '" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">' +
+                    '<option value="">Загрузка товаров...</option>' +
+                  '</select>' +
+                '</div>' +
+                '<div>' +
+                  '<label style="display: block; margin-bottom: 5px;">Действие:</label>' +
+                  '<select id="buttonProductAction-' + buttonCounter + '" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">' +
+                    '<option value="cart">🛒 Добавить в корзину</option>' +
+                    '<option value="buy">💳 Купить сразу</option>' +
+                  '</select>' +
+                '</div>' +
+              '</div>';
+            
+            container.appendChild(buttonDiv);
+            window.loadProductsIntoSelect('buttonProduct-' + buttonCounter);
+          };
+          
+          // Удаление кнопки
+          window.removeMessageButton = function(buttonId) {
+            const buttonDiv = document.getElementById('button-' + buttonId);
+            if (buttonDiv) {
+              buttonDiv.remove();
+            }
+          };
+          
+          // Переключение полей в зависимости от типа кнопки
+          window.toggleButtonFields = function(buttonId) {
+            const typeSelect = document.getElementById('buttonType-' + buttonId);
+            if (!typeSelect) return;
+            const type = typeSelect.value;
+            const urlFields = document.getElementById('buttonUrlFields-' + buttonId);
+            const productFields = document.getElementById('buttonProductFields-' + buttonId);
+            
+            if (type === 'url') {
+              if (urlFields) urlFields.style.display = 'block';
+              if (productFields) productFields.style.display = 'none';
+            } else {
+              if (urlFields) urlFields.style.display = 'none';
+              if (productFields) productFields.style.display = 'block';
+            }
           };
           
           function applySorting() {
