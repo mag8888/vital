@@ -7294,15 +7294,16 @@ router.get('/product2', requireAdmin, async (req, res) => {
                       \${data.products.map(product => {
                         const rubPrice = (product.price * 100).toFixed(2);
                         const stock = product.stock || 0;
+                        const hasCopiedImage = (product.description || '').indexOf('скопировано') !== -1;
                         return \`
                         <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; position: relative;">
                           \${product.imageUrl ? \`<img src="\${product.imageUrl}" alt="\${product.title}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 6px; margin-bottom: 10px;">\` : '<div style="width: 100%; height: 150px; background: #e9ecef; border-radius: 6px; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; color: #6c757d;">📷 Нет фото</div>'}
                           <div style="font-weight: 600; color: #333; margin-bottom: 5px;">
                             \${product.title}
-                            \${(product.description || '').includes('скопировано') ? ' 📷' : ''}
+                            \${hasCopiedImage ? ' 📷' : ''}
                           </div>
                           \${product.sku ? \`<div style="font-size: 11px; color: #6b7280; margin-bottom: 5px;"><strong>ID товара (Item):</strong> <span style="color: #1f2937; font-weight: 600;">\${product.sku}</span></div>\` : ''}
-                          \${(product.description || '').includes('скопировано') ? '<div style="font-size: 10px; color: #f59e0b; background: #fef3c7; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: 5px;"><strong>📷 Копия фото</strong></div>' : ''}
+                          \${hasCopiedImage ? '<div style="font-size: 10px; color: #f59e0b; background: #fef3c7; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: 5px;"><strong>📷 Копия фото</strong></div>' : ''}
                           <div style="font-size: 12px; color: #6c757d; margin-bottom: 5px;">\${product.summary || 'Нет описания'}</div>
                           <div style="font-size: 14px; font-weight: 600; color: #28a745; margin-bottom: 5px;">
                             \${rubPrice} руб. / \${product.price.toFixed(2)} PZ
