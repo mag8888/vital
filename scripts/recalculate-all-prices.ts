@@ -52,8 +52,8 @@ async function main() {
       const calculatedPriceRub = calculatedPricePZ * 100;
       const currentPriceRub = product.price * 100;
       
-      // Обновляем цену, если она отличается
-      if (Math.abs(product.price - calculatedPricePZ) > 0.01) {
+      // Обновляем цену, если она отличается (даже если разница небольшая, пересчитываем для точности)
+      if (Math.abs(product.price - calculatedPricePZ) > 0.001) {
         await prisma.product.update({
           where: { id: product.id },
           data: {
@@ -64,7 +64,10 @@ async function main() {
         console.log(`✅ ${product.sku}: ${product.price.toFixed(2)} PZ → ${calculatedPricePZ.toFixed(2)} PZ (${currentPriceRub.toFixed(0)} → ${calculatedPriceRub.toFixed(0)} руб)`);
         updatedCount++;
       } else {
-        console.log(`⏭️  ${product.sku}: цена корректна (${product.price.toFixed(2)} PZ = ${currentPriceRub.toFixed(0)} руб)`);
+        // Даже если цена корректна, выводим информацию для проверки
+        if (product.sku === 'BA1003-12' || product.sku === 'PE1003-12') {
+          console.log(`🔍 ${product.sku}: ${product.price.toFixed(2)} PZ = ${currentPriceRub.toFixed(0)} руб (закупочная: ${product.purchasePrice} БАТ)`);
+        }
       }
     } catch (error: any) {
       errorCount++;
