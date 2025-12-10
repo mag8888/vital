@@ -6843,6 +6843,16 @@ router.get('/product2', requireAdmin, async (req, res) => {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Подсчитываем количество товаров для каждой категории
+    const categoriesWithCounts = await Promise.all(
+      categories.map(async (cat) => {
+        const productCount = await prisma.product.count({
+          where: { categoryId: cat.id },
+        });
+        return { ...cat, productCount };
+      })
+    );
+
     const products = await prisma.product.findMany({
       where: { imageUrl: { not: null }, isActive: true },
       select: { id: true, title: true, imageUrl: true },
@@ -6968,10 +6978,10 @@ router.get('/product2', requireAdmin, async (req, res) => {
           
           <!-- Categories List -->
           <div style="margin-bottom: 30px; background: #f8f9fa; padding: 20px; border-radius: 12px;">
-            <h3 style="margin-bottom: 15px; color: #333;">📂 Созданные категории (${categories.length})</h3>
-            ${categories.length > 0 ? `
+            <h3 style="margin-bottom: 15px; color: #333;">📂 Созданные категории (${categoriesWithCounts.length})</h3>
+            ${categoriesWithCounts.length > 0 ? `
               <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px;">
-                ${categories.map(cat => `
+                ${categoriesWithCounts.map(cat => `
                   <div style="background: white; padding: 15px; border-radius: 8px; border: 2px solid #e9ecef; cursor: pointer; transition: all 0.2s;" 
                        onclick="showCategoryProducts('${cat.id}', '${cat.name.replace(/'/g, "\\'")}')"
                        onmouseover="this.style.borderColor='#9c27b0'; this.style.boxShadow='0 4px 12px rgba(156,39,176,0.2)'"
@@ -6983,6 +6993,9 @@ router.get('/product2', requireAdmin, async (req, res) => {
                     <div style="font-size: 12px; color: #6c757d;">Слаг: ${cat.slug}</div>
                     <div style="font-size: 12px; color: ${cat.isActive ? '#28a745' : '#dc3545'}; margin-top: 5px;">
                       ${cat.isActive ? '✅ Активна' : '❌ Неактивна'}
+                    </div>
+                    <div style="margin-top: 8px; padding: 6px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 6px; text-align: center; font-weight: 700; font-size: 18px;">
+                      ${cat.productCount} товаров
                     </div>
                     <div style="margin-top: 10px; display: flex; gap: 8px;">
                       <button onclick="event.stopPropagation(); openMoveToSubcategoryModal('${cat.id}', '${cat.name.replace(/'/g, "\\'")}')" 
@@ -7054,7 +7067,7 @@ router.get('/product2', requireAdmin, async (req, res) => {
                 <label>Родительская категория *</label>
                 <select id="parentCategory" required>
                   <option value="">Выберите категорию</option>
-                  ${categories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('')}
+                  ${categoriesWithCounts.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('')}
                 </select>
               </div>
               <div class="form-group">
