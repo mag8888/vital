@@ -940,13 +940,27 @@ async function loadProductsOnMainPage() {
                 return nameA.localeCompare(nameB);
             });
             
+            // Получаем все категории для определения подкатегорий Косметики
+            let cosmeticsSubcategories = [];
+            try {
+                const categoriesResponse = await fetch(`${API_BASE}/categories`);
+                if (categoriesResponse.ok) {
+                    const allCategories = await categoriesResponse.json();
+                    cosmeticsSubcategories = allCategories.filter(cat => 
+                        cat.name && cat.name.startsWith('Косметика >') && cat.name !== 'Косметика'
+                    );
+                }
+            } catch (error) {
+                console.error('Error fetching categories for cosmetics:', error);
+            }
+            
             let html = '';
-            sortedCategories.forEach(categoryId => {
+            for (const categoryId of sortedCategories) {
                 const category = productsByCategory[categoryId];
                 
                 // Специальная обработка для категории "Косметика"
                 if (category.name === 'Косметика') {
-                    html += await renderCosmeticsCategory(categoryId, category.products);
+                    html += renderCosmeticsCategory(categoryId, category.products, cosmeticsSubcategories);
                 } else {
                     html += `
                         <div class="products-scroll-container">
