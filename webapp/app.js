@@ -921,11 +921,16 @@ async function loadProductsOnMainPage() {
                 productsByCategory[categoryId].products.push(product);
             });
             
-            // Определяем порядок категорий: Косметика, Живая вода, Практики, остальные
-            const categoryOrder = ['Косметика', 'Живая вода', 'Практики'];
+            // Определяем порядок категорий: сначала остальные, потом Косметика (после Плазмы)
+            const categoryOrder = ['Живая вода', 'Практики'];
             const sortedCategories = Object.keys(productsByCategory).sort((a, b) => {
                 const nameA = productsByCategory[a].name;
                 const nameB = productsByCategory[b].name;
+                
+                // Косметика всегда в конце (после Плазмы)
+                if (nameA === 'Косметика') return 1;
+                if (nameB === 'Косметика') return -1;
+                
                 const indexA = categoryOrder.indexOf(nameA);
                 const indexB = categoryOrder.indexOf(nameB);
                 
@@ -938,24 +943,30 @@ async function loadProductsOnMainPage() {
             let html = '';
             sortedCategories.forEach(categoryId => {
                 const category = productsByCategory[categoryId];
-                html += `
-                    <div class="products-scroll-container">
-                        <div class="section-header-inline">
-                            <h2 class="section-title-inline">${escapeHtml(category.name)}</h2>
-                        </div>
-                        <div class="products-scroll-wrapper">
-                            <div class="products-horizontal">
-                `;
                 
-                category.products.forEach(product => {
-                    html += renderProductCardHorizontal(product);
-                });
-                
-                html += `
+                // Специальная обработка для категории "Косметика"
+                if (category.name === 'Косметика') {
+                    html += await renderCosmeticsCategory(categoryId, category.products);
+                } else {
+                    html += `
+                        <div class="products-scroll-container">
+                            <div class="section-header-inline">
+                                <h2 class="section-title-inline">${escapeHtml(category.name)}</h2>
+                            </div>
+                            <div class="products-scroll-wrapper">
+                                <div class="products-horizontal">
+                    `;
+                    
+                    category.products.forEach(product => {
+                        html += renderProductCardHorizontal(product);
+                    });
+                    
+                    html += `
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `;
+                    `;
+                }
             });
             
             container.innerHTML = html;

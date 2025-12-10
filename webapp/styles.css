@@ -987,7 +987,7 @@ body {
 .section-title-inline {
     font-size: 28px;
     font-weight: 600;
-    color: #dc3545;
+    color: var(--text-primary);
     margin: 0 0 16px 0;
     letter-spacing: -0.02em;
 }
