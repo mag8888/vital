@@ -1195,67 +1195,82 @@ function renderCosmeticsCategory(categoryId, allProducts, cosmeticsSubcategories
     }
 }
 
-// Show cosmetics subcategories grid
+// Show cosmetics subcategories - отображаем товары из всех подкатегорий горизонтально
 async function showCosmeticsSubcategories(parentCategoryId) {
     try {
-        const response = await fetch(`${API_BASE}/categories`);
-        if (!response.ok) throw new Error('Failed to fetch categories');
+        // Открываем секцию каталога
+        openSection('shop');
         
-        const allCategories = await response.json();
+        const container = document.getElementById('section-body');
+        container.innerHTML = '<div class="loading"><div class="loading-spinner"></div></div>';
+        
+        // Загружаем категории и товары
+        const [categoriesResponse, productsResponse] = await Promise.all([
+            fetch(`${API_BASE}/categories`),
+            fetch(`${API_BASE}/products`)
+        ]);
+        
+        if (!categoriesResponse.ok) throw new Error('Failed to fetch categories');
+        if (!productsResponse.ok) throw new Error('Failed to fetch products');
+        
+        const allCategories = await categoriesResponse.json();
+        const products = await productsResponse.json();
+        
+        // Находим подкатегории "Косметика"
         const cosmeticsSubcategories = allCategories.filter(cat => 
             cat.name && cat.name.startsWith('Косметика >') && cat.name !== 'Косметика'
         );
         
-        if (cosmeticsSubcategories.length === 0) {
-            // Если нет подкатегорий, показываем все товары категории
-            showCategoryProducts(parentCategoryId);
-            return;
-        }
+        // Группируем товары по категориям
+        const productsByCategory = {};
+        products.forEach(product => {
+            const categoryId = product.category?.id || 'uncategorized';
+            if (!productsByCategory[categoryId]) {
+                productsByCategory[categoryId] = [];
+            }
+            productsByCategory[categoryId].push(product);
+        });
         
-        // Создаем модальное окно с плиткой подкатегорий
-        const overlay = document.createElement('div');
-        overlay.className = 'subcategories-overlay';
-        overlay.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px;';
+        let html = '<div class="products-main-container">';
         
-        const modal = document.createElement('div');
-        modal.style.cssText = 'background: var(--bg-primary); border-radius: 16px; padding: 24px; max-width: 600px; width: 100%; max-height: 80vh; overflow-y: auto;';
-        
-        let html = `
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="font-size: 24px; font-weight: 600; margin: 0;">Косметика</h2>
-                <button onclick="this.closest('.subcategories-overlay').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-secondary);">×</button>
-            </div>
-            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
-        `;
-        
+        // Отображаем каждую подкатегорию как горизонтальную линию
         cosmeticsSubcategories.forEach(subcat => {
-            const subcatName = subcat.name.replace('Косметика > ', '');
+            const subcatProducts = productsByCategory[subcat.id] || [];
+            if (subcatProducts.length === 0) return;
+            
             html += `
-                <div onclick="showCategoryProducts('${subcat.id}'); this.closest('.subcategories-overlay').remove();" 
-                     style="padding: 20px; background: var(--bg-secondary); border-radius: 12px; cursor: pointer; text-align: center; transition: all 0.2s; border: 1px solid var(--border-color);"
-                     onmouseover="this.style.background='var(--accent-soft)';"
-                     onmouseout="this.style.background='var(--bg-secondary)';">
-                    <div style="font-size: 20px; margin-bottom: 8px;">📦</div>
-                    <div style="font-weight: 600; font-size: 16px; color: var(--text-primary);">${escapeHtml(subcatName)}</div>
+                <div class="products-scroll-container">
+                    <div class="section-header-inline">
+                        <h2 class="section-title-inline" onclick="showCategoryProducts('${subcat.id}')" style="cursor: pointer;">${escapeHtml(subcat.name)}</h2>
+                    </div>
+                    <div class="products-scroll-wrapper">
+                        <div class="products-horizontal">
+            `;
+            
+            subcatProducts.forEach(product => {
+                html += renderProductCardHorizontal(product);
+            });
+            
+            html += `
+                        </div>
+                    </div>
                 </div>
             `;
         });
         
-        html += '</div>';
-        modal.innerHTML = html;
-        overlay.appendChild(modal);
-        document.body.appendChild(overlay);
+        if (cosmeticsSubcategories.length === 0 || cosmeticsSubcategories.every(subcat => !productsByCategory[subcat.id] || productsByCategory[subcat.id].length === 0)) {
+            html += `
+                <div class="empty-state" style="padding: 40px 20px; text-align: center;">
+                    <p style="font-size: 18px; margin-bottom: 20px;">📦 В подкатегориях пока нет товаров</p>
+                </div>
+            `;
+        }
         
-        // Закрытие по клику вне модального окна
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) {
-                overlay.remove();
-            }
-        });
+        html += '</div>';
+        container.innerHTML = html;
     } catch (error) {
-        console.error('Error showing cosmetics subcategories:', error);
-        // Fallback: показываем все товары категории
-        showCategoryProducts(parentCategoryId);
+        console.error('Error loading cosmetics subcategories:', error);
+        showError('Ошибка загрузки подкатегорий');
     }
 }
 
