@@ -9750,7 +9750,8 @@ router.post('/messages/send', requireAdmin, async (req, res) => {
           
           // Формируем сообщение с экранированием Markdown символов
           const escapeMarkdown = (text: string) => {
-            return text.replace(/([_*\[\]()~`>#+=|{}.!-])/g, '\\$1');
+            // Экранируем только специальные символы Markdown, но не дефис и не слэш
+            return text.replace(/([_*\[\]()~`>#+=|{}.!])/g, '\\$1');
           };
           
           const messageText = `📧 ${escapeMarkdown(subject)}\n\n${escapeMarkdown(text)}`;
