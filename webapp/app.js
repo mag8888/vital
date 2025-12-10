@@ -1254,7 +1254,9 @@ function renderProductCardHorizontal(product) {
         : `<div class="product-card-image no-image" onclick="event.stopPropagation(); showProductDetails('${product.id}')"><div class="product-image-placeholder-icon">📦</div></div>`;
     
     const title = escapeHtml(product.title || 'Без названия');
-    const summary = escapeHtml((product.summary || product.description || '').substring(0, 80));
+    const fullDescription = product.summary || product.description || '';
+    const summary = escapeHtml(fullDescription);
+    const hasMoreDetails = fullDescription.length > 150 || (product.description && product.description.length > 0);
     // Конвертируем цену из PZ в рубли (1 PZ = 100 руб)
     const priceRub = product.price ? Math.round(product.price * 100).toLocaleString('ru-RU') : '0';
     
@@ -1263,7 +1265,8 @@ function renderProductCardHorizontal(product) {
             ${imageHtml}
             <div class="product-card-content">
                 <h3 class="product-card-title">${title}</h3>
-                ${summary ? `<p class="product-card-summary">${summary}${(product.summary || product.description || '').length > 80 ? '...' : ''}</p>` : ''}
+                ${summary ? `<p class="product-card-summary">${summary}</p>` : ''}
+                ${hasMoreDetails ? `<button class="product-details-link" onclick="event.stopPropagation(); showProductDetails('${product.id}')" style="font-size: 11px; color: var(--accent); background: none; border: none; padding: 4px 0; cursor: pointer; text-align: left; text-decoration: underline; margin-top: 4px; width: 100%;">Подробно →</button>` : ''}
                 <div class="product-card-footer">
                     <div class="product-card-price">
                         <span class="price-value">${priceRub} ₽</span>

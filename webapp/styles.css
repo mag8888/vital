@@ -1107,14 +1107,15 @@ body {
     margin: 0;
     line-height: 1.4;
     display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
     flex: 1;
     word-wrap: break-word;
     word-break: break-word;
     font-weight: 400;
+    min-height: 46px; /* 3 lines * 1.4 line-height * 11px ≈ 46px */
 }
 
 .product-card-forma-horizontal .product-card-footer {
