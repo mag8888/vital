@@ -3389,7 +3389,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                 const select = document.getElementById('templateSelect');
                 if (select) {
                   select.innerHTML = '<option value="">Выберите шаблон...</option>';
-                  templates.forEach((template: any) => {
+                  templates.forEach(function(template) {
                     const option = document.createElement('option');
                     option.value = template.id;
                     option.textContent = template.name || 'Без названия';
@@ -3439,7 +3439,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                   if (container) {
                     container.innerHTML = '';
                     window.buttonCounter = 0;
-                    template.buttons.forEach((button: any) => {
+                    template.buttons.forEach(function(button) {
                       window.addMessageButton();
                       const buttonId = window.buttonCounter;
                       const typeSelect = document.getElementById('buttonType-' + buttonId);
@@ -3457,7 +3457,9 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                           if (productSelect) productSelect.value = button.productId || '';
                           if (actionSelect) actionSelect.value = button.action || 'cart';
                           // Загружаем товары в select если нужно
-                          setTimeout(() => window.loadProductsIntoSelect('buttonProduct-' + buttonId), 500);
+                          setTimeout(function() {
+                            window.loadProductsIntoSelect('buttonProduct-' + buttonId);
+                          }, 500);
                         }
                       }
                     });
