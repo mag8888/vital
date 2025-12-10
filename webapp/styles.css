@@ -1124,12 +1124,17 @@ body {
     margin-top: auto;
     padding-top: 8px;
     border-top: 1px solid rgba(0, 0, 0, 0.05);
+    min-width: 0;
+    overflow: visible;
 }
 
 .product-card-forma-horizontal .price-value {
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
     color: #1a1a1a;
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
 }
 
 .product-card-forma-horizontal .product-card-btn {
@@ -1249,18 +1254,25 @@ body {
     margin-top: auto;
     padding-top: 12px;
     border-top: 1px solid rgba(0, 0, 0, 0.05);
+    min-width: 0;
+    overflow: visible;
 }
 
 .product-card-price {
     display: flex;
     flex-direction: column;
     gap: 2px;
+    min-width: 0;
+    flex-shrink: 0;
 }
 
 .price-value {
     font-size: 16px;
     font-weight: 700;
     color: #1a1a1a;
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
 }
 
 .price-pz {

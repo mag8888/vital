@@ -1255,7 +1255,8 @@ function renderProductCardHorizontal(product) {
     
     const title = escapeHtml(product.title || 'Без названия');
     const summary = escapeHtml((product.summary || product.description || '').substring(0, 80));
-    const priceRub = product.price ? (product.price * 100).toFixed(0) : '0';
+    // Конвертируем цену из PZ в рубли (1 PZ = 100 руб)
+    const priceRub = product.price ? Math.round(product.price * 100).toLocaleString('ru-RU') : '0';
     
     return `
         <div class="product-card-forma-horizontal" onclick="showProductDetails('${product.id}')">
@@ -1284,7 +1285,8 @@ function renderProductCard(product) {
     
     const title = escapeHtml(product.title || 'Без названия');
     const summary = escapeHtml((product.summary || product.description || '').substring(0, 100));
-    const priceRub = product.price ? (product.price * 100).toFixed(0) : '0';
+    // Конвертируем цену из PZ в рубли (1 PZ = 100 руб)
+    const priceRub = product.price ? Math.round(product.price * 100).toLocaleString('ru-RU') : '0';
     
     return `
         <div class="product-card-forma" onclick="showProductDetails('${product.id}')">
