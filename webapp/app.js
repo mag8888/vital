@@ -981,7 +981,7 @@ async function loadProductsOnMainPage() {
                         </div>
                     `;
                 }
-            });
+            }
             
             container.innerHTML = html;
         } else {
@@ -1105,6 +1105,145 @@ async function loadPlazmaProducts() {
         });
         // При ошибке сети или других ошибках скрываем секцию
         plazmaSection.style.display = 'none';
+    }
+}
+
+// Render cosmetics category with mixed products from subcategories
+function renderCosmeticsCategory(categoryId, allProducts, cosmeticsSubcategories) {
+    try {
+        // Группируем товары по подкатегориям
+        const productsBySubcategory = {};
+        cosmeticsSubcategories.forEach(subcat => {
+            productsBySubcategory[subcat.id] = allProducts.filter(p => p.category?.id === subcat.id);
+        });
+        
+        // Создаем микс: по одному товару из каждой подкатегории через один
+        const mixedProducts = [];
+        const subcategoryIds = Object.keys(productsBySubcategory).filter(id => productsBySubcategory[id].length > 0);
+        let maxIterations = 9; // Максимум 9 товаров
+        let currentIndex = 0;
+        
+        while (mixedProducts.length < maxIterations && subcategoryIds.length > 0) {
+            const subcatId = subcategoryIds[currentIndex % subcategoryIds.length];
+            const subcatProducts = productsBySubcategory[subcatId];
+            
+            if (subcatProducts && subcatProducts.length > 0) {
+                const productIndex = Math.floor(mixedProducts.length / subcategoryIds.length);
+                if (productIndex < subcatProducts.length) {
+                    mixedProducts.push(subcatProducts[productIndex]);
+                }
+            }
+            
+            currentIndex++;
+            if (currentIndex >= subcategoryIds.length * 3) break; // Защита от бесконечного цикла
+        }
+        
+        let html = `
+            <div class="products-scroll-container">
+                <div class="section-header-inline">
+                    <h2 class="section-title-inline" onclick="showCosmeticsSubcategories('${categoryId}')" style="cursor: pointer;">${escapeHtml('Косметика')}</h2>
+                </div>
+                <div class="products-scroll-wrapper">
+                    <div class="products-horizontal">
+        `;
+        
+        mixedProducts.forEach(product => {
+            html += renderProductCardHorizontal(product);
+        });
+        
+        // Кнопка "больше"
+        html += `
+                        <div class="product-card-forma-horizontal" onclick="showCosmeticsSubcategories('${categoryId}')" style="min-width: 200px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 2px dashed var(--border-color); background: var(--bg-secondary);">
+                            <div style="text-align: center; padding: 20px;">
+                                <div style="font-size: 32px; margin-bottom: 12px;">➕</div>
+                                <div style="font-weight: 600; font-size: 16px; color: var(--text-primary);">Больше</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        return html;
+    } catch (error) {
+        console.error('Error rendering cosmetics category:', error);
+        // Fallback: показываем все товары как обычно
+        return `
+            <div class="products-scroll-container">
+                <div class="section-header-inline">
+                    <h2 class="section-title-inline">${escapeHtml('Косметика')}</h2>
+                </div>
+                <div class="products-scroll-wrapper">
+                    <div class="products-horizontal">
+                        ${allProducts.slice(0, 9).map(p => renderProductCardHorizontal(p)).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// Show cosmetics subcategories grid
+async function showCosmeticsSubcategories(parentCategoryId) {
+    try {
+        const response = await fetch(`${API_BASE}/categories`);
+        if (!response.ok) throw new Error('Failed to fetch categories');
+        
+        const allCategories = await response.json();
+        const cosmeticsSubcategories = allCategories.filter(cat => 
+            cat.name && cat.name.startsWith('Косметика >') && cat.name !== 'Косметика'
+        );
+        
+        if (cosmeticsSubcategories.length === 0) {
+            // Если нет подкатегорий, показываем все товары категории
+            showCategoryProducts(parentCategoryId);
+            return;
+        }
+        
+        // Создаем модальное окно с плиткой подкатегорий
+        const overlay = document.createElement('div');
+        overlay.className = 'subcategories-overlay';
+        overlay.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px;';
+        
+        const modal = document.createElement('div');
+        modal.style.cssText = 'background: var(--bg-primary); border-radius: 16px; padding: 24px; max-width: 600px; width: 100%; max-height: 80vh; overflow-y: auto;';
+        
+        let html = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="font-size: 24px; font-weight: 600; margin: 0;">Косметика</h2>
+                <button onclick="this.closest('.subcategories-overlay').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-secondary);">×</button>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+        `;
+        
+        cosmeticsSubcategories.forEach(subcat => {
+            const subcatName = subcat.name.replace('Косметика > ', '');
+            html += `
+                <div onclick="showCategoryProducts('${subcat.id}'); this.closest('.subcategories-overlay').remove();" 
+                     style="padding: 20px; background: var(--bg-secondary); border-radius: 12px; cursor: pointer; text-align: center; transition: all 0.2s; border: 1px solid var(--border-color);"
+                     onmouseover="this.style.background='var(--accent-soft)';"
+                     onmouseout="this.style.background='var(--bg-secondary)';">
+                    <div style="font-size: 20px; margin-bottom: 8px;">📦</div>
+                    <div style="font-weight: 600; font-size: 16px; color: var(--text-primary);">${escapeHtml(subcatName)}</div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        modal.innerHTML = html;
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        
+        // Закрытие по клику вне модального окна
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                overlay.remove();
+            }
+        });
+    } catch (error) {
+        console.error('Error showing cosmetics subcategories:', error);
+        // Fallback: показываем все товары категории
+        showCategoryProducts(parentCategoryId);
     }
 }
 
