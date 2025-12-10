@@ -938,7 +938,15 @@ async function loadProductsOnMainPage() {
                     const cosmeticsCategory = allCategories.find(cat => cat.name === 'Косметика');
                     if (cosmeticsCategory) {
                         cosmeticsCategoryId = cosmeticsCategory.id;
+                        
+                        // Собираем товары из самой категории "Косметика"
                         cosmeticsProducts = productsByCategory[cosmeticsCategoryId]?.products || [];
+                        
+                        // Добавляем товары из всех подкатегорий "Косметика"
+                        cosmeticsSubcategories.forEach(subcat => {
+                            const subcatProducts = productsByCategory[subcat.id]?.products || [];
+                            cosmeticsProducts = cosmeticsProducts.concat(subcatProducts);
+                        });
                     }
                 }
             } catch (error) {
@@ -952,6 +960,15 @@ async function loadProductsOnMainPage() {
                         cosmeticsCategoryId = catId;
                         cosmeticsProducts = cat.products;
                         break;
+                    }
+                }
+                
+                // Также ищем товары в подкатегориях
+                if (cosmeticsCategoryId) {
+                    for (const [catId, cat] of Object.entries(productsByCategory)) {
+                        if (cat.name && cat.name.startsWith('Косметика >')) {
+                            cosmeticsProducts = cosmeticsProducts.concat(cat.products);
+                        }
                     }
                 }
             }
