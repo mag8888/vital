@@ -3539,12 +3539,12 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             }
             
             select.innerHTML = '<option value="">Выберите товар...</option>';
-            window.productsList.forEach(product => {
+            window.productsList.forEach(function(product) {
               const option = document.createElement('option');
               option.value = product.id;
               const title = product.title || '';
               const price = product.price || 0;
-              const categoryName = product.category?.name || '';
+              const categoryName = (product.category && product.category.name) ? product.category.name : '';
               option.textContent = title + ' (' + price + ' PZ' + (categoryName ? ', ' + categoryName : '') + ')';
               select.appendChild(option);
             });
