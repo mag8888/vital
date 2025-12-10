@@ -1096,25 +1096,42 @@ function renderCosmeticsCategory(categoryId, allProducts, cosmeticsSubcategories
             productsBySubcategory[subcat.id] = allProducts.filter(p => p.category?.id === subcat.id);
         });
         
-        // Создаем микс: по одному товару из каждой подкатегории через один
+        // Создаем микс: по одному товару из каждой подкатегории по очереди
         const mixedProducts = [];
         const subcategoryIds = Object.keys(productsBySubcategory).filter(id => productsBySubcategory[id].length > 0);
-        let maxIterations = 9; // Максимум 9 товаров
-        let currentIndex = 0;
         
-        while (mixedProducts.length < maxIterations && subcategoryIds.length > 0) {
-            const subcatId = subcategoryIds[currentIndex % subcategoryIds.length];
-            const subcatProducts = productsBySubcategory[subcatId];
-            
-            if (subcatProducts && subcatProducts.length > 0) {
-                const productIndex = Math.floor(mixedProducts.length / subcategoryIds.length);
-                if (productIndex < subcatProducts.length) {
-                    mixedProducts.push(subcatProducts[productIndex]);
+        if (subcategoryIds.length === 0) {
+            // Если нет подкатегорий, берем первые товары из всех
+            return `
+                <div class="products-scroll-container">
+                    <div class="section-header-inline">
+                        <h2 class="section-title-inline" onclick="showCosmeticsSubcategories('${categoryId}')" style="cursor: pointer;">${escapeHtml('Косметика')}</h2>
+                    </div>
+                    <div class="products-scroll-wrapper">
+                        <div class="products-horizontal">
+                            ${allProducts.slice(0, 10).map(p => renderProductCardHorizontal(p)).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Берем по одному товару из каждой подкатегории по очереди
+        let maxProducts = 0;
+        subcategoryIds.forEach(subcatId => {
+            if (productsBySubcategory[subcatId].length > maxProducts) {
+                maxProducts = productsBySubcategory[subcatId].length;
+            }
+        });
+        
+        // Берем товары по кругу из каждой подкатегории
+        for (let round = 0; round < maxProducts; round++) {
+            for (const subcatId of subcategoryIds) {
+                const subcatProducts = productsBySubcategory[subcatId];
+                if (subcatProducts && subcatProducts.length > round) {
+                    mixedProducts.push(subcatProducts[round]);
                 }
             }
-            
-            currentIndex++;
-            if (currentIndex >= subcategoryIds.length * 3) break; // Защита от бесконечного цикла
         }
         
         let html = `
