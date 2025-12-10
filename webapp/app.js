@@ -921,27 +921,11 @@ async function loadProductsOnMainPage() {
                 productsByCategory[categoryId].products.push(product);
             });
             
-            // Определяем порядок категорий: сначала остальные, потом Косметика (после Плазмы)
-            const categoryOrder = ['Живая вода', 'Практики'];
-            const sortedCategories = Object.keys(productsByCategory).sort((a, b) => {
-                const nameA = productsByCategory[a].name;
-                const nameB = productsByCategory[b].name;
-                
-                // Косметика всегда в конце (после Плазмы)
-                if (nameA === 'Косметика') return 1;
-                if (nameB === 'Косметика') return -1;
-                
-                const indexA = categoryOrder.indexOf(nameA);
-                const indexB = categoryOrder.indexOf(nameB);
-                
-                if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-                if (indexA !== -1) return -1;
-                if (indexB !== -1) return 1;
-                return nameA.localeCompare(nameB);
-            });
-            
             // Получаем все категории для определения подкатегорий Косметики
             let cosmeticsSubcategories = [];
+            let cosmeticsCategoryId = null;
+            let cosmeticsProducts = [];
+            
             try {
                 const categoriesResponse = await fetch(`${API_BASE}/categories`);
                 if (categoriesResponse.ok) {
@@ -949,38 +933,33 @@ async function loadProductsOnMainPage() {
                     cosmeticsSubcategories = allCategories.filter(cat => 
                         cat.name && cat.name.startsWith('Косметика >') && cat.name !== 'Косметика'
                     );
+                    
+                    // Находим категорию "Косметика"
+                    const cosmeticsCategory = allCategories.find(cat => cat.name === 'Косметика');
+                    if (cosmeticsCategory) {
+                        cosmeticsCategoryId = cosmeticsCategory.id;
+                        cosmeticsProducts = productsByCategory[cosmeticsCategoryId]?.products || [];
+                    }
                 }
             } catch (error) {
                 console.error('Error fetching categories for cosmetics:', error);
             }
             
-            let html = '';
-            for (const categoryId of sortedCategories) {
-                const category = productsByCategory[categoryId];
-                
-                // Специальная обработка для категории "Косметика"
-                if (category.name === 'Косметика') {
-                    html += renderCosmeticsCategory(categoryId, category.products, cosmeticsSubcategories);
-                } else {
-                    html += `
-                        <div class="products-scroll-container">
-                            <div class="section-header-inline">
-                                <h2 class="section-title-inline">${escapeHtml(category.name)}</h2>
-                            </div>
-                            <div class="products-scroll-wrapper">
-                                <div class="products-horizontal">
-                    `;
-                    
-                    category.products.forEach(product => {
-                        html += renderProductCardHorizontal(product);
-                    });
-                    
-                    html += `
-                                </div>
-                            </div>
-                        </div>
-                    `;
+            // Если не нашли через API, ищем в productsByCategory
+            if (!cosmeticsCategoryId) {
+                for (const [catId, cat] of Object.entries(productsByCategory)) {
+                    if (cat.name === 'Косметика') {
+                        cosmeticsCategoryId = catId;
+                        cosmeticsProducts = cat.products;
+                        break;
+                    }
                 }
+            }
+            
+            // Отображаем только категорию "Косметика"
+            let html = '';
+            if (cosmeticsCategoryId && cosmeticsProducts.length > 0) {
+                html += renderCosmeticsCategory(cosmeticsCategoryId, cosmeticsProducts, cosmeticsSubcategories);
             }
             
             container.innerHTML = html;
@@ -1151,14 +1130,7 @@ function renderCosmeticsCategory(categoryId, allProducts, cosmeticsSubcategories
             html += renderProductCardHorizontal(product);
         });
         
-        // Кнопка "больше"
         html += `
-                        <div class="product-card-forma-horizontal" onclick="showCosmeticsSubcategories('${categoryId}')" style="min-width: 200px; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 2px dashed var(--border-color); background: var(--bg-secondary);">
-                            <div style="text-align: center; padding: 20px;">
-                                <div style="font-size: 32px; margin-bottom: 12px;">➕</div>
-                                <div style="font-weight: 600; font-size: 16px; color: var(--text-primary);">Больше</div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
