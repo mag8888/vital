@@ -1160,54 +1160,84 @@ body {
     width: 100%;
 }
 
-/* Кнопка "Все категории" */
+/* Кнопка "Все категории" - стильная карточка */
 .product-card-more {
     flex: 0 0 auto;
     width: 160px;
     min-width: 160px;
-    background: #ffffff;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border-radius: 16px;
     overflow: hidden;
     cursor: pointer;
     transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 
-        0 2px 8px rgba(0, 0, 0, 0.04),
-        0 1px 3px rgba(0, 0, 0, 0.06);
-    border: 2px dashed rgba(0, 0, 0, 0.15);
+        0 4px 12px rgba(102, 126, 234, 0.3),
+        0 2px 6px rgba(102, 126, 234, 0.2);
+    border: none;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     height: 280px;
     gap: 12px;
-    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    position: relative;
+    overflow: hidden;
+}
+
+.product-card-more::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+    animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+    0% { transform: translate(-50%, -50%) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
 .product-card-more:hover {
-    transform: translateY(-4px);
+    transform: translateY(-6px) scale(1.02);
     box-shadow: 
-        0 8px 24px rgba(0, 0, 0, 0.12),
-        0 4px 8px rgba(0, 0, 0, 0.08);
-    border-color: rgba(0, 0, 0, 0.25);
-    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        0 12px 32px rgba(102, 126, 234, 0.4),
+        0 6px 16px rgba(102, 126, 234, 0.3);
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+.product-card-more:active {
+    transform: translateY(-2px) scale(0.98);
 }
 
 .product-card-more .more-icon {
-    font-size: 48px;
-    opacity: 0.6;
-    transition: all 0.2s ease;
+    font-size: 56px;
+    opacity: 0.95;
+    transition: all 0.3s ease;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+    z-index: 1;
 }
 
 .product-card-more:hover .more-icon {
     opacity: 1;
-    transform: scale(1.1);
+    transform: scale(1.15) rotate(5deg);
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
 }
 
 .product-card-more .more-text {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-primary);
+    font-size: 15px;
+    font-weight: 700;
+    color: #ffffff;
     text-align: center;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    letter-spacing: 0.3px;
+    z-index: 1;
+}
+
+.product-card-more:hover .more-text {
+    transform: translateY(-2px);
 }
 
 /* Product Card - FORMA Store style */
