@@ -1127,6 +1127,25 @@ body {
     border-top: 1px solid rgba(0, 0, 0, 0.05);
     min-width: 0;
     overflow: visible;
+    flex-shrink: 0;
+}
+
+.product-details-link {
+    font-size: 11px;
+    color: var(--accent);
+    background: none;
+    border: none;
+    padding: 4px 0;
+    cursor: pointer;
+    text-align: left;
+    text-decoration: underline;
+    margin-top: 4px;
+    width: 100%;
+    transition: color 0.2s;
+}
+
+.product-details-link:hover {
+    color: var(--accent-strong);
 }
 
 .product-card-forma-horizontal .price-value {
