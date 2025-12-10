@@ -1086,6 +1086,12 @@ body {
     min-height: 0;
 }
 
+.product-card-forma-horizontal .product-card-price {
+    order: -1;
+    margin: 8px 0 4px 0;
+    flex-shrink: 0;
+}
+
 .product-card-forma-horizontal .product-card-title {
     font-size: 13px;
     font-weight: 600;
