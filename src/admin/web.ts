@@ -13102,13 +13102,14 @@ router.get('/admin/invoice-settings', requireAdmin, async (req, res) => {
             const testPrice = 100; // Тестовая цена 100 БАТ
             
             if (rate > 0 && mult > 0) {
-              // Формула: цена_закупки * 8 * 2.45 = цена в рублях, затем / 100 для PZ
-              const priceInRubles = testPrice * mult * rate;
-              const sellingPrice = priceInRubles / 100; // Конвертируем в PZ (1 PZ = 100 руб)
+              // Формула: цена_закупки * 2.45 * 8 = цена в рублях, округляем до 10, затем / 100 для PZ
+              const priceInRubles = testPrice * rate * mult;
+              const roundedPriceRub = Math.round(priceInRubles / 10) * 10;
+              const sellingPrice = roundedPriceRub / 100; // Конвертируем в PZ (1 PZ = 100 руб)
               previewContent.innerHTML = \`
                 <p><strong>Закупочная цена:</strong> \${testPrice} БАТ</p>
-                <p><strong>Продажная цена:</strong> \${sellingPrice.toFixed(2)} PZ (\${priceInRubles.toFixed(2)} руб.)</p>
-                <p><small>Формула: \${testPrice} × \${mult} × \${rate} = \${priceInRubles.toFixed(2)} руб. = \${sellingPrice.toFixed(2)} PZ</small></p>
+                <p><strong>Продажная цена:</strong> \${sellingPrice.toFixed(2)} PZ (\${roundedPriceRub} руб.)</p>
+                <p><small>Формула: \${testPrice} × \${rate} × \${mult} = \${priceInRubles.toFixed(2)} руб. → округлено до \${roundedPriceRub} руб. = \${sellingPrice.toFixed(2)} PZ</small></p>
               \`;
               pricePreview.style.display = 'block';
             } else {
@@ -13228,8 +13229,8 @@ router.get('/admin/invoice-import', requireAdmin, async (req, res) => {
               <h4>Текущие настройки:</h4>
               <p>Курс обмена: <strong>${settings.exchangeRate}</strong> БАТ/Рубль</p>
               <p>Мультипликатор: <strong>${settings.priceMultiplier}</strong></p>
-              <p><small>Формула расчета цены: Цена в БАТ × Мультипликатор × Курс = Цена в рублях, затем ÷ 100 = Цена в PZ</small></p>
-              <p><small>Пример: 100 БАТ × ${settings.priceMultiplier} × ${settings.exchangeRate} = ${(100 * settings.priceMultiplier * settings.exchangeRate).toFixed(2)} руб. = ${(100 * settings.priceMultiplier * settings.exchangeRate / 100).toFixed(2)} PZ</small></p>
+              <p><small>Формула расчета цены: Цена в БАТ × ${settings.exchangeRate} × ${settings.priceMultiplier} = цена в рублях → округление до 10 → ÷ 100 = Цена в PZ</small></p>
+              <p><small>Пример: 100 БАТ × ${settings.exchangeRate} × ${settings.priceMultiplier} = ${(100 * settings.exchangeRate * settings.priceMultiplier).toFixed(2)} руб. → округлено до ${(Math.round((100 * settings.exchangeRate * settings.priceMultiplier) / 10) * 10)} руб. = ${((Math.round((100 * settings.exchangeRate * settings.priceMultiplier) / 10) * 10) / 100).toFixed(2)} PZ</small></p>
             </div>
             
             <div id="alertContainer"></div>

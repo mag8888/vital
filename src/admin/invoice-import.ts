@@ -125,16 +125,21 @@ router.get('/api/test-price-calculation', requireAdmin, async (req, res) => {
     
     const settings = await getImportSettings();
     // Формула: цена_закупки * 8 * 2.45 = цена в рублях, затем / 100 для PZ
-    const sellingPrice = calculateSellingPrice(parseFloat(purchasePrice as string), settings.exchangeRate, settings.priceMultiplier);
-    
+    const purchasePriceBAT = parseFloat(purchasePrice as string);
+    const priceInRubles = purchasePriceBAT * settings.exchangeRate * settings.priceMultiplier;
+    const roundedPriceRub = Math.round(priceInRubles / 10) * 10;
+    const sellingPrice = calculateSellingPrice(purchasePriceBAT, settings.exchangeRate, settings.priceMultiplier);
+
     res.json({
       success: true,
       calculation: {
-        purchasePriceBAT: parseFloat(purchasePrice as string),
+        purchasePriceBAT: purchasePriceBAT,
         exchangeRate: settings.exchangeRate,
         multiplier: settings.priceMultiplier,
+        priceInRubles: priceInRubles,
+        roundedPriceRub: roundedPriceRub,
         sellingPricePZ: sellingPrice,
-        formula: `${parseFloat(purchasePrice as string)} × ${settings.priceMultiplier} × ${settings.exchangeRate} = ${(parseFloat(purchasePrice as string) * settings.priceMultiplier * settings.exchangeRate).toFixed(2)} руб. = ${sellingPrice.toFixed(2)} PZ`
+        formula: `${purchasePriceBAT} × ${settings.exchangeRate} × ${settings.priceMultiplier} = ${priceInRubles.toFixed(2)} руб. → округлено до ${roundedPriceRub} руб. = ${sellingPrice.toFixed(2)} PZ`
       }
     });
   } catch (error: any) {
