@@ -3110,9 +3110,10 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                     '</div>' +
                     '<div class="message-form-group">' +
                       '<label>📷 Фото к сообщению:</label>' +
-                      '<div style="display: flex; gap: 10px; margin-bottom: 10px;">' +
+                      '<div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">' +
                         '<button type="button" class="btn" onclick="openPhotoGallery()" style="background: #17a2b8; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer;">📂 Выбрать из базы</button>' +
                         '<button type="button" class="btn" onclick="openUploadPhoto()" style="background: #28a745; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer;">📤 Загрузить фото</button>' +
+                        '<button type="button" class="btn" onclick="clearSelectedPhoto()" id="deletePhotoBtn" style="background: #dc3545; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; display: none;">🗑️ Удалить фото</button>' +
                       '</div>' +
                       '<div id="selectedPhotoPreview" style="display: none; margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 6px; border: 1px solid #dee2e6;">' +
                         '<div style="display: flex; align-items: center; gap: 10px;">' +
@@ -3121,7 +3122,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                             '<p id="selectedPhotoTitle" style="margin: 0; font-weight: bold; color: #333;"></p>' +
                             '<p id="selectedPhotoUrlText" style="margin: 5px 0 0 0; font-size: 12px; color: #6c757d; word-break: break-all;"></p>' +
                           '</div>' +
-                          '<button type="button" onclick="clearSelectedPhoto()" style="background: #dc3545; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer;">✕</button>' +
+                          '<button type="button" onclick="clearSelectedPhoto()" style="background: #dc3545; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer;" title="Удалить фото">✕</button>' +
                         '</div>' +
                       '</div>' +
                       '<input type="hidden" id="selectedPhotoUrl" value="">' +
@@ -3379,18 +3380,32 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
           };
           
           window.selectPhotoFromGallery = function(url, title) {
+            console.log('selectPhotoFromGallery called with:', url, title);
             const urlInput = document.getElementById('selectedPhotoUrl');
             const img = document.getElementById('selectedPhotoImg');
             const titleEl = document.getElementById('selectedPhotoTitle');
             const urlText = document.getElementById('selectedPhotoUrlText');
             const preview = document.getElementById('selectedPhotoPreview');
+            const deleteBtn = document.getElementById('deletePhotoBtn');
             
-            if (urlInput) urlInput.value = url;
-            if (img) img.src = url;
-            if (titleEl) titleEl.textContent = title;
-            if (urlText) urlText.textContent = url.substring(0, 50) + '...';
-            if (preview) preview.style.display = 'block';
-            closePhotoGallery();
+            if (!urlInput || !img || !titleEl || !urlText || !preview) {
+              console.error('Required elements not found:', { urlInput, img, titleEl, urlText, preview });
+              alert('Ошибка: не найдены элементы формы. Попробуйте обновить страницу.');
+              return;
+            }
+            
+            urlInput.value = url;
+            img.src = url;
+            titleEl.textContent = title || 'Без названия';
+            urlText.textContent = url.length > 50 ? url.substring(0, 50) + '...' : url;
+            preview.style.display = 'block';
+            if (deleteBtn) deleteBtn.style.display = 'inline-block';
+            
+            console.log('Photo selected successfully:', { url, title });
+            
+            if (typeof window.closePhotoGallery === 'function') {
+              window.closePhotoGallery();
+            }
           };
           
           window.openUploadPhoto = function() {
@@ -3437,9 +3452,20 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
           
           window.clearSelectedPhoto = function() {
             const urlInput = document.getElementById('selectedPhotoUrl');
+            const img = document.getElementById('selectedPhotoImg');
+            const titleEl = document.getElementById('selectedPhotoTitle');
+            const urlText = document.getElementById('selectedPhotoUrlText');
             const preview = document.getElementById('selectedPhotoPreview');
+            const deleteBtn = document.getElementById('deletePhotoBtn');
+            
             if (urlInput) urlInput.value = '';
+            if (img) img.src = '';
+            if (titleEl) titleEl.textContent = '';
+            if (urlText) urlText.textContent = '';
             if (preview) preview.style.display = 'none';
+            if (deleteBtn) deleteBtn.style.display = 'none';
+            
+            console.log('Photo cleared');
           };
           
           // Загрузка списка шаблонов
