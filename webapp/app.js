@@ -1315,7 +1315,7 @@ function renderPlazmaProductCard(product) {
     
     const title = escapeHtml(product.title || 'Без названия');
     const summary = escapeHtml((product.summary || product.description || '').substring(0, 80));
-    const priceRub = product.priceRub || (product.price ? (product.price * 100).toFixed(0) : '0');
+    const priceRub = product.priceRub || (product.price ? Math.round(product.price * 100).toLocaleString('ru-RU') : '0');
     
     return `
         <div class="product-card-forma-horizontal" onclick="showPlazmaProductDetails('${product.id}')">
@@ -1365,7 +1365,7 @@ async function showPlazmaProductDetails(productId) {
 function showPlazmaProductModal(product) {
     const title = escapeHtml(product.title || 'Товар');
     const description = escapeHtml(product.description || product.summary || 'Описание отсутствует');
-    const priceRub = product.priceRub || (product.price ? (product.price * 100).toFixed(0) : '0');
+    const priceRub = product.priceRub || (product.price ? Math.round(product.price * 100).toLocaleString('ru-RU') : '0');
     const imageUrl = product.imageUrl || '';
     
     openSection('plazma-product-detail');
