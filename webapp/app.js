@@ -1116,7 +1116,7 @@ function renderCosmeticsCategory(categoryId, allProducts, cosmeticsSubcategories
             `;
         }
         
-        // Берем по одному товару из каждой подкатегории по очереди
+        // Берем по одному товару из каждой подкатегории по очереди, максимум 9 товаров
         let maxProducts = 0;
         subcategoryIds.forEach(subcatId => {
             if (productsBySubcategory[subcatId].length > maxProducts) {
@@ -1124,9 +1124,10 @@ function renderCosmeticsCategory(categoryId, allProducts, cosmeticsSubcategories
             }
         });
         
-        // Берем товары по кругу из каждой подкатегории
-        for (let round = 0; round < maxProducts; round++) {
+        // Берем товары по кругу из каждой подкатегории, но не более 9
+        for (let round = 0; round < maxProducts && mixedProducts.length < 9; round++) {
             for (const subcatId of subcategoryIds) {
+                if (mixedProducts.length >= 9) break;
                 const subcatProducts = productsBySubcategory[subcatId];
                 if (subcatProducts && subcatProducts.length > round) {
                     mixedProducts.push(subcatProducts[round]);
@@ -1147,7 +1148,12 @@ function renderCosmeticsCategory(categoryId, allProducts, cosmeticsSubcategories
             html += renderProductCardHorizontal(product);
         });
         
+        // Кнопка "Перейти на все категории"
         html += `
+                        <div class="product-card-more" onclick="showCosmeticsSubcategories('${categoryId}')">
+                            <div class="more-icon">📁</div>
+                            <div class="more-text">Все категории</div>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -1160,6 +1160,56 @@ body {
     width: 100%;
 }
 
+/* Кнопка "Все категории" */
+.product-card-more {
+    flex: 0 0 auto;
+    width: 160px;
+    min-width: 160px;
+    background: #ffffff;
+    border-radius: 16px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 
+        0 2px 8px rgba(0, 0, 0, 0.04),
+        0 1px 3px rgba(0, 0, 0, 0.06);
+    border: 2px dashed rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 280px;
+    gap: 12px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+}
+
+.product-card-more:hover {
+    transform: translateY(-4px);
+    box-shadow: 
+        0 8px 24px rgba(0, 0, 0, 0.12),
+        0 4px 8px rgba(0, 0, 0, 0.08);
+    border-color: rgba(0, 0, 0, 0.25);
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+}
+
+.product-card-more .more-icon {
+    font-size: 48px;
+    opacity: 0.6;
+    transition: all 0.2s ease;
+}
+
+.product-card-more:hover .more-icon {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.product-card-more .more-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: center;
+}
+
 /* Product Card - FORMA Store style */
 .product-card-forma {
     background: #ffffff;
