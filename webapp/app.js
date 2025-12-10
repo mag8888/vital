@@ -1294,11 +1294,11 @@ function renderProductCard(product) {
             ${imageHtml}
             <div class="product-card-content">
                 <h3 class="product-card-title">${title}</h3>
+                <div class="product-card-price" style="margin: 8px 0;">
+                    <span class="price-value">${priceRub} ₽</span>
+                </div>
                 ${summary ? `<p class="product-card-summary">${summary}${(product.summary || product.description || '').length > 100 ? '...' : ''}</p>` : ''}
                 <div class="product-card-footer">
-                    <div class="product-card-price">
-                        <span class="price-value">${priceRub} ₽</span>
-                    </div>
                     <button class="product-card-btn" onclick="event.stopPropagation(); addToCart('${product.id}')">
                         В корзину
                     </button>

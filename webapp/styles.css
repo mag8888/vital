@@ -1136,23 +1136,6 @@ body {
     flex-shrink: 0;
 }
 
-.product-details-link {
-    font-size: 11px;
-    color: var(--accent);
-    background: none;
-    border: none;
-    padding: 4px 0;
-    cursor: pointer;
-    text-align: left;
-    text-decoration: underline;
-    margin-top: 4px;
-    width: 100%;
-    transition: color 0.2s;
-}
-
-.product-details-link:hover {
-    color: var(--accent-strong);
-}
 
 .product-card-forma-horizontal .price-value {
     font-size: 16px;
@@ -1290,6 +1273,7 @@ body {
     gap: 2px;
     min-width: 0;
     flex-shrink: 0;
+    margin: 8px 0 4px 0;
 }
 
 .price-value {
