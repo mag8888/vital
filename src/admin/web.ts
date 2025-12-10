@@ -3278,7 +3278,8 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                   text: text,
                   photoUrl: photoUrl || null,
                   buttons: buttons.length > 0 ? buttons : null,
-                  saveAsTemplate: saveAsTemplate
+                  saveAsTemplate: saveAsTemplate,
+                  templateName: templateName || null
                 })
               });
               
