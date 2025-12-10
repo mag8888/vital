@@ -1437,59 +1437,135 @@ function escapeHtml(text) {
 async function loadShopContent() {
     try {
         console.log('🛒 Loading shop content...');
-        const response = await fetch(`${API_BASE}/products`);
         
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-            console.error('❌ Error response:', errorData);
-            throw new Error(`HTTP error! status: ${response.status}, error: ${errorData.error || 'Unknown'}`);
-        }
+        // Загружаем категории и товары
+        const [categoriesResponse, productsResponse] = await Promise.all([
+            fetch(`${API_BASE}/categories`),
+            fetch(`${API_BASE}/products`)
+        ]);
         
-        const products = await response.json();
-        console.log(`✅ Loaded ${products?.length || 0} products`);
+        if (!categoriesResponse.ok) throw new Error('Failed to fetch categories');
+        if (!productsResponse.ok) throw new Error('Failed to fetch products');
         
-        let content = '<div class="content-section"><h3>Каталог товаров</h3>';
+        const categories = await categoriesResponse.json();
+        const products = await productsResponse.json();
         
-        if (products && Array.isArray(products) && products.length > 0) {
-            content += '<div class="products-grid">';
-            products.forEach(product => {
-                const imageHtml = product.imageUrl 
-                    ? `<div class="product-image" onclick="showProductDetails('${product.id}')"><img src="${product.imageUrl}" alt="${product.title || 'Товар'}" onerror="this.style.display='none'"></div>`
-                    : `<div class="product-image-placeholder" onclick="showProductDetails('${product.id}')">📦</div>`;
+        console.log(`✅ Loaded ${categories?.length || 0} categories and ${products?.length || 0} products`);
+        
+        // Группируем товары по категориям
+        const productsByCategory = {};
+        products.forEach(product => {
+            const categoryId = product.category?.id || 'uncategorized';
+            if (!productsByCategory[categoryId]) {
+                productsByCategory[categoryId] = [];
+            }
+            productsByCategory[categoryId].push(product);
+        });
+        
+        // Группируем подкатегории по родительским категориям
+        const categoriesByParent = {};
+        const mainCategories = [];
+        
+        categories.forEach(cat => {
+            if (cat.name && cat.name.includes(' > ')) {
+                // Это подкатегория
+                const parentName = cat.name.split(' > ')[0];
+                if (!categoriesByParent[parentName]) {
+                    categoriesByParent[parentName] = [];
+                }
+                categoriesByParent[parentName].push(cat);
+            } else {
+                // Это основная категория
+                mainCategories.push(cat);
+            }
+        });
+        
+        let content = '<div class="products-main-container">';
+        
+        // Отображаем каждую подкатегорию как горизонтальную линию
+        Object.keys(categoriesByParent).forEach(parentName => {
+            const subcategories = categoriesByParent[parentName];
+            
+            subcategories.forEach(subcat => {
+                const subcatProducts = productsByCategory[subcat.id] || [];
+                if (subcatProducts.length === 0) return;
                 
-                const title = product.title || 'Без названия';
-                const summary = product.summary || product.description || 'Описание товара';
-                const price = product.price ? `${(product.price * 100).toFixed(2)} ₽ / ${product.price} PZ` : 'Цена не указана';
-                const instructionBtn = product.instruction 
-                    ? `<button class="btn-instruction" onclick="showInstruction('${product.id}', \`${product.instruction.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)">📋 Инструкция</button>`
-                    : '';
+                // Ограничиваем до 9 товаров
+                const displayProducts = subcatProducts.slice(0, 9);
                 
                 content += `
-                    <div class="product-tile">
-                        ${imageHtml}
-                        <h4 onclick="showProductDetails('${product.id}')">${title}</h4>
-                        <div class="product-description" onclick="showProductDetails('${product.id}')">${summary}</div>
-                        <div class="product-price">💰 ${price}</div>
-                        <div class="product-actions">
-                            <button class="btn-add-to-cart" onclick="addToCart('${product.id}')">
-                                🛒 В корзину
-                            </button>
-                            <button class="btn-buy" onclick="buyProduct('${product.id}')">
-                                🛍 Купить
-                            </button>
-                            ${instructionBtn}
+                    <div class="products-scroll-container">
+                        <div class="section-header-inline">
+                            <h2 class="section-title-inline" onclick="showCategoryProducts('${subcat.id}')" style="cursor: pointer;">${escapeHtml(subcat.name)}</h2>
+                        </div>
+                        <div class="products-scroll-wrapper">
+                            <div class="products-horizontal">
+                `;
+                
+                displayProducts.forEach(product => {
+                    content += renderProductCardHorizontal(product);
+                });
+                
+                // Кнопка "Больше" если товаров больше 9
+                if (subcatProducts.length > 9) {
+                    content += `
+                        <div class="product-card-more" onclick="showCategoryProducts('${subcat.id}')">
+                            <div class="more-icon">➕</div>
+                            <div class="more-text">Больше</div>
+                        </div>
+                    `;
+                }
+                
+                content += `
+                            </div>
                         </div>
                     </div>
                 `;
             });
-            content += '</div>';
-        } else {
+        });
+        
+        // Отображаем основные категории без подкатегорий
+        mainCategories.forEach(cat => {
+            if (categoriesByParent[cat.name]) return; // Пропускаем, если есть подкатегории
+            
+            const catProducts = productsByCategory[cat.id] || [];
+            if (catProducts.length === 0) return;
+            
+            const displayProducts = catProducts.slice(0, 9);
+            
             content += `
-                <div style="text-align: center; padding: 40px 20px;">
+                <div class="products-scroll-container">
+                    <div class="section-header-inline">
+                        <h2 class="section-title-inline" onclick="showCategoryProducts('${cat.id}')" style="cursor: pointer;">${escapeHtml(cat.name)}</h2>
+                    </div>
+                    <div class="products-scroll-wrapper">
+                        <div class="products-horizontal">
+            `;
+            
+            displayProducts.forEach(product => {
+                content += renderProductCardHorizontal(product);
+            });
+            
+            if (catProducts.length > 9) {
+                content += `
+                    <div class="product-card-more" onclick="showCategoryProducts('${cat.id}')">
+                        <div class="more-icon">➕</div>
+                        <div class="more-text">Больше</div>
+                    </div>
+                `;
+            }
+            
+            content += `
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        if (Object.keys(categoriesByParent).length === 0 && mainCategories.length === 0) {
+            content += `
+                <div class="empty-state" style="padding: 40px 20px; text-align: center;">
                     <p style="font-size: 18px; margin-bottom: 20px;">📦 Каталог пока пуст</p>
-                    <button class="btn" onclick="importProducts()" style="margin-top: 20px;">
-                        🤖 Импортировать товары
-                    </button>
                 </div>
             `;
         }
