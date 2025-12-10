@@ -2469,36 +2469,37 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             console.log('sendMessage: waiting for full implementation');
           };
           
+          // Заглушки функций будут переопределены полными реализациями ниже
           window.openPhotoGallery = function() {
-            console.log('openPhotoGallery: waiting for full implementation');
+            console.log('openPhotoGallery: loading...');
           };
           
           window.closePhotoGallery = function() {
-            console.log('closePhotoGallery: waiting for full implementation');
-          };
-          
-          window.addMessageButton = function() {
-            console.log('addMessageButton: waiting for full implementation');
-          };
-          
-          window.removeMessageButton = function() {
-            console.log('removeMessageButton: waiting for full implementation');
-          };
-          
-          window.toggleButtonFields = function() {
-            console.log('toggleButtonFields: waiting for full implementation');
+            console.log('closePhotoGallery: loading...');
           };
           
           window.selectPhotoFromGallery = function() {
-            console.log('selectPhotoFromGallery: waiting for full implementation');
+            console.log('selectPhotoFromGallery: loading...');
           };
           
           window.openUploadPhoto = function() {
-            console.log('openUploadPhoto: waiting for full implementation');
+            console.log('openUploadPhoto: loading...');
           };
           
           window.clearSelectedPhoto = function() {
-            console.log('clearSelectedPhoto: waiting for full implementation');
+            console.log('clearSelectedPhoto: loading...');
+          };
+          
+          window.addMessageButton = function() {
+            console.log('addMessageButton: loading...');
+          };
+          
+          window.removeMessageButton = function() {
+            console.log('removeMessageButton: loading...');
+          };
+          
+          window.toggleButtonFields = function() {
+            console.log('toggleButtonFields: loading...');
           };
         </script>
         <style>
@@ -3386,9 +3387,51 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                 '</div>';
               
               document.body.appendChild(galleryModal);
+              
+              // Добавляем фото в галерею после создания модального окна
+              const grid = document.getElementById('photoGalleryGrid');
+              if (grid) {
+                photos.forEach(function(photo) {
+                  const safeUrl = photo.url.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                  const safeTitle = photo.title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                  const colorHover = '#007bff';
+                  const colorDefault = '#dee2e6';
+                  const colorBg = '#f8f9fa';
+                  const colorText = '#333';
+                  
+                  const div = document.createElement('div');
+                  div.style.cssText = 'cursor: pointer; border: 2px solid ' + colorDefault + '; border-radius: 8px; overflow: hidden; transition: all 0.2s;';
+                  div.onmouseover = function() {
+                    this.style.borderColor = colorHover;
+                    this.style.transform = 'scale(1.05)';
+                  };
+                  div.onmouseout = function() {
+                    this.style.borderColor = colorDefault;
+                    this.style.transform = 'scale(1)';
+                  };
+                  div.onclick = function() {
+                    if (typeof window.selectPhotoFromGallery === 'function') {
+                      window.selectPhotoFromGallery(photo.url, photo.title);
+                    }
+                  };
+                  
+                  const img = document.createElement('img');
+                  img.src = photo.url;
+                  img.alt = photo.title;
+                  img.style.cssText = 'width: 100%; height: 150px; object-fit: cover;';
+                  
+                  const titleDiv = document.createElement('div');
+                  titleDiv.style.cssText = 'padding: 8px; background: ' + colorBg + '; font-size: 12px; color: ' + colorText + '; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+                  titleDiv.textContent = photo.title;
+                  
+                  div.appendChild(img);
+                  div.appendChild(titleDiv);
+                  grid.appendChild(div);
+                });
+              }
             } catch (error) {
               console.error('Error loading photos:', error);
-              alert('Ошибка загрузки фото из базы');
+              alert('Ошибка загрузки фото из базы: ' + (error instanceof Error ? error.message : String(error)));
             }
           };
           
