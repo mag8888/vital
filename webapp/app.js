@@ -1122,7 +1122,7 @@ function renderCosmeticsCategory(categoryId, allProducts, cosmeticsSubcategories
             return `
                 <div class="products-scroll-container">
                     <div class="section-header-inline">
-                        <h2 class="section-title-inline" onclick="showCosmeticsSubcategories('${categoryId}')" style="cursor: pointer;">${escapeHtml('Косметика')}</h2>
+                        <h2 class="section-title-inline" onclick="showCosmeticsSubcategories('${categoryId}')" style="cursor: pointer;">${escapeHtml('Косметика')} <span style="font-size: 18px; margin-left: 8px;">→</span></h2>
                     </div>
                     <div class="products-scroll-wrapper">
                         <div class="products-horizontal">
