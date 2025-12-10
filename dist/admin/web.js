@@ -3513,7 +3513,9 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             const select = document.getElementById(selectId);
             if (!select) {
               if (retryCount < MAX_RETRIES) {
-                setTimeout(() => window.loadProductsIntoSelect(selectId, retryCount + 1), 200);
+                setTimeout(function() {
+                  window.loadProductsIntoSelect(selectId, retryCount + 1);
+                }, 200);
               }
               return;
             }
@@ -3523,10 +3525,10 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
               if (retryCount < MAX_RETRIES) {
                 if (!window.productsLoading) {
                   window.productsLoading = true;
-                  window.loadProductsForButtons().then(() => {
+                  window.loadProductsForButtons().then(function() {
                     window.productsLoading = false;
                     window.loadProductsIntoSelect(selectId, retryCount + 1);
-                  }).catch((error) => {
+                  }).catch(function(error) {
                     window.productsLoading = false;
                     console.error('Ошибка загрузки товаров:', error);
                     select.innerHTML = '<option value="">Ошибка загрузки товаров</option>';
