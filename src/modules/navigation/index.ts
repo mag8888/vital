@@ -223,6 +223,18 @@ function setUiMode(ctx: Context, mode: UiMode) {
   ctx.session.uiMode = mode;
 }
 
+// Проверяет, заблокирован ли бот пользователем
+function isBotBlockedError(error: any): boolean {
+  if (!error) return false;
+  const errorMessage = error.message || error.description || '';
+  const errorCode = error.response?.error_code || error.error_code;
+  return (
+    errorCode === 403 ||
+    errorMessage.includes('bot was blocked') ||
+    errorMessage.includes('Forbidden: bot was blocked')
+  );
+}
+
 async function sendWelcomeVideo(ctx: Context) {
   try {
     // Используем Input.fromURL для правильной загрузки и отправки видео
@@ -238,6 +250,12 @@ async function sendWelcomeVideo(ctx: Context) {
       }
     );
   } catch (error) {
+    // Если бот заблокирован пользователем, просто выходим без ошибки
+    if (isBotBlockedError(error)) {
+      console.log('Bot was blocked by user, skipping welcome video');
+      return;
+    }
+    
     console.error('Error sending welcome video:', error);
     // Fallback: пробуем скачать и отправить как буфер
     try {
@@ -260,53 +278,95 @@ async function sendWelcomeVideo(ctx: Context) {
         }
       );
     } catch (fallbackError) {
+      // Если и fallback не удался из-за блокировки, просто выходим
+      if (isBotBlockedError(fallbackError)) {
+        console.log('Bot was blocked by user, skipping fallback video');
+        return;
+      }
+      
       console.error('Fallback video send also failed:', fallbackError);
-      // Последний вариант - текст с ссылкой
-      await ctx.reply(greeting + '\n\n🎥 Видео: ' + WELCOME_VIDEO_URL, {
-        parse_mode: 'HTML',
-      });
+      // Последний вариант - текст с ссылкой (только если не заблокирован)
+      try {
+        await ctx.reply(greeting + '\n\n🎥 Видео: ' + WELCOME_VIDEO_URL, {
+          parse_mode: 'HTML',
+        });
+      } catch (finalError) {
+        if (isBotBlockedError(finalError)) {
+          console.log('Bot was blocked by user, skipping final message');
+          return;
+        }
+        throw finalError;
+      }
     }
   }
 }
 
 async function sendGiftButton(ctx: Context) {
-  // Отправляем кнопку "Подарок", которая открывает сообщение про матрицы Гаряева
-  await ctx.reply(
-    '🎁',
-    Markup.inlineKeyboard([
-      [Markup.button.callback('🎁 Подарок', 'nav:gift')]
-    ])
-  );
+  try {
+    // Отправляем кнопку "Подарок", которая открывает сообщение про матрицы Гаряева
+    await ctx.reply(
+      '🎁',
+      Markup.inlineKeyboard([
+        [Markup.button.callback('🎁 Подарок', 'nav:gift')]
+      ])
+    );
+  } catch (error) {
+    // Если бот заблокирован, просто выходим без ошибки
+    if (isBotBlockedError(error)) {
+      console.log('Bot was blocked by user, skipping gift button');
+      return;
+    }
+    // Для других ошибок логируем, но не падаем
+    console.error('Error sending gift button:', error);
+  }
 }
 
 async function sendClassicHome(ctx: Context) {
-  // Отправляем видео с текстом как единое сообщение
-  await sendWelcomeVideo(ctx);
-  // Отправляем кнопку "Подарок"
-  await sendGiftButton(ctx);
-  // Клавиатура отправляется отдельно после видео
-  await ctx.reply('👇 Выберите раздел:', mainKeyboard());
+  try {
+    // Отправляем видео с текстом как единое сообщение
+    await sendWelcomeVideo(ctx);
+    // Отправляем кнопку "Подарок"
+    await sendGiftButton(ctx);
+    // Клавиатура отправляется отдельно после видео
+    await ctx.reply('👇 Выберите раздел:', mainKeyboard());
+  } catch (error) {
+    // Если бот заблокирован, просто выходим
+    if (isBotBlockedError(error)) {
+      console.log('Bot was blocked by user, skipping classic home');
+      return;
+    }
+    throw error;
+  }
 }
 
 async function sendAppHome(
   ctx: Context,
   options: { introText?: string; includeGreeting?: boolean } = {}
 ) {
-  const { introText, includeGreeting = true } = options;
+  try {
+    const { introText, includeGreeting = true } = options;
 
-  // Сначала отправляем видео с текстом как единое сообщение
-  await sendWelcomeVideo(ctx);
-  
-  // Отправляем кнопку "Подарок"
-  await sendGiftButton(ctx);
+    // Сначала отправляем видео с текстом как единое сообщение
+    await sendWelcomeVideo(ctx);
+    
+    // Отправляем кнопку "Подарок"
+    await sendGiftButton(ctx);
 
-  if (introText) {
-    await ctx.reply(introText, Markup.removeKeyboard());
-  } else if (includeGreeting) {
-    // Текст уже в подписи к видео, не дублируем
+    if (introText) {
+      await ctx.reply(introText, Markup.removeKeyboard());
+    } else if (includeGreeting) {
+      // Текст уже в подписи к видео, не дублируем
+    }
+    
+    await sendNavigationMenu(ctx);
+  } catch (error) {
+    // Если бот заблокирован, просто выходим
+    if (isBotBlockedError(error)) {
+      console.log('Bot was blocked by user, skipping app home');
+      return;
+    }
+    throw error;
   }
-
-  await sendNavigationMenu(ctx);
 }
 
 async function renderHome(ctx: Context) {
@@ -621,6 +681,12 @@ ${greeting}`;
               }
             );
           } catch (error) {
+            // Если бот заблокирован пользователем, просто выходим без ошибки
+            if (isBotBlockedError(error)) {
+              console.log('Bot was blocked by user, skipping referral welcome video');
+              return;
+            }
+            
             console.error('Error sending referral welcome video:', error);
             // Fallback: пробуем скачать и отправить как буфер
             try {
@@ -642,9 +708,23 @@ ${greeting}`;
                 throw new Error('Failed to fetch video');
               }
             } catch (fallbackError) {
+              // Если и fallback не удался из-за блокировки, просто выходим
+              if (isBotBlockedError(fallbackError)) {
+                console.log('Bot was blocked by user, skipping referral fallback video');
+                return;
+              }
+              
               console.error('Fallback video send failed:', fallbackError);
-              // Последний вариант
-              await ctx.reply(referralGreeting);
+              // Последний вариант (только если не заблокирован)
+              try {
+                await ctx.reply(referralGreeting);
+              } catch (finalError) {
+                if (isBotBlockedError(finalError)) {
+                  console.log('Bot was blocked by user, skipping referral final message');
+                  return;
+                }
+                throw finalError;
+              }
             }
           }
           
