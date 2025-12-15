@@ -22,7 +22,27 @@ if (dbUrl) {
     if (url.startsWith('mongodb://') && !url.includes('mongodb+srv://')) {
       try {
         // Парсим URL для проверки формата
+        // Если пароль содержит специальные символы, они должны быть URL-кодированы
         const urlObj = new URL(url);
+        
+        // Если есть username и password, убеждаемся, что они правильно закодированы
+        if (urlObj.username && urlObj.password) {
+          // Декодируем и перекодируем для правильного экранирования
+          const username = decodeURIComponent(urlObj.username);
+          const password = decodeURIComponent(urlObj.password);
+          
+          // Перекодируем специальные символы
+          const encodedUsername = encodeURIComponent(username);
+          const encodedPassword = encodeURIComponent(password);
+          
+          // Если были изменения, пересобираем URL
+          if (username !== encodedUsername || password !== encodedPassword) {
+            urlObj.username = encodedUsername;
+            urlObj.password = encodedPassword;
+            url = urlObj.toString();
+            console.log('URL-encoded username/password in connection string');
+          }
+        }
         
         // Если нет pathname (имени базы данных), добавляем по умолчанию
         if (!urlObj.pathname || urlObj.pathname === '/') {
@@ -31,10 +51,6 @@ if (dbUrl) {
           url = urlObj.toString();
           console.log(`Added default database name: ${defaultDb}`);
         }
-        
-        // Для Railway MongoDB: если есть пользователь и пароль, но они вызывают ошибки аутентификации,
-        // можно попробовать подключиться без аутентификации (если Railway MongoDB это поддерживает)
-        // Но сначала пробуем с исходными учетными данными
         
       } catch (urlError) {
         // Если URL парсер не смог распарсить (возможно, из-за специальных символов в пароле),
