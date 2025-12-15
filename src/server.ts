@@ -19,8 +19,37 @@ import cron from 'node-cron';
 
 async function bootstrap() {
   try {
+    // Try to connect to database first
     await prisma.$connect();
     console.log('Database connected');
+    
+    // Try to apply migrations on startup if database is available
+    // This is a fallback if migrations weren't applied during build
+    try {
+      const { execSync } = await import('child_process');
+      console.log('🔄 Checking database schema...');
+      execSync('npx prisma db push --skip-generate --accept-data-loss', { 
+        stdio: 'pipe',
+        env: process.env,
+        timeout: 30000, // 30 seconds timeout
+      });
+      console.log('✅ Database schema synchronized');
+    } catch (migrationError: any) {
+      const errorMessage = migrationError.message || migrationError.toString() || '';
+      const isConnectionError = 
+        errorMessage.includes('Server selection timeout') ||
+        errorMessage.includes('No available servers') ||
+        errorMessage.includes('I/O error: timed out') ||
+        errorMessage.includes('ETIMEDOUT');
+      
+      if (isConnectionError) {
+        console.warn('⚠️  Database connection timeout during schema sync (non-critical)');
+      } else if (errorMessage.includes('already in sync') || errorMessage.includes('unchanged')) {
+        console.log('✅ Database schema already up to date');
+      } else {
+        console.warn('⚠️  Schema sync check failed (non-critical):', errorMessage.substring(0, 150));
+      }
+    }
     
     await ensureInitialData();
     console.log('Initial data ensured');
