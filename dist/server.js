@@ -21,31 +21,44 @@ async function bootstrap() {
         console.log('Database connected');
         // Try to apply migrations on startup if database is available
         // This is a fallback if migrations weren't applied during build
-        try {
-            const { execSync } = await import('child_process');
-            console.log('🔄 Checking database schema...');
-            execSync('npx prisma db push --skip-generate --accept-data-loss', {
-                stdio: 'pipe',
-                env: process.env,
-                timeout: 30000, // 30 seconds timeout
-            });
-            console.log('✅ Database schema synchronized');
+        // Skip if DATABASE_URL points to Atlas (likely unavailable)
+        const dbUrl = process.env.DATABASE_URL || process.env.MONGO_URL || '';
+        const isAtlasUrl = dbUrl.includes('mongodb+srv://') && dbUrl.includes('mongodb.net');
+        if (!isAtlasUrl) {
+            try {
+                const { execSync } = await import('child_process');
+                console.log('🔄 Checking database schema...');
+                execSync('npx prisma db push --skip-generate --accept-data-loss', {
+                    stdio: 'pipe',
+                    env: process.env,
+                    timeout: 15000, // 15 seconds timeout (shorter for faster startup)
+                });
+                console.log('✅ Database schema synchronized');
+            }
+            catch (migrationError) {
+                const errorMessage = migrationError.message || migrationError.toString() || '';
+                const errorOutput = (migrationError.stdout?.toString() || '') + (migrationError.stderr?.toString() || '');
+                const fullError = (errorMessage + ' ' + errorOutput).toLowerCase();
+                const isConnectionError = fullError.includes('server selection timeout') ||
+                    fullError.includes('no available servers') ||
+                    fullError.includes('i/o error: timed out') ||
+                    fullError.includes('etimedout') ||
+                    fullError.includes('can\'t reach database');
+                if (isConnectionError) {
+                    console.warn('⚠️  Database connection timeout during schema sync (non-critical)');
+                    console.warn('💡 Schema will be synced on next successful connection');
+                }
+                else if (fullError.includes('already in sync') || fullError.includes('unchanged') || fullError.includes('already up to date')) {
+                    console.log('✅ Database schema already up to date');
+                }
+                else {
+                    console.warn('⚠️  Schema sync check failed (non-critical):', errorMessage.substring(0, 100));
+                }
+            }
         }
-        catch (migrationError) {
-            const errorMessage = migrationError.message || migrationError.toString() || '';
-            const isConnectionError = errorMessage.includes('Server selection timeout') ||
-                errorMessage.includes('No available servers') ||
-                errorMessage.includes('I/O error: timed out') ||
-                errorMessage.includes('ETIMEDOUT');
-            if (isConnectionError) {
-                console.warn('⚠️  Database connection timeout during schema sync (non-critical)');
-            }
-            else if (errorMessage.includes('already in sync') || errorMessage.includes('unchanged')) {
-                console.log('✅ Database schema already up to date');
-            }
-            else {
-                console.warn('⚠️  Schema sync check failed (non-critical):', errorMessage.substring(0, 150));
-            }
+        else {
+            console.warn('⚠️  MongoDB Atlas detected. Schema sync skipped (use Railway MongoDB for better reliability)');
+            console.warn('💡 To switch to Railway MongoDB, update DATABASE_URL to use ${{MongoDB.MONGO_URL}}');
         }
         await ensureInitialData();
         console.log('Initial data ensured');
