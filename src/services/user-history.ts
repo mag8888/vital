@@ -20,6 +20,22 @@ function isBotBlockedError(error: any): boolean {
   );
 }
 
+// Проверяет, является ли ошибка ошибкой подключения к БД
+function isDatabaseConnectionError(error: any): boolean {
+  if (!error) return false;
+  const errorCode = error.code;
+  const errorMessage = error.message || error.meta?.message || '';
+  return (
+    errorCode === 'P2010' || // Raw query failed
+    errorCode === 'P1001' || // Can't reach database server
+    errorCode === 'P1002' || // Connection timeout
+    errorMessage.includes('Server selection timeout') ||
+    errorMessage.includes('No available servers') ||
+    errorMessage.includes('I/O error: timed out') ||
+    errorMessage.includes('Connection pool timeout')
+  );
+}
+
 export async function ensureUser(ctx: Context) {
   const from = ctx.from;
   if (!from) return null;
@@ -121,10 +137,21 @@ export async function handlePhoneNumber(ctx: Context): Promise<void> {
     const user = await ensureUser(ctx);
     if (!user) return;
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { phone: phoneNumber } as any
-    });
+    try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { phone: phoneNumber } as any
+      });
+    } catch (dbError) {
+      // Если БД недоступна, просто логируем и продолжаем
+      if (isDatabaseConnectionError(dbError)) {
+        console.warn('Database unavailable, phone number not saved:', dbError);
+        // Продолжаем выполнение, чтобы сообщить пользователю
+      } else {
+        // Для других ошибок БД пробрасываем дальше
+        throw dbError;
+      }
+    }
 
     try {
       await ctx.reply(
@@ -143,6 +170,21 @@ export async function handlePhoneNumber(ctx: Context): Promise<void> {
     // Если бот заблокирован, просто выходим без ошибки
     if (isBotBlockedError(error)) {
       console.log('Bot was blocked by user, skipping phone number save');
+      return;
+    }
+    
+    // Если ошибка подключения к БД, сообщаем пользователю, но не падаем
+    if (isDatabaseConnectionError(error)) {
+      console.warn('Database unavailable, phone number not saved:', error);
+      try {
+        await ctx.reply('⚠️ База данных временно недоступна. Номер телефона не сохранен. Попробуйте позже.');
+      } catch (replyError) {
+        if (isBotBlockedError(replyError)) {
+          console.log('Bot was blocked by user, skipping error message');
+          return;
+        }
+        throw replyError;
+      }
       return;
     }
     
