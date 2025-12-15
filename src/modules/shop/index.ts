@@ -543,11 +543,11 @@ export const shopModule: BotModule = {
       
       // Save region to user and show categories
       const user = await ensureUser(ctx);
-      const validRegions = ['RUSSIA', 'BALI', 'DUBAI', 'KAZAKHSTAN', 'BELARUS', 'OTHER'];
-      if (user && validRegions.includes(regionOrAction)) {
+      const validRegions: Array<'RUSSIA' | 'BALI' | 'DUBAI' | 'KAZAKHSTAN' | 'BELARUS' | 'OTHER'> = ['RUSSIA', 'BALI', 'DUBAI', 'KAZAKHSTAN', 'BELARUS', 'OTHER'];
+      if (user && validRegions.includes(regionOrAction as any)) {
         await prisma.user.update({
           where: { id: user.id },
-          data: { selectedRegion: regionOrAction as any } as any
+          data: { selectedRegion: regionOrAction as 'RUSSIA' | 'BALI' | 'DUBAI' | 'KAZAKHSTAN' | 'BELARUS' | 'OTHER' }
         });
         await logUserAction(ctx, 'shop:region_selected', { region: regionOrAction });
         await showCategories(ctx, regionOrAction);

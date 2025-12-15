@@ -20,6 +20,10 @@ enum TransactionType {
 enum Region {
   RUSSIA
   BALI
+  DUBAI
+  KAZAKHSTAN
+  BELARUS
+  OTHER
 }
 
 enum PaymentStatus {
