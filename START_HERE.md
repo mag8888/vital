@@ -59,3 +59,10 @@ cd vital && npm run build && node scripts/import-invoice-images-now.js
 
 
 
+
+
+
+
+
+
+

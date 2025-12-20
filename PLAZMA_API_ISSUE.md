@@ -77,3 +77,10 @@ curl "https://vital-production-82b0.up.railway.app/webapp/api/plazma/products?li
 
 
 
+
+
+
+
+
+
+

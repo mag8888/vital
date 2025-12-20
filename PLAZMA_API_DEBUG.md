@@ -164,3 +164,10 @@ curl -X GET "https://plazma-production.up.railway.app/api/external/products?regi
 
 
 
+
+
+
+
+
+
+
