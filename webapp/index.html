@@ -1,20 +1,22 @@
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Vital Shop</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="styles.css?v=monochrome3">
+    <link rel="stylesheet" href="/webapp/static/styles.css?v=monochrome3">
     <!-- Preload critical images -->
     <link rel="preload" href="https://vital-production-82b0.up.railway.app/products" as="fetch">
 </head>
+
 <body>
     <div class="app-container">
         <header class="top-bar">
             <button class="control-btn" onclick="openMenu()" aria-label="Меню">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path d="M3 12H21M3 6H21M3 18H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M3 12H21M3 6H21M3 18H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
                 </svg>
             </button>
             <div class="brand-cluster">
@@ -25,18 +27,21 @@
             <div class="header-actions">
                 <button class="control-btn" onclick="openSearch()" aria-label="Поиск">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                        <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/>
-                        <path d="m21 21-4.35-4.35" stroke="currentColor" stroke-width="2"/>
+                        <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" />
+                        <path d="m21 21-4.35-4.35" stroke="currentColor" stroke-width="2" />
                     </svg>
                 </button>
                 <button class="control-btn" onclick="openProfile()" aria-label="Профиль">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                 </button>
                 <button class="control-btn" onclick="openCart()" aria-label="Корзина">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                        <path d="M3 3H5L5.4 5M7 13H17L21 5H5.4M7 13L5.4 5M7 13L4.7 15.3C4.3 15.7 4.6 16.5 5.1 16.5H17M17 13V17C17 18.1 16.1 19 15 19H9C7.9 19 7 18.1 7 17V13M17 13H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path
+                            d="M3 3H5L5.4 5M7 13H17L21 5H5.4M7 13L5.4 5M7 13L4.7 15.3C4.3 15.7 4.6 16.5 5.1 16.5H17M17 13V17C17 18.1 16.1 19 15 19H9C7.9 19 7 18.1 7 17V13M17 13H7"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                     <span class="cart-badge">0</span>
                 </button>
@@ -61,7 +66,7 @@
                     <p>Загрузка товаров...</p>
                 </div>
             </div>
-            
+
             <!-- Plazma API Products Section -->
             <div class="products-scroll-container" id="plazma-products-section" style="display: none;">
                 <div class="section-header-inline">
@@ -82,31 +87,40 @@
         <nav class="bottom-nav">
             <div class="nav-item active" onclick="showHome()">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path d="M3 9L12 2L21 9V20C21 20.5 20.6 21 20 21H15V14H9V21H4C3.4 21 3 20.5 3 20V9Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M3 9L12 2L21 9V20C21 20.5 20.6 21 20 21H15V14H9V21H4C3.4 21 3 20.5 3 20V9Z"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
                 <span>Домой</span>
             </div>
             <div class="nav-item" onclick="openSection('about')">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path d="M16 21V19C16 17.9 15.1 17 14 17H10C8.9 17 8 17.9 8 19V21M12 11C13.1 11 14 10.1 14 9C14 7.9 13.1 7 12 7C10.9 7 10 7.9 10 9C10 10.1 10.9 11 12 11Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path
+                        d="M16 21V19C16 17.9 15.1 17 14 17H10C8.9 17 8 17.9 8 19V21M12 11C13.1 11 14 10.1 14 9C14 7.9 13.1 7 12 7C10.9 7 10 7.9 10 9C10 10.1 10.9 11 12 11Z"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
                 <span>О сообществе</span>
             </div>
             <div class="nav-item" onclick="openSection('support')">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path d="M21 15C21 15.5 20.6 16 20 16H4C3.4 16 3 15.5 3 15V5C3 4.5 3.4 4 4 4H20C20.6 4 21 4.5 21 5V15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path
+                        d="M21 15C21 15.5 20.6 16 20 16H4C3.4 16 3 15.5 3 15V5C3 4.5 3.4 4 4 4H20C20.6 4 21 4.5 21 5V15Z"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
                 <span>Чаты</span>
             </div>
             <div class="nav-item" onclick="showFavorites()">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path d="M20.84 4.61C20.33 4.1 19.66 3.8 18.95 3.8C18.24 3.8 17.57 4.1 17.06 4.61L12 9.67L6.94 4.61C6.43 4.1 5.76 3.8 5.05 3.8C4.34 3.8 3.67 4.1 3.16 4.61C2.65 5.12 2.35 5.79 2.35 6.5C2.35 7.21 2.65 7.88 3.16 8.39L8.22 13.45L3.16 18.51C2.65 19.02 2.35 19.69 2.35 20.4C2.35 21.11 2.65 21.78 3.16 22.29C3.67 22.8 4.34 23.1 5.05 23.1C5.76 23.1 6.43 22.8 6.94 22.29L12 17.23L17.06 22.29C17.57 22.8 18.24 23.1 18.95 23.1C19.66 23.1 20.33 22.8 20.84 22.29C21.35 21.78 21.65 21.11 21.65 20.4C21.65 19.69 21.35 19.02 20.84 18.51L15.78 13.45L20.84 8.39C21.35 7.88 21.65 7.21 21.65 6.5C21.65 5.79 21.35 5.12 20.84 4.61Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path
+                        d="M20.84 4.61C20.33 4.1 19.66 3.8 18.95 3.8C18.24 3.8 17.57 4.1 17.06 4.61L12 9.67L6.94 4.61C6.43 4.1 5.76 3.8 5.05 3.8C4.34 3.8 3.67 4.1 3.16 4.61C2.65 5.12 2.35 5.79 2.35 6.5C2.35 7.21 2.65 7.88 3.16 8.39L8.22 13.45L3.16 18.51C2.65 19.02 2.35 19.69 2.35 20.4C2.35 21.11 2.65 21.78 3.16 22.29C3.67 22.8 4.34 23.1 5.05 23.1C5.76 23.1 6.43 22.8 6.94 22.29L12 17.23L17.06 22.29C17.57 22.8 18.24 23.1 18.95 23.1C19.66 23.1 20.33 22.8 20.84 22.29C21.35 21.78 21.65 21.11 21.65 20.4C21.65 19.69 21.35 19.02 20.84 18.51L15.78 13.45L20.84 8.39C21.35 7.88 21.65 7.21 21.65 6.5C21.65 5.79 21.35 5.12 20.84 4.61Z"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
                 <span>Избранное</span>
             </div>
             <div class="nav-item" onclick="openSection('partner')">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path d="M12 22S2 16 2 10C2 5.6 5.6 2 10 2C11.1 2 12 2.9 12 4C12 5.1 11.1 6 10 6C7.8 6 6 7.8 6 10C6 12.2 7.8 14 10 14C11.1 14 12 14.9 12 16C12 17.1 11.1 18 10 18C7.8 18 6 19.8 6 22H12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path
+                        d="M12 22S2 16 2 10C2 5.6 5.6 2 10 2C11.1 2 12 2.9 12 4C12 5.1 11.1 6 10 6C7.8 6 6 7.8 6 10C6 12.2 7.8 14 10 14C11.1 14 12 14.9 12 16C12 17.1 11.1 18 10 18C7.8 18 6 19.8 6 22H12Z"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
                 <span>Амбассадоры</span>
             </div>
@@ -121,7 +135,7 @@
                 <h2>Меню</h2>
                 <button class="close-btn" onclick="closeMenu()">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
                     </svg>
                 </button>
             </div>
@@ -129,7 +143,8 @@
                 <a href="#" class="menu-item" onclick="event.preventDefault(); closeMenu(); loadProductsOnMainPage();">
                     <span>📦 Каталог</span>
                 </a>
-                <a href="#" class="menu-item" onclick="event.preventDefault(); closeMenu(); openSection('certificates');">
+                <a href="#" class="menu-item"
+                    onclick="event.preventDefault(); closeMenu(); openSection('certificates');">
                     <span>🎁 Сертификаты</span>
                 </a>
                 <a href="#" class="menu-item" onclick="event.preventDefault(); closeMenu(); openSection('promotions');">
@@ -145,17 +160,20 @@
             <div class="menu-social">
                 <a href="https://vk.com/ivital" target="_blank" class="social-icon">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M15.684 0H8.316C1.592 0 0 1.592 0 8.316v7.368C0 22.408 1.592 24 8.316 24h7.368C22.408 24 24 22.408 24 15.684V8.316C24 1.592 22.408 0 15.684 0zm3.692 17.123h-1.744c-.66 0-.864-.525-2.05-1.727-1.033-1.095-1.49 0-1.49.916v1.564c0 .608-.225.912-.914.912H6.92c-.66 0-.914-.335-.914-1.205V8.716c0-.882.335-1.205 1.014-1.205h2.31c.609 0 .914.412.914.871v4.847c.619-.737 1.45-1.742 2.8-2.816 1.259-1.031 1.93-.701 1.93.65v3.945c0 .637.166.871.61.871h2.21c.609 0 .87-.412.87-1.034v-4.85c0-.701.083-1.243-.573-1.744-.635-.5-1.576-.292-2.24-.122-.411.113-.638.535-.638 1.038v3.79z"/>
+                        <path
+                            d="M15.684 0H8.316C1.592 0 0 1.592 0 8.316v7.368C0 22.408 1.592 24 8.316 24h7.368C22.408 24 24 22.408 24 15.684V8.316C24 1.592 22.408 0 15.684 0zm3.692 17.123h-1.744c-.66 0-.864-.525-2.05-1.727-1.033-1.095-1.49 0-1.49.916v1.564c0 .608-.225.912-.914.912H6.92c-.66 0-.914-.335-.914-1.205V8.716c0-.882.335-1.205 1.014-1.205h2.31c.609 0 .914.412.914.871v4.847c.619-.737 1.45-1.742 2.8-2.816 1.259-1.031 1.93-.701 1.93.65v3.945c0 .637.166.871.61.871h2.21c.609 0 .87-.412.87-1.034v-4.85c0-.701.083-1.243-.573-1.744-.635-.5-1.576-.292-2.24-.122-.411.113-.638.535-.638 1.038v3.79z" />
                     </svg>
                 </a>
                 <a href="https://t.me/ivitalbot" target="_blank" class="social-icon">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.295-.6.295-.002 0-.003 0-.005 0l.213-3.054 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.64-.203-.658-.64.135-.954l11.566-4.458c.538-.196 1.006.128.832.941z"/>
+                        <path
+                            d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.446 1.394c-.14.18-.357.295-.6.295-.002 0-.003 0-.005 0l.213-3.054 5.56-5.022c.24-.213-.054-.334-.373-.121l-6.869 4.326-2.96-.924c-.64-.203-.658-.64.135-.954l11.566-4.458c.538-.196 1.006.128.832.941z" />
                     </svg>
                 </a>
                 <a href="https://www.instagram.com/ivitalnano/" target="_blank" class="social-icon">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                        <path
+                            d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
                     </svg>
                 </a>
             </div>
@@ -168,7 +186,8 @@
             <header class="search-header">
                 <button class="back-btn" onclick="closeSearch()">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                        <path d="M19 12H5M12 19L5 12L12 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M19 12H5M12 19L5 12L12 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
                     </svg>
                 </button>
                 <h2>Поиск</h2>
@@ -189,7 +208,8 @@
             <header class="profile-header">
                 <button class="back-btn" onclick="closeProfile()">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                        <path d="M19 12H5M12 19L5 12L12 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M19 12H5M12 19L5 12L12 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
                     </svg>
                 </button>
                 <h2>Профиль</h2>
@@ -210,7 +230,8 @@
             <header class="section-header">
                 <button class="back-btn" onclick="closeSection()">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                        <path d="M19 12H5M12 19L5 12L12 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M19 12H5M12 19L5 12L12 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
                     </svg>
                 </button>
                 <h2 id="section-title">Раздел</h2>
@@ -224,4 +245,5 @@
 
     <script src="/webapp/static/app.js?v=20"></script>
 </body>
+
 </html>
