@@ -1335,23 +1335,31 @@ function extractProductWeight(text) {
     // The specific user pattern: "/ 55 BEC: 50 г /"
 
     // Regex to find "BEC: <value>"
-    const weightMatch = text.match(/(?:BEC|ВЕС|Вес)[:\s]+(\d+\s*[гg])/i);
+    const weightMatch = text.match(/(?:BEC|ВЕС|Вес|Weight)[:\s]+(\d+\s*[гg])/i);
     let weight = weightMatch ? weightMatch[1] : null;
 
     // Also try to find just "50 g" if BEC line matches
     if (!weight) {
         const simpleMatch = text.match(/(\d+\s*[гg])/i);
-        if (simpleMatch && (text.includes('BEC') || text.includes('ВЕС'))) {
+        if (simpleMatch && (text.includes('BEC') || text.includes('ВЕС') || text.includes('Weight'))) {
             weight = simpleMatch[1];
         }
     }
 
     // Clean the text by removing the weight line/segment
-    // Removing the whole line starting with / digits BEC... or just the BEC part
-    let cleanSummary = text.replace(/\/ \d+ (?:BEC|ВЕС):.*?(\/|$)/gi, '').trim();
+    let cleanSummary = text;
 
-    // Also remove "КРАТКОЕ ОПИСАНИЕ:" prefix if present
+    // 1. Remove specific "/ 55 BEC: 50 г /" pattern
+    cleanSummary = cleanSummary.replace(/\/ \d+ (?:BEC|ВЕС|Вес|Weight):.*?(\/|$)/gi, '');
+
+    // 2. Remove standalone "BEC: 50 g" or "ВЕС: 50 г"
+    cleanSummary = cleanSummary.replace(/(?:BEC|ВЕС|Вес|Weight)[:\s]+\d+\s*[гg][\s\.,]*/gi, '');
+
+    // 3. Remove "КРАТКОЕ ОПИСАНИЕ:" prefix
     cleanSummary = cleanSummary.replace(/^КРАТКОЕ ОПИСАНИЕ:\s*/i, '');
+
+    // 4. Remove extra slashes or whitespace left over
+    cleanSummary = cleanSummary.replace(/^\s*[\/\|]\s*/, '').trim();
 
     return { weight, cleanSummary };
 }
