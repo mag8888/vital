@@ -920,8 +920,6 @@ async function loadProductsOnMainPage() {
                 }
                 productsByCategory[categoryId].products.push(product);
             });
-<<<<<<< HEAD
-
             // Получаем все категории для определения подкатегорий Косметики
             let cosmeticsSubcategories = [];
             let cosmeticsCategoryId = null;
@@ -974,16 +972,15 @@ async function loadProductsOnMainPage() {
                 }
             }
 
-            // Отображаем только категорию "Косметика"
             let html = '';
+
+            // 1. Отображаем категорию "Косметика" специальным блоком
             if (cosmeticsCategoryId && cosmeticsProducts.length > 0) {
                 html += renderCosmeticsCategory(cosmeticsCategoryId, cosmeticsProducts, cosmeticsSubcategories);
             }
 
-=======
-
-            // Определяем порядок категорий: Косметика, Живая вода, Практики, остальные
-            const categoryOrder = ['Косметика', 'Живая вода', 'Практики'];
+            // 2. Отображаем остальные категории
+            const categoryOrder = ['Живая вода', 'Практики'];
             const sortedCategories = Object.keys(productsByCategory).sort((a, b) => {
                 const nameA = productsByCategory[a].name;
                 const nameB = productsByCategory[b].name;
@@ -996,9 +993,14 @@ async function loadProductsOnMainPage() {
                 return nameA.localeCompare(nameB);
             });
 
-            let html = '';
             sortedCategories.forEach(categoryId => {
                 const category = productsByCategory[categoryId];
+
+                // Пропускаем Косметику и подкатегории (они уже обработаны)
+                if (category.name === 'Косметика' || (category.name && category.name.startsWith('Косметика >'))) {
+                    return;
+                }
+
                 html += `
                     <div class="products-scroll-container">
                         <div class="section-header-inline">
@@ -1018,8 +1020,6 @@ async function loadProductsOnMainPage() {
                     </div>
                 `;
             });
-
->>>>>>> dd28d99 (UI Adaptation: clean titles, weight badge, remove duplicate back button)
             container.innerHTML = html;
         } else {
             container.innerHTML = `
