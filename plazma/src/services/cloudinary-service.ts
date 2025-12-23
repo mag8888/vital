@@ -107,3 +107,12 @@ export function isCloudinaryConfigured(): boolean {
   return !!(cloudName && apiKey && apiSecret);
 }
 
+
+
+
+
+
+
+
+
+

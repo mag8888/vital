@@ -27,3 +27,12 @@ export async function applyBotModules(bot: Telegraf<Context>) {
   }
 }
 
+
+
+
+
+
+
+
+
+

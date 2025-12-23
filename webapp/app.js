@@ -5,23 +5,23 @@ const tg = window.Telegram?.WebApp;
 if (tg) {
     tg.ready();
     tg.expand();
-    
+
     // Use Telegram theme colors
     const themeParams = tg.themeParams || {};
     const bgColor = themeParams.bg_color || '#1a1a1a';
     const textColor = themeParams.text_color || '#ffffff';
-    
+
     // Set theme colors
     tg.setHeaderColor(bgColor);
     tg.setBackgroundColor(bgColor);
-    
+
     // Update CSS variables based on Telegram theme
     document.documentElement.style.setProperty('--tg-bg-color', bgColor);
     document.documentElement.style.setProperty('--tg-text-color', textColor);
-    
+
     // Enable closing confirmation
     tg.enableClosingConfirmation();
-    
+
     // Handle theme changes
     tg.onEvent('themeChanged', () => {
         const newBgColor = tg.themeParams?.bg_color || '#1a1a1a';
@@ -31,7 +31,7 @@ if (tg) {
         tg.setHeaderColor(newBgColor);
         tg.setBackgroundColor(newBgColor);
     });
-    
+
     // Handle viewport changes
     tg.onEvent('viewportChanged', () => {
         tg.expand();
@@ -51,7 +51,7 @@ function getTelegramUserData() {
     if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
         return tg.initDataUnsafe.user;
     }
-    
+
     // Fallback for development
     return {
         id: 123456789,
@@ -72,12 +72,12 @@ function getApiHeaders() {
 }
 
 // Initialize app
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     loadUserData();
     loadCartItems();
     updateBadges();
     loadProductsOnMainPage(); // Load products immediately on main page
-    
+
     // Apply Telegram theme colors on load
     if (tg) {
         const themeParams = tg.themeParams || {};
@@ -95,16 +95,16 @@ document.addEventListener('DOMContentLoaded', function() {
             document.documentElement.style.setProperty('--accent', themeParams.button_color);
         }
     }
-    
+
     // Add haptic feedback for buttons (if available)
     function addHapticFeedback(element) {
-        element.addEventListener('click', function() {
+        element.addEventListener('click', function () {
             if (tg && tg.HapticFeedback) {
                 tg.HapticFeedback.impactOccurred('light');
             }
         });
     }
-    
+
     // Add haptic feedback to all buttons
     document.querySelectorAll('.btn, .control-btn, .back-btn, .content-card, .nav-item').forEach(addHapticFeedback);
 });
@@ -159,7 +159,7 @@ async function loadCategoriesForSearch() {
     try {
         const response = await fetch(`${API_BASE}/categories`);
         if (!response.ok) throw new Error('Failed to fetch categories');
-        
+
         const categories = await response.json();
         if (categories && categories.length > 0) {
             let html = '<div class="categories-list">';
@@ -196,7 +196,7 @@ async function loadProductsByCategory(categoryId) {
     try {
         const response = await fetch(`${API_BASE}/categories/${categoryId}/products`);
         if (!response.ok) throw new Error('Failed to fetch products');
-        
+
         const products = await response.json();
         if (products && products.length > 0) {
             let html = '<div class="products-grid">';
@@ -240,15 +240,15 @@ async function loadProfileContent() {
             fetch(`${API_BASE}/user/profile`, { headers: getApiHeaders() }),
             fetch(`${API_BASE}/partner/dashboard`, { headers: getApiHeaders() }).catch(() => ({ ok: false }))
         ]);
-        
+
         const user = await userResponse.json();
         const partner = partnerResponse.ok ? await partnerResponse.json() : null;
-        
+
         const telegramUser = getTelegramUserData();
         // Реферальная ссылка с юзернеймом в конце
         const botUsername = 'Vital_shop_bot';
         let referralLink = `https://t.me/${botUsername}`;
-        
+
         // Получаем username пользователя для реферальной ссылки
         let username = null;
         if (telegramUser && telegramUser.username && telegramUser.username !== 'undefined' && telegramUser.username.trim() !== '') {
@@ -256,7 +256,7 @@ async function loadProfileContent() {
         } else if (user && user.username && user.username !== 'undefined' && user.username.trim() !== '') {
             username = user.username.trim();
         }
-        
+
         // Формируем ссылку с username в конце
         if (username) {
             referralLink = `https://t.me/${botUsername}?start=${username}`;
@@ -267,16 +267,16 @@ async function loadProfileContent() {
                 referralLink = `https://t.me/${botUsername}?start=${userId}`;
             }
         }
-        
+
         // Final check: ensure referralLink is never undefined, null, or contains "undefined"
-        if (!referralLink || 
-            referralLink === 'undefined' || 
+        if (!referralLink ||
+            referralLink === 'undefined' ||
             referralLink === 'null' ||
             referralLink.includes('undefined') ||
             referralLink.includes('null')) {
             referralLink = `https://t.me/${botUsername}`;
         }
-        
+
         // Log for debugging
         console.log('🔗 Referral link generated:', {
             hasPartner: !!partner,
@@ -285,7 +285,7 @@ async function loadProfileContent() {
             telegramId: telegramUser?.id,
             finalLink: referralLink
         });
-        
+
         let html = `
             <div class="profile-content-wrapper">
                 <div class="profile-header-info">
@@ -307,7 +307,7 @@ async function loadProfileContent() {
                     <p class="referral-hint">Поделитесь этой ссылкой с друзьями и получайте бонусы!</p>
                 </div>
         `;
-        
+
         if (partner && partner.isActive) {
             html += `
                 <div class="profile-section">
@@ -344,7 +344,7 @@ async function loadProfileContent() {
                 </div>
             `;
         }
-        
+
         html += `
                 <div class="profile-section">
                     <h4>Баланс</h4>
@@ -354,7 +354,7 @@ async function loadProfileContent() {
                 </div>
             </div>
         `;
-        
+
         container.innerHTML = html;
     } catch (error) {
         console.error('Error loading profile:', error);
@@ -369,30 +369,30 @@ async function copyReferralLink() {
         alert('Ошибка: ссылка не найдена');
         return;
     }
-    
+
     let linkText = input.value || '';
-    
+
     // Clean up the link text - remove any undefined/null values
     if (linkText.includes('undefined') || linkText.includes('null')) {
         console.warn('Link contains undefined/null, cleaning up...');
         // Replace undefined/null in the link
         linkText = linkText.replace(/undefined/g, '').replace(/null/g, '');
     }
-    
+
     // Final validation
     if (!linkText || linkText.trim() === '' || linkText === 'undefined' || linkText === 'null') {
         console.error('Referral link is empty or invalid:', linkText);
         alert('Ошибка: ссылка не загружена. Попробуйте обновить страницу.');
         return;
     }
-    
+
     // Ensure it's a valid URL
     if (!linkText.startsWith('http')) {
         console.error('Invalid link format:', linkText);
         alert('Ошибка: неверный формат ссылки');
         return;
     }
-    
+
     try {
         // Use modern Clipboard API
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -403,11 +403,11 @@ async function copyReferralLink() {
             input.setSelectionRange(0, 99999); // For mobile devices
             document.execCommand('copy');
         }
-        
+
         if (tg && tg.HapticFeedback) {
             tg.HapticFeedback.notificationOccurred('success');
         }
-        
+
         alert('✅ Реферальная ссылка скопирована!');
     } catch (error) {
         console.error('Error copying referral link:', error);
@@ -423,7 +423,7 @@ function openCart() {
 async function loadCartContent() {
     try {
         const response = await fetch(`${API_BASE}/cart/items`, { headers: getApiHeaders() });
-        
+
         if (!response.ok) {
             if (response.status === 401) {
                 console.warn('⚠️ Unauthorized - user not authenticated');
@@ -435,7 +435,7 @@ async function loadCartContent() {
                     </div>
                 `;
             }
-            
+
             if (response.status === 503) {
                 console.error('❌ Service unavailable');
                 let errorData = {};
@@ -456,7 +456,7 @@ async function loadCartContent() {
                     </div>
                 `;
             }
-            
+
             let errorData = {};
             try {
                 errorData = await response.json();
@@ -464,7 +464,7 @@ async function loadCartContent() {
                 const errorText = await response.text();
                 errorData = { error: errorText || 'Неизвестная ошибка' };
             }
-            
+
             console.error('❌ Cart loading error:', response.status, errorData);
             return `
                 <div class="content-section">
@@ -481,9 +481,9 @@ async function loadCartContent() {
                 </div>
             `;
         }
-        
+
         const items = await response.json();
-        
+
         // Загружаем данные пользователя для отображения баланса
         let userBalance = 0;
         try {
@@ -496,7 +496,7 @@ async function loadCartContent() {
             console.warn('⚠️ Failed to load user balance:', error);
             // Продолжаем без баланса
         }
-        
+
         if (!items || items.length === 0) {
             return `
                 <div class="content-section">
@@ -506,21 +506,21 @@ async function loadCartContent() {
                 </div>
             `;
         }
-        
+
         let total = 0;
         let html = '<div class="cart-items-grid">';
-        
+
         items.forEach(item => {
             // Пропускаем товары без продукта (удаленные/деактивированные)
             if (!item.product) {
                 console.warn('⚠️ Cart item without product:', item.id);
                 return;
             }
-            
+
             const product = item.product;
             const itemTotal = (product.price || 0) * (item.quantity || 1);
             total += itemTotal;
-            
+
             html += `
                 <div class="cart-item-tile">
                     <div class="cart-item-image-wrapper">
@@ -540,7 +540,7 @@ async function loadCartContent() {
                 </div>
             `;
         });
-        
+
         html += '</div>';
         html += `
             <div class="cart-summary">
@@ -559,7 +559,7 @@ async function loadCartContent() {
                 </button>
             </div>
         `;
-        
+
         return html;
     } catch (error) {
         console.error('❌ Error loading cart:', error);
@@ -583,14 +583,14 @@ async function updateCartQuantity(cartItemId, newQuantity) {
         await removeFromCart(cartItemId);
         return;
     }
-    
+
     try {
         const response = await fetch(`${API_BASE}/cart/update/${cartItemId}`, {
             method: 'PUT',
             headers: getApiHeaders(),
             body: JSON.stringify({ quantity: newQuantity })
         });
-        
+
         if (response.ok) {
             await loadCartItems();
             updateCartBadge();
@@ -615,7 +615,7 @@ async function removeFromCart(cartItemId) {
             method: 'DELETE',
             headers: getApiHeaders()
         });
-        
+
         if (response.ok) {
             await loadCartItems();
             updateCartBadge();
@@ -638,26 +638,26 @@ async function checkoutCart() {
     try {
         const response = await fetch(`${API_BASE}/cart/items`, { headers: getApiHeaders() });
         if (!response.ok) throw new Error('Failed to fetch cart items');
-        
+
         const items = await response.json();
         if (!items || items.length === 0) {
             showError('Корзина пуста');
             return;
         }
-        
+
         // Фильтруем только валидные товары (с продуктом и ценой)
         const validItems = items.filter(item => item.product && item.product.price);
-        
+
         if (validItems.length === 0) {
             showError('В корзине нет доступных товаров');
             return;
         }
-        
+
         // Вычисляем общую сумму
         const total = validItems.reduce((sum, item) => {
             return sum + (item.product.price || 0) * (item.quantity || 1);
         }, 0);
-        
+
         // Загружаем баланс пользователя
         const userResponse = await fetch(`${API_BASE}/user/profile`, { headers: getApiHeaders() });
         let userBalance = 0;
@@ -665,10 +665,10 @@ async function checkoutCart() {
             const userData = await userResponse.json();
             userBalance = userData.balance || 0;
         }
-        
+
         // Показываем форму для ввода телефона и адреса
         showDeliveryForm(validItems, total, userBalance);
-        
+
     } catch (error) {
         console.error('❌ Error checkout:', error);
         console.error('❌ Error details:', {
@@ -689,27 +689,27 @@ async function processOrderWithBalance(items, total, partialAmount = null, phone
             price: item.product.price,
             quantity: item.quantity
         }));
-        
+
         const amountToPay = partialAmount || total;
-        const contactInfo = phone && address 
+        const contactInfo = phone && address
             ? `Телефон: ${phone}\nАдрес: ${address}`
             : '';
-        const message = (partialAmount 
+        const message = (partialAmount
             ? `Заказ из корзины. Оплачено с баланса: ${amountToPay.toFixed(2)} PZ из ${total.toFixed(2)} PZ`
             : `Заказ из корзины. Оплачено с баланса: ${total.toFixed(2)} PZ`) + (contactInfo ? `\n\n${contactInfo}` : '');
-        
+
         const orderResponse = await fetch(`${API_BASE}/orders/create`, {
             method: 'POST',
             headers: getApiHeaders(),
-            body: JSON.stringify({ 
-                items: orderItems, 
+            body: JSON.stringify({
+                items: orderItems,
                 message: message,
                 paidFromBalance: amountToPay,
                 phone: phone,
                 deliveryAddress: address
             })
         });
-        
+
         if (orderResponse.ok) {
             // Списываем с баланса
             const balanceResponse = await fetch(`${API_BASE}/user/deduct-balance`, {
@@ -717,13 +717,13 @@ async function processOrderWithBalance(items, total, partialAmount = null, phone
                 headers: getApiHeaders(),
                 body: JSON.stringify({ amount: amountToPay })
             });
-            
+
             if (balanceResponse.ok) {
                 showSuccess(`Заказ оформлен! С баланса списано ${amountToPay.toFixed(2)} PZ.`);
             } else {
                 showSuccess('Заказ оформлен! Ожидайте подтверждения.');
             }
-            
+
             closeSection();
             await loadCartItems();
             updateCartBadge();
@@ -746,23 +746,23 @@ async function processOrderNormal(items, phone = null, address = null) {
             price: item.product.price,
             quantity: item.quantity
         }));
-        
-        const contactInfo = phone && address 
+
+        const contactInfo = phone && address
             ? `Телефон: ${phone}\nАдрес: ${address}`
             : '';
         const message = 'Заказ из корзины' + (contactInfo ? `\n\n${contactInfo}` : '');
-        
+
         const orderResponse = await fetch(`${API_BASE}/orders/create`, {
             method: 'POST',
             headers: getApiHeaders(),
-            body: JSON.stringify({ 
-                items: orderItems, 
+            body: JSON.stringify({
+                items: orderItems,
                 message: message,
                 phone: phone,
                 deliveryAddress: address
             })
         });
-        
+
         if (orderResponse.ok) {
             showSuccess('Заказ оформлен! Администратор свяжется с вами.');
             closeSection();
@@ -789,7 +789,7 @@ function showFavorites() {
     // Update bottom nav
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
     document.querySelectorAll('.nav-item')[3].classList.add('active');
-    
+
     // Show favorites section
     openSection('favorites');
 }
@@ -799,7 +799,7 @@ function openSection(sectionName) {
     const overlay = document.getElementById('section-overlay');
     const title = document.getElementById('section-title');
     const body = document.getElementById('section-body');
-    
+
     // Set section title
     const titles = {
         shop: 'Магазин',
@@ -815,12 +815,12 @@ function openSection(sectionName) {
         contacts: 'Контакты',
         'plazma-product-detail': 'Товар'
     };
-    
+
     title.textContent = titles[sectionName] || 'Раздел';
-    
+
     // Load section content
     loadSectionContent(sectionName, body);
-    
+
     // Show overlay
     overlay.classList.remove('hidden');
     setTimeout(() => {
@@ -840,10 +840,10 @@ function closeSection() {
 // Load section content
 async function loadSectionContent(sectionName, container) {
     container.innerHTML = '<div class="loading"><div class="loading-spinner"></div></div>';
-    
+
     try {
         let content = '';
-        
+
         switch (sectionName) {
             case 'shop':
                 content = await loadShopContent();
@@ -881,7 +881,7 @@ async function loadSectionContent(sectionName, container) {
             default:
                 content = '<div class="error-message"><h3>Раздел не найден</h3><p>Попробуйте позже</p></div>';
         }
-        
+
         container.innerHTML = content;
     } catch (error) {
         console.error('Error loading section:', error);
@@ -893,25 +893,25 @@ async function loadSectionContent(sectionName, container) {
 async function loadProductsOnMainPage() {
     const container = document.getElementById('products-container');
     if (!container) return; // Container might not exist in overlay mode
-    
+
     try {
         console.log('🛒 Loading products on main page...');
         const response = await fetch(`${API_BASE}/products`);
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const products = await response.json();
         console.log(`✅ Loaded ${products?.length || 0} products`);
-        
+
         if (products && Array.isArray(products) && products.length > 0) {
             // Группируем товары по категориям
             const productsByCategory = {};
             products.forEach(product => {
                 const categoryName = product.category?.name || 'Без категории';
                 const categoryId = product.category?.id || 'uncategorized';
-                
+
                 if (!productsByCategory[categoryId]) {
                     productsByCategory[categoryId] = {
                         name: categoryName,
@@ -920,28 +920,29 @@ async function loadProductsOnMainPage() {
                 }
                 productsByCategory[categoryId].products.push(product);
             });
-            
+<<<<<<< HEAD
+
             // Получаем все категории для определения подкатегорий Косметики
             let cosmeticsSubcategories = [];
             let cosmeticsCategoryId = null;
             let cosmeticsProducts = [];
-            
+
             try {
                 const categoriesResponse = await fetch(`${API_BASE}/categories`);
                 if (categoriesResponse.ok) {
                     const allCategories = await categoriesResponse.json();
-                    cosmeticsSubcategories = allCategories.filter(cat => 
+                    cosmeticsSubcategories = allCategories.filter(cat =>
                         cat.name && cat.name.startsWith('Косметика >') && cat.name !== 'Косметика'
                     );
-                    
+
                     // Находим категорию "Косметика"
                     const cosmeticsCategory = allCategories.find(cat => cat.name === 'Косметика');
                     if (cosmeticsCategory) {
                         cosmeticsCategoryId = cosmeticsCategory.id;
-                        
+
                         // Собираем товары из самой категории "Косметика"
                         cosmeticsProducts = productsByCategory[cosmeticsCategoryId]?.products || [];
-                        
+
                         // Добавляем товары из всех подкатегорий "Косметика"
                         cosmeticsSubcategories.forEach(subcat => {
                             const subcatProducts = productsByCategory[subcat.id]?.products || [];
@@ -952,7 +953,7 @@ async function loadProductsOnMainPage() {
             } catch (error) {
                 console.error('Error fetching categories for cosmetics:', error);
             }
-            
+
             // Если не нашли через API, ищем в productsByCategory
             if (!cosmeticsCategoryId) {
                 for (const [catId, cat] of Object.entries(productsByCategory)) {
@@ -962,7 +963,7 @@ async function loadProductsOnMainPage() {
                         break;
                     }
                 }
-                
+
                 // Также ищем товары в подкатегориях
                 if (cosmeticsCategoryId) {
                     for (const [catId, cat] of Object.entries(productsByCategory)) {
@@ -972,13 +973,53 @@ async function loadProductsOnMainPage() {
                     }
                 }
             }
-            
+
             // Отображаем только категорию "Косметика"
             let html = '';
             if (cosmeticsCategoryId && cosmeticsProducts.length > 0) {
                 html += renderCosmeticsCategory(cosmeticsCategoryId, cosmeticsProducts, cosmeticsSubcategories);
             }
-            
+
+=======
+
+            // Определяем порядок категорий: Косметика, Живая вода, Практики, остальные
+            const categoryOrder = ['Косметика', 'Живая вода', 'Практики'];
+            const sortedCategories = Object.keys(productsByCategory).sort((a, b) => {
+                const nameA = productsByCategory[a].name;
+                const nameB = productsByCategory[b].name;
+                const indexA = categoryOrder.indexOf(nameA);
+                const indexB = categoryOrder.indexOf(nameB);
+
+                if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+                if (indexA !== -1) return -1;
+                if (indexB !== -1) return 1;
+                return nameA.localeCompare(nameB);
+            });
+
+            let html = '';
+            sortedCategories.forEach(categoryId => {
+                const category = productsByCategory[categoryId];
+                html += `
+                    <div class="products-scroll-container">
+                        <div class="section-header-inline">
+                            <h2 class="section-title-inline">${escapeHtml(category.name)}</h2>
+                        </div>
+                        <div class="products-scroll-wrapper">
+                            <div class="products-horizontal">
+                `;
+
+                category.products.forEach(product => {
+                    html += renderProductCardHorizontal(product);
+                });
+
+                html += `
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+>>>>>>> dd28d99 (UI Adaptation: clean titles, weight badge, remove duplicate back button)
             container.innerHTML = html;
         } else {
             container.innerHTML = `
@@ -987,10 +1028,10 @@ async function loadProductsOnMainPage() {
                 </div>
             `;
         }
-        
+
         // Загружаем товары из Plazma API
         await loadPlazmaProducts();
-        
+
     } catch (error) {
         console.error('❌ Error loading products:', error);
         if (container) {
@@ -1010,24 +1051,24 @@ async function loadProductsOnMainPage() {
 async function loadPlazmaProducts() {
     const plazmaSection = document.getElementById('plazma-products-section');
     const plazmaContainer = document.getElementById('plazma-products-container');
-    
+
     if (!plazmaSection || !plazmaContainer) {
         console.warn('⚠️ Plazma products section not found');
         return;
     }
-    
+
     // Показываем секцию с индикатором загрузки
     plazmaSection.style.display = 'block';
-    
+
     try {
         console.log('🛒 Loading products from Plazma API...');
         console.log('📍 API endpoint:', `${API_BASE}/plazma/products`);
-        
+
         // Используем бэкенд endpoint для получения товаров из Plazma API
         const response = await fetch(`${API_BASE}/plazma/products`);
-        
+
         console.log('📡 Response status:', response.status, response.statusText);
-        
+
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
             console.warn('⚠️ Failed to load Plazma products:', {
@@ -1035,14 +1076,14 @@ async function loadPlazmaProducts() {
                 statusText: response.statusText,
                 error: errorData.error || errorData.message
             });
-            
+
             // Если это 404 или 503 (сервис недоступен), просто скрываем секцию
             if (response.status === 404 || response.status === 503) {
                 console.log('ℹ️ Plazma API не настроен или недоступен, скрываем секцию');
                 plazmaSection.style.display = 'none';
                 return;
             }
-            
+
             // Для других ошибок показываем сообщение
             const horizontalContainer = plazmaContainer.querySelector('.products-horizontal');
             if (horizontalContainer) {
@@ -1054,7 +1095,7 @@ async function loadPlazmaProducts() {
             }
             return;
         }
-        
+
         const result = await response.json();
         console.log('📦 Response from backend:', {
             success: result.success,
@@ -1062,18 +1103,18 @@ async function loadPlazmaProducts() {
             productsLength: Array.isArray(result.products) ? result.products.length : 'not array',
             error: result.error
         });
-        
+
         const products = result.products || result.data || [];
-        
+
         console.log(`✅ Loaded ${products?.length || 0} products from Plazma API`);
-        
+
         const horizontalContainer = plazmaContainer.querySelector('.products-horizontal');
         if (!horizontalContainer) {
             console.error('❌ Horizontal container not found in Plazma section');
             plazmaSection.style.display = 'none';
             return;
         }
-        
+
         if (products && Array.isArray(products) && products.length > 0) {
             let html = '';
             products.forEach((product, index) => {
@@ -1112,11 +1153,11 @@ function renderCosmeticsCategory(categoryId, allProducts, cosmeticsSubcategories
         cosmeticsSubcategories.forEach(subcat => {
             productsBySubcategory[subcat.id] = allProducts.filter(p => p.category?.id === subcat.id);
         });
-        
+
         // Создаем микс: по одному товару из каждой подкатегории по очереди
         const mixedProducts = [];
         const subcategoryIds = Object.keys(productsBySubcategory).filter(id => productsBySubcategory[id].length > 0);
-        
+
         if (subcategoryIds.length === 0) {
             // Если нет подкатегорий, берем первые товары из всех
             return `
@@ -1132,7 +1173,7 @@ function renderCosmeticsCategory(categoryId, allProducts, cosmeticsSubcategories
                 </div>
             `;
         }
-        
+
         // Берем по одному товару из каждой подкатегории по очереди, максимум 9 товаров
         let maxProducts = 0;
         subcategoryIds.forEach(subcatId => {
@@ -1140,7 +1181,7 @@ function renderCosmeticsCategory(categoryId, allProducts, cosmeticsSubcategories
                 maxProducts = productsBySubcategory[subcatId].length;
             }
         });
-        
+
         // Берем товары по кругу из каждой подкатегории, но не более 9
         for (let round = 0; round < maxProducts && mixedProducts.length < 9; round++) {
             for (const subcatId of subcategoryIds) {
@@ -1151,7 +1192,7 @@ function renderCosmeticsCategory(categoryId, allProducts, cosmeticsSubcategories
                 }
             }
         }
-        
+
         let html = `
             <div class="products-scroll-container">
                 <div class="section-header-inline">
@@ -1160,11 +1201,11 @@ function renderCosmeticsCategory(categoryId, allProducts, cosmeticsSubcategories
                 <div class="products-scroll-wrapper">
                     <div class="products-horizontal">
         `;
-        
+
         mixedProducts.forEach(product => {
             html += renderProductCardHorizontal(product);
         });
-        
+
         // Кнопка "Перейти на все категории"
         html += `
                         <div class="product-card-more" onclick="showCosmeticsSubcategories('${categoryId}')">
@@ -1175,7 +1216,7 @@ function renderCosmeticsCategory(categoryId, allProducts, cosmeticsSubcategories
                 </div>
             </div>
         `;
-        
+
         return html;
     } catch (error) {
         console.error('Error rendering cosmetics category:', error);
@@ -1200,27 +1241,27 @@ async function showCosmeticsSubcategories(parentCategoryId) {
     try {
         // Открываем секцию каталога
         openSection('shop');
-        
+
         const container = document.getElementById('section-body');
         container.innerHTML = '<div class="loading"><div class="loading-spinner"></div></div>';
-        
+
         // Загружаем категории и товары
         const [categoriesResponse, productsResponse] = await Promise.all([
             fetch(`${API_BASE}/categories`),
             fetch(`${API_BASE}/products`)
         ]);
-        
+
         if (!categoriesResponse.ok) throw new Error('Failed to fetch categories');
         if (!productsResponse.ok) throw new Error('Failed to fetch products');
-        
+
         const allCategories = await categoriesResponse.json();
         const products = await productsResponse.json();
-        
+
         // Находим подкатегории "Косметика"
-        const cosmeticsSubcategories = allCategories.filter(cat => 
+        const cosmeticsSubcategories = allCategories.filter(cat =>
             cat.name && cat.name.startsWith('Косметика >') && cat.name !== 'Косметика'
         );
-        
+
         // Группируем товары по категориям
         const productsByCategory = {};
         products.forEach(product => {
@@ -1230,14 +1271,14 @@ async function showCosmeticsSubcategories(parentCategoryId) {
             }
             productsByCategory[categoryId].push(product);
         });
-        
+
         let html = '<div class="products-main-container">';
-        
+
         // Отображаем каждую подкатегорию как горизонтальную линию
         cosmeticsSubcategories.forEach(subcat => {
             const subcatProducts = productsByCategory[subcat.id] || [];
             if (subcatProducts.length === 0) return;
-            
+
             html += `
                 <div class="products-scroll-container">
                     <div class="section-header-inline">
@@ -1246,26 +1287,26 @@ async function showCosmeticsSubcategories(parentCategoryId) {
                     <div class="products-scroll-wrapper">
                         <div class="products-horizontal">
             `;
-            
+
             subcatProducts.forEach(product => {
                 html += renderProductCardHorizontal(product);
             });
-            
+
             html += `
                         </div>
                     </div>
                 </div>
             `;
         });
-        
+
         if (cosmeticsSubcategories.length === 0 || cosmeticsSubcategories.every(subcat => !productsByCategory[subcat.id] || productsByCategory[subcat.id].length === 0)) {
             html += `
                 <div class="empty-state" style="padding: 40px 20px; text-align: center;">
-                    <p style="font-size: 18px; margin-bottom: 20px;">📦 В подкатегориях пока нет товаров</p>
+                <p style="font-size: 18px; margin-bottom: 20px;">📦 В подкатегориях пока нет товаров</p>
                 </div>
             `;
         }
-        
+
         html += '</div>';
         container.innerHTML = html;
     } catch (error) {
@@ -1274,28 +1315,67 @@ async function showCosmeticsSubcategories(parentCategoryId) {
     }
 }
 
+// Helper: Clean product title
+function cleanProductTitle(title) {
+    if (!title) return '';
+    // Take part before " - " or " with " or " | "
+    let clean = title.split(/ - | with | \| /i)[0];
+
+    // Explicitly handle "Bio Guard..." case if needed or rely on split
+    // Also remove any trail " 50 G..." if it wasn't caught
+    // Remove trailing digits+g if attached
+    return escapeHtml(clean.trim());
+}
+
+// Helper: Extract product weight from text
+function extractProductWeight(text) {
+    if (!text) return { weight: null, cleanSummary: '' };
+
+    // Look for patterns like "BEC: 50 г" or "50g" or "50 г"
+    // The specific user pattern: "/ 55 BEC: 50 г /"
+
+    // Regex to find "BEC: <value>"
+    const weightMatch = text.match(/(?:BEC|ВЕС|Вес)[:\s]+(\d+\s*[гg])/i);
+    let weight = weightMatch ? weightMatch[1] : null;
+
+    // Also try to find just "50 g" if BEC line matches
+    if (!weight) {
+        const simpleMatch = text.match(/(\d+\s*[гg])/i);
+        if (simpleMatch && (text.includes('BEC') || text.includes('ВЕС'))) {
+            weight = simpleMatch[1];
+        }
+    }
+
+    // Clean the text by removing the weight line/segment
+    // Removing the whole line starting with / digits BEC... or just the BEC part
+    let cleanSummary = text.replace(/\/ \d+ (?:BEC|ВЕС):.*?(\/|$)/gi, '').trim();
+
+    // Also remove "КРАТКОЕ ОПИСАНИЕ:" prefix if present
+    cleanSummary = cleanSummary.replace(/^КРАТКОЕ ОПИСАНИЕ:\s*/i, '');
+
+    return { weight, cleanSummary };
+}
+
 // Render product card in horizontal scroll format
 function renderProductCardHorizontal(product) {
-    const imageHtml = product.imageUrl 
+    const imageHtml = product.imageUrl
         ? `<div class="product-card-image" onclick="event.stopPropagation(); showProductDetails('${product.id}')"><img src="${product.imageUrl}" alt="${escapeHtml(product.title || 'Товар')}" onerror="this.style.display='none'; this.parentElement.classList.add('no-image');"></div>`
         : `<div class="product-card-image no-image" onclick="event.stopPropagation(); showProductDetails('${product.id}')"><div class="product-image-placeholder-icon">📦</div></div>`;
-    
-    const title = escapeHtml(product.title || 'Без названия');
-    const fullDescription = product.summary || product.description || '';
-    const summary = escapeHtml(fullDescription);
-    // Конвертируем цену из PZ в рубли (1 PZ = 100 руб)
-    const priceRub = product.price ? Math.round(product.price * 100).toLocaleString('ru-RU') : '0';
-    
+    const title = cleanProductTitle(product.title || 'Без названия');
+    const { weight, cleanSummary } = extractProductWeight(product.summary || product.description || '');
+    const summary = escapeHtml(cleanSummary.substring(0, 80));
+    const priceRub = product.price ? (product.price * 100).toFixed(0) : '0';
     return `
         <div class="product-card-forma-horizontal" onclick="showProductDetails('${product.id}')">
             ${imageHtml}
             <div class="product-card-content">
                 <h3 class="product-card-title">${title}</h3>
-                <div class="product-card-price" style="margin: 8px 0;">
-                    <span class="price-value">${priceRub} ₽</span>
-                </div>
-                ${summary ? `<p class="product-card-summary">${summary}</p>` : ''}
+                ${summary ? `<p class="product-card-summary">${summary}${(cleanSummary).length > 80 ? '...' : ''}</p>` : ''}
                 <div class="product-card-footer">
+                    <div class="product-card-price">
+                        <span class="price-value">${priceRub} ₽</span>
+                    </div>
+                    ${weight ? `<div class="product-weight-badge">${weight}</div>` : ''}
                     <button class="product-card-btn" onclick="event.stopPropagation(); addToCart('${product.id}')">
                         В корзину
                     </button>
@@ -1307,25 +1387,24 @@ function renderProductCardHorizontal(product) {
 
 // Render product card in FORMA Store style (for grid view)
 function renderProductCard(product) {
-    const imageHtml = product.imageUrl 
+    const imageHtml = product.imageUrl
         ? `<div class="product-card-image" onclick="event.stopPropagation(); showProductDetails('${product.id}')"><img src="${product.imageUrl}" alt="${escapeHtml(product.title || 'Товар')}" onerror="this.style.display='none'; this.parentElement.classList.add('no-image');"></div>`
         : `<div class="product-card-image no-image" onclick="event.stopPropagation(); showProductDetails('${product.id}')"><div class="product-image-placeholder-icon">📦</div></div>`;
-    
-    const title = escapeHtml(product.title || 'Без названия');
-    const summary = escapeHtml((product.summary || product.description || '').substring(0, 100));
-    // Конвертируем цену из PZ в рубли (1 PZ = 100 руб)
-    const priceRub = product.price ? Math.round(product.price * 100).toLocaleString('ru-RU') : '0';
-    
+    const title = cleanProductTitle(product.title || 'Без названия');
+    const { weight, cleanSummary } = extractProductWeight(product.summary || product.description || '');
+    const summary = escapeHtml(cleanSummary.substring(0, 100));
+    const priceRub = product.price ? (product.price * 100).toFixed(0) : '0';
     return `
         <div class="product-card-forma" onclick="showProductDetails('${product.id}')">
             ${imageHtml}
             <div class="product-card-content">
                 <h3 class="product-card-title">${title}</h3>
-                <div class="product-card-price" style="margin: 8px 0;">
-                    <span class="price-value">${priceRub} ₽</span>
-                </div>
-                ${summary ? `<p class="product-card-summary">${summary}${(product.summary || product.description || '').length > 100 ? '...' : ''}</p>` : ''}
+                ${summary ? `<p class="product-card-summary">${summary}${(cleanSummary).length > 100 ? '...' : ''}</p>` : ''}
                 <div class="product-card-footer">
+                    <div class="product-card-price">
+                        <span class="price-value">${priceRub} ₽</span>
+                    </div>
+                    ${weight ? `<div class="product-weight-badge">${weight}</div>` : ''}
                     <button class="product-card-btn" onclick="event.stopPropagation(); addToCart('${product.id}')">
                         В корзину
                     </button>
@@ -1337,24 +1416,24 @@ function renderProductCard(product) {
 
 // Render Plazma API product card
 function renderPlazmaProductCard(product) {
-    const imageHtml = product.imageUrl 
+    const imageHtml = product.imageUrl
         ? `<div class="product-card-image" onclick="event.stopPropagation(); showPlazmaProductDetails('${product.id}')"><img src="${product.imageUrl}" alt="${escapeHtml(product.title || 'Товар')}" onerror="this.style.display='none'; this.parentElement.classList.add('no-image');"></div>`
         : `<div class="product-card-image no-image" onclick="event.stopPropagation(); showPlazmaProductDetails('${product.id}')"><div class="product-image-placeholder-icon">📦</div></div>`;
-    
-    const title = escapeHtml(product.title || 'Без названия');
-    const summary = escapeHtml((product.summary || product.description || '').substring(0, 80));
-    const priceRub = product.priceRub || (product.price ? Math.round(product.price * 100).toLocaleString('ru-RU') : '0');
-    
+    const title = cleanProductTitle(product.title || 'Без названия');
+    const { weight, cleanSummary } = extractProductWeight(product.summary || product.description || '');
+    const summary = escapeHtml(cleanSummary.substring(0, 80));
+    const priceRub = product.priceRub || (product.price ? (product.price * 100).toFixed(0) : '0');
     return `
         <div class="product-card-forma-horizontal" onclick="showPlazmaProductDetails('${product.id}')">
             ${imageHtml}
             <div class="product-card-content">
                 <h3 class="product-card-title">${title}</h3>
-                ${summary ? `<p class="product-card-summary">${summary}${(product.summary || product.description || '').length > 80 ? '...' : ''}</p>` : ''}
+                ${summary ? `<p class="product-card-summary">${summary}${(cleanSummary).length > 80 ? '...' : ''}</p>` : ''}
                 <div class="product-card-footer">
                     <div class="product-card-price">
                         <span class="price-value">${priceRub} ₽</span>
                     </div>
+                    ${weight ? `<div class="product-weight-badge">${weight}</div>` : ''}
                     <button class="product-card-btn" onclick="event.stopPropagation(); addPlazmaProductToCart('${product.id}', '${escapeHtml(title)}', ${product.price || 0})">
                         В корзину
                     </button>
@@ -1372,15 +1451,15 @@ async function showPlazmaProductDetails(productId) {
             showError('Товар не найден');
             return;
         }
-        
+
         const result = await response.json();
         const product = result.product || result.data;
-        
+
         if (!product) {
             showError('Товар не найден');
             return;
         }
-        
+
         // Открываем детали товара в отдельном окне или показываем информацию
         showPlazmaProductModal(product);
     } catch (error) {
@@ -1391,20 +1470,26 @@ async function showPlazmaProductDetails(productId) {
 
 // Show Plazma product modal
 function showPlazmaProductModal(product) {
-    const title = escapeHtml(product.title || 'Товар');
-    const description = escapeHtml(product.description || product.summary || 'Описание отсутствует');
-    const priceRub = product.priceRub || (product.price ? Math.round(product.price * 100).toLocaleString('ru-RU') : '0');
+    const title = cleanProductTitle(product.title || 'Товар');
+    const { weight, cleanSummary } = extractProductWeight(product.description || product.summary || '');
+    const description = escapeHtml(cleanSummary || 'Описание отсутствует');
+    const priceRub = product.priceRub || (product.price ? (product.price * 100).toFixed(0) : '0');
     const imageUrl = product.imageUrl || '';
-    
+
     openSection('plazma-product-detail');
     document.getElementById('section-title').textContent = title;
     document.getElementById('section-body').innerHTML = `
         <div class="content-section">
             ${imageUrl ? `<div class="product-image-full"><img src="${imageUrl}" alt="${title}" style="width: 100%; border-radius: 12px;"></div>` : ''}
             <div class="product-details-content">
-                <h3>${title}</h3>
+                <div class="product-details-header">
+                    <h2>${title}</h2>
+                </div>
+                <div class="product-header-row">
+                    <div class="product-price">💰 ${priceRub} ₽</div>
+                    ${weight ? `<div class="product-weight-badge-large">${weight}</div>` : ''}
+                </div>
                 <p>${description}</p>
-                <div class="product-price">💰 ${priceRub} ₽</div>
                 <button class="btn" onclick="addPlazmaProductToCart('${product.id}', '${escapeHtml(title)}', ${product.price || 0}); closeSection();" style="margin-top: 20px;">
                     🛒 Добавить в корзину
                 </button>
@@ -1427,7 +1512,7 @@ async function addPlazmaProductToCart(productId, productTitle, price) {
                 quantity: 1
             })
         });
-        
+
         if (response.ok) {
             showSuccess(`Товар "${productTitle}" добавлен в заказ! Администратор свяжется с вами.`);
         } else {
@@ -1452,21 +1537,20 @@ function escapeHtml(text) {
 async function loadShopContent() {
     try {
         console.log('🛒 Loading shop content...');
-        
         // Загружаем категории и товары
         const [categoriesResponse, productsResponse] = await Promise.all([
             fetch(`${API_BASE}/categories`),
             fetch(`${API_BASE}/products`)
         ]);
-        
+
         if (!categoriesResponse.ok) throw new Error('Failed to fetch categories');
         if (!productsResponse.ok) throw new Error('Failed to fetch products');
-        
+
         const categories = await categoriesResponse.json();
         const products = await productsResponse.json();
-        
+
         console.log(`✅ Loaded ${categories?.length || 0} categories and ${products?.length || 0} products`);
-        
+
         // Группируем товары по категориям
         const productsByCategory = {};
         products.forEach(product => {
@@ -1476,11 +1560,11 @@ async function loadShopContent() {
             }
             productsByCategory[categoryId].push(product);
         });
-        
+
         // Группируем подкатегории по родительским категориям
         const categoriesByParent = {};
         const mainCategories = [];
-        
+
         categories.forEach(cat => {
             if (cat.name && cat.name.includes(' > ')) {
                 // Это подкатегория
@@ -1494,20 +1578,20 @@ async function loadShopContent() {
                 mainCategories.push(cat);
             }
         });
-        
+
         let content = '<div class="products-main-container">';
-        
+
         // Отображаем каждую подкатегорию как горизонтальную линию
         Object.keys(categoriesByParent).forEach(parentName => {
             const subcategories = categoriesByParent[parentName];
-            
+
             subcategories.forEach(subcat => {
                 const subcatProducts = productsByCategory[subcat.id] || [];
                 if (subcatProducts.length === 0) return;
-                
+
                 // Ограничиваем до 9 товаров
                 const displayProducts = subcatProducts.slice(0, 9);
-                
+
                 content += `
                     <div class="products-scroll-container">
                         <div class="section-header-inline">
@@ -1516,11 +1600,11 @@ async function loadShopContent() {
                         <div class="products-scroll-wrapper">
                             <div class="products-horizontal">
                 `;
-                
+
                 displayProducts.forEach(product => {
                     content += renderProductCardHorizontal(product);
                 });
-                
+
                 // Кнопка "Больше" если товаров больше 9
                 if (subcatProducts.length > 9) {
                     content += `
@@ -1530,7 +1614,7 @@ async function loadShopContent() {
                         </div>
                     `;
                 }
-                
+
                 content += `
                             </div>
                         </div>
@@ -1538,16 +1622,16 @@ async function loadShopContent() {
                 `;
             });
         });
-        
+
         // Отображаем основные категории без подкатегорий
         mainCategories.forEach(cat => {
             if (categoriesByParent[cat.name]) return; // Пропускаем, если есть подкатегории
-            
+
             const catProducts = productsByCategory[cat.id] || [];
             if (catProducts.length === 0) return;
-            
+
             const displayProducts = catProducts.slice(0, 9);
-            
+
             content += `
                 <div class="products-scroll-container">
                     <div class="section-header-inline">
@@ -1556,11 +1640,11 @@ async function loadShopContent() {
                     <div class="products-scroll-wrapper">
                         <div class="products-horizontal">
             `;
-            
+
             displayProducts.forEach(product => {
                 content += renderProductCardHorizontal(product);
             });
-            
+
             if (catProducts.length > 9) {
                 content += `
                     <div class="product-card-more" onclick="showCategoryProducts('${cat.id}')">
@@ -1569,14 +1653,14 @@ async function loadShopContent() {
                     </div>
                 `;
             }
-            
+
             content += `
                         </div>
                     </div>
                 </div>
             `;
         });
-        
+
         if (Object.keys(categoriesByParent).length === 0 && mainCategories.length === 0) {
             content += `
                 <div class="empty-state" style="padding: 40px 20px; text-align: center;">
@@ -1584,7 +1668,7 @@ async function loadShopContent() {
                 </div>
             `;
         }
-        
+
         content += '</div>';
         return content;
     } catch (error) {
@@ -1606,14 +1690,14 @@ async function importProducts() {
     try {
         console.log('🤖 Starting product import...');
         showSuccess('Запускаю импорт товаров...');
-        
+
         const response = await fetch(`${API_BASE}/import-products`, {
             method: 'POST',
             headers: getApiHeaders()
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
             showSuccess('Импорт запущен! Обновите страницу через минуту.');
             setTimeout(() => {
@@ -1692,15 +1776,15 @@ async function loadAudioContent() {
 
 // Reviews content
 async function loadReviewsContent() {
-  try {
-    const response = await fetch(`${API_BASE}/reviews`);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const reviews = await response.json();
-        
+    try {
+        const response = await fetch(`${API_BASE}/reviews`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const reviews = await response.json();
+
         let content = '<div class="content-section"><h3>Отзывы клиентов</h3>';
-        
+
         if (reviews && reviews.length > 0) {
             reviews.forEach(review => {
                 content += `
@@ -1718,7 +1802,7 @@ async function loadReviewsContent() {
         } else {
             content += '<p>Отзывов пока нет</p>';
         }
-        
+
         content += '</div>';
         return content;
     } catch (error) {
@@ -1815,29 +1899,29 @@ async function addToCart(productId) {
         showError('Ошибка: не указан товар');
         return;
     }
-    
+
     try {
         console.log('🛒 Adding product to cart:', productId);
-        
+
         const response = await fetch(`${API_BASE}/cart/add`, {
             method: 'POST',
             headers: getApiHeaders(),
             body: JSON.stringify({ productId })
         });
-        
+
         if (response.ok) {
             const result = await response.json();
             console.log('✅ Product added to cart:', result);
-            
+
             // Анимация корзины
             animateCartIcon();
-            
+
             // Сразу увеличиваем счетчик на 1 (оптимистичное обновление)
             incrementCartBadge();
-            
+
             // Загружаем обновленную корзину (счетчик обновится с точными данными)
             await loadCartItems();
-            
+
             showSuccess('Товар добавлен в корзину!');
         } else {
             // Получаем детали ошибки
@@ -1856,9 +1940,9 @@ async function addToCart(productId) {
                     console.error('❌ Failed to parse error:', textError);
                 }
             }
-            
+
             console.error('❌ Add to cart error:', response.status, errorMessage);
-            
+
             if (response.status === 401) {
                 showError('Необходимо авторизоваться для добавления в корзину');
             } else if (response.status === 400) {
@@ -1883,18 +1967,18 @@ function animateCartIcon() {
     if (cartButton) {
         cartButton.style.transform = 'scale(1.2)';
         cartButton.style.transition = 'transform 0.3s ease';
-        
+
         setTimeout(() => {
             cartButton.style.transform = 'scale(1)';
         }, 300);
     }
-    
+
     // Анимация бейджа
     const cartBadge = document.querySelector('.cart-badge');
     if (cartBadge) {
         cartBadge.style.transform = 'scale(1.5)';
         cartBadge.style.transition = 'transform 0.3s ease';
-        
+
         setTimeout(() => {
             cartBadge.style.transform = 'scale(1)';
         }, 300);
@@ -1908,7 +1992,7 @@ async function buyProduct(productId) {
             headers: getApiHeaders(),
             body: JSON.stringify({ productId })
         });
-        
+
         if (response.ok) {
             showSuccess('Заявка отправлена администратору!');
         } else {
@@ -1923,17 +2007,17 @@ async function buyProduct(productId) {
 async function activatePartnerProgram(type) {
     try {
         console.log('🤝 Showing partner program info:', type);
-        
+
         // Генерируем простой реферальный код для демонстрации
         const referralCode = 'VITAL' + Math.random().toString(36).substr(2, 6).toUpperCase();
-        
+
         // Создаем реферальную ссылку
         const referralLink = `https://t.me/ivitalbot?start=${referralCode}`;
-        
+
         // Текст как в боте
         let message = '';
         let shareText = '';
-        
+
         // Только многоуровневая программа
         if (type === 'MULTI_LEVEL') {
             message = `📈 Многоуровневая система — 15% + 5% + 5%
@@ -1946,17 +2030,17 @@ async function activatePartnerProgram(type) {
 • Бонус 15%+5%+5% начнет действовать при Вашей активности 120PZ в месяц
 
 📲 Выбирайте удобный формат и начинайте зарабатывать уже сегодня!`;
-            
+
             shareText = `Дружище 🌟
 Я желаю тебе энергии, здоровья и внутренней силы, поэтому делюсь с тобой этим ботом 💧
 Попробуй VITAL — технология будущего, которая реально меняет состояние ⚡️
 🔗 Твоя ссылка (сеть 15% + 5% + 5%):
 ${referralLink}`;
         }
-        
+
         // Показываем информацию о программе
         showSuccess('Партнёрская программа активирована!');
-        
+
         // Показываем реферальную ссылку
         setTimeout(() => {
             const content = `
@@ -1986,10 +2070,10 @@ ${referralLink}`;
                     </div>
                 </div>
             `;
-            
+
             showProductsSection(content);
         }, 1000);
-        
+
     } catch (error) {
         console.error('Error showing partner program:', error);
         showError('Ошибка отображения программы');
@@ -2000,11 +2084,11 @@ async function showPartnerDashboard() {
     try {
         const response = await fetch(`${API_BASE}/partner/dashboard`);
         const dashboard = await response.json();
-        
+
         let content = '<div class="content-section">';
         content += '<button class="btn btn-secondary" onclick="openSection(\'partner\')" style="margin-bottom: 20px;">← Назад</button>';
         content += '<h3>Личный кабинет партнёра</h3>';
-        
+
         if (dashboard) {
             content += `
                 <div style="background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%); 
@@ -2033,9 +2117,9 @@ async function showPartnerDashboard() {
         } else {
             content += '<p>Сначала активируйте партнёрскую программу</p>';
         }
-        
+
         content += '</div>';
-        
+
         document.getElementById('section-body').innerHTML = content;
     } catch (error) {
         console.error('Error loading dashboard:', error);
@@ -2051,15 +2135,15 @@ function playAudio(matrixId) {
 async function showVideo() {
     try {
         console.log('🎥 Getting video URL...');
-        
+
         // Получаем ссылку на видео с сервера
         const response = await fetch(`${API_BASE}/video/url`);
         if (response.ok) {
             const data = await response.json();
             const videoUrl = data.videoUrl;
-            
+
             console.log('✅ Video URL received:', videoUrl);
-            
+
             if (tg && tg.openLink) {
                 // Открываем видео в Telegram
                 tg.openLink(videoUrl);
@@ -2083,7 +2167,7 @@ async function showVideo() {
 function openTelegram() {
     // Ссылка на Telegram канал (замените на реальную)
     const telegramUrl = 'https://t.me/your_channel_username'; // Замените на реальную ссылку
-    
+
     if (tg && tg.openLink) {
         // Открываем Telegram канал в Telegram
         tg.openLink(telegramUrl);
@@ -2142,7 +2226,7 @@ function showShareText(text) {
             </div>
         </div>
     `;
-    
+
     showProductsSection(content);
 }
 
@@ -2185,7 +2269,7 @@ function showPartnerProgram() {
             </div>
         </div>
     `;
-    
+
     showProductsSection(content);
 }
 
@@ -2210,14 +2294,14 @@ async function showPartners() {
         if (!response.ok) {
             throw new Error('Failed to fetch referrals');
         }
-        
+
         const data = await response.json();
         const directPartners = data.directPartners || [];
         const multiPartners = data.multiPartners || [];
-        
+
         let html = '<div class="partners-list-container">';
         html += '<h3>👥 Мои рефералы</h3>';
-        
+
         if (directPartners.length === 0 && multiPartners.length === 0) {
             html += '<p>Пока нет рефералов. Приглашайте друзей по вашей реферальной ссылке!</p>';
         } else {
@@ -2231,7 +2315,7 @@ async function showPartners() {
                 });
                 html += '</ul>';
             }
-            
+
             if (multiPartners.length > 0) {
                 html += '<h4>🌳 Многоуровневые рефералы</h4>';
                 html += '<ul class="referrals-list">';
@@ -2244,9 +2328,9 @@ async function showPartners() {
                 html += '</ul>';
             }
         }
-        
+
         html += '</div>';
-        
+
         const container = document.getElementById('section-body');
         if (container) {
             container.innerHTML = html;
@@ -2263,13 +2347,13 @@ function showProductsSection(content) {
     const overlay = document.getElementById('section-overlay');
     const title = document.getElementById('section-title');
     const body = document.getElementById('section-body');
-    
+
     // Set section title
     title.textContent = 'Товары';
-    
+
     // Set custom content
     body.innerHTML = content;
-    
+
     // Show overlay
     overlay.classList.remove('hidden');
     setTimeout(() => {
@@ -2297,9 +2381,9 @@ function showInstruction(productId, instructionText) {
             </div>
         </div>
     `;
-    
+
     document.body.appendChild(modal);
-    
+
     // Add animation
     setTimeout(() => {
         modal.querySelector('.instruction-content').style.transform = 'scale(1)';
@@ -2325,7 +2409,7 @@ async function showCategoryProducts(categoryId) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         const products = await response.json();
-        
+
         let content = `
             <div class="content-section">
                     <button class="btn-back-to-catalog" onclick="openSection('shop')">
@@ -2333,7 +2417,7 @@ async function showCategoryProducts(categoryId) {
                     </button>
                 <h3>Товары категории</h3>
         `;
-        
+
         if (products && products.length > 0) {
             content += '<div class="products-grid">';
             products.forEach(product => {
@@ -2358,9 +2442,9 @@ async function showCategoryProducts(categoryId) {
         } else {
             content += '<p>В этой категории пока нет товаров</p>';
         }
-        
+
         content += '</div>';
-        
+
         // Show the products section
         showProductsSection(content);
     } catch (error) {
@@ -2373,13 +2457,13 @@ async function showCategoryProducts(categoryId) {
 async function addToCart(productId) {
     try {
         console.log('🛒 Adding to cart:', productId);
-        
+
         const response = await fetch(`${API_BASE}/cart/add`, {
             method: 'POST',
             headers: getApiHeaders(),
             body: JSON.stringify({ productId, quantity: 1 })
         });
-        
+
         if (response.ok) {
             showSuccess('Товар добавлен в корзину!');
             loadCartItems(); // This will refresh cart items
@@ -2400,12 +2484,12 @@ async function buyProduct(productId) {
         const response = await fetch(`${API_BASE}/orders/create`, {
             method: 'POST',
             headers: getApiHeaders(),
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 items: [{ productId, quantity: 1 }],
                 message: 'Покупка через веб-приложение'
             })
         });
-        
+
         if (response.ok) {
             showSuccess('Заказ создан! Ожидайте подтверждения.');
             // После создания заказа запрашиваем телефон и адрес
@@ -2425,7 +2509,7 @@ async function buyProduct(productId) {
 async function requestContactAndAddress() {
     // Сначала проверяем, есть ли у пользователя уже сохраненные данные
     const user = await loadUserData();
-    
+
     if (user && user.phone && user.deliveryAddress) {
         // У пользователя есть и телефон и адрес - показываем подтверждение
         await showAddressConfirmation(user.deliveryAddress);
@@ -2463,7 +2547,7 @@ async function requestPhoneNumber() {
             </div>
         </div>
     `;
-    
+
     showProductsSection(content);
 }
 
@@ -2501,7 +2585,7 @@ async function requestDeliveryAddress() {
             </div>
         </div>
     `;
-    
+
     showProductsSection(content);
 }
 
@@ -2538,7 +2622,7 @@ async function showAddressConfirmation(address) {
             </div>
         </div>
     `;
-    
+
     showProductsSection(content);
 }
 
@@ -2580,7 +2664,7 @@ async function savePhoneNumber(phone) {
             headers: getApiHeaders(),
             body: JSON.stringify({ phone })
         });
-        
+
         if (response.ok) {
             showSuccess('Номер телефона сохранен!');
         } else {
@@ -2597,7 +2681,7 @@ async function selectAddressType(type) {
     let title = '';
     let placeholder = '';
     let example = '';
-    
+
     switch (type) {
         case 'bali':
             title = '🇮🇩 Адрес для Бали';
@@ -2615,7 +2699,7 @@ async function selectAddressType(type) {
             example = 'Укажите адрес в произвольной форме';
             break;
     }
-    
+
     const content = `
         <div class="content-section">
             <h3>${title}</h3>
@@ -2640,9 +2724,9 @@ async function selectAddressType(type) {
             </div>
         </div>
     `;
-    
+
     showProductsSection(content);
-    
+
     // Focus on input
     setTimeout(() => {
         const input = document.getElementById('addressInput');
@@ -2655,12 +2739,12 @@ async function selectAddressType(type) {
 async function saveAddressFromInput(type) {
     const input = document.getElementById('addressInput');
     const address = input ? input.value.trim() : '';
-    
+
     if (!address) {
         showError('Пожалуйста, введите адрес');
         return;
     }
-    
+
     await saveDeliveryAddress(type, address);
 }
 
@@ -2681,7 +2765,7 @@ async function saveDeliveryAddress(type, address) {
             headers: getApiHeaders(),
             body: JSON.stringify({ address: fullAddress })
         });
-        
+
         if (response.ok) {
             showSuccess('Адрес сохранен!');
             closeSection();
@@ -2794,7 +2878,7 @@ function openBotForBalance() {
     // Открываем бота с командой пополнения баланса
     const botUsername = 'Vital_shop_bot';
     const botUrl = `https://t.me/${botUsername}?start=add_balance`;
-    
+
     // Пытаемся открыть через Telegram WebApp
     if (window.Telegram?.WebApp) {
         window.Telegram.WebApp.openTelegramLink(botUrl);
@@ -2802,7 +2886,7 @@ function openBotForBalance() {
         // Fallback: открываем в новом окне
         window.open(botUrl, '_blank');
     }
-    
+
     closeBalanceTopUpDialog();
 }
 
@@ -2886,17 +2970,17 @@ async function submitDeliveryForm(items, total, userBalance) {
     const address = document.getElementById('delivery-address')?.value?.trim();
     const payFromBalance = document.getElementById('pay-from-balance')?.checked || false;
     const payFromBalancePartial = document.getElementById('pay-from-balance-partial')?.checked || false;
-    
+
     if (!phone) {
         showError('Укажите номер телефона');
         return;
     }
-    
+
     if (!address) {
         showError('Укажите адрес доставки');
         return;
     }
-    
+
     // Сохраняем телефон и адрес
     try {
         await fetch(`${API_BASE}/user/profile`, {
@@ -2907,7 +2991,7 @@ async function submitDeliveryForm(items, total, userBalance) {
     } catch (error) {
         console.error('Error saving user data:', error);
     }
-    
+
     // Определяем способ оплаты
     if (payFromBalance && userBalance >= total) {
         // Полная оплата с баланса
@@ -2919,53 +3003,53 @@ async function submitDeliveryForm(items, total, userBalance) {
         // Обычная оплата
         await processOrderNormal(items, phone, address);
     }
-    
+
     closeDeliveryForm();
 }
 
 // Utility functions
 async function loadUserData() {
-  try {
-    const response = await fetch(`${API_BASE}/user/profile`);
-    if (response.ok) {
-      userData = await response.json();
-    } else if (response.status === 401) {
-      console.log('User not authenticated - this is normal for web preview');
-      userData = null;
+    try {
+        const response = await fetch(`${API_BASE}/user/profile`);
+        if (response.ok) {
+            userData = await response.json();
+        } else if (response.status === 401) {
+            console.log('User not authenticated - this is normal for web preview');
+            userData = null;
+        }
+    } catch (error) {
+        console.error('Error loading user data:', error);
+        userData = null;
     }
-  } catch (error) {
-    console.error('Error loading user data:', error);
-    userData = null;
-  }
 }
 
 async function loadCartItems() {
-  try {
-    console.log('🛒 Loading cart items...');
-    const response = await fetch(`${API_BASE}/cart/items`, { headers: getApiHeaders() });
-    if (response.ok) {
-      cartItems = await response.json();
-      console.log('✅ Cart items loaded:', cartItems.length);
-      
-      // Фильтруем валидные товары
-      cartItems = cartItems.filter(item => item.product && item.product.isActive);
-    } else if (response.status === 401) {
-      console.log('User not authenticated - this is normal for web preview');
-      cartItems = [];
-    } else {
-      console.error('Failed to load cart items:', response.status);
-      cartItems = [];
+    try {
+        console.log('🛒 Loading cart items...');
+        const response = await fetch(`${API_BASE}/cart/items`, { headers: getApiHeaders() });
+        if (response.ok) {
+            cartItems = await response.json();
+            console.log('✅ Cart items loaded:', cartItems.length);
+
+            // Фильтруем валидные товары
+            cartItems = cartItems.filter(item => item.product && item.product.isActive);
+        } else if (response.status === 401) {
+            console.log('User not authenticated - this is normal for web preview');
+            cartItems = [];
+        } else {
+            console.error('Failed to load cart items:', response.status);
+            cartItems = [];
+        }
+
+        // Обновляем счетчик корзины после загрузки
+        updateCartBadge();
+        console.log(`🛒 Cart items: ${cartItems.length} items`);
+    } catch (error) {
+        console.error('Error loading cart items:', error);
+        cartItems = [];
+        updateCartBadge();
+        console.log('🛒 Cart items: 0 items (error)');
     }
-    
-    // Обновляем счетчик корзины после загрузки
-    updateCartBadge();
-    console.log(`🛒 Cart items: ${cartItems.length} items`);
-  } catch (error) {
-    console.error('Error loading cart items:', error);
-    cartItems = [];
-    updateCartBadge();
-    console.log('🛒 Cart items: 0 items (error)');
-  }
 }
 
 // Load product count for shop badge
@@ -3020,7 +3104,7 @@ function updateCartBadge() {
                 return sum + (item.quantity || 1);
             }, 0);
         }
-        
+
         // Update cart badge with item count
         const cartBadge = document.querySelector('.cart-badge');
         if (cartBadge) {
@@ -3036,7 +3120,7 @@ function updateCartBadge() {
         } else {
             console.warn('⚠️ Cart badge element not found');
         }
-        
+
         console.log(`🛒 Cart badge updated: ${totalQuantity} items`);
     } catch (error) {
         console.error('Error updating cart badge:', error);
@@ -3074,10 +3158,10 @@ function incrementCartBadge() {
 function updateBadges() {
     // Update shop badge with total products count (not cart sum)
     loadProductCount();
-    
+
     // Update reviews badge with total reviews count
     loadReviewsCount();
-    
+
     // Update other badges based on data
     // This would be populated from actual data
 }
@@ -3100,7 +3184,7 @@ function showError(message) {
     } else {
         alert(message);
     }
-    
+
     // Close any open sections on error
     if (currentSection) {
         closeSection();
@@ -3108,7 +3192,7 @@ function showError(message) {
 }
 
 // Search functionality
-document.querySelector('.search-input').addEventListener('input', function(e) {
+document.querySelector('.search-input').addEventListener('input', function (e) {
     const query = e.target.value.toLowerCase();
     if (query.length > 2) {
         // Implement search logic here
@@ -3117,14 +3201,14 @@ document.querySelector('.search-input').addEventListener('input', function(e) {
 });
 
 // Keyboard navigation
-document.addEventListener('keydown', function(e) {
+document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && currentSection) {
         closeSection();
     }
 });
 
 // Handle back button
-window.addEventListener('popstate', function(e) {
+window.addEventListener('popstate', function (e) {
     if (currentSection) {
         closeSection();
     }
@@ -3134,32 +3218,29 @@ window.addEventListener('popstate', function(e) {
 async function showProductDetails(productId) {
     try {
         console.log('📖 Showing product details for:', productId);
-        
+
         const response = await fetch(`${API_BASE}/products/${productId}`);
         if (!response.ok) {
             throw new Error('Failed to fetch product details');
         }
-        
+
         const product = await response.json();
-        
+
         // Create detailed product view
         let content = `
             <div class="product-details">
                 <div class="product-details-header">
-                    <button class="btn-back-to-catalog" onclick="closeSection(); loadProductsOnMainPage();">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M19 12H5M12 19l-7-7 7-7"/>
-                        </svg>
-                        <span>Назад</span>
-                    </button>
-                    <h2>${escapeHtml(product.title)}</h2>
+                    <h2>${cleanProductTitle(product.title)}</h2>
                 </div>
                 
                 <div class="product-details-content">
                     ${product.imageUrl ? `<div class="product-details-image"><img src="${product.imageUrl}" alt="${product.title}" onerror="this.style.display='none'"></div>` : ''}
                     
                     <div class="product-details-info">
-                        <div class="product-price">💰 Цена: ${(product.price * 100).toFixed(2)} ₽ / ${product.price} PZ</div>
+                        <div class="product-header-row">
+                            <div class="product-price">💰 Цена: ${(product.price * 100).toFixed(2)} ₽ / ${product.price} PZ</div>
+                            ${extractProductWeight(product.summary).weight ? `<div class="product-weight-badge-large">${extractProductWeight(product.summary).weight}</div>` : ''}
+                        </div>
                         
                         ${product.summary ? `<div class="product-summary"><h4>Краткое описание:</h4><p>${product.summary}</p></div>` : ''}
                         
@@ -3180,10 +3261,10 @@ async function showProductDetails(productId) {
                 </div>
             </div>
         `;
-        
+
         // Show the product details section
         showProductsSection(content);
-        
+
     } catch (error) {
         console.error('Error loading product details:', error);
         showError('Ошибка загрузки подробной информации о товаре');

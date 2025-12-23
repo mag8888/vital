@@ -5,3 +5,12 @@ export interface BotModule {
   register(bot: Telegraf<Context>): void | Promise<void>;
 }
 
+
+
+
+
+
+
+
+
+
