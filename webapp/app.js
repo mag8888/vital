@@ -1381,7 +1381,6 @@ function renderProductCardHorizontal(product) {
             ${imageHtml}
             <div class="product-card-content">
                 <h3 class="product-card-title">${title}</h3>
-                ${summary ? `<p class="product-card-summary">${summary}${(cleanSummary).length > 80 ? '...' : ''}</p>` : ''}
                 <div class="product-card-footer">
                     <div class="product-card-price">
                         <span class="price-value">${priceRub} ₽</span>
@@ -1409,7 +1408,6 @@ function renderProductCard(product) {
             ${imageHtml}
             <div class="product-card-content">
                 <h3 class="product-card-title">${title}</h3>
-                ${summary ? `<p class="product-card-summary">${summary}${(cleanSummary).length > 100 ? '...' : ''}</p>` : ''}
                 <div class="product-card-footer">
                     <div class="product-card-price">
                         <span class="price-value">${priceRub} ₽</span>
@@ -1437,7 +1435,6 @@ function renderPlazmaProductCard(product) {
             ${imageHtml}
             <div class="product-card-content">
                 <h3 class="product-card-title">${title}</h3>
-                ${summary ? `<p class="product-card-summary">${summary}${(cleanSummary).length > 80 ? '...' : ''}</p>` : ''}
                 <div class="product-card-footer">
                     <div class="product-card-price">
                         <span class="price-value">${priceRub} ₽</span>

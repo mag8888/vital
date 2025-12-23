@@ -1324,22 +1324,10 @@ body {
 }
 
 .product-card-summary {
-    font-size: 13px;
-    color: #666666;
-    margin: 0 0 8px 0;
-    line-height: 1.5;
-    display: -webkit-box;
-    -webkit-line-clamp: 4;
-    line-clamp: 4;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    flex: 1;
-    word-wrap: break-word;
-    word-break: break-word;
-    font-weight: 400;
-    min-height: 78px;
-    /* 4 lines * 1.5 line-height * 13px ≈ 78px */
+    display: none;
 }
+
+
 
 .product-card-footer {
     display: flex;
