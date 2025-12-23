@@ -1321,9 +1321,9 @@ function cleanProductTitle(title) {
     // Take part before " - " or " with " or " | "
     let clean = title.split(/ - | with | \| /i)[0];
 
-    // Explicitly handle "Bio Guard..." case if needed or rely on split
-    // Also remove any trail " 50 G..." if it wasn't caught
-    // Remove trailing digits+g if attached
+    // Remove trailing weight info like " 50g", " 50 G", " 50 г"
+    clean = clean.replace(/\s+\d+\s*[gг]$/i, '');
+
     return escapeHtml(clean.trim());
 }
 
@@ -1357,6 +1357,9 @@ function extractProductWeight(text) {
 
     // 3. Remove "КРАТКОЕ ОПИСАНИЕ:" prefix
     cleanSummary = cleanSummary.replace(/^КРАТКОЕ ОПИСАНИЕ:\s*/i, '');
+
+    // 5. Remove leading weight like "55 г" or "55g" at start of string
+    cleanSummary = cleanSummary.replace(/^\s*\d+\s*[гg]\s+/i, '');
 
     // 4. Remove extra slashes or whitespace left over
     cleanSummary = cleanSummary.replace(/^\s*[\/\|]\s*/, '').trim();
