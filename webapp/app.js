@@ -1375,7 +1375,6 @@ function renderProductCardHorizontal(product) {
                     <div class="product-card-price">
                         <span class="price-value">${priceRub} ₽</span>
                     </div>
-                    ${weight ? `<div class="product-weight-badge">${weight}</div>` : ''}
                     <button class="product-card-btn" onclick="event.stopPropagation(); addToCart('${product.id}')">
                         В корзину
                     </button>
@@ -1404,7 +1403,6 @@ function renderProductCard(product) {
                     <div class="product-card-price">
                         <span class="price-value">${priceRub} ₽</span>
                     </div>
-                    ${weight ? `<div class="product-weight-badge">${weight}</div>` : ''}
                     <button class="product-card-btn" onclick="event.stopPropagation(); addToCart('${product.id}')">
                         В корзину
                     </button>
@@ -1433,7 +1431,6 @@ function renderPlazmaProductCard(product) {
                     <div class="product-card-price">
                         <span class="price-value">${priceRub} ₽</span>
                     </div>
-                    ${weight ? `<div class="product-weight-badge">${weight}</div>` : ''}
                     <button class="product-card-btn" onclick="event.stopPropagation(); addPlazmaProductToCart('${product.id}', '${escapeHtml(title)}', ${product.price || 0})">
                         В корзину
                     </button>
