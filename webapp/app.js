@@ -7,35 +7,26 @@ if (tg) {
     tg.expand();
 
     // Use Telegram theme colors
-    const themeParams = tg.themeParams || {};
-    const bgColor = themeParams.bg_color || '#1a1a1a';
-    const textColor = themeParams.text_color || '#ffffff';
+    // Force Monochrome Premium Theme (Ignore Telegram Dark Mode)
+    tg.setHeaderColor('#ffffff');
+    tg.setBackgroundColor('#ffffff');
 
-    // Set theme colors
-    tg.setHeaderColor(bgColor);
-    tg.setBackgroundColor(bgColor);
+    // Reset CSS variables to strict white theme
+    document.documentElement.style.setProperty('--tg-bg-color', '#ffffff');
+    document.documentElement.style.setProperty('--tg-text-color', '#000000');
+    document.documentElement.style.setProperty('--tg-secondary-bg-color', '#f9f9f9');
+    document.documentElement.style.setProperty('--tg-button-color', '#000000');
+    document.documentElement.style.setProperty('--tg-button-text-color', '#ffffff');
 
-    // Update CSS variables based on Telegram theme
-    document.documentElement.style.setProperty('--tg-bg-color', bgColor);
-    document.documentElement.style.setProperty('--tg-text-color', textColor);
-
-    // Enable closing confirmation
-    tg.enableClosingConfirmation();
-
-    // Handle theme changes
-    tg.onEvent('themeChanged', () => {
-        const newBgColor = tg.themeParams?.bg_color || '#1a1a1a';
-        const newTextColor = tg.themeParams?.text_color || '#ffffff';
-        document.documentElement.style.setProperty('--tg-bg-color', newBgColor);
-        document.documentElement.style.setProperty('--tg-text-color', newTextColor);
-        tg.setHeaderColor(newBgColor);
-        tg.setBackgroundColor(newBgColor);
-    });
-
-    // Handle viewport changes
+    // Handle viewport changes (only expand)
     tg.onEvent('viewportChanged', () => {
         tg.expand();
     });
+
+    // Force light theme status bar
+    if (tg.setHeaderColor) {
+        tg.setHeaderColor('#ffffff');
+    }
 }
 
 // Global state
@@ -79,21 +70,14 @@ document.addEventListener('DOMContentLoaded', function () {
     loadProductsOnMainPage(); // Load products immediately on main page
 
     // Apply Telegram theme colors on load
+    // Force Telegram Theme Variables Override on Load
     if (tg) {
-        const themeParams = tg.themeParams || {};
-        if (themeParams.bg_color) {
-            document.documentElement.style.setProperty('--tg-bg-color', themeParams.bg_color);
-        }
-        if (themeParams.text_color) {
-            document.documentElement.style.setProperty('--tg-text-color', themeParams.text_color);
-        }
-        if (themeParams.secondary_bg_color) {
-            document.documentElement.style.setProperty('--tg-secondary-bg-color', themeParams.secondary_bg_color);
-        }
-        if (themeParams.button_color) {
-            document.documentElement.style.setProperty('--tg-button-color', themeParams.button_color);
-            document.documentElement.style.setProperty('--accent', themeParams.button_color);
-        }
+        document.documentElement.style.setProperty('--tg-bg-color', '#ffffff');
+        document.documentElement.style.setProperty('--tg-text-color', '#000000');
+        document.documentElement.style.setProperty('--tg-secondary-bg-color', '#f9f9f9');
+        document.documentElement.style.setProperty('--tg-button-color', '#000000');
+        document.documentElement.style.setProperty('--tg-button-text-color', '#ffffff');
+        document.documentElement.style.setProperty('--accent', '#000000');
     }
 
     // Add haptic feedback for buttons (if available)
