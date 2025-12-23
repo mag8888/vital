@@ -1793,14 +1793,10 @@ async function loadReviewsContent() {
         if (reviews && reviews.length > 0) {
             reviews.forEach(review => {
                 content += `
-                    <div style="background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%); 
-                                border: 1px solid rgba(255, 255, 255, 0.1); 
-                                border-radius: 12px; 
-                                padding: 16px; 
-                                margin-bottom: 16px;">
-                        <h4 style="color: #ffffff; margin-bottom: 8px;">⭐ ${review.name}</h4>
-                        <p style="color: #cccccc; line-height: 1.6;">${review.content}</p>
-                        ${review.link ? `<p style="margin-top: 12px;"><a href="${review.link}" style="color: #0066ff;">Подробнее</a></p>` : ''}
+                    <div style="background: #ffffff; border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: var(--shadow-soft);">
+                        <h4 style="color: #000000; margin-bottom: 8px;">⭐ ${review.name}</h4>
+                        <p style="color: #333333; line-height: 1.6;">${review.content}</p>
+                        ${review.link ? `<p style="margin-top: 12px;"><a href="${review.link}" style="color: #000000; text-decoration: underline;">Подробнее</a></p>` : ''}
                     </div>
                 `;
             });
@@ -2053,13 +2049,9 @@ ${referralLink}`;
                     <h3>🎉 Партнёрская программа активирована!</h3>
                     <p>${message}</p>
                     
-                    <div style="background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%); 
-                                border: 1px solid rgba(255, 255, 255, 0.1); 
-                                border-radius: 12px; 
-                                padding: 16px; 
-                                margin: 20px 0;">
-                        <h4 style="color: #ffffff; margin-bottom: 8px;">🔗 Ваша реферальная ссылка:</h4>
-                        <p style="color: #cccccc; word-break: break-all; font-family: monospace;">${referralLink}</p>
+                    <div style="background: #f9f9f9; border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; margin: 20px 0;">
+                        <h4 style="color: #000000; margin-bottom: 8px;">🔗 Ваша реферальная ссылка:</h4>
+                        <p style="color: #333333; word-break: break-all; font-family: monospace;">${referralLink}</p>
                     </div>
                     
                     <div style="margin: 20px 0;">
@@ -2096,15 +2088,15 @@ async function showPartnerDashboard() {
 
         if (dashboard) {
             content += `
-                <div style="background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%); 
-                            border: 1px solid rgba(255, 255, 255, 0.1); 
+                <div style="background: #f9f9f9; 
+                            border: 1px solid var(--border-color); 
                             border-radius: 12px; 
                             padding: 20px; 
                             margin-bottom: 20px;">
-                    <h4 style="color: #ffffff; margin-bottom: 16px;">📊 Статистика</h4>
-                    <p style="color: #cccccc; margin-bottom: 8px;">💰 Баланс: ${dashboard.balance || 0} PZ</p>
-                    <p style="color: #cccccc; margin-bottom: 8px;">👥 Партнёры: ${dashboard.partners || 0}</p>
-                    <p style="color: #cccccc; margin-bottom: 8px;">🎁 Всего бонусов: ${dashboard.bonus || 0} PZ</p>
+                    <h4 style="color: #000000; margin-bottom: 16px;">📊 Статистика</h4>
+                    <p style="color: #333333; margin-bottom: 8px;">💰 Баланс: ${dashboard.balance || 0} PZ</p>
+                    <p style="color: #333333; margin-bottom: 8px;">👥 Партнёры: ${dashboard.partners || 0}</p>
+                    <p style="color: #333333; margin-bottom: 8px;">🎁 Всего бонусов: ${dashboard.bonus || 0} PZ</p>
                 </div>
                 
                 <div style="margin: 20px 0;">
@@ -2600,12 +2592,12 @@ async function showAddressConfirmation(address) {
             <h3>📍 Подтверждение адреса</h3>
             <p>Вам доставить на этот адрес?</p>
             
-            <div style="background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%); 
-                        border: 1px solid rgba(255, 255, 255, 0.1); 
+            <div style="background: #f9f9f9; 
+                        border: 1px solid var(--border-color); 
                         border-radius: 12px; 
                         padding: 16px; 
                         margin: 20px 0;">
-                <p style="color: #ffffff; font-weight: bold;">${address}</p>
+                <p style="color: #000000; font-weight: bold;">${address}</p>
             </div>
             
             <div style="margin: 20px 0;">

@@ -1,35 +1,54 @@
-/* Core palette & typography - FORMA Store inspired light minimal style */
-:root {
-    /* Light theme colors - FORMA Store style */
-    --tg-bg-color: var(--tg-theme-bg-color, #ffffff);
-    --tg-text-color: var(--tg-theme-text-color, #1a1a1a);
-    --tg-hint-color: var(--tg-theme-hint-color, #666666);
-    --tg-link-color: var(--tg-theme-link-color, #000000);
-    --tg-button-color: var(--tg-theme-button-color, #000000);
-    --tg-button-text-color: var(--tg-theme-button-text-color, #ffffff);
-    --tg-secondary-bg-color: var(--tg-theme-secondary-bg-color, #f5f5f5);
+/* Core palette & typography - Monochrome Premium Style */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@400;500;600&display=swap');
 
-    /* Enhanced palette - Light minimal style */
+:root {
+    /* Monochrome Premium Palette */
     --bg-primary: #ffffff;
-    --bg-secondary: #f8f8f8;
-    --bg-overlay: rgba(255, 255, 255, 0.95);
-    --card-gradient: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 248, 248, 0.95) 100%);
-    --card-hover-gradient: linear-gradient(145deg, rgba(255, 255, 255, 1) 0%, rgba(245, 245, 245, 0.98) 100%);
+    --bg-secondary: #f9f9f9;
+    --bg-overlay: rgba(255, 255, 255, 0.98);
+
+    /* Removed gradients for flat premium look */
+    --card-gradient: #ffffff;
+    --card-hover-gradient: #ffffff;
+
+    /* High Contrast Colors */
     --accent: #000000;
-    --accent-strong: #1a1a1a;
-    --accent-soft: rgba(0, 0, 0, 0.05);
-    --text-primary: #1a1a1a;
-    --text-secondary: #666666;
-    --text-tertiary: rgba(0, 0, 0, 0.4);
+    --accent-strong: #000000;
+    --accent-soft: rgba(0, 0, 0, 0.04);
+
+    /* Text Colors */
+    --text-primary: #000000;
+    --text-secondary: #333333;
+    --text-tertiary: #666666;
+
+    /* Borders & Shadows */
     --border-color: rgba(0, 0, 0, 0.1);
-    --glass-border: rgba(0, 0, 0, 0.12);
-    --shadow-strong: 0 4px 24px rgba(0, 0, 0, 0.1);
-    --shadow-soft: 0 2px 12px rgba(0, 0, 0, 0.08);
-    --overlay-gradient: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.6) 100%);
+    --glass-border: rgba(0, 0, 0, 0.1);
+    --shadow-strong: 0 8px 32px rgba(0, 0, 0, 0.08);
+    /* Soft, minimal shadow */
+    --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.04);
+    --overlay-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.8) 100%);
+    /* White fade instead of dark */
+
+    /* Typography */
+    --font-heading: 'Playfair Display', serif;
+    --font-body: 'Inter', -apple-system, sans-serif;
+
+    /* Shapes */
     --radius-lg: 12px;
     --radius-md: 8px;
-    --radius-sm: 6px;
-    --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    --radius-sm: 4px;
+
+    --transition: all 0.3s cubic-bezier(0.2, 0, 0.2, 1);
+
+    /* Telegram Theme Overrides */
+    --tg-bg-color: #ffffff;
+    --tg-text-color: #000000;
+    --tg-hint-color: #666666;
+    --tg-link-color: #000000;
+    --tg-button-color: #000000;
+    --tg-button-text-color: #ffffff;
+    --tg-secondary-bg-color: #f9f9f9;
 }
 
 * {
@@ -39,7 +58,7 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+    font-family: var(--font-body);
     background: var(--bg-primary);
     color: var(--text-primary);
     min-height: 100vh;
@@ -60,6 +79,44 @@ body {
     isolation: isolate;
 }
 
+h1,
+h2,
+h3,
+h4 {
+    font-family: var(--font-heading);
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+/* Minimalist Card Styles - No Gradients */
+.shop-card .card-image,
+.partner-card .card-image,
+.reviews-card .card-image,
+.about-card .card-image,
+.support-card .card-image {
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+}
+
+/* Remove decorative emojis/watermarks from cards if desired, or keep them for character? 
+   Let's keep emojis but make them grayscale? Or remove for pure minimalism.
+   User asked for "Forma" style which has NO emojis. I will hide them. */
+.shop-card::after,
+.partner-card::after,
+.reviews-card::after,
+.about-card::after,
+.support-card::after {
+    display: none;
+}
+
+.shop-card .card-image::before,
+.partner-card .card-image::before,
+.reviews-card .card-image::before,
+.about-card .card-image::before,
+.support-card .card-image::before {
+    display: none;
+}
+
 /* Clean minimal background - no effects for FORMA style */
 
 /* Top bar & brand - Enhanced minimal style */
@@ -71,9 +128,7 @@ body {
     position: sticky;
     top: 0;
     z-index: 50;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: rgba(255, 255, 255, 0.98);
     border-bottom: 1px solid rgba(0, 0, 0, 0.06);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     background: var(--bg-primary);
@@ -1367,22 +1422,24 @@ body {
     color: #ffffff;
     border: none;
     padding: 10px 20px;
-    border-radius: 99px;
+    border-radius: 999px;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
     white-space: nowrap;
+    width: 100%;
+    /* Ensure full width on mobile or grid */
 }
 
 .product-card-btn:hover {
-    background: var(--accent-strong);
+    background: #333333;
     transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .product-card-btn:active {
-    transform: translateY(0);
+    transform: scale(0.98);
 }
 
 /* Loading and empty states */
@@ -2037,28 +2094,31 @@ body {
 .product-summary,
 .product-description-full,
 .product-instruction {
-    background: rgba(9, 18, 36, 0.85);
+    background: #ffffff;
     border-radius: var(--radius-md);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    padding: 20px;
+    border: 1px solid var(--border-color);
+    padding: 24px;
+    box-shadow: var(--shadow-soft);
 }
 
 .product-summary h4,
 .product-description-full h4,
 .product-instruction h4 {
-    color: #ffd700;
-    font-size: 16px;
-    font-weight: 600;
-    margin: 0 0 12px 0;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    color: #000000;
+    font-family: var(--font-heading);
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0 0 16px 0;
+    text-transform: none;
+    /* Removed uppercase for elegance */
+    letter-spacing: normal;
 }
 
 .product-summary p,
 .product-description-full p,
 .product-instruction p {
-    color: #e0e0e0;
-    font-size: 14px;
+    color: #333333;
+    font-size: 15px;
     line-height: 1.6;
     margin: 0;
 }
@@ -2285,6 +2345,35 @@ body {
 .category-item:active {
     transform: scale(0.98);
     background: var(--border-color);
+}
+
+/* Global Button Styles - Monochrome Pill */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 24px;
+    background: #000000;
+    color: #ffffff;
+    border: none;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.btn:active {
+    transform: scale(0.98);
+    opacity: 0.9;
+}
+
+.btn:hover {
+    background: #333333;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
 }
 
 .category-icon {
