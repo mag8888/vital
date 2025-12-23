@@ -787,25 +787,25 @@ body {
 /* Content & shared cards inside overlays */
 .content-section {
     margin-bottom: 16px;
-    background: var(--tg-secondary-bg-color);
+    background: #ffffff;
     border-radius: var(--radius-lg);
-    border: 1px solid var(--border-color);
-    padding: 20px 16px;
+    border: none;
+    padding: 24px 20px;
     width: 100%;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
 .content-section h3 {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 600;
-    letter-spacing: -0.01em;
-    color: var(--text-primary);
-    margin-bottom: 12px;
+    letter-spacing: -0.02em;
+    color: #000000;
+    margin-bottom: 16px;
     margin-top: 0;
 }
 
 .content-section p {
-    color: var(--text-secondary);
+    color: #333333;
     line-height: 1.6;
     font-size: 15px;
     margin: 0 0 12px 0;
