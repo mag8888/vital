@@ -9,7 +9,7 @@ import { uploadImage, isCloudinaryConfigured } from '../services/cloudinary-serv
 const router = express.Router();
 
 // Configure multer for file uploads
-const upload = multer({ 
+const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit for images
   fileFilter: (req, file, cb) => {
@@ -73,7 +73,7 @@ router.get('/login', (req, res) => {
 router.post('/login', (req, res) => {
   const { password } = req.body;
   const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
-  
+
   if (password === adminPassword || password === 'test') {
     const session = req.session as any;
     session.isAdmin = true;
@@ -91,7 +91,7 @@ router.get('/', requireAdmin, async (req, res) => {
       select: { balance: true }
     });
     const totalBalance = allUsers.reduce((sum, user) => sum + (user.balance || 0), 0);
-    
+
     console.log(`🔍 Debug: Total balance of all users: ${totalBalance} PZ`);
 
     const stats = {
@@ -146,28 +146,28 @@ router.get('/', requireAdmin, async (req, res) => {
         const usersWithStats = usersWithInviterInfo.map((user: any) => {
           const partnerProfile = user.partner;
           const directPartners = partnerProfile?.referrals?.length || 0;
-          
+
           // Calculate total referrals at all levels (simplified for main page)
           function countAllReferrals(userId: string, visited = new Set()): number {
             if (visited.has(userId)) return 0; // Prevent infinite loops
             visited.add(userId);
-            
-            const directReferrals = users.filter(u => 
+
+            const directReferrals = users.filter(u =>
               u.partner?.referrals?.some((ref: any) => ref.referredId === userId)
             );
-            
+
             let totalCount = directReferrals.length;
-            
+
             // Recursively count referrals of referrals
             directReferrals.forEach(ref => {
               totalCount += countAllReferrals(ref.id, new Set(visited));
             });
-            
+
             return totalCount;
           }
-          
-        const totalPartners = countAllReferrals(user.id);
-          
+
+          const totalPartners = countAllReferrals(user.id);
+
           // Разделяем заказы по статусам
           const ordersByStatus = {
             new: user.orders?.filter((order: any) => order.status === 'NEW') || [],
@@ -175,11 +175,11 @@ router.get('/', requireAdmin, async (req, res) => {
             completed: user.orders?.filter((order: any) => order.status === 'COMPLETED') || [],
             cancelled: user.orders?.filter((order: any) => order.status === 'CANCELLED') || []
           };
-          
+
           // Сумма только оплаченных (завершенных) заказов
           const paidOrderSum = ordersByStatus.completed.reduce((sum: number, order: any) => {
             try {
-              const items = typeof order.itemsJson === 'string' 
+              const items = typeof order.itemsJson === 'string'
                 ? JSON.parse(order.itemsJson || '[]')
                 : (order.itemsJson || []);
               const orderTotal = items.reduce((itemSum: number, item: any) => itemSum + (item.price || 0) * (item.quantity || 1), 0);
@@ -188,19 +188,19 @@ router.get('/', requireAdmin, async (req, res) => {
               return sum;
             }
           }, 0);
-          
+
           // Определяем приоритетный статус (новые заказы имеют приоритет)
           const hasNewOrders = ordersByStatus.new.length > 0;
           const hasProcessingOrders = ordersByStatus.processing.length > 0;
           const hasCompletedOrders = ordersByStatus.completed.length > 0;
           const hasCancelledOrders = ordersByStatus.cancelled.length > 0;
-          
+
           let priorityStatus = 'none';
           if (hasNewOrders) priorityStatus = 'new';
           else if (hasProcessingOrders) priorityStatus = 'processing';
           else if (hasCompletedOrders) priorityStatus = 'completed';
           else if (hasCancelledOrders) priorityStatus = 'cancelled';
-          
+
           // Debug: Log status determination
           if (user.orders && user.orders.length > 0) {
             console.log(`User ${user.firstName} orders:`, {
@@ -212,12 +212,12 @@ router.get('/', requireAdmin, async (req, res) => {
               priorityStatus: priorityStatus
             });
           }
-          
+
           const totalOrderSum = paidOrderSum; // Используем только оплаченные заказы
           const balance = user.balance || partnerProfile?.balance || 0;
           const bonus = partnerProfile?.bonus || 0;
           const lastActivity = user.updatedAt || user.createdAt;
-          
+
           return {
             ...user,
             directPartners,
@@ -368,11 +368,11 @@ router.get('/', requireAdmin, async (req, res) => {
           take: 5,
           select: { firstName: true, lastName: true, username: true, createdAt: true }
         });
-        
+
         if (users.length === 0) {
           return '<div class="empty-list">Нет пользователей</div>';
         }
-        
+
         return users.map(user => `
           <div class="list-item">
             <div class="list-info">
@@ -396,11 +396,11 @@ router.get('/', requireAdmin, async (req, res) => {
             user: { select: { firstName: true, lastName: true } }
           }
         });
-        
+
         if (orders.length === 0) {
           return '<div class="empty-list">Нет заказов</div>';
         }
-        
+
         return orders.map(order => `
           <div class="list-item">
             <div class="list-info">
@@ -428,11 +428,11 @@ router.get('/', requireAdmin, async (req, res) => {
             }
           }
         });
-        
+
         if (transactions.length === 0) {
           return '<div class="empty-list">Нет транзакций</div>';
         }
-        
+
         return transactions.map(tx => `
           <div class="list-item">
             <div class="list-info">
@@ -2144,7 +2144,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
   try {
     const sortBy = req.query.sort as string || 'orders';
     const sortOrder = req.query.order as string || 'desc';
-    
+
     // Get all users with their related data
     // Optional search by username
     const search = (req.query.search as string | undefined)?.trim();
@@ -2165,10 +2165,10 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
     });
 
     // Helper function to count partners by level (based on hierarchy depth)
-    async function countPartnersByLevel(userId: string): Promise<{level1: number, level2: number, level3: number}> {
+    async function countPartnersByLevel(userId: string): Promise<{ level1: number, level2: number, level3: number }> {
       // Level 1: Direct referrals (all referrals of this user)
       const level1Partners = await prisma.partnerReferral.findMany({
-        where: { 
+        where: {
           profile: { userId: userId },
           referredId: { not: null }
         },
@@ -2179,11 +2179,11 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
 
       // Level 2: Referrals of level 1 partners
       const level1UserIds = level1Partners.map(p => p.referredId).filter((id): id is string => id !== null);
-      
+
       const level2Count = level1UserIds.length > 0 ? await prisma.partnerReferral.count({
-        where: { 
-          profile: { 
-            userId: { 
+        where: {
+          profile: {
+            userId: {
               in: level1UserIds
             }
           },
@@ -2193,9 +2193,9 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
 
       // Level 3: Referrals of level 2 partners
       const level2Partners = level1UserIds.length > 0 ? await prisma.partnerReferral.findMany({
-        where: { 
-          profile: { 
-            userId: { 
+        where: {
+          profile: {
+            userId: {
               in: level1UserIds
             }
           },
@@ -2207,9 +2207,9 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
       const level2UserIds = level2Partners.map(p => p.referredId).filter((id): id is string => id !== null);
 
       const level3Count = level2UserIds.length > 0 ? await prisma.partnerReferral.count({
-        where: { 
-          profile: { 
-            userId: { 
+        where: {
+          profile: {
+            userId: {
               in: level2UserIds
             }
           },
@@ -2224,12 +2224,12 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
     const usersWithStats = await Promise.all(users.map(async (user: any) => {
       const partnerProfile = user.partner;
       const directPartners = partnerProfile?.referrals?.length || 0;
-      
+
       // Get partners count by level
       const partnersByLevel = await countPartnersByLevel(user.id);
-      
+
       console.log(`👤 User ${user.firstName} (@${user.username}) ID: ${user.id}: ${user.orders?.length || 0} orders`);
-      
+
       // Разделяем заказы по статусам
       const ordersByStatus = {
         new: user.orders?.filter((order: any) => order.status === 'NEW') || [],
@@ -2237,11 +2237,11 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
         completed: user.orders?.filter((order: any) => order.status === 'COMPLETED') || [],
         cancelled: user.orders?.filter((order: any) => order.status === 'CANCELLED') || []
       };
-      
+
       // Сумма только оплаченных (завершенных) заказов
       const paidOrderSum = ordersByStatus.completed.reduce((sum: number, order: any) => {
         try {
-          const items = typeof order.itemsJson === 'string' 
+          const items = typeof order.itemsJson === 'string'
             ? JSON.parse(order.itemsJson || '[]')
             : (order.itemsJson || []);
           const orderTotal = items.reduce((itemSum: number, item: any) => itemSum + (item.price || 0) * (item.quantity || 1), 0);
@@ -2250,19 +2250,19 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
           return sum;
         }
       }, 0);
-      
+
       // Определяем приоритетный статус (новые заказы имеют приоритет)
       const hasNewOrders = ordersByStatus.new.length > 0;
       const hasProcessingOrders = ordersByStatus.processing.length > 0;
       const hasCompletedOrders = ordersByStatus.completed.length > 0;
       const hasCancelledOrders = ordersByStatus.cancelled.length > 0;
-      
+
       let priorityStatus = 'none';
       if (hasNewOrders) priorityStatus = 'new';
       else if (hasProcessingOrders) priorityStatus = 'processing';
       else if (hasCompletedOrders) priorityStatus = 'completed';
       else if (hasCancelledOrders) priorityStatus = 'cancelled';
-      
+
       // Debug: Log status determination for detailed view
       if (user.orders && user.orders.length > 0) {
         console.log(`Detailed view - User ${user.firstName} orders:`, {
@@ -2274,12 +2274,12 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
           priorityStatus: priorityStatus
         });
       }
-      
+
       const totalOrderSum = paidOrderSum; // Используем только оплаченные заказы
       const balance = user.balance || partnerProfile?.balance || 0;
       const bonus = partnerProfile?.bonus || 0;
       const lastActivity = user.updatedAt || user.createdAt;
-      
+
       return {
         ...user,
         directPartners,
@@ -2311,11 +2311,11 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
     // Apply sorting
     let sortedUsers = usersWithInviters;
     if (sortBy === 'balance') {
-      sortedUsers = usersWithInviters.sort((a, b) => 
+      sortedUsers = usersWithInviters.sort((a, b) =>
         sortOrder === 'desc' ? b.balance - a.balance : a.balance - b.balance
       );
     } else if (sortBy === 'partners') {
-      sortedUsers = usersWithInviters.sort((a, b) => 
+      sortedUsers = usersWithInviters.sort((a, b) =>
         sortOrder === 'desc' ? b.directPartners - a.directPartners : a.directPartners - b.directPartners
       );
     } else if (sortBy === 'orders') {
@@ -2323,44 +2323,44 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
         // 1. Приоритет: сначала новые красные заказы
         const aHasNew = a.priorityStatus === 'new';
         const bHasNew = b.priorityStatus === 'new';
-        
+
         if (aHasNew && !bHasNew) return -1;
         if (!aHasNew && bHasNew) return 1;
-        
+
         // 2. Если оба имеют новые заказы или оба не имеют - сортируем по дате новых заказов
         if (aHasNew && bHasNew) {
           const aNewOrder = a.orders?.find((order: any) => order.status === 'NEW');
           const bNewOrder = b.orders?.find((order: any) => order.status === 'NEW');
-          
+
           if (aNewOrder && bNewOrder) {
             return new Date(bNewOrder.createdAt).getTime() - new Date(aNewOrder.createdAt).getTime();
           }
         }
-        
+
         // 3. Затем приоритет: новые зеленые заказы
         const aHasCompleted = a.priorityStatus === 'completed';
         const bHasCompleted = b.priorityStatus === 'completed';
-        
+
         if (aHasCompleted && !bHasCompleted) return -1;
         if (!aHasCompleted && bHasCompleted) return 1;
-        
+
         // 4. Если оба имеют завершенные заказы - сортируем по дате
         if (aHasCompleted && bHasCompleted) {
           const aCompletedOrder = a.orders?.find((order: any) => order.status === 'COMPLETED');
           const bCompletedOrder = b.orders?.find((order: any) => order.status === 'COMPLETED');
-          
+
           if (aCompletedOrder && bCompletedOrder) {
             return new Date(bCompletedOrder.createdAt).getTime() - new Date(aCompletedOrder.createdAt).getTime();
           }
         }
-        
+
         // 5. Если нет заказов, сортируем по сумме
         return sortOrder === 'desc' ? b.totalOrderSum - a.totalOrderSum : a.totalOrderSum - b.totalOrderSum;
       });
     } else if (sortBy === 'activity') {
-      sortedUsers = usersWithInviters.sort((a, b) => 
-        sortOrder === 'desc' ? new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime() : 
-                               new Date(a.lastActivity).getTime() - new Date(b.lastActivity).getTime()
+      sortedUsers = usersWithInviters.sort((a, b) =>
+        sortOrder === 'desc' ? new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime() :
+          new Date(a.lastActivity).getTime() - new Date(b.lastActivity).getTime()
       );
     }
 
@@ -2888,20 +2888,20 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                 </thead>
               <tbody>
                 ${sortedUsers.map(user => {
-                  // Вычисляем данные для новых колонок
-                  const partnerProfile = user.partner;
-                  const totalEarnings = partnerProfile?.totalEarnings || 0;
-                  const withdrawnEarnings = partnerProfile?.withdrawnEarnings || 0;
-                  const pendingEarnings = totalEarnings - withdrawnEarnings;
-                  
-                  // Подсчет партнеров по уровням
-                  const level1Partners = user.directPartners || 0;
-                  const level2Partners = user.level2Partners || 0;
-                  const level3Partners = user.level3Partners || 0;
-                  
-                  const isPartnerActive = partnerProfile?.isActive || false;
-                  
-                  return `
+      // Вычисляем данные для новых колонок
+      const partnerProfile = user.partner;
+      const totalEarnings = partnerProfile?.totalEarnings || 0;
+      const withdrawnEarnings = partnerProfile?.withdrawnEarnings || 0;
+      const pendingEarnings = totalEarnings - withdrawnEarnings;
+
+      // Подсчет партнеров по уровням
+      const level1Partners = user.directPartners || 0;
+      const level2Partners = user.level2Partners || 0;
+      const level3Partners = user.level3Partners || 0;
+
+      const isPartnerActive = partnerProfile?.isActive || false;
+
+      return `
                   <tr>
                     <td class="compact-cell">
                       <input type="checkbox" class="user-checkbox" value="${user.id}" data-user-id="${user.id}" style="margin-right: 5px;">
@@ -2982,7 +2982,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                     </td>
                   </tr>
                 `;
-                }).join('')}
+    }).join('')}
               </tbody>
             </table>
             </div>
@@ -3476,22 +3476,22 @@ router.get('/inviters/search', requireAdmin, async (req, res) => {
 router.post('/send-messages', requireAdmin, async (req, res) => {
   try {
     const { userIds, type, subject, text, includeButtons, button1, button2 } = req.body;
-    
+
     if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
       return res.status(400).json({ success: false, error: 'Не выбраны получатели' });
     }
-    
+
     if (!text || !text.trim()) {
       return res.status(400).json({ success: false, error: 'Не указан текст сообщения' });
     }
-    
+
     // Get bot instance for real message sending
     const { getBotInstance } = await import('../lib/bot-instance.js');
     const bot = await getBotInstance();
-    
+
     let sentCount = 0;
     let errors = [];
-    
+
     // Send messages to each user
     for (const userId of userIds) {
       try {
@@ -3500,14 +3500,14 @@ router.post('/send-messages', requireAdmin, async (req, res) => {
           errors.push(`Пользователь ${userId} не найден`);
           continue;
         }
-        
+
         // Build message text
         let messageText = '';
         if (subject) {
           messageText += `📢 **${subject}**\n\n`;
         }
         messageText += text;
-        
+
         // Add type indicator
         const typeEmojiMap: { [key: string]: string } = {
           'text': '💬',
@@ -3516,18 +3516,18 @@ router.post('/send-messages', requireAdmin, async (req, res) => {
           'system': '⚙️'
         };
         const typeEmoji = typeEmojiMap[type] || '💬';
-        
+
         messageText = `${typeEmoji} ${messageText}`;
-        
+
         // Send message via Telegram bot
         try {
           // Экранируем Markdown символы
           const escapeMarkdown = (text: string) => {
             return text.replace(/([_*\[\]()~`>#+=|{}.!-])/g, '\\$1');
           };
-          
+
           const escapedMessageText = escapeMarkdown(messageText);
-          
+
           try {
             await bot.telegram.sendMessage(user.telegramId, escapedMessageText, {
               parse_mode: 'Markdown'
@@ -3537,7 +3537,7 @@ router.post('/send-messages', requireAdmin, async (req, res) => {
             // Если Markdown не работает, отправляем без форматирования
             await bot.telegram.sendMessage(user.telegramId, messageText);
           }
-          
+
           // Add buttons if requested
           if (includeButtons && (button1.text || button2.text)) {
             const buttons = [];
@@ -3547,23 +3547,23 @@ router.post('/send-messages', requireAdmin, async (req, res) => {
             if (button2.text) {
               buttons.push([{ text: button2.text, url: button2.url }]);
             }
-            
+
             if (buttons.length > 0) {
               await bot.telegram.sendMessage(user.telegramId, '👇 Выберите действие:', {
                 reply_markup: { inline_keyboard: buttons }
               });
             }
           }
-          
+
           console.log(`✅ Message sent to user ${user.firstName} (${user.id})`);
-          
+
         } catch (telegramError) {
           console.error(`❌ Telegram error for user ${user.id}:`, telegramError);
           const telegramErrorMessage = telegramError instanceof Error ? telegramError.message : String(telegramError);
           errors.push(`Ошибка Telegram для ${user.firstName}: ${telegramErrorMessage}`);
           continue;
         }
-        
+
         // Log successful message
         await prisma.userHistory.create({
           data: {
@@ -3580,27 +3580,27 @@ router.post('/send-messages', requireAdmin, async (req, res) => {
             }
           }
         });
-        
+
         sentCount++;
-        
+
       } catch (error) {
         console.error(`Error sending message to user ${userId}:`, error);
         const errorMessage = error instanceof Error ? error.message : String(error);
         errors.push(`Ошибка отправки пользователю ${userId}: ${errorMessage}`);
       }
     }
-    
+
     res.json({
       success: true,
       sent: sentCount,
       total: userIds.length,
       failed: userIds.length - sentCount,
       errors: errors.length > 0 ? errors : undefined,
-      message: sentCount > 0 ? 
-        `Успешно отправлено ${sentCount} из ${userIds.length} сообщений` : 
+      message: sentCount > 0 ?
+        `Успешно отправлено ${sentCount} из ${userIds.length} сообщений` :
         'Не удалось отправить ни одного сообщения'
     });
-    
+
   } catch (error) {
     console.error('Send messages error:', error);
     res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' });
@@ -3626,12 +3626,12 @@ router.get('/test-dual-system', requireAdmin, async (req, res) => {
     // Test with a sample order amount
     const testOrderAmount = 100; // 100 PZ
     const testUserId = '0000000000000001a5d56f19'; // Aurelia (direct referral of Roman)
-    
+
     console.log(`🧪 Testing dual system with order amount: ${testOrderAmount} PZ for user: ${testUserId}`);
-    
+
     // Call the dual system calculation
     const bonuses = await calculateDualSystemBonuses(testUserId, testOrderAmount);
-    
+
     res.json({
       success: true,
       message: 'Dual system test completed',
@@ -3654,11 +3654,11 @@ router.get('/test-dual-system', requireAdmin, async (req, res) => {
 router.post('/api/categories', requireAdmin, async (req, res) => {
   try {
     const { name, description, icon } = req.body;
-    
+
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, error: 'Название категории обязательно' });
     }
-    
+
     const category = await prisma.category.create({
       data: {
         name: name.trim(),
@@ -3667,7 +3667,7 @@ router.post('/api/categories', requireAdmin, async (req, res) => {
         isActive: true
       }
     });
-    
+
     res.json({ success: true, category });
   } catch (error: any) {
     console.error('Create category error:', error);
@@ -3690,7 +3690,7 @@ router.post('/api/move-all-to-cosmetics', requireAdmin, async (req, res) => {
         ]
       }
     });
-    
+
     if (!cosmeticsCategory) {
       cosmeticsCategory = await prisma.category.create({
         data: {
@@ -3702,20 +3702,20 @@ router.post('/api/move-all-to-cosmetics', requireAdmin, async (req, res) => {
       });
       console.log('✅ Создана категория "Косметика"');
     }
-    
+
     // Get all active products
     const allProducts = await prisma.product.findMany({
       where: { isActive: true }
     });
-    
+
     // Update all products to use "Косметика" category
     const updateResult = await prisma.product.updateMany({
       where: { isActive: true },
       data: { categoryId: cosmeticsCategory.id }
     });
-    
+
     console.log(`✅ Перемещено ${updateResult.count} продуктов в категорию "Косметика"`);
-    
+
     res.json({
       success: true,
       movedCount: updateResult.count,
@@ -3732,7 +3732,7 @@ router.post('/api/move-all-to-cosmetics', requireAdmin, async (req, res) => {
 router.post('/api/products', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const { name, price, categoryId, stock, shortDescription, fullDescription, instruction, active, availableInRussia, availableInBali } = req.body;
-    
+
     // Validation
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, error: 'Название товара обязательно' });
@@ -3749,15 +3749,15 @@ router.post('/api/products', requireAdmin, upload.single('image'), async (req, r
     if (!fullDescription || !fullDescription.trim()) {
       return res.status(400).json({ success: false, error: 'Полное описание обязательно' });
     }
-    
+
     // Regions parsing removed; using fixed switches on client side
-    
+
     // Check if category exists
     const category = await prisma.category.findUnique({ where: { id: categoryId } });
     if (!category) {
       return res.status(400).json({ success: false, error: 'Категория не найдена' });
     }
-    
+
     // Handle image upload (if provided)
     let imageUrl = '';
     if (req.file) {
@@ -3765,13 +3765,13 @@ router.post('/api/products', requireAdmin, upload.single('image'), async (req, r
         if (!isCloudinaryConfigured()) {
           return res.status(500).json({ success: false, error: 'Cloudinary не настроен. Установите переменные окружения CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET' });
         }
-        
+
         // Upload to Cloudinary using service
         const result = await uploadImage(req.file.buffer, {
           folder: 'vital/products',
           resourceType: 'image',
         });
-        
+
         imageUrl = result.secureUrl;
         console.log('✅ Image uploaded successfully:', imageUrl);
       } catch (error: any) {
@@ -3779,7 +3779,7 @@ router.post('/api/products', requireAdmin, upload.single('image'), async (req, r
         return res.status(500).json({ success: false, error: `Ошибка загрузки изображения: ${error.message || 'Неизвестная ошибка'}` });
       }
     }
-    
+
     // Create product
     const product = await prisma.product.create({
       data: {
@@ -3795,7 +3795,7 @@ router.post('/api/products', requireAdmin, upload.single('image'), async (req, r
         availableInBali: availableInBali === 'true' || availableInBali === true
       }
     });
-    
+
     res.json({ success: true, product });
   } catch (error) {
     console.error('Create product error:', error);
@@ -3806,7 +3806,7 @@ router.post('/api/products', requireAdmin, upload.single('image'), async (req, r
 router.get('/users/:userId', requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -4054,27 +4054,27 @@ router.get('/users/:userId', requireAdmin, async (req, res) => {
                   </thead>
                   <tbody>
                     ${(user as any).orders.map((order: any) => {
-                      try {
-                        const items = JSON.parse(order.itemsJson || '[]');
-                        const orderTotal = items.reduce((sum: number, item: any) => sum + (item.price || 0) * (item.quantity || 1), 0);
-                        const itemNames = items.map((item: any) => `${item.name || 'Товар'} (${item.quantity || 1} шт.)`).join(', ');
-                        return `
+      try {
+        const items = JSON.parse(order.itemsJson || '[]');
+        const orderTotal = items.reduce((sum: number, item: any) => sum + (item.price || 0) * (item.quantity || 1), 0);
+        const itemNames = items.map((item: any) => `${item.name || 'Товар'} (${item.quantity || 1} шт.)`).join(', ');
+        return `
                           <tr>
                             <td>${itemNames || 'Заказ'}</td>
                             <td>${orderTotal.toFixed(2)} PZ</td>
                             <td>${order.createdAt.toLocaleString('ru-RU')}</td>
                           </tr>
                         `;
-                      } catch {
-                        return `
+      } catch {
+        return `
                           <tr>
                             <td>Заказ #${order.id}</td>
                             <td>0.00 PZ</td>
                             <td>${order.createdAt.toLocaleString('ru-RU')}</td>
                           </tr>
                         `;
-                      }
-                    }).join('')}
+      }
+    }).join('')}
                   </tbody>
                 </table>
               </div>
@@ -4119,41 +4119,41 @@ router.get('/users/:userId', requireAdmin, async (req, res) => {
                   </thead>
                   <tbody>
                     ${(user as any).histories.map((action: any) => {
-                      function humanizeAction(a: any): string {
-                        const map: Record<string, string> = {
-                          'shop:buy': 'Покупка оформлена',
-                          'shop:add-to-cart': 'Добавлен товар в корзину',
-                          'shop:product-details': 'Просмотр товара',
-                          'shop:category': 'Переход в категорию',
-                          'nav:more': 'Открыт подробный раздел',
-                          'partner:invite': 'Открыт экран приглашений',
-                          'partner:dashboard': 'Просмотр кабинета партнёра',
-                          'partner:level:1': 'Просмотр партнёров 1-го уровня',
-                          'partner:level:2': 'Просмотр партнёров 2-го уровня',
-                          'partner:level:3': 'Просмотр партнёров 3-го уровня',
-                          'cart:add': 'Товар добавлен в корзину',
-                          'cart:checkout': 'Оформление заказа',
-                          'admin_message_sent': 'Отправлено сообщение пользователю'
-                        };
-                        return map[a.action] || a.action;
-                      }
-                      function humanizePayload(a: any): string {
-                        try {
-                          if (!a.payload) return '-';
-                          const p = a.payload;
-                          if (p.productId) return `Товар: ${p.productId}`;
-                          if (p.categoryId) return `Категория: ${p.categoryId}`;
-                          if (p.type === 'text' && p.messageLength) return `Текст ${p.messageLength} симв.`;
-                          return JSON.stringify(p);
-                        } catch { return '-'; }
-                      }
-                      return `
+      function humanizeAction(a: any): string {
+        const map: Record<string, string> = {
+          'shop:buy': 'Покупка оформлена',
+          'shop:add-to-cart': 'Добавлен товар в корзину',
+          'shop:product-details': 'Просмотр товара',
+          'shop:category': 'Переход в категорию',
+          'nav:more': 'Открыт подробный раздел',
+          'partner:invite': 'Открыт экран приглашений',
+          'partner:dashboard': 'Просмотр кабинета партнёра',
+          'partner:level:1': 'Просмотр партнёров 1-го уровня',
+          'partner:level:2': 'Просмотр партнёров 2-го уровня',
+          'partner:level:3': 'Просмотр партнёров 3-го уровня',
+          'cart:add': 'Товар добавлен в корзину',
+          'cart:checkout': 'Оформление заказа',
+          'admin_message_sent': 'Отправлено сообщение пользователю'
+        };
+        return map[a.action] || a.action;
+      }
+      function humanizePayload(a: any): string {
+        try {
+          if (!a.payload) return '-';
+          const p = a.payload;
+          if (p.productId) return `Товар: ${p.productId}`;
+          if (p.categoryId) return `Категория: ${p.categoryId}`;
+          if (p.type === 'text' && p.messageLength) return `Текст ${p.messageLength} симв.`;
+          return JSON.stringify(p);
+        } catch { return '-'; }
+      }
+      return `
                       <tr>
                         <td>${humanizeAction(action)}</td>
                         <td>${humanizePayload(action)}</td>
                         <td>${action.createdAt.toLocaleString('ru-RU')}</td>
                       </tr>`;
-                    }).join('')}
+    }).join('')}
                   </tbody>
                 </table>
               </div>
@@ -4176,28 +4176,28 @@ router.get('/users/:userId', requireAdmin, async (req, res) => {
 router.post('/force-recalculate-all-bonuses', requireAdmin, async (req, res) => {
   try {
     console.log('🔄 Starting force recalculation of all partner bonuses...');
-    
+
     // Get all partner profiles
     const partners = await prisma.partnerProfile.findMany({
       include: { transactions: true }
     });
-    
+
     console.log(`📊 Found ${partners.length} partner profiles to recalculate`);
-    
+
     let totalRecalculated = 0;
-    
+
     for (const partner of partners) {
       console.log(`🔄 Recalculating bonuses for partner ${partner.id}...`);
-      
+
       // Calculate total from all transactions
       const totalBonus = partner.transactions.reduce((sum, tx) => {
         const amount = tx.type === 'CREDIT' ? tx.amount : -tx.amount;
         console.log(`  - Transaction: ${tx.type} ${tx.amount} PZ (${tx.description})`);
         return sum + amount;
       }, 0);
-      
+
       console.log(`💰 Calculated total bonus for partner ${partner.id}: ${totalBonus} PZ`);
-      
+
       // Update both balance and bonus fields
       await prisma.partnerProfile.update({
         where: { id: partner.id },
@@ -4206,11 +4206,11 @@ router.post('/force-recalculate-all-bonuses', requireAdmin, async (req, res) => 
           bonus: totalBonus
         }
       });
-      
+
       totalRecalculated += totalBonus;
       console.log(`✅ Updated partner ${partner.id}: balance = ${totalBonus} PZ, bonus = ${totalBonus} PZ`);
     }
-    
+
     console.log(`🎉 Force recalculation completed! Total recalculated: ${totalRecalculated} PZ`);
     res.redirect('/admin?success=all_bonuses_recalculated&total=' + totalRecalculated);
   } catch (error) {
@@ -4286,7 +4286,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
 router.get('/partners', requireAdmin, async (req, res) => {
   try {
     const partners = await prisma.partnerProfile.findMany({
-      include: { 
+      include: {
         user: true,
         referrals: {
           include: {
@@ -4424,10 +4424,10 @@ router.get('/partners', requireAdmin, async (req, res) => {
           <td>${partner.totalPartners}</td>
           <td>${partner.referralCode}</td>
           <td>
-            ${partner.inviter 
-              ? `${partner.inviter.firstName || ''} ${partner.inviter.lastName || ''} ${partner.inviter.username ? `(@${partner.inviter.username})` : ''}`.trim()
-              : 'Нет данных'
-            }
+            ${partner.inviter
+          ? `${partner.inviter.firstName || ''} ${partner.inviter.lastName || ''} ${partner.inviter.username ? `(@${partner.inviter.username})` : ''}`.trim()
+          : 'Нет данных'
+        }
           </td>
           <td>${new Date(partner.createdAt).toLocaleDateString()}</td>
           <td>
@@ -4466,7 +4466,7 @@ router.get('/partners', requireAdmin, async (req, res) => {
 router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
   try {
     const userId = req.query.user as string;
-    
+
     // Get all partners with their referrals
     const partners = await prisma.partnerProfile.findMany({
       include: {
@@ -4508,43 +4508,43 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
     // Build interactive hierarchy with multi-level referrals (full tree)
     function buildInteractiveHierarchy() {
       const rootPartners = partnersWithInviters.filter(p => !p.inviter);
-      
+
       function buildPartnerNode(partner: any, level = 0) {
         const levelEmoji = level === 0 ? '👑' : level === 1 ? '🥈' : level === 2 ? '🥉' : '📋';
         const partnerName = `${partner.user.firstName || ''} ${partner.user.lastName || ''}`.trim();
         const username = partner.user.username ? ` (@${partner.user.username})` : '';
         const balance = partner.balance.toFixed(2);
-        
+
         // Count all referrals at all levels recursively
         function countAllReferrals(partnerId: string, visited = new Set()): number {
           if (visited.has(partnerId)) return 0; // Prevent infinite loops
           visited.add(partnerId);
-          
-          const directReferrals = partnersWithInviters.filter(p => 
+
+          const directReferrals = partnersWithInviters.filter(p =>
             p.inviter && p.inviter.id === partnerId
           );
-          
+
           let totalCount = directReferrals.length;
-          
+
           // Recursively count referrals of referrals
           directReferrals.forEach(ref => {
             totalCount += countAllReferrals(ref.user.id, new Set(visited));
           });
-          
+
           return totalCount;
         }
-        
+
         const totalReferrals = countAllReferrals(partner.user.id);
-        
+
         // Get direct referrals (level 1)
-        const directReferrals = partnersWithInviters.filter(p => 
+        const directReferrals = partnersWithInviters.filter(p =>
           p.inviter && p.inviter.id === partner.user.id
         );
-        
+
         const hasChildren = directReferrals.length > 0;
         const expandId = `expand-${partner.id}`;
         const childrenId = `children-${partner.id}`;
-        
+
         let node = `
           <div class="partner-node level-${level}" style="margin-left: ${level * 20}px;">
             <div class="partner-header" onclick="${hasChildren ? `toggleChildren('${expandId}', '${childrenId}')` : ''}" style="cursor: ${hasChildren ? 'pointer' : 'default'};">
@@ -4559,17 +4559,17 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
             </div>
             <div class="children" id="${childrenId}" style="display: none;">
         `;
-        
+
         // Add child nodes recursively
         directReferrals.forEach(referral => {
           node += buildPartnerNode(referral, level + 1);
         });
-        
+
         node += `
             </div>
           </div>
         `;
-        
+
         return node;
       }
 
@@ -4617,10 +4617,10 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
           <div class="partner-node"><div class="partner-header level-1"><strong>${label}:</strong> (${arr.length})</div>
             <div class="children">
               ${arr.map(p => {
-                const name = `${p.user.firstName || ''} ${p.user.lastName || ''}`.trim();
-                const username = p.user.username ? ` (@${p.user.username})` : '';
-                return `<div class=\"partner-node\"><div class=\"partner-header level-2\">${name}${username} <span class=\"balance\">${p.balance.toFixed(2)} PZ</span></div></div>`;
-              }).join('')}
+          const name = `${p.user.firstName || ''} ${p.user.lastName || ''}`.trim();
+          const username = p.user.username ? ` (@${p.user.username})` : '';
+          return `<div class=\"partner-node\"><div class=\"partner-header level-2\">${name}${username} <span class=\"balance\">${p.balance.toFixed(2)} PZ</span></div></div>`;
+        }).join('')}
             </div>
           </div>`;
       }
@@ -4819,7 +4819,7 @@ router.post('/partners/:id/change-inviter', requireAdmin, async (req, res) => {
               },
               include: { user: true }
             });
-          } catch {}
+          } catch { }
         }
       }
     } else if (newInviterCode) {
@@ -4843,7 +4843,7 @@ router.post('/partners/:id/change-inviter', requireAdmin, async (req, res) => {
 
     await prisma.partnerReferral.deleteMany({ where: { referredId: currentPartner.userId } });
     await prisma.partnerReferral.create({ data: { profileId: newInviter.id, referredId: currentPartner.userId, level: 1 } });
-    
+
     if ((req.headers['accept'] || '').toString().includes('application/json')) {
       return res.json({ success: true });
     }
@@ -4884,7 +4884,7 @@ router.post('/users/:id/change-inviter', requireAdmin, async (req, res) => {
               },
               include: { user: true }
             });
-          } catch {}
+          } catch { }
         }
       }
     } else if (newInviterCode) {
@@ -4908,7 +4908,7 @@ router.post('/users/:id/change-inviter', requireAdmin, async (req, res) => {
 
     await prisma.partnerReferral.deleteMany({ where: { referredId: id } });
     await prisma.partnerReferral.create({ data: { profileId: newInviter.id, referredId: id, level: 1 } });
-    
+
     if ((req.headers['accept'] || '').toString().includes('application/json')) {
       return res.json({ success: true });
     }
@@ -4926,9 +4926,9 @@ router.post('/users/:id/change-inviter', requireAdmin, async (req, res) => {
 router.delete('/users/:id/delete', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     console.log('🗑️ Deleting user:', id);
-    
+
     // Find user first
     const user = await prisma.user.findUnique({
       where: { id },
@@ -4940,21 +4940,21 @@ router.delete('/users/:id/delete', requireAdmin, async (req, res) => {
         payments: true
       }
     });
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
         error: 'Пользователь не найден'
       });
     }
-    
+
     console.log(`🗑️ User found: ${user.firstName || 'Unknown'} (@${user.username || 'no username'})`);
     console.log(`   - Partner profile: ${user.partner ? 'YES' : 'NO'}`);
     console.log(`   - Orders: ${user.orders?.length || 0}`);
     console.log(`   - Cart items: ${user.cartItems?.length || 0}`);
     console.log(`   - Histories: ${user.histories?.length || 0}`);
     console.log(`   - Payments: ${user.payments?.length || 0}`);
-    
+
     // Delete in correct order (dependencies first)
     // PartnerReferral with this user as referrer will be deleted via cascade
     // But we need to delete referrals where this user is the referred user
@@ -4962,7 +4962,7 @@ router.delete('/users/:id/delete', requireAdmin, async (req, res) => {
       where: { referredId: id }
     });
     console.log('   ✅ Deleted partner referrals');
-    
+
     // PartnerProfile will be deleted via cascade when user is deleted
     // But transactions and referrals of the partner profile need to be handled
     if (user.partner) {
@@ -4974,7 +4974,7 @@ router.delete('/users/:id/delete', requireAdmin, async (req, res) => {
       });
       console.log('   ✅ Deleted partner transactions and referrals');
     }
-    
+
     // Cart items will be deleted via cascade
     // Orders - we keep them but remove user reference
     await prisma.orderRequest.updateMany({
@@ -4982,16 +4982,16 @@ router.delete('/users/:id/delete', requireAdmin, async (req, res) => {
       data: { userId: null }
     });
     console.log('   ✅ Removed user from orders');
-    
+
     // Histories will be deleted via cascade
     // Payments - we keep them but could remove user reference if needed
-    
+
     // Finally delete the user (this will cascade delete partner profile, cart items, histories)
     await prisma.user.delete({
       where: { id }
     });
     console.log('   ✅ User deleted successfully');
-    
+
     res.json({
       success: true,
       message: 'Пользователь успешно удален'
@@ -5698,12 +5698,12 @@ router.get('/products', requireAdmin, async (req, res) => {
         </div>
 
         <div class="filters">
-          <button type="button" class="filter-btn active" data-filter="all">Все категории (${allProducts.length})</button>
+          <button type="button" class="filter-btn active" onclick="window.filterProducts(this)" data-filter="all">Все категории (${allProducts.length})</button>
     `;
 
     categories.forEach((category) => {
       html += `
-          <button type="button" class="filter-btn" data-filter="${category.id}">${category.name} (${category.products.length})</button>
+          <button type="button" class="filter-btn" onclick="window.filterProducts(this)" data-filter="${category.id}">${category.name} (${category.products.length})</button>
       `;
     });
 
@@ -5753,7 +5753,7 @@ router.get('/products', requireAdmin, async (req, res) => {
           .replace(/\s+/g, ' ')
           // Удаляем потенциально проблемные символы Unicode
           .replace(/[\u200B-\u200D\uFEFF]/g, '');
-        
+
         // Затем экранируем специальные символы HTML в правильном порядке
         result = result
           .replace(/&/g, '&amp;') // Must be first
@@ -5762,19 +5762,19 @@ router.get('/products', requireAdmin, async (req, res) => {
           .replace(/"/g, '&quot;') // Двойные кавычки
           .replace(/'/g, '&#39;') // Одинарные кавычки
           .replace(/`/g, '&#96;'); // Обратные кавычки
-        
+
         // Ограничиваем длину для предотвращения очень длинных атрибутов
         if (result.length > 10000) {
           result = result.substring(0, 10000) + '...';
         }
-        
+
         return result;
       } catch (error) {
         console.error('Error in escapeAttr:', error);
         return ''; // В случае ошибки возвращаем пустую строку
       }
     };
-    
+
     // Helper function to escape HTML content safely
     const escapeHtml = (str: string | null | undefined): string => {
       if (!str) return '';
@@ -5784,14 +5784,14 @@ router.get('/products', requireAdmin, async (req, res) => {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
     };
-    
+
     allProducts.forEach((product) => {
       const rubPrice = (product.price * 100).toFixed(2);
       const priceFormatted = `${rubPrice} руб. / ${product.price.toFixed(2)} PZ`;
       const createdAt = new Date(product.createdAt).toLocaleDateString();
       const imageId = `product-img-${product.id.replace(/[^a-zA-Z0-9]/g, '-')}`;
       const placeholderId = `product-placeholder-${product.id.replace(/[^a-zA-Z0-9]/g, '-')}`;
-      
+
       const imageSection = product.imageUrl
         ? `<img id="${imageId}" src="${escapeAttr(product.imageUrl)}" alt="${escapeAttr(product.title)}" class="product-image" loading="lazy" data-onerror-img="${imageId}" data-onerror-placeholder="${placeholderId}">
            <div id="${placeholderId}" class="product-image-placeholder" style="display: none;">
@@ -5835,7 +5835,7 @@ router.get('/products', requireAdmin, async (req, res) => {
               <button 
                 type="button" 
                 class="edit-btn"
-                data-edit-product
+                onclick="window.editProduct(this)"
                 data-id="${escapeAttr(product.id)}"
                 data-title="${escapeAttr(product.title)}"
                 data-summary="${escapeAttr(product.summary)}"
@@ -5998,6 +5998,28 @@ router.get('/products', requireAdmin, async (req, res) => {
           // Function to scrape all images
           window.scrapeAllImages = async function() {
             const statusDiv = document.getElementById('scraping-status');
+            // ... (existing code)
+          };
+
+          // Function to filter products
+          window.filterProducts = function(button) {
+            const filter = button.dataset.filter;
+            const buttons = document.querySelectorAll('.filter-btn');
+            const cards = document.querySelectorAll('.product-card');
+
+            // Update active button state
+            buttons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+
+            // Filter cards
+            cards.forEach(card => {
+              if (filter === 'all' || card.dataset.category === filter) {
+                card.style.display = 'flex';
+              } else {
+                card.style.display = 'none';
+              }
+            });
+          };
             const progressDiv = document.getElementById('scraping-progress');
             
             if (statusDiv) statusDiv.style.display = 'block';
@@ -6317,25 +6339,7 @@ router.get('/products', requireAdmin, async (req, res) => {
             }
           };
           
-          const filterButtons = document.querySelectorAll('.filter-btn');
-          const cards = document.querySelectorAll('.product-card');
 
-          filterButtons.forEach((button) => {
-            button.addEventListener('click', () => {
-              const filter = button.dataset.filter;
-
-              filterButtons.forEach((btn) => btn.classList.remove('active'));
-              button.classList.add('active');
-
-              cards.forEach((card) => {
-                if (filter === 'all' || card.dataset.category === filter) {
-                  card.style.display = 'flex';
-                } else {
-                  card.style.display = 'none';
-                }
-              });
-            });
-          });
           
           // Safe function to show instruction - ГЛОБАЛЬНАЯ
           window.showInstructionSafe = function(button) {
@@ -7807,7 +7811,7 @@ router.post('/api/product2/subcategory', requireAdmin, async (req, res) => {
 router.post('/api/product2/product', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const { categoryId, name, summary, price, imageUrl } = req.body;
-    
+
     if (!categoryId || !name || !summary || !price) {
       return res.status(400).json({ success: false, error: 'Все поля обязательны' });
     }
@@ -7849,7 +7853,7 @@ router.post('/api/product2/product', requireAdmin, upload.single('image'), async
 router.post('/api/product2/product/update', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const { productId, title, summary, description, price, stock, categoryId, isActive, availableInRussia, availableInBali, imageUrl, sku } = req.body;
-    
+
     if (!productId || !title || !summary || !price || !stock) {
       return res.status(400).json({ success: false, error: 'Все обязательные поля должны быть заполнены' });
     }
@@ -7902,7 +7906,7 @@ router.post('/api/product2/product/update', requireAdmin, upload.single('image')
 router.get('/api/product2/category/:categoryId/products', requireAdmin, async (req, res) => {
   try {
     const { categoryId } = req.params;
-    
+
     const products = await prisma.product.findMany({
       where: { categoryId },
       select: {
@@ -7935,18 +7939,18 @@ router.post('/api/product2/fetch-siam-images', requireAdmin, async (req, res) =>
     // Запускаем скрипт в фоне
     const { spawn } = await import('child_process');
     const scriptPath = process.cwd() + '/scripts/fetch-images-from-siam.ts';
-    
+
     const child = spawn('npx', ['ts-node', '--esm', scriptPath], {
       cwd: process.cwd(),
       detached: true,
       stdio: 'ignore'
     });
-    
+
     child.unref();
-    
-    res.json({ 
-      success: true, 
-      message: 'Загрузка изображений запущена в фоновом режиме. Проверьте логи через несколько минут.' 
+
+    res.json({
+      success: true,
+      message: 'Загрузка изображений запущена в фоновом режиме. Проверьте логи через несколько минут.'
     });
   } catch (error: any) {
     console.error('Error starting image fetch:', error);
@@ -7960,18 +7964,18 @@ router.post('/api/product2/fetch-siam-images', requireAdmin, async (req, res) =>
     // Запускаем скрипт в фоне
     const { spawn } = await import('child_process');
     const scriptPath = process.cwd() + '/scripts/fetch-images-from-siam.ts';
-    
+
     const child = spawn('npx', ['ts-node', '--esm', scriptPath], {
       cwd: process.cwd(),
       detached: true,
       stdio: 'ignore'
     });
-    
+
     child.unref();
-    
-    res.json({ 
-      success: true, 
-      message: 'Загрузка изображений запущена в фоновом режиме. Проверьте логи через несколько минут.' 
+
+    res.json({
+      success: true,
+      message: 'Загрузка изображений запущена в фоновом режиме. Проверьте логи через несколько минут.'
     });
   } catch (error: any) {
     console.error('Error starting image fetch:', error);
@@ -7983,7 +7987,7 @@ router.post('/api/product2/fetch-siam-images', requireAdmin, async (req, res) =>
 router.post('/api/product2/category/move', requireAdmin, async (req, res) => {
   try {
     const { categoryId, parentCategoryId } = req.body;
-    
+
     if (!categoryId || !parentCategoryId) {
       return res.status(400).json({ success: false, error: 'Категория и родительская категория обязательны' });
     }
@@ -8028,7 +8032,7 @@ router.post('/products/:id/toggle-active', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const product = await prisma.product.findUnique({ where: { id } });
-    
+
     if (!product) {
       return res.redirect('/admin/products?error=product_not_found');
     }
@@ -8050,7 +8054,7 @@ router.post('/products/:id/delete', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const product = await prisma.product.findUnique({ where: { id } });
-    
+
     if (!product) {
       return res.redirect('/admin/products?error=product_not_found');
     }
@@ -8071,26 +8075,26 @@ router.post('/products/:productId/update', requireAdmin, upload.single('image'),
   try {
     const { productId } = req.params;
     const { title, price, summary, description, instruction, isActive, categoryId, stock, availableInRussia, availableInBali } = req.body as any;
-    
+
     console.log('Update product request:', {
       productId,
       body: req.body,
       file: req.file ? 'file present' : 'no file'
     });
-    
+
     let imageUrl = undefined;
     if (req.file) {
       try {
         if (!isCloudinaryConfigured()) {
           return res.status(500).json({ success: false, error: 'Cloudinary не настроен' });
         }
-        
+
         const result = await uploadImage(req.file.buffer, {
           folder: 'vital/products',
           publicId: `product-${productId}`,
           resourceType: 'image',
         });
-        
+
         imageUrl = result.secureUrl;
         console.log('✅ Product image updated:', imageUrl);
       } catch (error: any) {
@@ -8116,7 +8120,7 @@ router.post('/products/:productId/update', requireAdmin, upload.single('image'),
       where: { id: productId },
       data: updateData,
     });
-    
+
     res.json({ success: true, product });
   } catch (error) {
     console.error('Update product error:', error);
@@ -8128,27 +8132,27 @@ router.post('/products/:productId/update', requireAdmin, upload.single('image'),
 router.post('/products/:productId/upload-image', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const { productId } = req.params;
-    
+
     if (!req.file) {
       return res.redirect(`/admin/products?error=no_image`);
     }
-    
+
     if (!isCloudinaryConfigured()) {
       return res.redirect(`/admin/products?error=cloudinary_not_configured`);
     }
-    
+
     try {
       const result = await uploadImage(req.file.buffer, {
         folder: 'vital/products',
         publicId: `product-${productId}`,
         resourceType: 'image',
       });
-      
+
       await prisma.product.update({
         where: { id: productId },
         data: { imageUrl: result.secureUrl },
       });
-      
+
       console.log('✅ Product image uploaded:', result.secureUrl);
       res.redirect(`/admin/products?success=image_updated`);
     } catch (error: any) {
@@ -8166,7 +8170,7 @@ router.post('/api/import-siam-products', requireAdmin, async (req, res) => {
     console.log('🚀 Запрос на импорт продуктов из Siam Botanicals получен');
     console.log('📋 Request headers:', req.headers);
     console.log('📋 Request body:', req.body);
-    
+
     // Запускаем импорт в фоне и возвращаем результат
     import('../services/siam-import-service.js')
       .then(({ importSiamProducts }) => {
@@ -8228,7 +8232,7 @@ router.get('/api/products/images', requireAdmin, async (req, res) => {
 
     // Группируем по URL изображения (убираем дубликаты)
     const uniqueImages = new Map<string, { url: string; products: Array<{ id: string; title: string }> }>();
-    
+
     products.forEach(product => {
       if (product.imageUrl) {
         if (!uniqueImages.has(product.imageUrl)) {
@@ -8360,7 +8364,7 @@ router.post('/api/products/:productId/upload-image-url', requireAdmin, async (re
     }
 
     const imageBuffer = Buffer.from(await response.arrayBuffer());
-    
+
     if (imageBuffer.length === 0) {
       throw new Error('Изображение пустое');
     }
@@ -8411,18 +8415,18 @@ router.post('/api/products/translate', requireAdmin, async (req, res) => {
     };
 
     if (!text || !text.trim()) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Текст для перевода не предоставлен' 
+      return res.status(400).json({
+        success: false,
+        error: 'Текст для перевода не предоставлен'
       });
     }
 
     const { aiTranslationService } = await import('../services/ai-translation-service.js');
 
     if (!aiTranslationService.isEnabled()) {
-      return res.status(503).json({ 
-        success: false, 
-        error: 'AI Translation Service не настроен. Добавьте OPENAI_API_KEY в переменные окружения.' 
+      return res.status(503).json({
+        success: false,
+        error: 'AI Translation Service не настроен. Добавьте OPENAI_API_KEY в переменные окружения.'
       });
     }
 
@@ -8470,27 +8474,27 @@ router.post('/api/products/translate', requireAdmin, async (req, res) => {
 router.post('/reviews/:reviewId/upload-image', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const { reviewId } = req.params;
-    
+
     if (!req.file) {
       return res.redirect(`/admin/reviews?error=no_image`);
     }
-    
+
     if (!isCloudinaryConfigured()) {
       return res.redirect(`/admin/reviews?error=cloudinary_not_configured`);
     }
-    
+
     try {
       const result = await uploadImage(req.file.buffer, {
         folder: 'vital/reviews',
         publicId: `review-${reviewId}`,
         resourceType: 'image',
       });
-      
+
       await prisma.review.update({
         where: { id: reviewId },
         data: { photoUrl: result.secureUrl },
       });
-      
+
       console.log('✅ Review image uploaded:', result.secureUrl);
       res.redirect(`/admin/reviews?success=image_updated`);
     } catch (error: any) {
@@ -8625,7 +8629,7 @@ router.get('/reviews', requireAdmin, async (req, res) => {
       const safeName = escapeHtml(review.name || '');
       const safeContent = escapeHtml(review.content || '');
       const safePhotoUrl = escapeAttr(review.photoUrl || '');
-      
+
       const imageSection = review.photoUrl
         ? `<img src="${safePhotoUrl}" alt="${safeName}" class="review-image" loading="lazy">`
         : `<div class="review-image-placeholder">
@@ -8683,7 +8687,7 @@ router.get('/reviews', requireAdmin, async (req, res) => {
 router.get('/orders', requireAdmin, async (req, res) => {
   try {
     const orders = await prisma.orderRequest.findMany({
-      include: { 
+      include: {
         user: {
           include: {
             partner: true
@@ -9044,31 +9048,31 @@ router.get('/logout', (req, res) => {
 router.post('/recalculate-bonuses', requireAdmin, async (req, res) => {
   try {
     console.log('🔄 Starting bonus recalculation...');
-    
+
     // Get all partner profiles
     const profiles = await prisma.partnerProfile.findMany();
-    
+
     for (const profile of profiles) {
       console.log(`📊 Processing profile ${profile.id}...`);
-      
+
       // Calculate total bonus from transactions
       const transactions = await prisma.partnerTransaction.findMany({
         where: { profileId: profile.id }
       });
-      
+
       const totalBonus = transactions.reduce((sum, tx) => {
         return sum + (tx.type === 'CREDIT' ? tx.amount : -tx.amount);
       }, 0);
-      
+
       // Update profile bonus
       await prisma.partnerProfile.update({
         where: { id: profile.id },
         data: { bonus: totalBonus }
       });
-      
+
       console.log(`✅ Updated profile ${profile.id}: ${totalBonus} PZ bonus`);
     }
-    
+
     console.log('🎉 Bonus recalculation completed!');
     res.redirect('/admin/partners?success=bonuses_recalculated');
   } catch (error) {
@@ -9080,7 +9084,7 @@ router.post('/recalculate-bonuses', requireAdmin, async (req, res) => {
 router.post('/cleanup-duplicates', requireAdmin, async (req, res) => {
   try {
     console.log('🧹 Starting cleanup of duplicate data...');
-    
+
     // Find all partner profiles
     const profiles = await prisma.partnerProfile.findMany({
       include: {
@@ -9088,13 +9092,13 @@ router.post('/cleanup-duplicates', requireAdmin, async (req, res) => {
         transactions: true
       }
     });
-    
+
     let totalReferralsDeleted = 0;
     let totalTransactionsDeleted = 0;
-    
+
     for (const profile of profiles) {
       console.log(`\n📊 Processing profile ${profile.id}...`);
-      
+
       // Group referrals by referredId to find duplicates
       const referralGroups = new Map();
       profile.referrals.forEach(ref => {
@@ -9105,15 +9109,15 @@ router.post('/cleanup-duplicates', requireAdmin, async (req, res) => {
           referralGroups.get(ref.referredId).push(ref);
         }
       });
-      
+
       // Remove duplicate referrals, keeping only the first one
       for (const [referredId, referrals] of referralGroups) {
         if (referrals.length > 1) {
           console.log(`  🔄 Found ${referrals.length} duplicates for user ${referredId}`);
-          
+
           // Sort by createdAt to keep the earliest
           referrals.sort((a: any, b: any) => a.createdAt.getTime() - b.createdAt.getTime());
-          
+
           // Keep the first one, delete the rest
           const toDelete = referrals.slice(1);
           for (const duplicate of toDelete) {
@@ -9125,7 +9129,7 @@ router.post('/cleanup-duplicates', requireAdmin, async (req, res) => {
           }
         }
       }
-      
+
       // Group transactions by description to find duplicates
       const transactionGroups = new Map();
       profile.transactions.forEach(tx => {
@@ -9135,15 +9139,15 @@ router.post('/cleanup-duplicates', requireAdmin, async (req, res) => {
         }
         transactionGroups.get(key).push(tx);
       });
-      
+
       // Remove duplicate transactions, keeping only the first one
       for (const [key, transactions] of transactionGroups) {
         if (transactions.length > 1) {
           console.log(`  🔄 Found ${transactions.length} duplicate transactions: ${key}`);
-          
+
           // Sort by createdAt to keep the earliest
           transactions.sort((a: any, b: any) => a.createdAt.getTime() - b.createdAt.getTime());
-          
+
           // Keep the first one, delete the rest
           const toDelete = transactions.slice(1);
           for (const duplicate of toDelete) {
@@ -9155,25 +9159,25 @@ router.post('/cleanup-duplicates', requireAdmin, async (req, res) => {
           }
         }
       }
-      
+
       // Recalculate bonus from remaining transactions
       const remainingTransactions = await prisma.partnerTransaction.findMany({
         where: { profileId: profile.id }
       });
-      
+
       const totalBonus = remainingTransactions.reduce((sum, tx) => {
         return sum + (tx.type === 'CREDIT' ? tx.amount : -tx.amount);
       }, 0);
-      
+
       // Update profile bonus
       await prisma.partnerProfile.update({
         where: { id: profile.id },
         data: { bonus: totalBonus }
       });
-      
+
       console.log(`  ✅ Updated profile ${profile.id}: ${totalBonus} PZ bonus`);
     }
-    
+
     console.log(`\n🎉 Cleanup completed! Deleted ${totalReferralsDeleted} duplicate referrals and ${totalTransactionsDeleted} duplicate transactions.`);
     res.redirect(`/admin/partners?success=duplicates_cleaned&referrals=${totalReferralsDeleted}&transactions=${totalTransactionsDeleted}`);
   } catch (error) {
@@ -9186,19 +9190,19 @@ router.post('/cleanup-duplicates', requireAdmin, async (req, res) => {
 router.get('/test-referral-links', requireAdmin, async (req, res) => {
   try {
     const { buildReferralLink } = await import('../services/partner-service.js');
-    
+
     // Get a sample partner profile
     const profile = await prisma.partnerProfile.findFirst({
       include: { user: true }
     });
-    
+
     if (!profile) {
       return res.send('❌ No partner profiles found for testing');
     }
-    
+
     const directLink = buildReferralLink(profile.referralCode, 'DIRECT');
     const multiLink = buildReferralLink(profile.referralCode, 'MULTI_LEVEL');
-    
+
     const html = `
       <!DOCTYPE html>
       <html>
@@ -9261,7 +9265,7 @@ router.get('/test-referral-links', requireAdmin, async (req, res) => {
       </body>
       </html>
     `;
-    
+
     res.send(html);
   } catch (error) {
     console.error('Test referral links error:', error);
@@ -9273,19 +9277,19 @@ router.get('/test-referral-links', requireAdmin, async (req, res) => {
 router.post('/recalculate-all-balances', requireAdmin, async (req, res) => {
   try {
     console.log('🔄 Starting full balance recalculation...');
-    
+
     // Get all partner profiles
     const profiles = await prisma.partnerProfile.findMany();
-    
+
     for (const profile of profiles) {
       console.log(`📊 Processing profile ${profile.id}...`);
-      
+
       // Use the centralized bonus recalculation function
       const totalBonus = await recalculatePartnerBonuses(profile.id);
-      
+
       console.log(`✅ Updated profile ${profile.id}: ${totalBonus} PZ bonus`);
     }
-    
+
     console.log('🎉 Full balance recalculation completed!');
     res.redirect('/admin/partners?success=all_balances_recalculated');
   } catch (error) {
@@ -9340,7 +9344,7 @@ router.get('/debug-partners', requireAdmin, async (req, res) => {
       const referralsCount = partner.referrals.length;
       const directReferrals = partner.referrals.filter(r => r.level === 1).length;
       const multiReferrals = partner.referrals.filter(r => r.level === 2).length;
-      
+
       html += `
         <div class="partner-card">
           <div class="partner-header">
@@ -9406,13 +9410,13 @@ router.get('/debug-partners', requireAdmin, async (req, res) => {
 router.post('/cleanup-referral-duplicates', requireAdmin, async (req, res) => {
   try {
     console.log('🧹 Starting referral duplicates cleanup...');
-    
+
     // Find all referrals
     const allReferrals = await prisma.partnerReferral.findMany({
       where: { referredId: { not: null } },
       orderBy: { createdAt: 'asc' }
     });
-    
+
     // Group by profileId + referredId combination
     const grouped = new Map<string, any[]>();
     for (const ref of allReferrals) {
@@ -9422,9 +9426,9 @@ router.post('/cleanup-referral-duplicates', requireAdmin, async (req, res) => {
       }
       grouped.get(key)!.push(ref);
     }
-    
+
     let deletedCount = 0;
-    
+
     // Process duplicates
     for (const [key, referrals] of grouped) {
       if (referrals.length > 1) {
@@ -9438,16 +9442,16 @@ router.post('/cleanup-referral-duplicates', requireAdmin, async (req, res) => {
         }
       }
     }
-    
+
     console.log(`✅ Cleaned up ${deletedCount} duplicate referrals`);
-    
+
     // Recalculate all bonuses after cleanup
     console.log('🔄 Recalculating all bonuses after referral cleanup...');
     const profiles = await prisma.partnerProfile.findMany();
     for (const profile of profiles) {
       await recalculatePartnerBonuses(profile.id);
     }
-    
+
     res.redirect('/admin/partners?success=referral_duplicates_cleaned&count=' + deletedCount);
   } catch (error) {
     console.error('❌ Referral duplicates cleanup error:', error);
@@ -9459,19 +9463,19 @@ router.post('/cleanup-referral-duplicates', requireAdmin, async (req, res) => {
 router.post('/force-recalculate-bonuses', requireAdmin, async (req, res) => {
   try {
     console.log('🔄 Starting forced bonus recalculation...');
-    
+
     // Get all partner profiles
     const profiles = await prisma.partnerProfile.findMany();
-    
+
     for (const profile of profiles) {
       console.log(`📊 Recalculating bonuses for profile ${profile.id}...`);
-      
+
       // Use the centralized bonus recalculation function
       const totalBonus = await recalculatePartnerBonuses(profile.id);
-      
+
       console.log(`✅ Updated profile ${profile.id}: ${totalBonus} PZ bonus`);
     }
-    
+
     console.log('🎉 Forced bonus recalculation completed!');
     res.redirect('/admin/partners?success=bonuses_force_recalculated');
   } catch (error) {
@@ -9485,9 +9489,9 @@ router.post('/recalculate-partner-bonuses/:profileId', requireAdmin, async (req,
   try {
     const { profileId } = req.params;
     console.log(`🔄 Force recalculating bonuses for profile ${profileId}...`);
-    
+
     const totalBonus = await recalculatePartnerBonuses(profileId);
-    
+
     console.log(`✅ Force recalculated bonuses for profile ${profileId}: ${totalBonus} PZ`);
     res.redirect(`/admin/partners?success=partner_bonuses_recalculated&bonus=${totalBonus}`);
   } catch (error) {
@@ -9500,26 +9504,26 @@ router.post('/recalculate-partner-bonuses/:profileId', requireAdmin, async (req,
 router.post('/cleanup-duplicate-bonuses', requireAdmin, async (req, res) => {
   try {
     console.log('🧹 Starting duplicate bonuses cleanup...');
-    
+
     // Get all partner profiles
     const profiles = await prisma.partnerProfile.findMany();
     let totalDeleted = 0;
-    
+
     for (const profile of profiles) {
       console.log(`📊 Processing profile ${profile.id}...`);
-      
+
       // Get all transactions for this profile
       const transactions = await prisma.partnerTransaction.findMany({
-        where: { 
+        where: {
           profileId: profile.id,
           description: { contains: 'Бонус за приглашение друга' }
         },
         orderBy: { createdAt: 'asc' }
       });
-      
+
       // Group by user ID (extract from description) or by amount+description for old format
       const bonusGroups = new Map<string, any[]>();
-      
+
       for (const tx of transactions) {
         // Extract user ID from description like "Бонус за приглашение друга (user_id)"
         const match = tx.description.match(/Бонус за приглашение друга \((.+?)\)/);
@@ -9538,7 +9542,7 @@ router.post('/cleanup-duplicate-bonuses', requireAdmin, async (req, res) => {
           bonusGroups.get(key)!.push(tx);
         }
       }
-      
+
       // Delete duplicates (keep only the first one)
       for (const [key, group] of bonusGroups) {
         if (group.length > 1) {
@@ -9553,15 +9557,15 @@ router.post('/cleanup-duplicate-bonuses', requireAdmin, async (req, res) => {
         }
       }
     }
-    
+
     console.log(`✅ Cleaned up ${totalDeleted} duplicate bonus transactions`);
-    
+
     // Recalculate all bonuses after cleanup
     console.log('🔄 Recalculating all bonuses after cleanup...');
     for (const profile of profiles) {
       await recalculatePartnerBonuses(profile.id);
     }
-    
+
     res.redirect(`/admin/partners?success=duplicate_bonuses_cleaned&count=${totalDeleted}`);
   } catch (error) {
     console.error('❌ Duplicate bonuses cleanup error:', error);
@@ -9573,33 +9577,33 @@ router.post('/cleanup-duplicate-bonuses', requireAdmin, async (req, res) => {
 router.post('/reset-all-partners', requireAdmin, async (req, res) => {
   try {
     console.log('🗑️ Starting reset all partners...');
-    
+
     // Сначала посчитаем количество партнеров
     const partnerCount = await prisma.partnerProfile.count();
     console.log(`📊 Found ${partnerCount} partner profiles to delete`);
-    
+
     if (partnerCount === 0) {
       return res.redirect('/admin/partners?success=all_partners_reset&count=0');
     }
-    
+
     // Удаляем все PartnerTransaction (они каскадно удалятся при удалении PartnerProfile, но для ясности удаляем явно)
     const transactionCount = await prisma.partnerTransaction.count();
     console.log(`📊 Found ${transactionCount} transactions to delete`);
     await prisma.partnerTransaction.deleteMany({});
     console.log(`✅ Deleted ${transactionCount} partner transactions`);
-    
+
     // Удаляем все PartnerReferral (они каскадно удалятся при удалении PartnerProfile, но для ясности удаляем явно)
     const referralCount = await prisma.partnerReferral.count();
     console.log(`📊 Found ${referralCount} referrals to delete`);
     await prisma.partnerReferral.deleteMany({});
     console.log(`✅ Deleted ${referralCount} partner referrals`);
-    
+
     // Удаляем все PartnerProfile
     await prisma.partnerProfile.deleteMany({});
     console.log(`✅ Deleted ${partnerCount} partner profiles`);
-    
+
     console.log(`\n🎉 Reset all partners completed! Deleted ${partnerCount} profiles, ${referralCount} referrals, ${transactionCount} transactions.`);
-    
+
     res.redirect(`/admin/partners?success=all_partners_reset&count=${partnerCount}`);
   } catch (error: any) {
     console.error('❌ Reset all partners error:', error);
@@ -9612,7 +9616,7 @@ router.post('/reset-all-partners', requireAdmin, async (req, res) => {
 router.post('/fix-roman-bonuses', requireAdmin, async (req, res) => {
   try {
     console.log('🔧 Fixing Roman Arctur bonuses...');
-    
+
     // Find Roman Arctur's profile
     const romanProfile = await prisma.partnerProfile.findFirst({
       where: {
@@ -9621,40 +9625,40 @@ router.post('/fix-roman-bonuses', requireAdmin, async (req, res) => {
         }
       }
     });
-    
+
     if (!romanProfile) {
       console.log('❌ Roman Arctur profile not found');
       res.redirect('/admin/partners?error=roman_profile_not_found');
       return;
     }
-    
+
     console.log(`📊 Found Roman Arctur profile: ${romanProfile.id}`);
-    
+
     // Get all transactions for Roman
     const transactions = await prisma.partnerTransaction.findMany({
       where: { profileId: romanProfile.id }
     });
-    
+
     console.log(`📊 Roman has ${transactions.length} transactions:`);
     transactions.forEach(tx => {
       console.log(`  - ${tx.type} ${tx.amount} PZ: ${tx.description} (${tx.createdAt})`);
     });
-    
+
     // Check current bonus before recalculation
     const currentProfile = await prisma.partnerProfile.findUnique({
       where: { id: romanProfile.id }
     });
     console.log(`💰 Current bonus before recalculation: ${currentProfile?.bonus} PZ`);
-    
+
     // Recalculate bonuses
     const totalBonus = await recalculatePartnerBonuses(romanProfile.id);
-    
+
     // Check bonus after recalculation
     const updatedProfile = await prisma.partnerProfile.findUnique({
       where: { id: romanProfile.id }
     });
     console.log(`💰 Bonus after recalculation: ${updatedProfile?.bonus} PZ`);
-    
+
     console.log(`✅ Roman Arctur bonuses fixed: ${totalBonus} PZ`);
     res.redirect(`/admin/partners?success=roman_bonuses_fixed&bonus=${totalBonus}`);
   } catch (error) {
@@ -9666,17 +9670,17 @@ router.post('/fix-roman-bonuses', requireAdmin, async (req, res) => {
 router.get('/users/:userId/partners-page', requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     // Get user info
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { partner: true }
     });
-    
+
     if (!user) {
       return res.status(404).send('Пользователь не найден');
     }
-    
+
     // Get user's partner profile
     const partnerProfile = await prisma.partnerProfile.findUnique({
       where: { userId },
@@ -9693,7 +9697,7 @@ router.get('/users/:userId/partners-page', requireAdmin, async (req, res) => {
         }
       }
     });
-    
+
     if (!partnerProfile) {
       return res.send(`
         <!DOCTYPE html>
@@ -9720,18 +9724,18 @@ router.get('/users/:userId/partners-page', requireAdmin, async (req, res) => {
         </html>
       `);
     }
-    
+
     // Get actual referred users
     const referredUserIds = partnerProfile.referrals.map(ref => ref.referredId).filter((id): id is string => Boolean(id));
     const referredUsers = await prisma.user.findMany({
       where: { id: { in: referredUserIds } },
       select: { id: true, firstName: true, lastName: true, username: true, telegramId: true, createdAt: true }
     });
-    
+
     // Group referrals by level
     const directPartners = partnerProfile.referrals.filter(ref => ref.level === 1);
     const multiPartners = partnerProfile.referrals.filter(ref => ref.level > 1);
-    
+
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -9806,8 +9810,8 @@ router.get('/users/:userId/partners-page', requireAdmin, async (req, res) => {
                 <h3 class="section-title">🎯 Прямые партнеры (уровень 1)</h3>
                 <div class="partners-list">
                   ${directPartners.map(ref => {
-                    const referredUser = referredUsers.find(u => u.id === ref.referredId);
-                    return referredUser ? `
+      const referredUser = referredUsers.find(u => u.id === ref.referredId);
+      return referredUser ? `
                       <div class="partner-card">
                         <div class="partner-info">
                           <div class="partner-avatar">${(referredUser.firstName || 'U')[0].toUpperCase()}</div>
@@ -9822,7 +9826,7 @@ router.get('/users/:userId/partners-page', requireAdmin, async (req, res) => {
                         </div>
                       </div>
                     ` : '';
-                  }).join('')}
+    }).join('')}
                 </div>
               </div>
             ` : ''}
@@ -9832,8 +9836,8 @@ router.get('/users/:userId/partners-page', requireAdmin, async (req, res) => {
                 <h3 class="section-title">🌐 Мульти-партнеры (уровень 2+)</h3>
                 <div class="partners-list">
                   ${multiPartners.map(ref => {
-                    const referredUser = referredUsers.find(u => u.id === ref.referredId);
-                    return referredUser ? `
+      const referredUser = referredUsers.find(u => u.id === ref.referredId);
+      return referredUser ? `
                       <div class="partner-card">
                         <div class="partner-info">
                           <div class="partner-avatar">${(referredUser.firstName || 'U')[0].toUpperCase()}</div>
@@ -9848,7 +9852,7 @@ router.get('/users/:userId/partners-page', requireAdmin, async (req, res) => {
                         </div>
                       </div>
                     ` : '';
-                  }).join('')}
+    }).join('')}
                 </div>
               </div>
             ` : ''}
@@ -9875,18 +9879,18 @@ router.post('/users/:userId/delivery-address', requireAdmin, async (req, res) =>
   try {
     const { userId } = req.params;
     const { addressType, address } = req.body;
-    
+
     if (!addressType || !address) {
       return res.status(400).json({ error: 'Тип адреса и адрес обязательны' });
     }
-    
+
     const fullAddress = `${addressType}: ${address}`;
-    
+
     await prisma.user.update({
       where: { id: userId },
       data: { deliveryAddress: fullAddress } as any
     });
-    
+
     res.json({ success: true });
   } catch (error) {
     console.error('Error updating delivery address:', error);
@@ -9899,23 +9903,23 @@ router.post('/users/:userId/toggle-partner-program', requireAdmin, async (req, r
   try {
     const { userId } = req.params;
     const { isActive } = req.body;
-    
+
     console.log('🔄 Toggle partner program request:', { userId, isActive });
-    
+
     if (typeof isActive !== 'boolean') {
       return res.json({ success: false, error: 'Неверный параметр isActive' });
     }
-    
+
     // Get user
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { partner: true }
     });
-    
+
     if (!user) {
       return res.json({ success: false, error: 'Пользователь не найден' });
     }
-    
+
     // Если у пользователя нет партнерского профиля, создаем его
     if (!user.partner) {
       // Генерируем уникальный referral code
@@ -9930,7 +9934,7 @@ router.post('/users/:userId/toggle-partner-program', requireAdmin, async (req, r
           isUnique = true;
         }
       }
-      
+
       await prisma.partnerProfile.create({
         data: {
           userId: user.id,
@@ -9941,7 +9945,7 @@ router.post('/users/:userId/toggle-partner-program', requireAdmin, async (req, r
           programType: 'DIRECT'
         }
       });
-      
+
       console.log(`✅ Partner profile created and ${isActive ? 'activated' : 'deactivated'}: ${userId}`);
     } else {
       // Обновляем существующий профиль
@@ -9953,10 +9957,10 @@ router.post('/users/:userId/toggle-partner-program', requireAdmin, async (req, r
           activationType: 'ADMIN'
         }
       });
-      
+
       console.log(`✅ Partner program ${isActive ? 'activated' : 'deactivated'}: ${userId}`);
     }
-    
+
     return res.json({ success: true, isActive: isActive });
   } catch (error: any) {
     console.error('❌ Error toggling partner program:', error);
@@ -9968,30 +9972,30 @@ router.post('/users/:userId/update-balance', requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
     const { operation, amount, comment } = req.body;
-    
+
     console.log('💰 Balance update request:', { userId, operation, amount, comment });
-    
+
     if (!operation || !amount || amount <= 0) {
       return res.json({ success: false, error: 'Неверные параметры' });
     }
-    
+
     if (!comment || comment.trim().length === 0) {
       return res.json({ success: false, error: 'Комментарий обязателен' });
     }
-    
+
     // Get user
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { partner: true }
     });
-    
+
     if (!user) {
       return res.json({ success: false, error: 'Пользователь не найден' });
     }
-    
+
     const currentBalance = user.balance;
     let newBalance;
-    
+
     if (operation === 'add') {
       newBalance = currentBalance + amount;
     } else if (operation === 'subtract') {
@@ -10002,15 +10006,15 @@ router.post('/users/:userId/update-balance', requireAdmin, async (req, res) => {
     } else {
       return res.json({ success: false, error: 'Неверная операция' });
     }
-    
+
     // Update user balance
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: { balance: newBalance }
     });
-    
+
     console.log(`✅ User balance updated: ${userId} from ${currentBalance} to ${updatedUser.balance}`);
-    
+
     // If user has partner profile, update it too, otherwise create one
     if (user.partner) {
       const updatedProfile = await prisma.partnerProfile.update({
@@ -10031,7 +10035,7 @@ router.post('/users/:userId/update-balance', requireAdmin, async (req, res) => {
       });
       console.log(`✅ Partner profile created: ${newProfile.id} with balance ${newBalance}`);
     }
-    
+
     // Log the transaction
     await prisma.userHistory.create({
       data: {
@@ -10046,15 +10050,15 @@ router.post('/users/:userId/update-balance', requireAdmin, async (req, res) => {
         }
       }
     });
-    
+
     console.log(`✅ Balance updated: ${userId} ${operation} ${amount} PZ (${currentBalance} -> ${newBalance})`);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       newBalance,
       message: `Баланс успешно ${operation === 'add' ? 'пополнен' : 'списан'} на ${amount} PZ`
     });
-    
+
   } catch (error) {
     console.error('❌ Balance update error:', error);
     res.json({ success: false, error: 'Ошибка обновления баланса' });
@@ -10063,11 +10067,11 @@ router.post('/users/:userId/update-balance', requireAdmin, async (req, res) => {
 // Helper functions for user orders page
 function createUserOrderCard(order: any, user: any) {
   // Handle both string and object types for itemsJson
-  const items = typeof order.itemsJson === 'string' 
-    ? JSON.parse(order.itemsJson || '[]') 
+  const items = typeof order.itemsJson === 'string'
+    ? JSON.parse(order.itemsJson || '[]')
     : (order.itemsJson || []);
   const totalAmount = items.reduce((sum: number, item: any) => sum + (item.price || 0) * (item.quantity || 1), 0);
-  
+
   return `
     <div class="order-card ${order.status.toLowerCase()}">
       <div class="order-header">
@@ -10134,12 +10138,12 @@ function createUserOrderCard(order: any, user: any) {
         </div>
         
         <div class="order-edit-actions">
-          ${order.status !== 'COMPLETED' && order.status !== 'CANCELLED' ? 
-            '<button class="edit-btn" onclick="openEditOrderModal(\'' + order.id + '\')">✏️ Редактировать</button>' 
-            : ''}
-          ${order.status !== 'COMPLETED' && order.status !== 'CANCELLED' ? 
-            '<button class="pay-btn" onclick="payFromBalance(\'' + order.id + '\', ' + totalAmount + ')">💳 Оплатить с баланса</button>' 
-            : ''}
+          ${order.status !== 'COMPLETED' && order.status !== 'CANCELLED' ?
+      '<button class="edit-btn" onclick="openEditOrderModal(\'' + order.id + '\')">✏️ Редактировать</button>'
+      : ''}
+          ${order.status !== 'COMPLETED' && order.status !== 'CANCELLED' ?
+      '<button class="pay-btn" onclick="payFromBalance(\'' + order.id + '\', ' + totalAmount + ')">💳 Оплатить с баланса</button>'
+      : ''}
         </div>
       </div>
     </div>
@@ -10156,134 +10160,196 @@ function getStatusDisplayName(status: string) {
   return names[status as keyof typeof names] || status;
 }
 // Show user orders page
-  // Test route for debugging
-  router.get('/debug-user/:userId', requireAdmin, async (req, res) => {
-    try {
-      const { userId } = req.params;
-      console.log(`🔍 DEBUG: Testing user ID: ${userId}`);
-      
-      const user = await prisma.user.findUnique({
-        where: { id: userId }
-      });
-      
-      console.log(`🔍 DEBUG: User found:`, user ? 'YES' : 'NO');
-      
-      res.json({
-        success: true,
-        userId,
-        userExists: !!user,
-        userData: user ? {
-          id: user.id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          username: user.username
-        } : null
-      });
-    } catch (error) {
-      console.error('🔍 DEBUG Error:', error);
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : String(error)
-      });
-    }
-  });
+// Test route for debugging
+router.get('/debug-user/:userId', requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log(`🔍 DEBUG: Testing user ID: ${userId}`);
 
-  // Detailed test route for debugging card issues
-  router.get('/debug-user-full/:userId', requireAdmin, async (req, res) => {
-    try {
-      const { userId } = req.params;
-      console.log(`🔍 DEBUG FULL: Testing user ID: ${userId}`);
-      
-      // Test basic user query
-      const user = await prisma.user.findUnique({
-        where: { id: userId }
-      });
-      console.log(`🔍 DEBUG FULL: Basic user query - success`);
-      
-      // Test user with orders
-      const userWithOrders = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    console.log(`🔍 DEBUG: User found:`, user ? 'YES' : 'NO');
+
+    res.json({
+      success: true,
+      userId,
+      userExists: !!user,
+      userData: user ? {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        username: user.username
+      } : null
+    });
+  } catch (error) {
+    console.error('🔍 DEBUG Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Detailed test route for debugging card issues
+router.get('/debug-user-full/:userId', requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log(`🔍 DEBUG FULL: Testing user ID: ${userId}`);
+
+    // Test basic user query
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+    console.log(`🔍 DEBUG FULL: Basic user query - success`);
+
+    // Test user with orders
+    const userWithOrders = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        orders: {
+          orderBy: { createdAt: 'desc' }
+        }
+      }
+    }) as any;
+    console.log(`🔍 DEBUG FULL: User with orders query - success`);
+    console.log(`🔍 DEBUG FULL: Orders count:`, userWithOrders?.orders?.length || 0);
+
+    // Test partner profile
+    const partnerProfile = await prisma.partnerProfile.findUnique({
+      where: { userId }
+    });
+    console.log(`🔍 DEBUG FULL: Partner profile query - success`);
+
+    // Test user history
+    const userHistory = await prisma.userHistory.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    console.log(`🔍 DEBUG FULL: User history query - success`);
+    console.log(`🔍 DEBUG FULL: History count:`, userHistory?.length || 0);
+
+    // Test calculations
+    const totalOrders = userWithOrders?.orders?.length || 0;
+    const completedOrders = userWithOrders?.orders?.filter((o: any) => o.status === 'COMPLETED').length || 0;
+    const totalSpent = userWithOrders?.orders
+      ?.filter((o: any) => o.status === 'COMPLETED')
+      .reduce((sum: number, order: any) => sum + (order.totalAmount || 0), 0) || 0;
+
+    console.log(`🔍 DEBUG FULL: Calculations - success`);
+    console.log(`🔍 DEBUG FULL: Total orders: ${totalOrders}, Completed: ${completedOrders}, Spent: ${totalSpent}`);
+
+    res.json({
+      success: true,
+      userId,
+      userExists: !!user,
+      userData: user ? {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        username: user.username
+      } : null,
+      ordersCount: totalOrders,
+      completedOrdersCount: completedOrders,
+      totalSpent: totalSpent,
+      partnerProfileExists: !!partnerProfile,
+      historyCount: userHistory?.length || 0,
+      allQueriesSuccessful: true
+    });
+  } catch (error) {
+    console.error('🔍 DEBUG FULL Error:', error);
+    console.error('🔍 DEBUG FULL Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: req.params.userId
+    });
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+      userId: req.params.userId
+    });
+  }
+});
+
+// Get user card with transaction history (simplified version)
+router.get('/users/:userId/card', requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log(`🔍 Loading user card for ID: ${userId}`);
+
+    // Get user with basic data only (no include to avoid complex queries)
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    console.log(`👤 User found:`, user ? `${user.firstName} ${user.lastName}` : 'null');
+
+    if (!user) {
+      return res.status(404).send(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Пользователь не найден</title>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+              .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
+              .back-btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-bottom: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <a href="/admin" class="back-btn">← Назад к админ-панели</a>
+              <h2>❌ Пользователь не найден</h2>
+              <p>Пользователь с ID ${userId} не существует</p>
+            </div>
+          </body>
+          </html>
+        `);
+    }
+
+    // Sync balance between User and PartnerProfile
+    const partnerProfile = await prisma.partnerProfile.findUnique({
+      where: { userId }
+    });
+
+    if (partnerProfile && partnerProfile.balance !== user.balance) {
+      console.log(`🔄 Syncing balance: User=${user.balance} PZ, PartnerProfile=${partnerProfile.balance} PZ`);
+      // Use PartnerProfile balance as source of truth
+      await prisma.user.update({
         where: { id: userId },
-        include: {
-          orders: {
-            orderBy: { createdAt: 'desc' }
-          }
-        }
-      }) as any;
-      console.log(`🔍 DEBUG FULL: User with orders query - success`);
-      console.log(`🔍 DEBUG FULL: Orders count:`, userWithOrders?.orders?.length || 0);
-      
-      // Test partner profile
-      const partnerProfile = await prisma.partnerProfile.findUnique({
-        where: { userId }
+        data: { balance: partnerProfile.balance }
       });
-      console.log(`🔍 DEBUG FULL: Partner profile query - success`);
-      
-      // Test user history
-      const userHistory = await prisma.userHistory.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        take: 50
-      });
-      console.log(`🔍 DEBUG FULL: User history query - success`);
-      console.log(`🔍 DEBUG FULL: History count:`, userHistory?.length || 0);
-      
-      // Test calculations
-      const totalOrders = userWithOrders?.orders?.length || 0;
-      const completedOrders = userWithOrders?.orders?.filter((o: any) => o.status === 'COMPLETED').length || 0;
-      const totalSpent = userWithOrders?.orders
-        ?.filter((o: any) => o.status === 'COMPLETED')
-        .reduce((sum: number, order: any) => sum + (order.totalAmount || 0), 0) || 0;
-      
-      console.log(`🔍 DEBUG FULL: Calculations - success`);
-      console.log(`🔍 DEBUG FULL: Total orders: ${totalOrders}, Completed: ${completedOrders}, Spent: ${totalSpent}`);
-      
-      res.json({
-        success: true,
-        userId,
-        userExists: !!user,
-        userData: user ? {
-          id: user.id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          username: user.username
-        } : null,
-        ordersCount: totalOrders,
-        completedOrdersCount: completedOrders,
-        totalSpent: totalSpent,
-        partnerProfileExists: !!partnerProfile,
-        historyCount: userHistory?.length || 0,
-        allQueriesSuccessful: true
-      });
-    } catch (error) {
-      console.error('🔍 DEBUG FULL Error:', error);
-      console.error('🔍 DEBUG FULL Error details:', {
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        userId: req.params.userId
-      });
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        userId: req.params.userId
-      });
+      user.balance = partnerProfile.balance;
+      console.log(`✅ Balance synced to ${user.balance} PZ`);
     }
-  });
 
-  // Get user card with transaction history (simplified version)
-  router.get('/users/:userId/card', requireAdmin, async (req, res) => {
-    try {
-      const { userId } = req.params;
-      console.log(`🔍 Loading user card for ID: ${userId}`);
-      
-      // Get user with basic data only (no include to avoid complex queries)
-      const user = await prisma.user.findUnique({
-        where: { id: userId }
-      });
-      
-      console.log(`👤 User found:`, user ? `${user.firstName} ${user.lastName}` : 'null');
+    // Get data separately to avoid complex queries
+    console.log(`📦 Getting orders for user: ${userId}`);
+    const orders = await prisma.orderRequest.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' }
+    });
+    console.log(`📦 Orders count:`, orders?.length || 0);
 
-      if (!user) {
-        return res.status(404).send(`
+    console.log(`🤝 Partner profile found:`, partnerProfile ? 'yes' : 'no');
+
+    // Проверяем статус активации
+    const isActive = partnerProfile ? await checkPartnerActivation(userId) : false;
+    console.log(`🤝 Partner profile is active:`, isActive);
+
+    console.log(`📊 Getting user history for user: ${userId}`);
+    const userHistory = await prisma.userHistory.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 20 // Limit to 20 records to avoid issues
+    });
+    console.log(`📊 User history count:`, userHistory?.length || 0);
+
+    if (!user) {
+      return res.status(404).send(`
           <!DOCTYPE html>
           <html>
           <head>
@@ -10304,147 +10370,85 @@ function getStatusDisplayName(status: string) {
           </body>
           </html>
         `);
-      }
+    }
 
-      // Sync balance between User and PartnerProfile
-      const partnerProfile = await prisma.partnerProfile.findUnique({
-        where: { userId }
-      });
-      
-      if (partnerProfile && partnerProfile.balance !== user.balance) {
-        console.log(`🔄 Syncing balance: User=${user.balance} PZ, PartnerProfile=${partnerProfile.balance} PZ`);
-        // Use PartnerProfile balance as source of truth
-        await prisma.user.update({
-          where: { id: userId },
-          data: { balance: partnerProfile.balance }
-        });
-        user.balance = partnerProfile.balance;
-        console.log(`✅ Balance synced to ${user.balance} PZ`);
-      }
+    // Calculate statistics with safe handling
+    const totalOrders = orders?.length || 0;
+    const completedOrders = orders?.filter((o: any) => o && o.status === 'COMPLETED').length || 0;
+    const totalSpent = orders
+      ?.filter((o: any) => o && o.status === 'COMPLETED')
+      .reduce((sum: number, order: any) => {
+        const amount = order?.totalAmount || 0;
+        return sum + (typeof amount === 'number' ? amount : 0);
+      }, 0) || 0;
 
-      // Get data separately to avoid complex queries
-      console.log(`📦 Getting orders for user: ${userId}`);
-      const orders = await prisma.orderRequest.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' }
-      });
-      console.log(`📦 Orders count:`, orders?.length || 0);
+    const totalPartners = 0; // Simplified for now
+    const activePartners = 0; // Simplified for now
 
-      console.log(`🤝 Partner profile found:`, partnerProfile ? 'yes' : 'no');
-      
-      // Проверяем статус активации
-      const isActive = partnerProfile ? await checkPartnerActivation(userId) : false;
-      console.log(`🤝 Partner profile is active:`, isActive);
-
-      console.log(`📊 Getting user history for user: ${userId}`);
-      const userHistory = await prisma.userHistory.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        take: 20 // Limit to 20 records to avoid issues
-      });
-      console.log(`📊 User history count:`, userHistory?.length || 0);
-
-      if (!user) {
-        return res.status(404).send(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>Пользователь не найден</title>
-            <meta charset="utf-8">
-            <style>
-              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-              .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
-              .back-btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-bottom: 20px; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <a href="/admin" class="back-btn">← Назад к админ-панели</a>
-              <h2>❌ Пользователь не найден</h2>
-              <p>Пользователь с ID ${userId} не существует</p>
-            </div>
-          </body>
-          </html>
-        `);
-      }
-
-      // Calculate statistics with safe handling
-      const totalOrders = orders?.length || 0;
-      const completedOrders = orders?.filter((o: any) => o && o.status === 'COMPLETED').length || 0;
-      const totalSpent = orders
-        ?.filter((o: any) => o && o.status === 'COMPLETED')
-        .reduce((sum: number, order: any) => {
-          const amount = order?.totalAmount || 0;
-          return sum + (typeof amount === 'number' ? amount : 0);
-        }, 0) || 0;
-      
-      const totalPartners = 0; // Simplified for now
-      const activePartners = 0; // Simplified for now
-
-      // Group transactions by date with safe handling
-      const transactionsByDate: { [key: string]: any[] } = {};
-      userHistory?.forEach((tx: any) => {
-        if (tx && tx.createdAt) {
-          try {
-            const date = tx.createdAt.toISOString().split('T')[0];
-            if (!transactionsByDate[date]) {
-              transactionsByDate[date] = [];
-            }
-            transactionsByDate[date].push(tx);
-          } catch (error) {
-            console.error('Error processing transaction date:', error, tx);
+    // Group transactions by date with safe handling
+    const transactionsByDate: { [key: string]: any[] } = {};
+    userHistory?.forEach((tx: any) => {
+      if (tx && tx.createdAt) {
+        try {
+          const date = tx.createdAt.toISOString().split('T')[0];
+          if (!transactionsByDate[date]) {
+            transactionsByDate[date] = [];
           }
-        }
-      });
-
-      // Серверные функции для преобразования названий операций
-      function getBalanceActionNameServer(action: string): string {
-        const actionNames: { [key: string]: string } = {
-          'balance_updated': '💰 Изменение баланса',
-          'REFERRAL_BONUS': '🎯 Реферальный бонус',
-          'ORDER_PAYMENT': '💳 Оплата заказа',
-          'BALANCE_ADD': '➕ Пополнение баланса',
-          'BALANCE_SUBTRACT': '➖ Списание с баланса'
-        };
-        return actionNames[action] || action;
-      }
-
-      function getExpirationStatusColorServer(expiresAt: Date): string {
-        const now = new Date();
-        const expiration = new Date(expiresAt);
-        const daysLeft = Math.ceil((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        
-        if (daysLeft < 0) {
-          return '#dc3545'; // Красный - истекла
-        } else if (daysLeft <= 3) {
-          return '#ffc107'; // Желтый - скоро истекает
-        } else if (daysLeft <= 7) {
-          return '#fd7e14'; // Оранжевый - неделя
-        } else {
-          return '#28a745'; // Зеленый - много времени
+          transactionsByDate[date].push(tx);
+        } catch (error) {
+          console.error('Error processing transaction date:', error, tx);
         }
       }
+    });
 
-      function getExpirationStatusTextServer(expiresAt: Date): string {
-        const now = new Date();
-        const expiration = new Date(expiresAt);
-        const daysLeft = Math.ceil((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        
-        if (daysLeft < 0) {
-          return '❌ Активация истекла';
-        } else if (daysLeft === 0) {
-          return '⚠️ Истекает сегодня';
-        } else if (daysLeft === 1) {
-          return '⚠️ Истекает завтра';
-        } else if (daysLeft <= 3) {
-          return `⚠️ Истекает через ${daysLeft} дня`;
-        } else if (daysLeft <= 7) {
-          return `🟡 Истекает через ${daysLeft} дней`;
-        } else {
-          return `✅ Действует еще ${daysLeft} дней`;
-        }
+    // Серверные функции для преобразования названий операций
+    function getBalanceActionNameServer(action: string): string {
+      const actionNames: { [key: string]: string } = {
+        'balance_updated': '💰 Изменение баланса',
+        'REFERRAL_BONUS': '🎯 Реферальный бонус',
+        'ORDER_PAYMENT': '💳 Оплата заказа',
+        'BALANCE_ADD': '➕ Пополнение баланса',
+        'BALANCE_SUBTRACT': '➖ Списание с баланса'
+      };
+      return actionNames[action] || action;
+    }
+
+    function getExpirationStatusColorServer(expiresAt: Date): string {
+      const now = new Date();
+      const expiration = new Date(expiresAt);
+      const daysLeft = Math.ceil((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysLeft < 0) {
+        return '#dc3545'; // Красный - истекла
+      } else if (daysLeft <= 3) {
+        return '#ffc107'; // Желтый - скоро истекает
+      } else if (daysLeft <= 7) {
+        return '#fd7e14'; // Оранжевый - неделя
+      } else {
+        return '#28a745'; // Зеленый - много времени
       }
-      const html = `
+    }
+
+    function getExpirationStatusTextServer(expiresAt: Date): string {
+      const now = new Date();
+      const expiration = new Date(expiresAt);
+      const daysLeft = Math.ceil((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysLeft < 0) {
+        return '❌ Активация истекла';
+      } else if (daysLeft === 0) {
+        return '⚠️ Истекает сегодня';
+      } else if (daysLeft === 1) {
+        return '⚠️ Истекает завтра';
+      } else if (daysLeft <= 3) {
+        return `⚠️ Истекает через ${daysLeft} дня`;
+      } else if (daysLeft <= 7) {
+        return `🟡 Истекает через ${daysLeft} дней`;
+      } else {
+        return `✅ Действует еще ${daysLeft} дней`;
+      }
+    }
+    const html = `
         <!DOCTYPE html>
         <html>
         <head>
@@ -10594,17 +10598,17 @@ function getStatusDisplayName(status: string) {
               <div id="balance" class="tab-content active">
                 <h2>💰 История изменений баланса</h2>
                 <p style="color: #6c757d; margin-bottom: 20px;">Кликните на изменение баланса для просмотра деталей</p>
-                ${Object.keys(transactionsByDate).length === 0 ? 
-                  '<p style="text-align: center; color: #6c757d; padding: 40px;">Нет изменений баланса</p>' :
-                  Object.keys(transactionsByDate).map(date => `
+                ${Object.keys(transactionsByDate).length === 0 ?
+        '<p style="text-align: center; color: #6c757d; padding: 40px;">Нет изменений баланса</p>' :
+        Object.keys(transactionsByDate).map(date => `
                     <h3 style="color: #6c757d; margin: 20px 0 10px 0; font-size: 16px;">${new Date(date).toLocaleDateString('ru-RU')}</h3>
                     ${transactionsByDate[date]
-                      .filter(tx => {
-                        // Показываем только финансовые операции
-                        const financialActions = ['balance_updated', 'REFERRAL_BONUS', 'ORDER_PAYMENT', 'BALANCE_ADD', 'BALANCE_SUBTRACT'];
-                        return financialActions.includes(tx.action) && tx.amount !== 0;
-                      })
-                      .map(tx => `
+            .filter(tx => {
+              // Показываем только финансовые операции
+              const financialActions = ['balance_updated', 'REFERRAL_BONUS', 'ORDER_PAYMENT', 'BALANCE_ADD', 'BALANCE_SUBTRACT'];
+              return financialActions.includes(tx.action) && tx.amount !== 0;
+            })
+            .map(tx => `
                       <div class="transaction-item balance-item" onclick="showBalanceDetails('${tx.id}', '${tx.action}', ${tx.amount || 0}, '${tx.createdAt.toLocaleString('ru-RU')}')">
                         <div class="transaction-details">
                           <div><strong>${getBalanceActionNameServer(tx.action)}</strong></div>
@@ -10616,14 +10620,14 @@ function getStatusDisplayName(status: string) {
                       </div>
                     `).join('')}
                   `).join('')
-                }
+      }
               </div>
 
               <div id="transactions" class="tab-content">
                 <h2>📊 История транзакций</h2>
-                ${Object.keys(transactionsByDate).length === 0 ? 
-                  '<p style="text-align: center; color: #6c757d; padding: 40px;">Нет транзакций</p>' :
-                  Object.keys(transactionsByDate).map(date => `
+                ${Object.keys(transactionsByDate).length === 0 ?
+        '<p style="text-align: center; color: #6c757d; padding: 40px;">Нет транзакций</p>' :
+        Object.keys(transactionsByDate).map(date => `
                     <h3 style="color: #6c757d; margin: 20px 0 10px 0; font-size: 16px;">${new Date(date).toLocaleDateString('ru-RU')}</h3>
                     ${transactionsByDate[date].map(tx => `
                       <div class="transaction-item">
@@ -10637,7 +10641,7 @@ function getStatusDisplayName(status: string) {
                       </div>
                     `).join('')}
                   `).join('')
-                }
+      }
               </div>
 
               <div id="partners" class="tab-content">
@@ -10664,9 +10668,9 @@ function getStatusDisplayName(status: string) {
 
               <div id="orders" class="tab-content">
                 <h2>📦 Заказы</h2>
-                ${(orders?.length || 0) === 0 ? 
-                  '<p style="text-align: center; color: #6c757d; padding: 40px;">Нет заказов</p>' :
-                  orders?.map((order: any) => `
+                ${(orders?.length || 0) === 0 ?
+        '<p style="text-align: center; color: #6c757d; padding: 40px;">Нет заказов</p>' :
+        orders?.map((order: any) => `
                     <div class="transaction-item">
                       <div class="transaction-details">
                         <div><strong>Заказ #${order.id}</strong></div>
@@ -10682,7 +10686,7 @@ function getStatusDisplayName(status: string) {
                       </div>
                     </div>
                   `).join('')
-                }
+      }
               </div>
             </div>
           </div>
@@ -10815,86 +10819,86 @@ function getStatusDisplayName(status: string) {
         </html>
       `;
 
-      res.send(html);
-    } catch (error) {
-      console.error('❌ Error loading user card:', error);
-      console.error('❌ Error details:', {
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        userId: req.params.userId
-      });
-      res.status(500).send('Ошибка загрузки карточки пользователя');
-    }
-  });
+    res.send(html);
+  } catch (error) {
+    console.error('❌ Error loading user card:', error);
+    console.error('❌ Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: req.params.userId
+    });
+    res.status(500).send('Ошибка загрузки карточки пользователя');
+  }
+});
 
-  // Activate referral program for user
-  router.post('/users/:userId/activate-referral', requireAdmin, async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const { months, programType } = req.body;
-      
-      const user = await prisma.user.findUnique({
-        where: { id: userId }
-      });
-
-      if (!user) {
-        return res.status(404).send('Пользователь не найден');
-      }
-
-      // Check if user already has partner profile
-      const existingProfile = await prisma.partnerProfile.findUnique({
-        where: { userId }
-      });
-
-      if (existingProfile) {
-        // Update existing profile
-        await prisma.partnerProfile.update({
-          where: { userId },
-          data: {
-            programType: 'MULTI_LEVEL' // Always use MULTI_LEVEL for dual system
-          }
-        });
-      } else {
-        // Create new partner profile
-        const referralCode = `REF${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
-        
-        await prisma.partnerProfile.create({
-          data: {
-            userId,
-            programType: 'MULTI_LEVEL', // Always use MULTI_LEVEL for dual system
-            referralCode,
-            balance: 0,
-            bonus: 0
-          }
-        });
-      }
-
-      // Активируем партнерский профиль через админку
-      await activatePartnerProfile(userId, 'ADMIN', parseInt(months));
-
-      console.log(`✅ Referral program activated for user ${userId} for ${months} months`);
-
-      res.redirect(`/admin/users/${userId}/card?success=referral_activated`);
-    } catch (error) {
-      console.error('❌ Error activating referral program:', error);
-      res.status(500).send('Ошибка активации реферальной программы');
-    }
-  });
-  // Get user orders
-  router.get('/users/:userId/orders', requireAdmin, async (req, res) => {
-    try {
+// Activate referral program for user
+router.post('/users/:userId/activate-referral', requireAdmin, async (req, res) => {
+  try {
     const { userId } = req.params;
-    
+    const { months, programType } = req.body;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      return res.status(404).send('Пользователь не найден');
+    }
+
+    // Check if user already has partner profile
+    const existingProfile = await prisma.partnerProfile.findUnique({
+      where: { userId }
+    });
+
+    if (existingProfile) {
+      // Update existing profile
+      await prisma.partnerProfile.update({
+        where: { userId },
+        data: {
+          programType: 'MULTI_LEVEL' // Always use MULTI_LEVEL for dual system
+        }
+      });
+    } else {
+      // Create new partner profile
+      const referralCode = `REF${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+
+      await prisma.partnerProfile.create({
+        data: {
+          userId,
+          programType: 'MULTI_LEVEL', // Always use MULTI_LEVEL for dual system
+          referralCode,
+          balance: 0,
+          bonus: 0
+        }
+      });
+    }
+
+    // Активируем партнерский профиль через админку
+    await activatePartnerProfile(userId, 'ADMIN', parseInt(months));
+
+    console.log(`✅ Referral program activated for user ${userId} for ${months} months`);
+
+    res.redirect(`/admin/users/${userId}/card?success=referral_activated`);
+  } catch (error) {
+    console.error('❌ Error activating referral program:', error);
+    res.status(500).send('Ошибка активации реферальной программы');
+  }
+});
+// Get user orders
+router.get('/users/:userId/orders', requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
     // Get user info
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { firstName: true, lastName: true, username: true, balance: true, deliveryAddress: true }
     });
-    
+
     if (!user) {
       return res.status(404).send('Пользователь не найден');
     }
-    
+
     // Get user's orders
     const orders = await prisma.orderRequest.findMany({
       where: { userId },
@@ -10903,7 +10907,7 @@ function getStatusDisplayName(status: string) {
         { createdAt: 'desc' }
       ]
     });
-    
+
     // Group orders by status
     const ordersByStatus = {
       NEW: orders.filter(order => order.status === 'NEW'),
@@ -10911,11 +10915,11 @@ function getStatusDisplayName(status: string) {
       COMPLETED: orders.filter(order => order.status === 'COMPLETED'),
       CANCELLED: orders.filter(order => order.status === 'CANCELLED')
     };
-    
+
     const escapeHtmlAttr = (value = '') => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
     const defaultContact = user.deliveryAddress || (user.username ? `@${user.username}` : user.firstName || '');
     const defaultMessage = 'Заказ создан администратором';
-    
+
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -12164,65 +12168,65 @@ function getStatusDisplayName(status: string) {
   }
 });
 
-  router.post('/users/:userId/orders', requireAdmin, async (req, res) => {
-    const { userId } = req.params;
-    const { contact, message, status, items } = req.body;
-    
-    const allowedStatuses = ['NEW', 'PROCESSING', 'COMPLETED', 'CANCELLED'];
-    const targetStatus = allowedStatuses.includes((status || '').toUpperCase()) ? status.toUpperCase() : 'NEW';
-    
-    try {
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (!user) {
-        return res.redirect(`/admin/users/${userId}/orders?error=order_create_failed`);
-      }
-      
-      let parsedItems: any[] = [];
-      try {
-        parsedItems = JSON.parse(items || '[]');
-      } catch (error) {
-        console.error('❌ Failed to parse items JSON:', error);
-      }
-      
-      if (!Array.isArray(parsedItems) || parsedItems.length === 0) {
-        return res.redirect(`/admin/users/${userId}/orders?error=order_no_items`);
-      }
-      
-      const sanitizedItems = parsedItems.map((item) => {
-        const quantity = Math.max(1, parseInt(item.quantity, 10) || 1);
-        const price = Math.max(0, parseFloat(item.price) || 0);
-        return {
-          productId: item.productId || null,
-          title: (item.title || 'Товар').toString().trim() || 'Товар',
-          quantity,
-          price,
-          total: Number((price * quantity).toFixed(2))
-        };
-      });
-      
-      await prisma.orderRequest.create({
-        data: {
-          userId,
-          contact: contact?.toString().trim() || null,
-          message: message?.toString().trim() || 'Заказ создан администратором',
-          itemsJson: sanitizedItems,
-          status: targetStatus
-        }
-      });
-      
-      res.redirect(`/admin/users/${userId}/orders?success=order_created`);
-    } catch (error) {
-      console.error('❌ Error creating manual order:', error);
-      res.redirect(`/admin/users/${userId}/orders?error=order_create_failed`);
+router.post('/users/:userId/orders', requireAdmin, async (req, res) => {
+  const { userId } = req.params;
+  const { contact, message, status, items } = req.body;
+
+  const allowedStatuses = ['NEW', 'PROCESSING', 'COMPLETED', 'CANCELLED'];
+  const targetStatus = allowedStatuses.includes((status || '').toUpperCase()) ? status.toUpperCase() : 'NEW';
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.redirect(`/admin/users/${userId}/orders?error=order_create_failed`);
     }
-  });
+
+    let parsedItems: any[] = [];
+    try {
+      parsedItems = JSON.parse(items || '[]');
+    } catch (error) {
+      console.error('❌ Failed to parse items JSON:', error);
+    }
+
+    if (!Array.isArray(parsedItems) || parsedItems.length === 0) {
+      return res.redirect(`/admin/users/${userId}/orders?error=order_no_items`);
+    }
+
+    const sanitizedItems = parsedItems.map((item) => {
+      const quantity = Math.max(1, parseInt(item.quantity, 10) || 1);
+      const price = Math.max(0, parseFloat(item.price) || 0);
+      return {
+        productId: item.productId || null,
+        title: (item.title || 'Товар').toString().trim() || 'Товар',
+        quantity,
+        price,
+        total: Number((price * quantity).toFixed(2))
+      };
+    });
+
+    await prisma.orderRequest.create({
+      data: {
+        userId,
+        contact: contact?.toString().trim() || null,
+        message: message?.toString().trim() || 'Заказ создан администратором',
+        itemsJson: sanitizedItems,
+        status: targetStatus
+      }
+    });
+
+    res.redirect(`/admin/users/${userId}/orders?success=order_created`);
+  } catch (error) {
+    console.error('❌ Error creating manual order:', error);
+    res.redirect(`/admin/users/${userId}/orders?error=order_create_failed`);
+  }
+});
 
 // Маршрут для получения списка партнеров пользователя
 router.get('/users/:userId/partners', requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
     const { level } = req.query;
-    
+
     // Получаем пользователя с его партнерским профилем
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -12239,11 +12243,11 @@ router.get('/users/:userId/partners', requireAdmin, async (req, res) => {
         }
       }
     });
-    
+
     if (!user) {
       return res.status(404).json({ error: 'Пользователь не найден' });
     }
-    
+
     let partners: any[] = [];
     if (user.partner && user.partner.referrals) {
       // Получаем пользователей, которые были приглашены
@@ -12251,9 +12255,9 @@ router.get('/users/:userId/partners', requireAdmin, async (req, res) => {
         .filter(ref => ref.referred) // Фильтруем только тех, у кого есть referred пользователь
         .map((ref: any) => ref.referred);
     }
-    
+
     res.json(partners);
-    
+
   } catch (error) {
     console.error('Error fetching partners:', error);
     res.status(500).json({ error: 'Ошибка получения списка партнеров' });
@@ -12264,59 +12268,59 @@ router.get('/users/:userId/partners', requireAdmin, async (req, res) => {
 router.post('/messages/send', requireAdmin, async (req, res) => {
   try {
     const { userIds, subject, text, saveAsTemplate } = req.body;
-    
+
     if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
       return res.status(400).json({ error: 'Не указаны получатели' });
     }
-    
+
     if (!subject || !text) {
       return res.status(400).json({ error: 'Не указаны тема или текст сообщения' });
     }
-    
+
     let successCount = 0;
     const errors = [];
-    
+
     // Отправляем сообщения каждому пользователю
     console.log(`📤 Начинаем отправку сообщений ${userIds.length} пользователям:`, userIds);
-    
+
     for (const userId of userIds) {
       try {
         console.log(`📤 Обрабатываем пользователя: ${userId}`);
-        
+
         // Получаем пользователя
         const user = await prisma.user.findUnique({
           where: { id: userId }
         });
-        
+
         if (!user) {
           console.log(`❌ Пользователь ${userId} не найден в базе данных`);
           errors.push(`Пользователь ${userId} не найден`);
           continue;
         }
-        
+
         console.log(`✅ Пользователь найден: ${user.firstName} (telegramId: ${user.telegramId})`);
-        
+
         // Проверяем, есть ли telegramId у пользователя
         if (!user.telegramId || user.telegramId === 'null' || user.telegramId === 'undefined') {
           console.log(`❌ У пользователя ${user.firstName} отсутствует или неверный telegramId: ${user.telegramId}`);
           errors.push(`${user.firstName} (@${user.username || 'без username'}): отсутствует telegramId`);
           continue;
         }
-        
+
         // Отправляем сообщение через Telegram Bot API
         try {
           const { getBotInstance } = await import('../lib/bot-instance.js');
           const bot = await getBotInstance();
-          
+
           // Формируем сообщение с экранированием Markdown символов
           const escapeMarkdown = (text: string) => {
             return text.replace(/([_*\[\]()~`>#+=|{}.!-])/g, '\\$1');
           };
-          
+
           const messageText = `📧 ${escapeMarkdown(subject)}\n\n${escapeMarkdown(text)}`;
-          
+
           console.log(`📤 Отправка сообщения пользователю ${user.firstName} (ID: ${user.telegramId}):`, messageText);
-          
+
           // Отправляем сообщение
           let result;
           try {
@@ -12329,20 +12333,20 @@ router.post('/messages/send', requireAdmin, async (req, res) => {
             const plainText = `📧 ${subject}\n\n${text}`;
             result = await bot.telegram.sendMessage(user.telegramId, plainText);
           }
-          
+
           console.log(`✅ Сообщение успешно отправлено пользователю ${user.firstName} (@${user.username || 'без username'}), message_id: ${result.message_id}`);
           successCount++;
-          
+
         } catch (telegramError) {
           console.error(`❌ Ошибка отправки сообщения пользователю ${user.firstName} (@${user.username || 'без username'}) (ID: ${user.telegramId}):`, telegramError);
-          
+
           // Добавляем ошибку в список для отчета
           const errorMessage = telegramError instanceof Error ? telegramError.message : String(telegramError);
           errors.push(`${user.firstName} (@${user.username || 'без username'}): ${errorMessage}`);
-          
+
           // Продолжаем обработку других пользователей даже при ошибке
         }
-        
+
         // Сохраняем в историю
         await prisma.userHistory.create({
           data: {
@@ -12355,13 +12359,13 @@ router.post('/messages/send', requireAdmin, async (req, res) => {
             }
           }
         });
-        
+
       } catch (error) {
-          console.error(`Error sending message to user ${userId}:`, error);
-          errors.push(`Ошибка отправки пользователю ${userId}: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
-        }
+        console.error(`Error sending message to user ${userId}:`, error);
+        errors.push(`Ошибка отправки пользователю ${userId}: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+      }
     }
-    
+
     // Сохраняем шаблон если нужно
     if (saveAsTemplate) {
       try {
@@ -12380,15 +12384,15 @@ router.post('/messages/send', requireAdmin, async (req, res) => {
         console.error('Error saving template:', error);
       }
     }
-    
+
     console.log(`📊 Итоговые результаты отправки: успешно ${successCount}/${userIds.length}, ошибок: ${errors.length}`);
-    
+
     res.json({
       successCount,
       totalCount: userIds.length,
       errors: errors.length > 0 ? errors : undefined
     });
-    
+
   } catch (error) {
     console.error('Error sending messages:', error);
     res.status(500).json({ error: 'Ошибка отправки сообщений' });
@@ -12400,22 +12404,22 @@ router.post('/users/:userId/balance', requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
     const { amount, operation } = req.body;
-    
+
     if (!amount || amount <= 0) {
       return res.json({ success: false, error: 'Некорректная сумма' });
     }
-    
+
     const user = await prisma.user.findUnique({
       where: { id: userId }
     });
-    
+
     if (!user) {
       return res.json({ success: false, error: 'Пользователь не найден' });
     }
-    
+
     const currentBalance = user.balance || 0;
     let newBalance;
-    
+
     if (operation === 'add') {
       newBalance = currentBalance + amount;
     } else if (operation === 'subtract') {
@@ -12426,12 +12430,12 @@ router.post('/users/:userId/balance', requireAdmin, async (req, res) => {
     } else {
       return res.json({ success: false, error: 'Некорректная операция' });
     }
-    
+
     await prisma.user.update({
       where: { id: userId },
       data: { balance: newBalance }
     });
-    
+
     // Записываем в историю пользователя
     await prisma.userHistory.create({
       data: {
@@ -12445,13 +12449,13 @@ router.post('/users/:userId/balance', requireAdmin, async (req, res) => {
         }
       }
     });
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: `Баланс успешно ${operation === 'add' ? 'пополнен' : 'списан'}`,
       newBalance: newBalance
     });
-    
+
   } catch (error) {
     console.error('❌ Balance update error:', error);
     res.json({ success: false, error: 'Ошибка обновления баланса' });
@@ -12463,19 +12467,19 @@ router.post('/orders/:orderId/status', requireAdmin, async (req, res) => {
   try {
     const { orderId } = req.params;
     const { status } = req.body;
-    
+
     // Validate status
     const validStatuses = ['NEW', 'PROCESSING', 'COMPLETED', 'CANCELLED'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ success: false, error: 'Неверный статус заказа' });
     }
-    
+
     // Update order status
     await prisma.orderRequest.update({
       where: { id: orderId },
       data: { status }
     });
-    
+
     res.json({ success: true, message: 'Статус заказа обновлен' });
   } catch (error) {
     console.error('❌ Update order status error:', error);
@@ -12486,7 +12490,7 @@ router.post('/orders/:orderId/status', requireAdmin, async (req, res) => {
 router.post('/orders/:orderId/pay', requireAdmin, async (req, res) => {
   try {
     const { orderId } = req.params;
-    
+
     // Get order with user info
     const order = await prisma.orderRequest.findUnique({
       where: { id: orderId },
@@ -12496,37 +12500,37 @@ router.post('/orders/:orderId/pay', requireAdmin, async (req, res) => {
         }
       }
     });
-    
+
     if (!order) {
       return res.status(404).json({ success: false, error: 'Заказ не найден' });
     }
-    
+
     if (!order.user) {
       return res.status(400).json({ success: false, error: 'Пользователь не найден' });
     }
-    
+
     if (order.status === 'COMPLETED') {
       return res.status(400).json({ success: false, error: 'Заказ уже оплачен' });
     }
-    
+
     if (order.status === 'CANCELLED') {
       return res.status(400).json({ success: false, error: 'Нельзя оплатить отмененный заказ' });
     }
-    
+
     // Calculate order total
-    const items = typeof order.itemsJson === 'string' 
-      ? JSON.parse(order.itemsJson || '[]') 
+    const items = typeof order.itemsJson === 'string'
+      ? JSON.parse(order.itemsJson || '[]')
       : (order.itemsJson || []);
     const totalAmount = items.reduce((sum: number, item: any) => sum + (item.price || 0) * (item.quantity || 1), 0);
-    
+
     // Check if user has enough balance
     if (order.user.balance < totalAmount) {
-      return res.status(400).json({ 
-        success: false, 
-        error: `Недостаточно средств. Требуется: ${totalAmount.toFixed(2)} PZ, доступно: ${order.user.balance.toFixed(2)} PZ` 
+      return res.status(400).json({
+        success: false,
+        error: `Недостаточно средств. Требуется: ${totalAmount.toFixed(2)} PZ, доступно: ${order.user.balance.toFixed(2)} PZ`
       });
     }
-    
+
     // Start transaction
     await prisma.$transaction(async (tx) => {
       // Deduct amount from user balance
@@ -12534,13 +12538,13 @@ router.post('/orders/:orderId/pay', requireAdmin, async (req, res) => {
         where: { id: order.user!.id },
         data: { balance: { decrement: totalAmount } }
       });
-      
+
       // Update order status to COMPLETED
       await tx.orderRequest.update({
         where: { id: orderId },
         data: { status: 'COMPLETED' }
       });
-      
+
       // Create transaction record
       await tx.userHistory.create({
         data: {
@@ -12554,7 +12558,7 @@ router.post('/orders/:orderId/pay', requireAdmin, async (req, res) => {
         }
       });
     });
-    
+
     // Check if this purchase qualifies for referral program activation (120 PZ)
     if (totalAmount >= 120) {
       try {
@@ -12578,10 +12582,10 @@ router.post('/orders/:orderId/pay', requireAdmin, async (req, res) => {
       // Don't fail the payment if bonus distribution fails
     }
     */
-    
-    res.json({ 
-      success: true, 
-      message: `Заказ оплачен на сумму ${totalAmount.toFixed(2)} PZ. Статус изменен на "Готово".` 
+
+    res.json({
+      success: true,
+      message: `Заказ оплачен на сумму ${totalAmount.toFixed(2)} PZ. Статус изменен на "Готово".`
     });
   } catch (error) {
     console.error('❌ Pay order error:', error);
@@ -12592,7 +12596,7 @@ router.post('/orders/:orderId/pay', requireAdmin, async (req, res) => {
 router.get('/orders/:orderId', requireAdmin, async (req, res) => {
   try {
     const { orderId } = req.params;
-    
+
     const order = await prisma.orderRequest.findUnique({
       where: { id: orderId },
       include: {
@@ -12601,16 +12605,16 @@ router.get('/orders/:orderId', requireAdmin, async (req, res) => {
         }
       }
     });
-    
+
     if (!order) {
       return res.status(404).json({ success: false, error: 'Заказ не найден' });
     }
-    
+
     // Parse items from JSON
-    const items = typeof order.itemsJson === 'string' 
-      ? JSON.parse(order.itemsJson || '[]') 
+    const items = typeof order.itemsJson === 'string'
+      ? JSON.parse(order.itemsJson || '[]')
       : (order.itemsJson || []);
-    
+
     res.json({
       success: true,
       data: {
@@ -12623,9 +12627,9 @@ router.get('/orders/:orderId', requireAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Get order error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : String(error) 
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 });
@@ -12635,11 +12639,11 @@ router.put('/orders/:orderId/items', requireAdmin, async (req, res) => {
   try {
     const { orderId } = req.params;
     const { items } = req.body;
-    
+
     if (!items || !Array.isArray(items)) {
       return res.status(400).json({ success: false, error: 'Неверный формат товаров' });
     }
-    
+
     // Validate items
     for (const item of items) {
       if (!item.title || !item.price || !item.quantity) {
@@ -12649,16 +12653,16 @@ router.put('/orders/:orderId/items', requireAdmin, async (req, res) => {
         return res.status(400).json({ success: false, error: 'Неверные значения цены или количества' });
       }
     }
-    
+
     // Check if order exists
     const existingOrder = await prisma.orderRequest.findUnique({
       where: { id: orderId }
     });
-    
+
     if (!existingOrder) {
       return res.status(404).json({ success: false, error: 'Заказ не найден' });
     }
-    
+
     // Update order items
     await prisma.orderRequest.update({
       where: { id: orderId },
@@ -12666,18 +12670,18 @@ router.put('/orders/:orderId/items', requireAdmin, async (req, res) => {
         itemsJson: JSON.stringify(items)
       }
     });
-    
+
     console.log(`✅ Order ${orderId} items updated: ${items.length} items`);
-    
+
     res.json({
       success: true,
       message: 'Товары заказа обновлены'
     });
   } catch (error) {
     console.error('❌ Update order items error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : String(error) 
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 });
@@ -12685,19 +12689,19 @@ router.put('/orders/:orderId/items', requireAdmin, async (req, res) => {
 // API endpoint to scrape all missing images
 router.post('/api/scrape-all-images', requireAdmin, async (req, res) => {
   // Возвращаем ответ сразу и запускаем в фоне
-  res.json({ 
-    success: true, 
-    message: 'Сбор фотографий запущен. Проверьте логи сервера для деталей.' 
+  res.json({
+    success: true,
+    message: 'Сбор фотографий запущен. Проверьте логи сервера для деталей.'
   });
-  
+
   // Запускаем в фоне
   (async () => {
     try {
       console.log('🚀 Запуск сбора недостающих фотографий продуктов...');
-      
+
       const { scrapeAllMissingImages } = await import('../services/scrape-images-service.js');
       const result = await scrapeAllMissingImages();
-      
+
       console.log('\n✅ Сбор фотографий завершен!');
       console.log(`   ✅ Обновлено: ${result.updated}`);
       console.log(`   ⏭️  Пропущено (уже есть): ${result.skipped}`);
@@ -12730,16 +12734,16 @@ router.get('/api/products', requireAdmin, async (req, res) => {
         { title: 'asc' }
       ]
     });
-    
+
     res.json({
       success: true,
       data: products
     });
   } catch (error) {
     console.error('❌ Get products error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : String(error) 
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 });
@@ -12758,15 +12762,15 @@ async function distributeReferralBonuses(userId: string, orderAmount: number) {
         }
       }
     });
-    
+
     if (!referralRecord?.profile) {
       return; // No inviter found
     }
-    
+
     const inviterProfile = referralRecord.profile;
     const bonusRate = 0.1; // 10% bonus
     const bonusAmount = orderAmount * bonusRate;
-    
+
     // Create bonus transaction
     await prisma.partnerTransaction.create({
       data: {
@@ -12776,22 +12780,22 @@ async function distributeReferralBonuses(userId: string, orderAmount: number) {
         description: `Бонус за заказ реферала (${orderAmount.toFixed(2)} PZ)`
       }
     });
-    
+
     // Update inviter's balance
     await prisma.user.update({
       where: { id: inviterProfile.userId },
       data: { balance: { increment: bonusAmount } }
     });
-    
+
     // Update partner profile balance
     await prisma.partnerProfile.update({
       where: { id: inviterProfile.id },
-      data: { 
+      data: {
         balance: { increment: bonusAmount },
         bonus: { increment: bonusAmount }
       }
     });
-    
+
     console.log(`✅ Referral bonus distributed: ${bonusAmount.toFixed(2)} PZ to user ${inviterProfile.userId}`);
   } catch (error) {
     console.error('❌ Error distributing referral bonuses:', error);
@@ -12913,7 +12917,7 @@ router.get('/admin/audio', requireAdmin, async (req, res) => {
 router.post('/admin/audio/toggle', requireAdmin, async (req, res) => {
   try {
     const { fileId } = req.body;
-    
+
     const audioFile = await prisma.audioFile.findUnique({
       where: { id: fileId }
     });
@@ -12938,7 +12942,7 @@ router.post('/admin/audio/toggle', requireAdmin, async (req, res) => {
 router.post('/admin/audio/delete', requireAdmin, async (req, res) => {
   try {
     const { fileId } = req.body;
-    
+
     await prisma.audioFile.delete({
       where: { id: fileId }
     });
@@ -12957,17 +12961,17 @@ router.post('/admin/audio/delete', requireAdmin, async (req, res) => {
 router.post('/products/:productId/delete-instruction', requireAdmin, async (req, res) => {
   try {
     const { productId } = req.params;
-    
+
     const product = await prisma.product.findUnique({ where: { id: productId } });
     if (!product) {
       return res.status(404).json({ success: false, error: 'Товар не найден' });
     }
-    
+
     await prisma.product.update({
       where: { id: productId },
       data: { instruction: null }
     });
-    
+
     res.json({ success: true, message: 'Инструкция успешно удалена' });
   } catch (error) {
     console.error('Delete instruction error:', error);
@@ -12980,21 +12984,21 @@ router.post('/products/:productId/save-instruction', requireAdmin, async (req, r
   try {
     const { productId } = req.params;
     const { instruction } = req.body;
-    
+
     if (!instruction || !instruction.trim()) {
       return res.status(400).json({ success: false, error: 'Инструкция не может быть пустой' });
     }
-    
+
     const product = await prisma.product.findUnique({ where: { id: productId } });
     if (!product) {
       return res.status(404).json({ success: false, error: 'Товар не найден' });
     }
-    
+
     await prisma.product.update({
       where: { id: productId },
       data: { instruction: instruction.trim() }
     });
-    
+
     res.json({ success: true, message: 'Инструкция успешно сохранена' });
   } catch (error) {
     console.error('Save instruction error:', error);
@@ -13012,7 +13016,7 @@ router.get('/admin/invoice-settings', requireAdmin, async (req, res) => {
   try {
     const { getImportSettings } = await import('../services/invoice-import-service.js');
     const settings = await getImportSettings();
-    
+
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -13169,7 +13173,7 @@ router.get('/admin/invoice-import', requireAdmin, async (req, res) => {
   try {
     const { getImportSettings } = await import('../services/invoice-import-service.js');
     const settings = await getImportSettings();
-    
+
     res.send(`
       <!DOCTYPE html>
       <html>
