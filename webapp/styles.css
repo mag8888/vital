@@ -1139,7 +1139,8 @@ h4 {
     border: 1px solid rgba(0, 0, 0, 0.06);
     display: flex;
     flex-direction: column;
-    height: 280px;
+    min-height: 280px;
+    height: auto;
 }
 
 .product-card-forma-horizontal:hover {
@@ -1179,11 +1180,7 @@ h4 {
     color: #000000;
     margin: 0;
     line-height: 1.4;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    overflow: visible;
     word-wrap: break-word;
     word-break: break-word;
 }

@@ -1302,8 +1302,8 @@ async function showCosmeticsSubcategories(parentCategoryId) {
 // Helper: Clean product title
 function cleanProductTitle(title) {
     if (!title) return '';
-    // Take part before " - " or " with " or " | "
-    let clean = title.split(/ - | with | \| /i)[0];
+    // Take part before " - " or " | " (removed " with " to keep full names)
+    let clean = title.split(/ - | \| /i)[0];
 
     // Remove trailing weight info like " 50g", " 50 G", " 50 г"
     clean = clean.replace(/\s+\d+\s*[gг]$/i, '');
