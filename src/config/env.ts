@@ -48,7 +48,10 @@ export const env = {
   openaiBaseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
   // Plazma API configuration (optional, for external product integration)
   plazmaApiKey: process.env.PLAZMA_API_KEY || process.env.EXTERNAL_API_KEY,
-  plazmaApiUrl: process.env.PLAZMA_API_URL || 'https://plazma-production.up.railway.app/api/external',
+  plazmaApiUrl: (() => {
+    const url = process.env.PLAZMA_API_URL || 'https://plazma-production.up.railway.app/api/external';
+    return url.startsWith('http') ? url : `https://${url}`;
+  })(),
 };
 
 // Helper function to get all admin chat IDs
@@ -60,7 +63,7 @@ export function getAdminChatIds(): string[] {
 // Helper function to send message to all admins
 export async function sendToAllAdmins(bot: any, message: string): Promise<void> {
   const adminIds = getAdminChatIds();
-  
+
   for (const chatId of adminIds) {
     try {
       await bot.telegram.sendMessage(chatId, message);
