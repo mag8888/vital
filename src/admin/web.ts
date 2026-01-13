@@ -5440,9 +5440,13 @@ router.get('/products', requireAdmin, async (req, res) => {
             if (!modal) {
               modal = document.createElement('div');
               modal.id = 'editProductModal';
-              const overlay = document.createElement('div');
-              overlay.className = 'modal-overlay';
-              overlay.onclick = window.closeEditModal;
+              modal.className = 'modal-overlay';
+              modal.style.display = 'none';
+              modal.onclick = function(e) {
+                if (e.target === modal) {
+                  window.closeEditModal();
+                }
+              };
               const content = document.createElement('div');
               content.className = 'modal-content';
               content.addEventListener('click', function(e) { e.stopPropagation(); });
@@ -5532,9 +5536,8 @@ router.get('/products', requireAdmin, async (req, res) => {
                     '<button type="button" onclick="window.closeEditModal()">❌ Отмена</button>' +
                     '<button type="submit">💾 Обновить товар</button>' +
                   '</div>' +
-                '</form>';
-              overlay.appendChild(content);
-              modal.appendChild(overlay);
+                  '</form>';
+              modal.appendChild(content);
               document.body.appendChild(modal);
               
               // Setup form submission handler
