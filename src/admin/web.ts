@@ -5662,17 +5662,22 @@ router.get('/products', requireAdmin, async (req, res) => {
           window.showInstructionSafe = function(button) {
             try {
               const productId = button.dataset.instructionId;
-              const instructionText = button.dataset.instructionText || '';
-              // Decode HTML entities
-              const decodedText = instructionText
+              let instructionText = button.dataset.instructionText || '';
+              
+              // Безопасное декодирование HTML entities и очистка от проблемных символов
+              let decodedText = instructionText
                 .replace(/&quot;/g, '"')
                 .replace(/&#39;/g, "'")
-                .replace(/&#96;/g, String.fromCharCode(96));
+                .replace(/&#96;/g, String.fromCharCode(96))
+                .replace(/[\r\n]/g, ' ') // Заменяем переносы строк на пробелы
+                .replace(/[\\]/g, '\\\\') // Экранируем обратные слеши
+                .replace(/['"]/g, function(match) { return match === '"' ? '\\"' : "\\'"; }); // Экранируем кавычки
               
               if (window.showInstruction && typeof window.showInstruction === 'function') {
                 window.showInstruction(productId, decodedText);
               } else {
-                alert('Инструкция:\n\n' + (decodedText || 'Инструкция не добавлена'));
+                const safeMessage = 'Инструкция:\\n\\n' + (decodedText || 'Инструкция не добавлена');
+                alert(safeMessage);
               }
             } catch (error) {
               console.error('Error showing instruction:', error);
@@ -6343,29 +6348,8 @@ router.get('/products', requireAdmin, async (req, res) => {
           
 
           
-          // Safe function to show instruction - ГЛОБАЛЬНАЯ
-          window.showInstructionSafe = function(button) {
-            try {
-              const productId = button.dataset.instructionId;
-              const instructionText = button.dataset.instructionText || '';
-              // Decode HTML entities
-              const decodedText = instructionText
-                .replace(/&quot;/g, '"')
-                .replace(/&#39;/g, "'")
-                .replace(/&#96;/g, String.fromCharCode(96));
-              
-              if (window.showInstruction && typeof window.showInstruction === 'function') {
-                window.showInstruction(productId, decodedText);
-              } else {
-                alert('Инструкция:\n\n' + (decodedText || 'Инструкция не добавлена'));
-              }
-            } catch (error) {
-              console.error('Error showing instruction:', error);
-              alert('Ошибка отображения инструкции');
-            }
-          };
-          
-          // NOTE: window.editProduct уже определена выше на строке 5792, не дублируем!
+          // NOTE: window.showInstructionSafe уже определена выше, не дублируем!
+          // NOTE: window.editProduct уже определена выше, не дублируем!
           
           // Instruction modal functions - используем DOM API вместо строковой конкатенации
           window.showInstruction = function(productId, instructionText) {
