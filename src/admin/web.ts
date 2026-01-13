@@ -5863,7 +5863,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 <button type="button" class="image-btn" data-image-input-id="image-${escapeAttr(product.id)}">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</button>
               </form>
               <button type="button" class="image-btn select-image-btn" style="background: #6366f1;" data-product-id="${escapeAttr(product.id)}">🖼️ Выбрать из загруженных</button>
-              <button type="button" class="instruction-btn" data-instruction-id="${escapeAttr(product.id)}" data-instruction-text="${escapeAttr(String((product as any).instruction || '').replace(/[\u2028\u2029]/g, ' ').replace(/\r\n?/g, '\n'))}">📋 Инструкция</button>
+              <button type="button" class="instruction-btn" data-instruction-id="${escapeAttr(product.id)}" data-instruction-text="${escapeAttr(String((product as any).instruction || '').replace(/[\u2028\u2029\r\n]/g, ' ').replace(/['"\\]/g, ''))}">📋 Инструкция</button>
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/delete" class="delete-product-form" data-product-id="${escapeAttr(product.id)}">
                 <button type="submit" class="delete-btn">Удалить</button>
               </form>
