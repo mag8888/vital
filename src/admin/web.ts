@@ -5646,7 +5646,7 @@ router.get('/products', requireAdmin, async (req, res) => {
             }
             
             // Show modal
-            modal.style.display = 'block';
+            modal.style.display = 'flex';
           };
           
           window.closeEditModal = function() {
@@ -6721,6 +6721,16 @@ router.get('/products', requireAdmin, async (req, res) => {
           (function() {
             let eventHandlerAttached = false;
             
+            // Убеждаемся, что все функции определены
+            if (typeof window.closeEditModal === 'undefined') {
+              window.closeEditModal = function() {
+                const modal = document.getElementById('editProductModal');
+                if (modal) {
+                  modal.style.display = 'none';
+                }
+              };
+            }
+            
             // Устанавливаем обработчик сразу, но он сработает только после загрузки DOM
             function initEventDelegation() {
               if (eventHandlerAttached) {
@@ -6729,6 +6739,9 @@ router.get('/products', requireAdmin, async (req, res) => {
               }
               
               console.log('✅ Initializing event delegation for product buttons');
+              console.log('✅ window.editProduct:', typeof window.editProduct);
+              console.log('✅ window.openImageGallery:', typeof window.openImageGallery);
+              console.log('✅ window.showInstructionSafe:', typeof window.showInstructionSafe);
               eventHandlerAttached = true;
               
               document.addEventListener('click', function(event) {
@@ -6737,16 +6750,22 @@ router.get('/products', requireAdmin, async (req, res) => {
                 // Обработка кнопки редактирования товара (проверяем первой, так как она самая важная)
                 const editBtn = target.closest('.edit-btn');
                 if (editBtn && editBtn.type === 'button') {
-                  console.log('🔵 Edit button clicked');
+                  console.log('🔵 Edit button clicked', editBtn);
                   event.preventDefault();
                   event.stopPropagation();
-                  if (typeof window.editProduct === 'function') {
-                    window.editProduct(editBtn);
-                  } else {
-                    console.error('❌ window.editProduct is not defined');
-                    alert('Ошибка: функция редактирования не доступна. Пожалуйста, обновите страницу.');
+                  event.stopImmediatePropagation();
+                  try {
+                    if (typeof window.editProduct === 'function') {
+                      window.editProduct(editBtn);
+                    } else {
+                      console.error('❌ window.editProduct is not defined');
+                      alert('Ошибка: функция редактирования не доступна. Пожалуйста, обновите страницу.');
+                    }
+                  } catch (error) {
+                    console.error('❌ Error in editProduct:', error);
+                    alert('Ошибка при открытии формы редактирования: ' + (error instanceof Error ? error.message : String(error)));
                   }
-                  return;
+                  return false;
                 }
                 
                 // Обработка кнопки "Выбрать из загруженных"
