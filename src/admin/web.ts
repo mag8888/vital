@@ -5835,7 +5835,6 @@ router.get('/products', requireAdmin, async (req, res) => {
               <button 
                 type="button" 
                 class="edit-btn"
-                onclick="window.editProduct(this)"
                 data-id="${escapeAttr(product.id)}"
                 data-title="${escapeAttr(product.title)}"
                 data-summary="${escapeAttr(product.summary)}"
@@ -6772,9 +6771,10 @@ router.get('/products', requireAdmin, async (req, res) => {
                 }
                 
                 // Обработка кнопки редактирования товара
-                const editBtn = target.closest('.edit-btn[data-edit-product]');
-                if (editBtn && typeof window.editProduct === 'function') {
+                const editBtn = target.closest('.edit-btn');
+                if (editBtn && editBtn.type === 'button' && typeof window.editProduct === 'function') {
                   event.preventDefault();
+                  event.stopPropagation();
                   window.editProduct(editBtn);
                   return;
                 }
