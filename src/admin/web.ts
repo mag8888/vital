@@ -6719,14 +6719,40 @@ router.get('/products', requireAdmin, async (req, res) => {
           
           // Event delegation для кнопок - работает сразу, без DOMContentLoaded
           (function() {
+            let eventHandlerAttached = false;
+            
             // Устанавливаем обработчик сразу, но он сработает только после загрузки DOM
             function initEventDelegation() {
+              if (eventHandlerAttached) {
+                console.log('⚠️ Event handler already attached, skipping');
+                return;
+              }
+              
+              console.log('✅ Initializing event delegation for product buttons');
+              eventHandlerAttached = true;
+              
               document.addEventListener('click', function(event) {
                 const target = event.target;
+                
+                // Обработка кнопки редактирования товара (проверяем первой, так как она самая важная)
+                const editBtn = target.closest('.edit-btn');
+                if (editBtn && editBtn.type === 'button') {
+                  console.log('🔵 Edit button clicked');
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (typeof window.editProduct === 'function') {
+                    window.editProduct(editBtn);
+                  } else {
+                    console.error('❌ window.editProduct is not defined');
+                    alert('Ошибка: функция редактирования не доступна. Пожалуйста, обновите страницу.');
+                  }
+                  return;
+                }
                 
                 // Обработка кнопки "Выбрать из загруженных"
                 const selectImageBtn = target.closest('.select-image-btn');
                 if (selectImageBtn) {
+                  console.log('🔵 Select image button clicked');
                   event.preventDefault();
                   event.stopPropagation();
                   const productId = selectImageBtn.getAttribute('data-product-id');
@@ -6735,8 +6761,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                   } else {
                     console.error('❌ Product ID not found or openImageGallery not defined:', { 
                       productId, 
-                      hasFunction: typeof window.openImageGallery,
-                      openImageGallery: window.openImageGallery
+                      hasFunction: typeof window.openImageGallery
                     });
                     alert('Ошибка: функция выбора изображения не доступна. Пожалуйста, обновите страницу.');
                   }
@@ -6746,11 +6771,15 @@ router.get('/products', requireAdmin, async (req, res) => {
                 // Обработка кнопки загрузки изображения через data-атрибут
                 const imageBtn = target.closest('.image-btn[data-image-input-id]');
                 if (imageBtn) {
+                  console.log('🔵 Image upload button clicked');
                   event.preventDefault();
+                  event.stopPropagation();
                   const inputId = imageBtn.getAttribute('data-image-input-id');
                   const fileInput = document.getElementById(inputId);
                   if (fileInput) {
                     fileInput.click();
+                  } else {
+                    console.error('❌ File input not found:', inputId);
                   }
                   return;
                 }
@@ -6758,7 +6787,9 @@ router.get('/products', requireAdmin, async (req, res) => {
                 // Обработка кнопки инструкции
                 const instructionBtn = target.closest('.instruction-btn');
                 if (instructionBtn) {
+                  console.log('🔵 Instruction button clicked');
                   event.preventDefault();
+                  event.stopPropagation();
                   if (typeof window.showInstructionSafe === 'function') {
                     window.showInstructionSafe(instructionBtn);
                   } else {
@@ -6770,25 +6801,21 @@ router.get('/products', requireAdmin, async (req, res) => {
                   return;
                 }
                 
-                // Обработка кнопки редактирования товара
-                const editBtn = target.closest('.edit-btn');
-                if (editBtn && editBtn.type === 'button' && typeof window.editProduct === 'function') {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  window.editProduct(editBtn);
-                  return;
-                }
-                
-                // Обработка формы удаления товара
-                const deleteForm = target.closest('.delete-product-form');
-                if (deleteForm) {
-                  event.preventDefault();
-                  if (confirm('Удалить товар?')) {
-                    deleteForm.submit();
+                // Обработка формы удаления товара (кнопка внутри формы)
+                const deleteBtn = target.closest('.delete-btn');
+                if (deleteBtn) {
+                  const deleteForm = deleteBtn.closest('.delete-product-form');
+                  if (deleteForm) {
+                    console.log('🔵 Delete button clicked');
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (confirm('Удалить товар?')) {
+                      deleteForm.submit();
+                    }
+                    return;
                   }
-                  return;
                 }
-              });
+              }, true); // Используем capture phase для раннего перехвата
               
               // Обработка загрузки изображений
               document.addEventListener('change', function(event) {
