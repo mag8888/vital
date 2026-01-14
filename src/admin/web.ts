@@ -5419,10 +5419,14 @@ router.get('/products', requireAdmin, async (req, res) => {
         <script>
           // КРИТИЧНО: Определяем функции глобально ДО загрузки HTML, чтобы они были доступны для onclick обработчиков
           window.editProduct = function(button) {
+            console.log('🔵 editProduct called', button);
+            
             if (!button) {
-              console.error('editProduct: button is required');
+              console.error('❌ editProduct: button is required');
+              alert('Ошибка: кнопка не найдена');
               return;
             }
+            
             // Safely extract data from button attributes
             const productId = String(button.dataset.id || '').trim();
             const title = String(button.dataset.title || '').trim();
@@ -5434,6 +5438,22 @@ router.get('/products', requireAdmin, async (req, res) => {
             const availableInRussia = String(button.dataset.russia || 'false').trim() === 'true';
             const availableInBali = String(button.dataset.bali || 'false').trim() === 'true';
             const imageUrl = String(button.dataset.image || '').trim();
+            
+            console.log('📦 Product data extracted:', {
+              productId: productId.substring(0, 10) + '...',
+              title: title.substring(0, 30) + '...',
+              price,
+              categoryId,
+              isActive,
+              availableInRussia,
+              availableInBali
+            });
+            
+            if (!productId) {
+              console.error('❌ Product ID is missing');
+              alert('Ошибка: ID товара не найден');
+              return;
+            }
             
             // Create modal if it doesn't exist
             let modal = document.getElementById('editProductModal');
@@ -5540,50 +5560,93 @@ router.get('/products', requireAdmin, async (req, res) => {
               modal.appendChild(content);
               document.body.appendChild(modal);
               
-              // Setup form submission handler
-              document.getElementById('editProductForm').onsubmit = function(e) {
-                e.preventDefault();
-                const formData = new FormData(this);
-                const productId = formData.get('productId');
-                
-                const formDataToSend = new FormData();
-                formDataToSend.append('productId', productId);
-                formDataToSend.append('title', formData.get('title') || '');
-                formDataToSend.append('price', formData.get('price') || '0');
-                formDataToSend.append('summary', formData.get('summary') || '');
-                formDataToSend.append('description', formData.get('description') || '');
-                formDataToSend.append('categoryId', formData.get('categoryId') || '');
-                formDataToSend.append('stock', formData.get('stock') || '999');
-                
-                if (document.getElementById('editProductStatus').checked) {
-                  formDataToSend.append('isActive', 'true');
-                }
-                if (document.getElementById('editProductRussia').checked) {
-                  formDataToSend.append('availableInRussia', 'true');
-                }
-                if (document.getElementById('editProductBali').checked) {
-                  formDataToSend.append('availableInBali', 'true');
+              // Setup form submission handler - удаляем старый обработчик если есть
+              const editForm = document.getElementById('editProductForm');
+              if (editForm) {
+                // Удаляем старый обработчик если есть
+                const oldHandler = editForm.getAttribute('data-handler-attached');
+                if (oldHandler) {
+                  editForm.removeEventListener('submit', oldHandler);
                 }
                 
-                fetch('/admin/products/' + productId + '/update', {
-                  method: 'POST',
-                  body: formDataToSend,
-                  credentials: 'include'
-                })
-                .then(response => response.json())
-                .then(data => {
-                  if (data.success) {
-                    alert('Товар успешно обновлен!');
-                    window.closeEditModal();
-                    location.reload();
-                  } else {
-                    alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+                // Создаем новый обработчик
+                const submitHandler = function(e) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  
+                  const form = e.target;
+                  const formData = new FormData(form);
+                  const productId = formData.get('productId');
+                  
+                  if (!productId) {
+                    alert('Ошибка: ID товара не найден');
+                    return;
                   }
-                })
-                .catch(error => {
-                  alert('Ошибка: ' + (error instanceof Error ? error.message : String(error)));
-                });
-              };
+                  
+                  const formDataToSend = new FormData();
+                  formDataToSend.append('productId', String(productId));
+                  formDataToSend.append('title', String(formData.get('title') || ''));
+                  formDataToSend.append('price', String(formData.get('price') || '0'));
+                  formDataToSend.append('summary', String(formData.get('summary') || ''));
+                  formDataToSend.append('description', String(formData.get('description') || ''));
+                  formDataToSend.append('categoryId', String(formData.get('categoryId') || ''));
+                  formDataToSend.append('stock', String(formData.get('stock') || '999'));
+                  
+                  const statusCheckbox = document.getElementById('editProductStatus');
+                  const russiaCheckbox = document.getElementById('editProductRussia');
+                  const baliCheckbox = document.getElementById('editProductBali');
+                  
+                  if (statusCheckbox && statusCheckbox.checked) {
+                    formDataToSend.append('isActive', 'true');
+                  } else {
+                    formDataToSend.append('isActive', 'false');
+                  }
+                  
+                  if (russiaCheckbox && russiaCheckbox.checked) {
+                    formDataToSend.append('availableInRussia', 'true');
+                  } else {
+                    formDataToSend.append('availableInRussia', 'false');
+                  }
+                  
+                  if (baliCheckbox && baliCheckbox.checked) {
+                    formDataToSend.append('availableInBali', 'true');
+                  } else {
+                    formDataToSend.append('availableInBali', 'false');
+                  }
+                  
+                  console.log('📤 Sending update request for product:', productId);
+                  
+                  fetch('/admin/products/' + productId + '/update', {
+                    method: 'POST',
+                    body: formDataToSend,
+                    credentials: 'include'
+                  })
+                  .then(response => {
+                    if (!response.ok) {
+                      throw new Error('HTTP ' + response.status);
+                    }
+                    return response.json();
+                  })
+                  .then(data => {
+                    if (data.success) {
+                      alert('✅ Товар успешно обновлен!');
+                      window.closeEditModal();
+                      setTimeout(() => {
+                        location.reload();
+                      }, 500);
+                    } else {
+                      alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+                    }
+                  })
+                  .catch(error => {
+                    console.error('❌ Update error:', error);
+                    alert('❌ Ошибка при обновлении товара: ' + (error instanceof Error ? error.message : String(error)));
+                  });
+                };
+                
+                editForm.addEventListener('submit', submitHandler);
+                editForm.setAttribute('data-handler-attached', 'true');
+              }
             }
             
             // Helper function to decode HTML entities safely
@@ -5596,19 +5659,45 @@ router.get('/products', requireAdmin, async (req, res) => {
             
             // Fill form fields with decoded values
             try {
-              document.getElementById('editProductId').value = productId || '';
-              document.getElementById('editProductName').value = decodeHtml(title) || '';
-              document.getElementById('editProductSummary').value = decodeHtml(summary) || '';
-              document.getElementById('editProductDescription').value = decodeHtml(description) || '';
-              document.getElementById('editProductPrice').value = price || '0';
-              document.getElementById('editProductPriceRub').value = ((parseFloat(price) || 0) * 100).toFixed(2);
-              document.getElementById('editProductStock').value = '999';
-              document.getElementById('editProductStatus').checked = isActive;
-              document.getElementById('editProductRussia').checked = availableInRussia;
-              document.getElementById('editProductBali').checked = availableInBali;
+              const editProductIdEl = document.getElementById('editProductId');
+              const editProductNameEl = document.getElementById('editProductName');
+              const editProductSummaryEl = document.getElementById('editProductSummary');
+              const editProductDescriptionEl = document.getElementById('editProductDescription');
+              const editProductPriceEl = document.getElementById('editProductPrice');
+              const editProductPriceRubEl = document.getElementById('editProductPriceRub');
+              const editProductStockEl = document.getElementById('editProductStock');
+              const editProductStatusEl = document.getElementById('editProductStatus');
+              const editProductRussiaEl = document.getElementById('editProductRussia');
+              const editProductBaliEl = document.getElementById('editProductBali');
+              
+              if (!editProductIdEl || !editProductNameEl || !editProductPriceEl) {
+                console.error('❌ Required form elements not found');
+                alert('Ошибка: форма редактирования не найдена. Пожалуйста, обновите страницу.');
+                return;
+              }
+              
+              editProductIdEl.value = productId || '';
+              if (editProductNameEl) editProductNameEl.value = decodeHtml(title) || '';
+              if (editProductSummaryEl) editProductSummaryEl.value = decodeHtml(summary) || '';
+              if (editProductDescriptionEl) editProductDescriptionEl.value = decodeHtml(description) || '';
+              editProductPriceEl.value = price || '0';
+              if (editProductPriceRubEl) editProductPriceRubEl.value = ((parseFloat(price) || 0) * 100).toFixed(2);
+              if (editProductStockEl) editProductStockEl.value = '999';
+              if (editProductStatusEl) editProductStatusEl.checked = isActive;
+              if (editProductRussiaEl) editProductRussiaEl.checked = availableInRussia;
+              if (editProductBaliEl) editProductBaliEl.checked = availableInBali;
+              
+              console.log('✅ Form fields filled:', {
+                productId,
+                title: title.substring(0, 50),
+                price,
+                isActive,
+                availableInRussia,
+                availableInBali
+              });
             } catch (error) {
-              console.error('Error filling form fields:', error);
-              alert('Ошибка при загрузке данных товара. Пожалуйста, обновите страницу.');
+              console.error('❌ Error filling form fields:', error);
+              alert('Ошибка при загрузке данных товара: ' + (error instanceof Error ? error.message : String(error)));
               return;
             }
             
@@ -5649,7 +5738,15 @@ router.get('/products', requireAdmin, async (req, res) => {
             }
             
             // Show modal
+            console.log('✅ Showing edit modal');
             modal.style.display = 'flex';
+            
+            // Убеждаемся, что модальное окно видимо
+            setTimeout(() => {
+              if (modal.style.display !== 'flex') {
+                modal.style.display = 'flex';
+              }
+            }, 100);
           };
           
           window.closeEditModal = function() {
@@ -8089,13 +8186,41 @@ router.post('/products/:id/delete', requireAdmin, async (req, res) => {
 router.post('/products/:productId/update', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const { productId } = req.params;
-    const { title, price, summary, description, instruction, isActive, categoryId, stock, availableInRussia, availableInBali } = req.body as any;
+    
+    // Правильно обрабатываем данные из FormData
+    const title = String(req.body.title || '').trim();
+    const price = parseFloat(String(req.body.price || '0'));
+    const summary = String(req.body.summary || '').trim();
+    const description = String(req.body.description || '').trim();
+    const instruction = String(req.body.instruction || '').trim() || null;
+    const categoryId = String(req.body.categoryId || '').trim();
+    const stock = parseInt(String(req.body.stock || '999'), 10);
+    const isActive = String(req.body.isActive || 'false').toLowerCase() === 'true';
+    const availableInRussia = String(req.body.availableInRussia || 'false').toLowerCase() === 'true';
+    const availableInBali = String(req.body.availableInBali || 'false').toLowerCase() === 'true';
 
-    console.log('Update product request:', {
+    console.log('📥 Update product request:', {
       productId,
-      body: req.body,
+      title: title.substring(0, 50),
+      price,
+      categoryId,
+      isActive,
+      availableInRussia,
+      availableInBali,
+      stock,
       file: req.file ? 'file present' : 'no file'
     });
+    
+    // Валидация
+    if (!title) {
+      return res.status(400).json({ success: false, error: 'Название товара обязательно' });
+    }
+    if (!price || price <= 0) {
+      return res.status(400).json({ success: false, error: 'Цена должна быть больше 0' });
+    }
+    if (!categoryId) {
+      return res.status(400).json({ success: false, error: 'Категория обязательна' });
+    }
 
     let imageUrl = undefined;
     if (req.file) {
@@ -8118,24 +8243,57 @@ router.post('/products/:productId/update', requireAdmin, upload.single('image'),
       }
     }
 
-    const updateData: any = {};
-    if (title) updateData.title = title.trim();
-    if (price) updateData.price = parseFloat(price);
-    if (summary) updateData.summary = summary.trim();
-    if (description) updateData.description = description.trim();
-    if (instruction !== undefined) updateData.instruction = instruction?.trim() || null;
-    if (categoryId) updateData.categoryId = categoryId;
-    if (stock !== undefined) updateData.stock = parseInt(stock);
-    if (isActive !== undefined) updateData.isActive = isActive === 'true';
-    if (availableInRussia !== undefined) updateData.availableInRussia = availableInRussia === 'true';
-    if (availableInBali !== undefined) updateData.availableInBali = availableInBali === 'true';
-    if (imageUrl) updateData.imageUrl = imageUrl;
+    // Проверяем существование товара
+    const existingProduct = await prisma.product.findUnique({
+      where: { id: productId }
+    });
+    
+    if (!existingProduct) {
+      return res.status(404).json({ success: false, error: 'Товар не найден' });
+    }
+    
+    // Проверяем существование категории
+    if (categoryId) {
+      const category = await prisma.category.findUnique({
+        where: { id: categoryId }
+      });
+      if (!category) {
+        return res.status(400).json({ success: false, error: 'Категория не найдена' });
+      }
+    }
+
+    const updateData: any = {
+      title: title,
+      price: price,
+      summary: summary,
+      description: description,
+      instruction: instruction,
+      categoryId: categoryId,
+      stock: stock,
+      isActive: isActive,
+      availableInRussia: availableInRussia,
+      availableInBali: availableInBali
+    };
+    
+    if (imageUrl) {
+      updateData.imageUrl = imageUrl;
+    }
+
+    console.log('💾 Updating product with data:', {
+      productId,
+      title: title.substring(0, 30),
+      price,
+      isActive,
+      availableInRussia,
+      availableInBali
+    });
 
     const product = await prisma.product.update({
       where: { id: productId },
       data: updateData,
     });
 
+    console.log('✅ Product updated successfully:', product.id);
     res.json({ success: true, product });
   } catch (error) {
     console.error('Update product error:', error);
