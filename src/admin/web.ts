@@ -1471,67 +1471,8 @@ router.get('/', requireAdmin, async (req, res) => {
             }
           };
           
-          // Simple global function for editing products
-          window.editProduct = function(button) {
-            const productId = button.dataset.id;
-            const title = button.dataset.title;
-            const summary = button.dataset.summary;
-            const description = button.dataset.description;
-            const price = button.dataset.price;
-            const categoryId = button.dataset.categoryId;
-            const isActive = button.dataset.active === 'true';
-            const availableInRussia = button.dataset.russia === 'true';
-            const availableInBali = button.dataset.bali === 'true';
-            const imageUrl = button.dataset.image;
-            
-            // Fill form fields
-            document.getElementById('productId').value = productId;
-            document.getElementById('productName').value = title;
-            document.getElementById('productShortDescription').value = summary;
-            document.getElementById('productFullDescription').value = description;
-            document.getElementById('productInstruction').value = button.dataset.instruction || '';
-            document.getElementById('productPrice').value = price;
-            document.getElementById('productPriceRub').value = (price * 100).toFixed(2);
-            document.getElementById('productStock').value = '999';
-            document.getElementById('productCategory').value = categoryId;
-            document.getElementById('productStatus').checked = isActive;
-            document.getElementById('productRussia').checked = availableInRussia;
-            document.getElementById('productBali').checked = availableInBali;
-            
-            // Set image preview
-            const imagePreview = document.getElementById('imagePreview');
-            if (imageUrl) {
-              imagePreview.src = imageUrl;
-              imagePreview.style.display = 'block';
-              imagePreview.nextElementSibling.style.display = 'none';
-            } else {
-              imagePreview.style.display = 'none';
-              imagePreview.nextElementSibling.style.display = 'flex';
-            }
-            
-            // Update modal title and submit button
-            const modalH2 = document.querySelector('.product-modal h2');
-            const submitBtn = document.getElementById('productModalSubmit');
-            if (modalH2) modalH2.textContent = 'Редактировать товар';
-            if (submitBtn) submitBtn.textContent = 'Обновить товар';
-            
-            // Load categories
-            fetch('/admin/api/categories', { credentials: 'include' })
-              .then(response => response.json())
-              .then(categories => {
-                const select = document.getElementById('productCategory');
-                select.innerHTML = '<option value="">Выберите категорию</option>';
-                categories.forEach(category => {
-                  const option = document.createElement('option');
-                  option.value = category.id;
-                  option.textContent = category.name;
-                  select.appendChild(option);
-                });
-              });
-            
-            // Show modal
-            document.getElementById('addProductModal').style.display = 'block';
-          };
+          // УДАЛЕНО: Старая функция editProduct, которая конфликтовала с новой версией на странице /admin/products
+          // Новая версия находится в роутере /admin/products и использует модальное окно editProductModal
           
           // Global function for editing products (legacy)
           window.editProductUsingCreateModal = function(button) {
