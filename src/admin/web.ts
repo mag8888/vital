@@ -5361,7 +5361,7 @@ router.get('/products', requireAdmin, async (req, res) => {
           // КРИТИЧНО: Определяем функции глобально ДО загрузки HTML, чтобы они были доступны для onclick обработчиков
           // Защита от ошибок выполнения - оборачиваем в try-catch
           try {
-            window.editProduct = function(button) {
+          window.editProduct = function(button) {
             console.log('🔵 editProduct called', button);
             
             if (!button) {
@@ -5501,7 +5501,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                     '<button type="button" onclick="window.closeEditModal()">❌ Отмена</button>' +
                     '<button type="submit">💾 Обновить товар</button>' +
                   '</div>' +
-                  '</form>';
+                '</form>';
               modal.appendChild(content);
               document.body.appendChild(modal);
               
@@ -5516,19 +5516,19 @@ router.get('/products', requireAdmin, async (req, res) => {
                 
                 // Создаем новый обработчик
                 const submitHandler = function(e) {
-                  e.preventDefault();
+                e.preventDefault();
                   e.stopPropagation();
                   
                   const form = e.target;
                   const formData = new FormData(form);
-                  const productId = formData.get('productId');
+                const productId = formData.get('productId');
                   
                   if (!productId) {
                     alert('Ошибка: ID товара не найден');
                     return;
                   }
-                  
-                  const formDataToSend = new FormData();
+                
+                const formDataToSend = new FormData();
                   formDataToSend.append('productId', String(productId));
                   formDataToSend.append('title', String(formData.get('title') || ''));
                   formDataToSend.append('price', String(formData.get('price') || '0'));
@@ -5542,52 +5542,52 @@ router.get('/products', requireAdmin, async (req, res) => {
                   const baliCheckbox = document.getElementById('editProductBali');
                   
                   if (statusCheckbox && statusCheckbox.checked) {
-                    formDataToSend.append('isActive', 'true');
+                  formDataToSend.append('isActive', 'true');
                   } else {
                     formDataToSend.append('isActive', 'false');
-                  }
+                }
                   
                   if (russiaCheckbox && russiaCheckbox.checked) {
-                    formDataToSend.append('availableInRussia', 'true');
+                  formDataToSend.append('availableInRussia', 'true');
                   } else {
                     formDataToSend.append('availableInRussia', 'false');
-                  }
+                }
                   
                   if (baliCheckbox && baliCheckbox.checked) {
-                    formDataToSend.append('availableInBali', 'true');
+                  formDataToSend.append('availableInBali', 'true');
                   } else {
                     formDataToSend.append('availableInBali', 'false');
-                  }
+                }
                   
                   console.log('📤 Sending update request for product:', productId);
-                  
-                  fetch('/admin/products/' + productId + '/update', {
-                    method: 'POST',
-                    body: formDataToSend,
-                    credentials: 'include'
-                  })
+                
+                fetch('/admin/products/' + productId + '/update', {
+                  method: 'POST',
+                  body: formDataToSend,
+                  credentials: 'include'
+                })
                   .then(response => {
                     if (!response.ok) {
                       throw new Error('HTTP ' + response.status);
                     }
                     return response.json();
                   })
-                  .then(data => {
-                    if (data.success) {
+                .then(data => {
+                  if (data.success) {
                       alert('✅ Товар успешно обновлен!');
-                      window.closeEditModal();
+                    window.closeEditModal();
                       setTimeout(() => {
-                        location.reload();
+                    location.reload();
                       }, 500);
-                    } else {
+                  } else {
                       alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
-                    }
-                  })
-                  .catch(error => {
+                  }
+                })
+                .catch(error => {
                     console.error('❌ Update error:', error);
                     alert('❌ Ошибка при обновлении товара: ' + (error instanceof Error ? error.message : String(error)));
-                  });
-                };
+                });
+              };
                 
                 editForm.addEventListener('submit', submitHandler);
                 editForm.setAttribute('data-handler-attached', 'true');
@@ -5747,6 +5747,68 @@ router.get('/products', requireAdmin, async (req, res) => {
           } else {
             console.log('✅ window.editProduct successfully defined');
           }
+
+          // КРИТИЧНО: фильтры категорий должны работать даже если нижний <script> сломается
+          window.filterProducts = function(button) {
+            try {
+              const filter = button && button.dataset ? button.dataset.filter : 'all';
+              const buttons = document.querySelectorAll('.filter-btn');
+              const cards = document.querySelectorAll('.product-card');
+
+              buttons.forEach(btn => btn.classList.remove('active'));
+              if (button && button.classList) button.classList.add('active');
+
+              cards.forEach(card => {
+                if (filter === 'all' || card.dataset.category === filter) {
+                  card.style.display = 'flex';
+              } else {
+                  card.style.display = 'none';
+                }
+              });
+            } catch (e) {
+              console.error('filterProducts error:', e);
+            }
+          };
+
+          // КРИТИЧНО: модалка подтверждения удаления должна работать даже если нижний <script> сломается
+          window.__pendingDeleteForm = null;
+          window.openConfirmDeleteModal = function(deleteForm) {
+            try {
+              const modal = document.getElementById('confirmDeleteModal');
+              const text = document.getElementById('confirmDeleteText');
+              const btn = document.getElementById('confirmDeleteBtn');
+              if (!modal || !text || !btn) {
+                // fallback
+                if (deleteForm && typeof deleteForm.submit === 'function') deleteForm.submit();
+                return;
+              }
+
+              const title = (deleteForm && deleteForm.getAttribute && deleteForm.getAttribute('data-product-title')) || '';
+              text.textContent = title
+                ? ('Вы точно хотите удалить товар: ' + title + '? Это действие нельзя отменить.')
+                : 'Вы точно хотите удалить этот товар? Это действие нельзя отменить.';
+
+              window.__pendingDeleteForm = deleteForm || null;
+              modal.style.display = 'flex';
+              modal.onclick = function(e) {
+                if (e.target === modal) window.closeConfirmDeleteModal();
+              };
+              btn.onclick = function() {
+                const form = window.__pendingDeleteForm;
+                window.closeConfirmDeleteModal();
+                if (form && typeof form.submit === 'function') form.submit();
+              };
+            } catch (e) {
+              console.error('openConfirmDeleteModal error:', e);
+              if (deleteForm && typeof deleteForm.submit === 'function') deleteForm.submit();
+            }
+          };
+
+          window.closeConfirmDeleteModal = function() {
+            const modal = document.getElementById('confirmDeleteModal');
+            if (modal) modal.style.display = 'none';
+            window.__pendingDeleteForm = null;
+          };
         </script>
       </head>
       <body>
@@ -5769,12 +5831,12 @@ router.get('/products', requireAdmin, async (req, res) => {
         </div>
 
         <div class="filters">
-          <button type="button" class="filter-btn active" onclick="window.filterProducts(this)" data-filter="all">Все категории (${allProducts.length})</button>
+          <button type="button" class="filter-btn active" onclick="if(typeof window.filterProducts==='function'){window.filterProducts(this);}return false;" data-filter="all">Все категории (${allProducts.length})</button>
     `;
 
     categories.forEach((category) => {
       html += `
-          <button type="button" class="filter-btn" onclick="window.filterProducts(this)" data-filter="${category.id}">${category.name} (${category.products.length})</button>
+          <button type="button" class="filter-btn" onclick="if(typeof window.filterProducts==='function'){window.filterProducts(this);}return false;" data-filter="${category.id}">${category.name} (${category.products.length})</button>
       `;
     });
 
@@ -5928,7 +5990,7 @@ router.get('/products', requireAdmin, async (req, res) => {
               </form>
               <button type="button" class="image-btn select-image-btn" style="background: #6366f1;" data-product-id="${escapeAttr(product.id)}">🖼️ Выбрать из загруженных</button>
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/delete" class="delete-product-form" data-product-id="${escapeAttr(product.id)}" data-product-title="${escapeAttr(product.title)}">
-                <button type="submit" class="delete-btn">Удалить</button>
+                <button type="button" class="delete-btn">Удалить</button>
               </form>
             </div>
           </div>
@@ -6055,47 +6117,7 @@ router.get('/products', requireAdmin, async (req, res) => {
             }
           };
 
-          // Delete confirmation modal
-          window.__pendingDeleteForm = null;
-          window.openConfirmDeleteModal = function(deleteForm) {
-            try {
-              const modal = document.getElementById('confirmDeleteModal');
-              const text = document.getElementById('confirmDeleteText');
-              const btn = document.getElementById('confirmDeleteBtn');
-              if (!modal || !text || !btn) return;
-
-              const title = (deleteForm && deleteForm.getAttribute && deleteForm.getAttribute('data-product-title')) || '';
-              text.textContent = title
-                ? ('Вы точно хотите удалить товар: ' + title + '? Это действие нельзя отменить.')
-                : 'Вы точно хотите удалить этот товар? Это действие нельзя отменить.';
-
-              window.__pendingDeleteForm = deleteForm || null;
-              modal.style.display = 'flex';
-
-              // close on overlay click
-              modal.onclick = function(e) {
-                if (e.target === modal) window.closeConfirmDeleteModal();
-              };
-
-              btn.onclick = function() {
-                const form = window.__pendingDeleteForm;
-                window.closeConfirmDeleteModal();
-                if (form && typeof form.submit === 'function') {
-                  form.submit();
-                }
-              };
-            } catch (e) {
-              console.error('openConfirmDeleteModal error:', e);
-              // fallback
-              if (deleteForm && typeof deleteForm.submit === 'function') deleteForm.submit();
-            }
-          };
-
-          window.closeConfirmDeleteModal = function() {
-            const modal = document.getElementById('confirmDeleteModal');
-            if (modal) modal.style.display = 'none';
-            window.__pendingDeleteForm = null;
-          };
+          // Delete confirmation modal is defined in <head> (to survive any errors in this script block)
           
           // Function to move all products to "Косметика" category
           window.moveAllToCosmetics = async function() {
@@ -6125,7 +6147,7 @@ router.get('/products', requireAdmin, async (req, res) => {
               alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
             }
           };
-          
+
           // Function to filter products
           window.filterProducts = function(button) {
             const filter = button.dataset.filter;
@@ -6457,227 +6479,8 @@ router.get('/products', requireAdmin, async (req, res) => {
           // NOTE: window.showInstructionSafe уже определена выше, не дублируем!
           // NOTE: window.editProduct уже определена выше, не дублируем!
           
-          // Instruction modal functions - используем DOM API вместо строковой конкатенации
-          window.showInstruction = function(productId, instructionText) {
-            const modal = document.createElement('div');
-            modal.className = 'instruction-modal';
-            const safeProductId = String(productId || '').replace(/[^a-zA-Z0-9-_]/g, '');
-            const safeInstructionText = String(instructionText || '')
-              .replace(/[\u2028\u2029]/g, ' ')
-              .replace(/\r\n?/g, '\n');
-            
-            // Создаём структуру модального окна через DOM API
-            const overlay = document.createElement('div');
-            overlay.className = 'instruction-overlay';
-            overlay.setAttribute('data-close-instruction', 'true');
-            
-            const content = document.createElement('div');
-            content.className = 'instruction-content';
-            
-            // Header
-            const header = document.createElement('div');
-            header.className = 'instruction-header';
-            const headerTitle = document.createElement('h3');
-            headerTitle.textContent = '📋 Инструкция по применению';
-            const closeBtn = document.createElement('button');
-            closeBtn.className = 'btn-close';
-            closeBtn.setAttribute('data-close-instruction', 'true');
-            closeBtn.textContent = '×';
-            header.appendChild(headerTitle);
-            header.appendChild(closeBtn);
-            
-            // Body
-            const body = document.createElement('div');
-            body.className = 'instruction-body';
-            
-            // Instruction text (hidden, for display)
-            const instructionTextDiv = document.createElement('div');
-            instructionTextDiv.className = 'instruction-text';
-            instructionTextDiv.id = 'instructionText';
-            instructionTextDiv.style.display = 'none';
-            instructionTextDiv.textContent = safeInstructionText.replace(/\r?\n/g, '\n');
-            
-            // Instruction edit (visible, for editing)
-            const instructionEdit = document.createElement('div');
-            instructionEdit.className = 'instruction-edit';
-            instructionEdit.id = 'instructionEdit';
-            instructionEdit.style.display = 'block';
-            
-            const textarea = document.createElement('textarea');
-            textarea.id = 'instructionTextarea';
-            textarea.placeholder = 'Введите инструкцию по применению товара...';
-            textarea.style.cssText = 'width: 100%; height: 200px; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical;';
-            textarea.value = safeInstructionText; // Безопасно устанавливаем значение через DOM API
-            
-            instructionEdit.appendChild(textarea);
-            body.appendChild(instructionTextDiv);
-            body.appendChild(instructionEdit);
-            
-            // Footer
-            const footer = document.createElement('div');
-            footer.className = 'instruction-footer';
-            
-            const saveBtn = document.createElement('button');
-            saveBtn.className = 'btn btn-save';
-            saveBtn.setAttribute('data-save-instruction', '');
-            saveBtn.setAttribute('data-product-id', safeProductId);
-            saveBtn.style.cssText = 'background: #28a745; margin-right: 8px;';
-            saveBtn.textContent = '💾 Сохранить';
-            
-            const cancelBtn = document.createElement('button');
-            cancelBtn.className = 'btn btn-cancel';
-            cancelBtn.setAttribute('data-cancel-instruction', '');
-            cancelBtn.style.cssText = 'background: #6c757d; margin-right: 8px;';
-            cancelBtn.textContent = '❌ Отмена';
-            
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'btn btn-delete';
-            deleteBtn.setAttribute('data-delete-instruction', '');
-            deleteBtn.setAttribute('data-product-id', safeProductId);
-            deleteBtn.style.cssText = 'background: #dc3545; margin-right: 8px;';
-            deleteBtn.textContent = '🗑️ Удалить';
-            
-            const closeBtn2 = document.createElement('button');
-            closeBtn2.className = 'btn btn-secondary';
-            closeBtn2.setAttribute('data-close-instruction', 'true');
-            closeBtn2.textContent = 'Закрыть';
-            
-            footer.appendChild(saveBtn);
-            footer.appendChild(cancelBtn);
-            footer.appendChild(deleteBtn);
-            footer.appendChild(closeBtn2);
-            
-            // Собираем структуру
-            content.appendChild(header);
-            content.appendChild(body);
-            content.appendChild(footer);
-            overlay.appendChild(content);
-            modal.appendChild(overlay);
-            
-            // Добавляем обработчики событий через addEventListener
-            overlay.addEventListener('click', function(e) {
-              if (e.target === overlay || e.target.getAttribute('data-close-instruction') === 'true') {
-                if (typeof window.closeInstruction === 'function') {
-                  window.closeInstruction();
-                }
-              }
-            });
-            
-            content.addEventListener('click', function(e) {
-              e.stopPropagation();
-            });
-            
-            saveBtn.addEventListener('click', function() {
-              const productId = this.getAttribute('data-product-id');
-              if (productId && typeof window.saveInstruction === 'function') {
-                window.saveInstruction(productId);
-              }
-            });
-            
-            deleteBtn.addEventListener('click', function() {
-              const productId = this.getAttribute('data-product-id');
-              if (productId && typeof window.deleteInstruction === 'function') {
-                window.deleteInstruction(productId);
-              }
-            });
-            
-            cancelBtn.addEventListener('click', function() {
-              if (typeof window.cancelInstruction === 'function') {
-                window.cancelInstruction();
-              }
-            });
-            
-            document.body.appendChild(modal);
-            
-            // Add animation
-            setTimeout(() => {
-              const content = modal.querySelector('.instruction-content');
-              if (content) {
-                content.style.transform = 'scale(1)';
-              }
-            }, 10);
-          };
-          
-          window.closeInstruction = function() {
-            const modal = document.querySelector('.instruction-modal');
-            if (modal) {
-              const content = modal.querySelector('.instruction-content');
-              if (content) {
-                content.style.transform = 'scale(0.8)';
-              }
-              setTimeout(() => {
-                modal.remove();
-              }, 200);
-            }
-          };
-          
-          window.editInstruction = function(productId) {
-            // Redirect to product edit page
-            window.location.href = '/admin/products?edit=' + productId;
-          };
-          
-          window.deleteInstruction = function(productId) {
-            if (confirm('Вы уверены, что хотите удалить инструкцию для этого товара?')) {
-              // Send request to delete instruction
-              fetch('/admin/products/' + productId + '/delete-instruction', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                credentials: 'include'
-              })
-              .then(response => response.json())
-              .then(data => {
-                if (data.success) {
-                  alert('Инструкция успешно удалена!');
-                  closeInstruction();
-                  location.reload();
-                } else {
-                  alert('Ошибка: ' + (data.error || 'Не удалось удалить инструкцию'));
-                }
-              })
-              .catch(error => {
-                alert('Ошибка: ' + (error instanceof Error ? error.message : String(error)));
-              });
-            }
-          };
-          
-          window.saveInstruction = function(productId) {
-            const textarea = document.getElementById('instructionTextarea');
-            const instructionText = textarea.value.trim();
-            
-            if (!instructionText) {
-              alert('Пожалуйста, введите инструкцию');
-              return;
-            }
-            
-            // Send request to save instruction
-            fetch('/admin/products/' + productId + '/save-instruction', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              credentials: 'include',
-              body: JSON.stringify({ instruction: instructionText })
-            })
-            .then(response => response.json())
-            .then(data => {
-              if (data.success) {
-                alert('Инструкция успешно сохранена!');
-                closeInstruction();
-                location.reload();
-              } else {
-                alert('Ошибка: ' + (data.error || 'Не удалось сохранить инструкцию'));
-              }
-            })
-            .catch(error => {
-              alert('Ошибка: ' + (error instanceof Error ? error.message : String(error)));
-            });
-          };
-          
-          window.cancelInstruction = function() {
-            closeInstruction();
-          };
+          // Instruction (инструкция по применению) полностью убрана с этой страницы по требованию,
+          // чтобы исключить проблемы с экранированием/парсингом JS в server-rendered шаблоне.
           
           // AI Translation function for product fields
           window.translateProductField = async function(fieldId, type) {
@@ -6980,15 +6783,15 @@ router.get('/products', requireAdmin, async (req, res) => {
                   const deleteForm = deleteBtn.closest('.delete-product-form');
                   if (deleteForm) {
                     console.log('🔵 Delete button clicked');
-                    event.preventDefault();
+                  event.preventDefault();
                     event.stopPropagation();
                     if (typeof window.openConfirmDeleteModal === 'function') {
                       window.openConfirmDeleteModal(deleteForm);
-                    } else {
+                  } else {
                       if (confirm('Удалить товар?')) deleteForm.submit();
-                    }
-                    return;
                   }
+                  return;
+                }
                 }
               }, true); // Используем capture phase для раннего перехвата
               
@@ -7686,10 +7489,10 @@ router.get('/product2', requireAdmin, async (req, res) => {
             }
             
             // Создаем новое модальное окно каждый раз
-            editModal = document.createElement('div');
-            editModal.id = 'editProductModal2';
-            editModal.className = 'modal-overlay';
-            editModal.innerHTML = \`
+              editModal = document.createElement('div');
+              editModal.id = 'editProductModal2';
+              editModal.className = 'modal-overlay';
+              editModal.innerHTML = \`
                 <div class="modal-content" style="max-width: 800px;">
                   <div class="modal-header">
                     <h2>✏️ Редактировать товар</h2>
@@ -7841,13 +7644,13 @@ router.get('/product2', requireAdmin, async (req, res) => {
                 priceInput.parentNode.replaceChild(newPriceInput, priceInput);
                 
                 // Устанавливаем новый обработчик
-                document.getElementById('editProductPrice2').addEventListener('input', function() {
-                  const pzPrice = parseFloat(this.value) || 0;
+              document.getElementById('editProductPrice2').addEventListener('input', function() {
+                const pzPrice = parseFloat(this.value) || 0;
                   const rubInput = document.getElementById('editProductPriceRub2');
                   if (rubInput) {
                     rubInput.value = (pzPrice * 100).toFixed(2);
                   }
-                });
+              });
               }
             }
             
