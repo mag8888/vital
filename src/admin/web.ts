@@ -5754,6 +5754,16 @@ router.get('/products', requireAdmin, async (req, res) => {
               alert('Ошибка отображения инструкции');
             }
           };
+          
+          // КРИТИЧНО: Проверяем, что функция определена
+          if (typeof window.editProduct !== 'function') {
+            console.error('❌ CRITICAL: window.editProduct is not a function after definition!');
+            window.editProduct = function() {
+              alert('Ошибка: функция редактирования не загружена. Обновите страницу.');
+            };
+          } else {
+            console.log('✅ window.editProduct successfully defined');
+          }
         </script>
       </head>
       <body>
