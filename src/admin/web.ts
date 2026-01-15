@@ -5892,6 +5892,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 data-russia="${(product as any).availableInRussia ? 'true' : 'false'}"
                 data-bali="${(product as any).availableInBali ? 'true' : 'false'}"
                 data-image="${escapeAttr(product.imageUrl)}"
+                onclick="if(typeof window.editProduct==='function'){window.editProduct(this);}else{alert('Ошибка: функция редактирования не загружена. Обновите страницу.');}return false;"
               >✏️ Редактировать</button>
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/toggle-active">
                 <button type="submit" class="toggle-btn">${product.isActive ? 'Отключить' : 'Включить'}</button>
@@ -6755,6 +6756,17 @@ router.get('/products', requireAdmin, async (req, res) => {
               };
             }
             
+            // Проверяем, что window.editProduct определена
+            function checkEditProductFunction() {
+              if (typeof window.editProduct !== 'function') {
+                console.error('❌ CRITICAL: window.editProduct is not defined!');
+                console.error('❌ Available window properties:', Object.keys(window).filter(k => k.toLowerCase().includes('edit')));
+                return false;
+              }
+              console.log('✅ window.editProduct is defined:', typeof window.editProduct);
+              return true;
+            }
+            
             // Устанавливаем обработчик сразу, но он сработает только после загрузки DOM
             function initEventDelegation() {
               if (eventHandlerAttached) {
@@ -6763,7 +6775,21 @@ router.get('/products', requireAdmin, async (req, res) => {
               }
               
               console.log('✅ Initializing event delegation for product buttons');
-              console.log('✅ window.editProduct:', typeof window.editProduct);
+              
+              // Проверяем функции перед установкой обработчика
+              if (!checkEditProductFunction()) {
+                console.error('❌ Cannot initialize event delegation: window.editProduct is not defined');
+                // Попробуем еще раз через небольшую задержку
+                setTimeout(() => {
+                  if (checkEditProductFunction()) {
+                    initEventDelegation();
+                  } else {
+                    alert('ОШИБКА: Функция редактирования не загружена. Пожалуйста, обновите страницу.');
+                  }
+                }, 100);
+                return;
+              }
+              
               console.log('✅ window.openImageGallery:', typeof window.openImageGallery);
               console.log('✅ window.showInstructionSafe:', typeof window.showInstructionSafe);
               eventHandlerAttached = true;
@@ -6772,24 +6798,41 @@ router.get('/products', requireAdmin, async (req, res) => {
                 const target = event.target;
                 
                 // Обработка кнопки редактирования товара (проверяем первой, так как она самая важная)
-                const editBtn = target.closest('.edit-btn');
-                if (editBtn && editBtn.type === 'button') {
-                  console.log('🔵 Edit button clicked', editBtn);
-                  event.preventDefault();
-                  event.stopPropagation();
-                  event.stopImmediatePropagation();
-                  try {
-                    if (typeof window.editProduct === 'function') {
-                      window.editProduct(editBtn);
-                    } else {
-                      console.error('❌ window.editProduct is not defined');
-                      alert('Ошибка: функция редактирования не доступна. Пожалуйста, обновите страницу.');
+                // Ищем кнопку через closest, так как клик может быть на дочернем элементе (текст, иконка)
+                const editBtn = target.closest('.edit-btn') || (target.classList && target.classList.contains('edit-btn') ? target : null);
+                
+                if (editBtn) {
+                  // Проверяем, что это действительно кнопка редактирования
+                  const isEditButton = editBtn.classList.contains('edit-btn') && 
+                                      (editBtn.type === 'button' || !editBtn.type || editBtn.tagName === 'BUTTON');
+                  
+                  if (isEditButton) {
+                    console.log('🔵 Edit button clicked', editBtn);
+                    console.log('🔵 Button data:', {
+                      id: editBtn.dataset.id,
+                      title: editBtn.dataset.title?.substring(0, 30),
+                      hasEditProduct: typeof window.editProduct
+                    });
+                    
+                    event.preventDefault();
+                    event.stopPropagation();
+                    event.stopImmediatePropagation();
+                    
+                    try {
+                      if (typeof window.editProduct === 'function') {
+                        window.editProduct(editBtn);
+                      } else {
+                        console.error('❌ window.editProduct is not defined');
+                        console.error('❌ Available window functions:', Object.keys(window).filter(k => k.includes('edit')));
+                        alert('Ошибка: функция редактирования не доступна. Пожалуйста, обновите страницу.');
+                      }
+                    } catch (error) {
+                      console.error('❌ Error in editProduct:', error);
+                      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack');
+                      alert('Ошибка при открытии формы редактирования: ' + (error instanceof Error ? error.message : String(error)));
                     }
-                  } catch (error) {
-                    console.error('❌ Error in editProduct:', error);
-                    alert('Ошибка при открытии формы редактирования: ' + (error instanceof Error ? error.message : String(error)));
+                    return false;
                   }
-                  return false;
                 }
                 
                 // Обработка кнопки "Выбрать из загруженных"
