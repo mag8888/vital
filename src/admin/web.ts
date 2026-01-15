@@ -5399,10 +5399,11 @@ router.get('/products', requireAdmin, async (req, res) => {
             // Create modal if it doesn't exist
             let modal = document.getElementById('editProductModal');
             if (!modal) {
+              console.log('🔵 Creating new edit modal');
               modal = document.createElement('div');
               modal.id = 'editProductModal';
               modal.className = 'modal-overlay';
-              modal.style.display = 'none';
+              modal.style.cssText = 'display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;';
               modal.onclick = function(e) {
                 if (e.target === modal) {
                   window.closeEditModal();
@@ -5410,6 +5411,7 @@ router.get('/products', requireAdmin, async (req, res) => {
               };
               const content = document.createElement('div');
               content.className = 'modal-content';
+              content.style.cssText = 'background: white; border-radius: 12px; padding: 0; max-width: 800px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
               content.addEventListener('click', function(e) { e.stopPropagation(); });
               // Разбиваем длинную innerHTML строку на части для предотвращения SyntaxError
               content.innerHTML = 
@@ -5680,14 +5682,42 @@ router.get('/products', requireAdmin, async (req, res) => {
             
             // Show modal
             console.log('✅ Showing edit modal');
+            console.log('✅ Modal element:', modal);
+            console.log('✅ Modal in DOM:', document.body.contains(modal));
+            
+            // Убеждаемся, что модальное окно в DOM
+            if (!document.body.contains(modal)) {
+              console.log('⚠️ Modal not in DOM, appending...');
+              document.body.appendChild(modal);
+            }
+            
+            // Устанавливаем стили для показа
             modal.style.display = 'flex';
+            modal.style.alignItems = 'center';
+            modal.style.justifyContent = 'center';
+            modal.style.position = 'fixed';
+            modal.style.top = '0';
+            modal.style.left = '0';
+            modal.style.width = '100%';
+            modal.style.height = '100%';
+            modal.style.background = 'rgba(0,0,0,0.6)';
+            modal.style.zIndex = '10000';
+            
+            console.log('✅ Modal display set to:', modal.style.display);
+            console.log('✅ Modal computed style:', window.getComputedStyle(modal).display);
             
             // Убеждаемся, что модальное окно видимо
             setTimeout(() => {
-              if (modal.style.display !== 'flex') {
+              const computedDisplay = window.getComputedStyle(modal).display;
+              if (computedDisplay === 'none') {
+                console.error('❌ Modal still hidden! Forcing display...');
                 modal.style.display = 'flex';
+                modal.style.visibility = 'visible';
+                modal.style.opacity = '1';
+              } else {
+                console.log('✅ Modal is visible, display:', computedDisplay);
               }
-            }, 100);
+            }, 50);
           };
           
           window.closeEditModal = function() {
