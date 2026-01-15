@@ -5721,6 +5721,12 @@ router.get('/products', requireAdmin, async (req, res) => {
               }
             }, 50);
           };
+          } catch (e) {
+            console.error('❌ CRITICAL ERROR defining window.editProduct:', e);
+            window.editProduct = function() {
+              alert('Ошибка: функция редактирования не загружена. Обновите страницу.');
+            };
+          }
           
           window.closeEditModal = function() {
             const modal = document.getElementById('editProductModal');
