@@ -683,6 +683,145 @@ router.delete('/api/cart/remove/:cartItemId', async (req, res) => {
   }
 });
 
+// Support chat (webapp) - store in UserHistory and forward to admins via bot
+router.get('/api/support/messages', async (req, res) => {
+  try {
+    const telegramUser = getTelegramUser(req);
+    if (!telegramUser) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { prisma } = await import('../lib/prisma.js');
+    const user = await prisma.user.findUnique({
+      where: { telegramId: telegramUser.id.toString() },
+      select: { id: true }
+    });
+
+    if (!user) {
+      return res.json([]);
+    }
+
+    const messages = await prisma.userHistory.findMany({
+      where: { userId: user.id, action: 'support:webapp' },
+      orderBy: { createdAt: 'asc' },
+      take: 200
+    });
+
+    const result = messages.map((m: any) => {
+      const payload = (m.payload || {}) as any;
+      return {
+        id: m.id,
+        direction: payload.direction || 'user',
+        text: payload.text || '',
+        createdAt: m.createdAt
+      };
+    });
+
+    res.json(result);
+  } catch (error: any) {
+    console.error('❌ Error fetching support messages:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/api/support/messages', async (req, res) => {
+  try {
+    const telegramUser = getTelegramUser(req);
+    if (!telegramUser) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const textRaw = (req.body?.text ?? '').toString();
+    const text = textRaw.trim();
+    if (!text) {
+      return res.status(400).json({ error: 'Message text is required' });
+    }
+    if (text.length > 4000) {
+      return res.status(400).json({ error: 'Message is too long' });
+    }
+
+    const { prisma } = await import('../lib/prisma.js');
+
+    // Find or create user
+    let user = await prisma.user.findUnique({
+      where: { telegramId: telegramUser.id.toString() }
+    });
+
+    if (!user) {
+      try {
+        user = await prisma.user.create({
+          data: {
+            telegramId: telegramUser.id.toString(),
+            firstName: telegramUser.first_name,
+            lastName: telegramUser.last_name,
+            username: telegramUser.username,
+          }
+        });
+      } catch (error: any) {
+        if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
+          return res.status(503).json({ error: 'Database temporarily unavailable. Please try again later.' });
+        }
+        throw error;
+      }
+    }
+
+    // Persist message
+    await prisma.userHistory.create({
+      data: {
+        userId: user.id,
+        action: 'support:webapp',
+        payload: { direction: 'user', text }
+      }
+    });
+
+    // Forward to admins
+    try {
+      const { getBotInstance } = await import('../lib/bot-instance.js');
+      const { getAdminChatIds } = await import('../config/env.js');
+      const bot = await getBotInstance();
+
+      if (bot) {
+        const adminIds = getAdminChatIds();
+        const fromName = `${telegramUser.first_name || ''} ${telegramUser.last_name || ''}`.trim() || 'Пользователь';
+        const username = telegramUser.username ? `@${telegramUser.username}` : 'не указан';
+        const adminMessage =
+          '📨 <b>Сообщение в поддержку (WebApp)</b>\n\n' +
+          `👤 <b>Пользователь:</b> ${fromName}\n` +
+          `🆔 <b>Telegram ID:</b> <code>${telegramUser.id}</code>\n` +
+          `📱 <b>Username:</b> ${username}\n\n` +
+          `💬 <b>Сообщение:</b>\n${text}`;
+
+        for (const adminId of adminIds) {
+          try {
+            await bot.telegram.sendMessage(adminId, adminMessage, {
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [[{
+                  text: '💬 Ответить пользователю',
+                  callback_data: `admin_reply:${telegramUser.id}:${telegramUser.first_name || 'Пользователь'}`
+                }]]
+              }
+            });
+          } catch (e: any) {
+            console.error(`❌ Failed to send support message to admin ${adminId}:`, e?.message || e);
+          }
+        }
+      }
+    } catch (notifyErr: any) {
+      console.error('❌ Failed to notify admins about support message:', notifyErr?.message || notifyErr);
+      // don't fail user request
+    }
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('❌ Error sending support message:', error);
+    if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
+      return res.status(503).json({ error: 'Database temporarily unavailable. Please try again later.' });
+    }
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Order create endpoint
 router.post('/api/orders/create', async (req, res) => {
   try {

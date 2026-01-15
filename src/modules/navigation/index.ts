@@ -986,6 +986,26 @@ export const navigationModule: BotModule = {
             `💬 <b>Ответ службы поддержки:</b>\n\n${messageText}`,
             { parse_mode: 'HTML' }
           );
+
+          // Also store reply in DB so WebApp chat can display it
+          try {
+            const { prisma } = await import('../../lib/prisma.js');
+            const user = await prisma.user.findUnique({
+              where: { telegramId: userTelegramId.toString() },
+              select: { id: true }
+            });
+            if (user) {
+              await prisma.userHistory.create({
+                data: {
+                  userId: user.id,
+                  action: 'support:webapp',
+                  payload: { direction: 'admin', text: messageText }
+                }
+              });
+            }
+          } catch (dbErr) {
+            console.error('Failed to log support reply for webapp:', dbErr);
+          }
           
           // Confirm to admin
           await ctx.reply(

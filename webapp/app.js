@@ -791,6 +791,7 @@ function openSection(sectionName) {
         audio: 'Звуковые матрицы',
         reviews: 'Отзывы',
         about: 'О нас',
+        chats: 'Чаты',
         support: 'Поддержка',
         favorites: 'Избранное',
         cart: 'Корзина',
@@ -841,6 +842,9 @@ async function loadSectionContent(sectionName, container) {
             case 'about':
                 content = await loadAboutContent();
                 break;
+            case 'chats':
+                content = await loadChatsContent();
+                break;
             case 'support':
                 content = await loadSupportContent();
                 break;
@@ -867,6 +871,11 @@ async function loadSectionContent(sectionName, container) {
         }
 
         container.innerHTML = content;
+
+        // Post-render hooks
+        if (sectionName === 'support') {
+            initSupportChat();
+        }
     } catch (error) {
         console.error('Error loading section:', error);
         container.innerHTML = '<div class="error-message"><h3>Ошибка загрузки</h3><p>Попробуйте позже</p></div>';
@@ -1839,24 +1848,39 @@ async function loadSupportContent() {
     return `
         <div class="content-section">
             <h3>Служба поддержки</h3>
-            <p>Напишите свой вопрос прямо в этот чат — команда Vital ответит как можно быстрее.</p>
-            <p>Если нужен срочный контакт, оставьте номер телефона, и мы перезвоним.</p>
-            
-            <div style="margin: 20px 0;">
-                <button class="btn" onclick="sendMessage()">
-                    💬 Написать сообщение
-                </button>
+            <p>Напишите свой вопрос прямо здесь — команда Vital ответит как можно быстрее.</p>
+
+            <div id="support-chat" style="margin-top: 16px;">
+                <div id="support-messages" style="background: #ffffff; border: 1px solid var(--border-color); border-radius: 14px; padding: 14px; height: 340px; overflow-y: auto;">
+                    <div class="loading"><div class="loading-spinner"></div></div>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-top: 12px;">
+                    <input id="supportMessageInput" type="text" placeholder="Напишите сообщение…" style="flex: 1; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border-color);" />
+                    <button class="btn" onclick="sendSupportChatMessage()" style="white-space: nowrap;">Отправить</button>
+                </div>
+
+                <p style="margin-top: 10px; color: #9ca3af; font-size: 12px;">
+                    Поддержка 24/7. Если нужен срочный контакт — напишите номер телефона, и мы перезвоним.
+                </p>
             </div>
-            
-            <div style="margin: 20px 0;">
-                <button class="btn btn-secondary" onclick="callSupport()">
-                    📞 Позвонить в поддержку
-                </button>
-            </div>
-            
-            <div style="margin: 20px 0;">
-                <h4>Часы работы:</h4>
-                <p style="color: #cccccc;">24/7 - всегда на связи</p>
+        </div>
+    `;
+}
+
+// Chats list (for bottom navigation)
+async function loadChatsContent() {
+    return `
+        <div class="content-section">
+            <h3>Чаты</h3>
+            <div style="margin-top: 14px; display: grid; gap: 12px;">
+                <div class="content-card support-card" onclick="openSection('support')" style="cursor: pointer;">
+                    <div class="card-image"></div>
+                    <div class="card-content">
+                        <h4>Служба поддержки</h4>
+                        <p>Написать в поддержку</p>
+                    </div>
+                </div>
             </div>
         </div>
     `;
@@ -1975,13 +1999,19 @@ async function buyProduct(productId) {
         const response = await fetch(`${API_BASE}/orders/create`, {
             method: 'POST',
             headers: getApiHeaders(),
-            body: JSON.stringify({ productId })
+            body: JSON.stringify({
+                items: [{ productId, quantity: 1 }],
+                message: 'Покупка через веб-приложение'
+            })
         });
 
         if (response.ok) {
-            showSuccess('Заявка отправлена администратору!');
+            showSuccess('Заказ создан! Ожидайте подтверждения.');
+            // После создания заказа запрашиваем телефон и адрес
+            await requestContactAndAddress();
         } else {
-            showError('Ошибка создания заказа');
+            const errorData = await response.json().catch(() => ({}));
+            showError(`Ошибка создания заказа: ${errorData.error || 'Неизвестная ошибка'}`);
         }
     } catch (error) {
         console.error('Error creating order:', error);
@@ -2254,14 +2284,121 @@ function showPartnerProgram() {
     showProductsSection(content);
 }
 
-function sendMessage() {
-    showSuccess('Отправка сообщения...');
-    // Здесь можно добавить логику отправки сообщения
+// Support chat (webapp)
+let supportMessages = [];
+
+function initSupportChat() {
+    // Only run if the section is present
+    const box = document.getElementById('support-messages');
+    if (!box) return;
+
+    // Enter-to-send
+    const input = document.getElementById('supportMessageInput');
+    if (input && !input.__supportEnterBound) {
+        input.__supportEnterBound = true;
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendSupportChatMessage();
+            }
+        });
+    }
+
+    loadSupportChatMessages();
 }
 
-function callSupport() {
-    showSuccess('Перезвон в поддержку...');
-    // Здесь можно добавить логику звонка
+function renderSupportMessages() {
+    const box = document.getElementById('support-messages');
+    if (!box) return;
+
+    if (!supportMessages || supportMessages.length === 0) {
+        box.innerHTML = `
+            <div style="text-align:center; padding: 24px 10px; color:#6b7280;">
+                <p style="margin:0 0 8px 0;">Сообщений пока нет</p>
+                <p style="margin:0; font-size:12px;">Напишите нам — мы ответим как можно быстрее.</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '<div style="display:flex; flex-direction:column; gap:10px;">';
+    supportMessages.forEach((m) => {
+        const isUser = m.direction === 'user';
+        const align = isUser ? 'flex-end' : 'flex-start';
+        const bg = isUser ? '#111827' : '#f3f4f6';
+        const color = isUser ? '#ffffff' : '#111827';
+        const time = m.createdAt ? new Date(m.createdAt).toLocaleString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
+
+        html += `
+            <div style="display:flex; justify-content:${align};">
+                <div style="max-width: 85%; background:${bg}; color:${color}; border-radius: 14px; padding: 10px 12px; line-height:1.35;">
+                    <div style="white-space:pre-wrap; word-break:break-word;">${escapeHtml(m.text || '')}</div>
+                    ${time ? `<div style="margin-top:6px; font-size:11px; opacity:0.7; text-align:right;">${escapeHtml(time)}</div>` : ''}
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+
+    box.innerHTML = html;
+    box.scrollTop = box.scrollHeight;
+}
+
+async function loadSupportChatMessages() {
+    const box = document.getElementById('support-messages');
+    if (!box) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/support/messages`, { headers: getApiHeaders() });
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            throw new Error(`Failed to load support messages: ${response.status} ${errorText}`);
+        }
+        const data = await response.json();
+        supportMessages = Array.isArray(data) ? data : [];
+        renderSupportMessages();
+    } catch (error) {
+        console.error('❌ Error loading support messages:', error);
+        box.innerHTML = `
+            <div class="error-message">
+                <h3>Ошибка загрузки чата</h3>
+                <p>Попробуйте обновить страницу.</p>
+                <button class="btn" onclick="loadSupportChatMessages()" style="margin-top:12px;">Обновить</button>
+            </div>
+        `;
+    }
+}
+
+async function sendSupportChatMessage() {
+    const input = document.getElementById('supportMessageInput');
+    const text = (input?.value || '').trim();
+    if (!text) return;
+
+    try {
+        if (input) input.value = '';
+        // Optimistic UI
+        supportMessages = [...(supportMessages || []), { direction: 'user', text, createdAt: new Date().toISOString() }];
+        renderSupportMessages();
+
+        const response = await fetch(`${API_BASE}/support/messages`, {
+            method: 'POST',
+            headers: getApiHeaders(),
+            body: JSON.stringify({ text })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData?.error || `HTTP ${response.status}`);
+        }
+
+        // Refresh from server (ensures order + IDs)
+        await loadSupportChatMessages();
+    } catch (error) {
+        console.error('❌ Error sending support message:', error);
+        showError('Не удалось отправить сообщение. Попробуйте еще раз.');
+        // Reload to avoid diverging optimistic state
+        await loadSupportChatMessages().catch(() => {});
+    }
 }
 
 function showReferralLink() {
@@ -2434,57 +2571,7 @@ async function showCategoryProducts(categoryId) {
     }
 }
 
-// Add to cart function
-async function addToCart(productId) {
-    try {
-        console.log('🛒 Adding to cart:', productId);
-
-        const response = await fetch(`${API_BASE}/cart/add`, {
-            method: 'POST',
-            headers: getApiHeaders(),
-            body: JSON.stringify({ productId, quantity: 1 })
-        });
-
-        if (response.ok) {
-            showSuccess('Товар добавлен в корзину!');
-            loadCartItems(); // This will refresh cart items
-        } else {
-            const errorData = await response.json();
-            console.error('Cart add failed:', errorData);
-            showError(`Ошибка добавления в корзину: ${errorData.error || 'Неизвестная ошибка'}`);
-        }
-    } catch (error) {
-        console.error('Error adding to cart:', error);
-        showError('Ошибка добавления в корзину');
-    }
-}
-
-// Buy product function
-async function buyProduct(productId) {
-    try {
-        const response = await fetch(`${API_BASE}/orders/create`, {
-            method: 'POST',
-            headers: getApiHeaders(),
-            body: JSON.stringify({
-                items: [{ productId, quantity: 1 }],
-                message: 'Покупка через веб-приложение'
-            })
-        });
-
-        if (response.ok) {
-            showSuccess('Заказ создан! Ожидайте подтверждения.');
-            // После создания заказа запрашиваем телефон и адрес
-            await requestContactAndAddress();
-        } else {
-            const errorData = await response.json();
-            console.error('Order creation failed:', errorData);
-            showError(`Ошибка создания заказа: ${errorData.error || 'Неизвестная ошибка'}`);
-        }
-    } catch (error) {
-        console.error('Error buying product:', error);
-        showError('Ошибка создания заказа');
-    }
-}
+// NOTE: do not add duplicate addToCart/buyProduct implementations below.
 
 // Contact and address collection functions
 async function requestContactAndAddress() {
@@ -2991,7 +3078,7 @@ async function submitDeliveryForm(items, total, userBalance) {
 // Utility functions
 async function loadUserData() {
     try {
-        const response = await fetch(`${API_BASE}/user/profile`);
+        const response = await fetch(`${API_BASE}/user/profile`, { headers: getApiHeaders() });
         if (response.ok) {
             userData = await response.json();
         } else if (response.status === 401) {
