@@ -194,6 +194,39 @@ h4 {
     transition: transform 0.3s ease;
 }
 
+/* Favorites heart button */
+.favorite-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  background: rgba(255, 255, 255, 0.92);
+  color: #111827;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 3;
+  backdrop-filter: blur(6px);
+}
+.favorite-btn:hover { transform: scale(1.05); }
+.favorite-btn.active {
+  background: #111827;
+  color: #ffffff;
+  border-color: #111827;
+}
+
+/* Favorite button inside product details header */
+.product-details-header .favorite-btn {
+  position: static;
+  width: 40px;
+  height: 40px;
+}
+
 .control-btn {
     width: 40px;
     height: 40px;

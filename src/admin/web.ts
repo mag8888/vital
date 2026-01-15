@@ -863,6 +863,7 @@ router.get('/', requireAdmin, async (req, res) => {
               <div class="action-buttons">
                 <a href="/admin/categories" class="btn">📁 Категории</a>
                 <a href="/admin/products" class="btn">🛍️ Товары</a>
+                <a href="/admin/chats" class="btn">💬 Чаты</a>
                 <a href="/admin/reviews" class="btn">⭐ Отзывы</a>
                 <a href="/admin/orders" class="btn">📦 Заказы</a>
                 <button class="btn" onclick="openAddProductModal()" style="background: #28a745;">➕ Добавить товар</button>
@@ -8937,6 +8938,309 @@ router.get('/orders', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Orders page error:', error);
     res.status(500).send('Ошибка загрузки заказов');
+  }
+});
+
+// Support chats (WebApp) - view all user dialogs and reply
+router.get('/chats', requireAdmin, async (req, res) => {
+  try {
+    const escapeHtml = (str: any) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    };
+
+    const histories = await prisma.userHistory.findMany({
+      where: { action: 'support:webapp' },
+      include: { user: true },
+      orderBy: { createdAt: 'desc' },
+      take: 2000
+    });
+
+    type ChatRow = {
+      userId: string;
+      telegramId: string;
+      name: string;
+      username: string;
+      lastText: string;
+      lastAt: Date;
+      count: number;
+    };
+
+    const map = new Map<string, ChatRow>();
+    for (const h of histories as any[]) {
+      const user = h.user;
+      if (!user?.telegramId) continue;
+      const key = String(user.telegramId);
+      const payload = (h.payload || {}) as any;
+      const text = (payload.text || '').toString();
+
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, {
+          userId: user.id,
+          telegramId: String(user.telegramId),
+          name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Пользователь',
+          username: user.username ? `@${user.username}` : '',
+          lastText: text,
+          lastAt: h.createdAt,
+          count: 1,
+        });
+      } else {
+        existing.count += 1;
+      }
+    }
+
+    const chats = Array.from(map.values()).sort((a, b) => b.lastAt.getTime() - a.lastAt.getTime());
+
+    let html = `
+      <!DOCTYPE html>
+      <html lang="ru">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Чаты поддержки</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 1100px; margin: 20px auto; padding: 20px; background: #f5f5f5; }
+          .btn { display: inline-block; padding: 10px 16px; background: #111827; color: white; text-decoration: none; border-radius: 10px; margin-bottom: 14px; }
+          .card { background: white; border-radius: 14px; box-shadow: 0 8px 22px rgba(0,0,0,0.08); overflow: hidden; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { padding: 12px 14px; border-bottom: 1px solid #eef2f7; text-align: left; vertical-align: top; }
+          th { background: #f9fafb; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; }
+          tr:hover td { background: #fafafa; }
+          .muted { color: #6b7280; font-size: 12px; }
+          .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; background: #eef2ff; color: #3730a3; }
+          .link { color: #111827; text-decoration: none; font-weight: 600; }
+          .link:hover { text-decoration: underline; }
+          .snippet { color: #111827; opacity: .85; }
+        </style>
+      </head>
+      <body>
+        <a class="btn" href="/admin">← Назад</a>
+        <h2 style="margin: 0 0 10px 0;">💬 Чаты поддержки (WebApp)</h2>
+        <p class="muted" style="margin: 0 0 16px 0;">Диалоги собираются из событий <code>support:webapp</code> в истории пользователя.</p>
+
+        <div class="card">
+          <table>
+            <thead>
+              <tr>
+                <th>Пользователь</th>
+                <th>Telegram</th>
+                <th>Последнее</th>
+                <th>Сообщений</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+    if (chats.length === 0) {
+      html += `
+        <tr>
+          <td colspan="4" class="muted" style="padding: 22px;">Пока нет сообщений в поддержку из WebApp.</td>
+        </tr>
+      `;
+    } else {
+      for (const c of chats) {
+        const when = new Date(c.lastAt).toLocaleString('ru-RU');
+        const snippet = (c.lastText || '').slice(0, 160);
+        html += `
+          <tr>
+            <td>
+              <a class="link" href="/admin/chats/${encodeURIComponent(c.telegramId)}">${escapeHtml(c.name)}</a>
+              ${c.username ? `<div class="muted">${escapeHtml(c.username)}</div>` : ''}
+            </td>
+            <td class="muted">${escapeHtml(c.telegramId)}</td>
+            <td>
+              <div class="snippet">${escapeHtml(snippet)}${c.lastText && c.lastText.length > 160 ? '…' : ''}</div>
+              <div class="muted">${escapeHtml(when)}</div>
+            </td>
+            <td><span class="badge">${c.count}</span></td>
+          </tr>
+        `;
+      }
+    }
+
+    html += `
+            </tbody>
+          </table>
+        </div>
+      </body>
+      </html>
+    `;
+
+    res.send(html);
+  } catch (error) {
+    console.error('Chats page error:', error);
+    res.status(500).send('Ошибка загрузки чатов');
+  }
+});
+
+router.get('/chats/:telegramId', requireAdmin, async (req, res) => {
+  try {
+    const escapeHtml = (str: any) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    };
+
+    const telegramId = String(req.params.telegramId || '').trim();
+    const user = await prisma.user.findUnique({
+      where: { telegramId },
+    });
+
+    if (!user) {
+      return res.status(404).send('Пользователь не найден');
+    }
+
+    const histories = await prisma.userHistory.findMany({
+      where: { userId: user.id, action: 'support:webapp' },
+      orderBy: { createdAt: 'asc' },
+      take: 2000
+    });
+
+    let html = `
+      <!DOCTYPE html>
+      <html lang="ru">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Чат: ${escapeHtml(user.firstName || '')}</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 20px auto; padding: 20px; background: #f5f5f5; }
+          .top { display:flex; justify-content: space-between; align-items:center; gap: 12px; margin-bottom: 12px; }
+          .btn { display: inline-block; padding: 10px 16px; background: #111827; color: white; text-decoration: none; border-radius: 10px; }
+          .card { background: white; border-radius: 14px; box-shadow: 0 8px 22px rgba(0,0,0,0.08); overflow: hidden; }
+          .meta { padding: 14px 16px; border-bottom: 1px solid #eef2f7; }
+          .muted { color: #6b7280; font-size: 12px; }
+          .chat { padding: 16px; display:flex; flex-direction:column; gap: 10px; background: #fbfbfb; max-height: 65vh; overflow-y:auto; }
+          .msg-row { display:flex; }
+          .msg { max-width: 78%; padding: 10px 12px; border-radius: 14px; line-height: 1.35; white-space: pre-wrap; word-break: break-word; }
+          .user { justify-content:flex-end; }
+          .user .msg { background:#111827; color:#fff; border-top-right-radius: 8px; }
+          .admin { justify-content:flex-start; }
+          .admin .msg { background:#f3f4f6; color:#111827; border-top-left-radius: 8px; }
+          .time { margin-top: 6px; font-size: 11px; opacity: .7; text-align:right; }
+          form { padding: 14px 16px; border-top: 1px solid #eef2f7; background: white; display:grid; gap: 10px; }
+          textarea { width: 100%; min-height: 90px; padding: 12px 14px; border: 1px solid #e5e7eb; border-radius: 12px; font-family: inherit; resize: vertical; }
+          button { width: 100%; padding: 12px 14px; border: none; border-radius: 12px; background: #111827; color:#fff; font-weight: 700; cursor:pointer; }
+          button:hover { filter: brightness(1.05); }
+          .alert { padding: 10px 12px; border-radius: 12px; background:#dcfce7; color:#166534; margin-top: 10px; border: 1px solid #bbf7d0; }
+        </style>
+      </head>
+      <body>
+        <div class="top">
+          <a class="btn" href="/admin/chats">← Все чаты</a>
+          <div class="muted">Telegram ID: <code>${escapeHtml(telegramId)}</code></div>
+        </div>
+
+        <div class="card">
+          <div class="meta">
+            <div style="font-weight:700;">${escapeHtml(`${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Пользователь')}</div>
+            ${user.username ? `<div class="muted">@${escapeHtml(user.username)}</div>` : ''}
+            ${req.query.success === 'sent' ? `<div class="alert">✅ Ответ отправлен</div>` : ''}
+          </div>
+          <div class="chat" id="chatBox">
+    `;
+
+    if (histories.length === 0) {
+      html += `<div class="muted">Сообщений пока нет.</div>`;
+    } else {
+      for (const h of histories as any[]) {
+        const payload = (h.payload || {}) as any;
+        const direction = payload.direction === 'admin' ? 'admin' : 'user';
+        const text = (payload.text || '').toString();
+        const when = new Date(h.createdAt).toLocaleString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        html += `
+          <div class="msg-row ${direction}">
+            <div class="msg">
+              ${escapeHtml(text)}
+              <div class="time">${escapeHtml(when)}</div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    html += `
+          </div>
+          <form method="post" action="/admin/chats/${encodeURIComponent(telegramId)}/reply">
+            <textarea name="text" placeholder="Написать пользователю..." required></textarea>
+            <button type="submit">Отправить</button>
+            <div class="muted">Сообщение уйдёт пользователю в Telegram и запишется в историю (для WebApp-чата).</div>
+          </form>
+        </div>
+
+        <script>
+          // scroll to bottom
+          try {
+            const el = document.getElementById('chatBox');
+            if (el) el.scrollTop = el.scrollHeight;
+          } catch (e) {}
+        </script>
+      </body>
+      </html>
+    `;
+
+    res.send(html);
+  } catch (error) {
+    console.error('Chat thread error:', error);
+    res.status(500).send('Ошибка загрузки чата');
+  }
+});
+
+router.post('/chats/:telegramId/reply', requireAdmin, express.urlencoded({ extended: true }), async (req, res) => {
+  try {
+    const telegramId = String(req.params.telegramId || '').trim();
+    const textRaw = (req.body?.text ?? '').toString();
+    const text = textRaw.trim();
+    if (!text) {
+      return res.redirect(`/admin/chats/${encodeURIComponent(telegramId)}`);
+    }
+
+    const user = await prisma.user.findUnique({ where: { telegramId } });
+    if (!user) {
+      return res.status(404).send('Пользователь не найден');
+    }
+
+    // Send via bot
+    try {
+      const { getBotInstance } = await import('../lib/bot-instance.js');
+      const bot = await getBotInstance();
+      if (bot) {
+        const escapeTelegramHtml = (s: string) => s
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        await bot.telegram.sendMessage(
+          telegramId,
+          `💬 <b>Ответ службы поддержки:</b>\n\n${escapeTelegramHtml(text)}`,
+          { parse_mode: 'HTML' }
+        );
+      }
+    } catch (sendErr) {
+      console.error('Failed to send admin chat reply:', sendErr);
+      // Continue to log anyway
+    }
+
+    // Log to history for WebApp chat UI
+    await prisma.userHistory.create({
+      data: {
+        userId: user.id,
+        action: 'support:webapp',
+        payload: { direction: 'admin', text }
+      }
+    });
+
+    res.redirect(`/admin/chats/${encodeURIComponent(telegramId)}?success=sent`);
+  } catch (error) {
+    console.error('Chat reply error:', error);
+    res.status(500).send('Ошибка отправки сообщения');
   }
 });
 

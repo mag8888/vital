@@ -33,6 +33,7 @@ if (tg) {
 let currentSection = null;
 let userData = null;
 let cartItems = [];
+let favoritesSet = new Set();
 
 // API Base URL - adjust based on your backend
 const API_BASE = '/webapp/api';
@@ -66,6 +67,7 @@ function getApiHeaders() {
 document.addEventListener('DOMContentLoaded', function () {
     loadUserData();
     loadCartItems();
+    loadFavorites();
     updateBadges();
     loadProductsOnMainPage(); // Load products immediately on main page
 
@@ -92,6 +94,89 @@ document.addEventListener('DOMContentLoaded', function () {
     // Add haptic feedback to all buttons
     document.querySelectorAll('.btn, .control-btn, .back-btn, .content-card, .nav-item').forEach(addHapticFeedback);
 });
+
+// Favorites (webapp)
+async function loadFavorites() {
+    try {
+        const response = await fetch(`${API_BASE}/favorites`, { headers: getApiHeaders() });
+        if (!response.ok) {
+            favoritesSet = new Set();
+            return;
+        }
+        const data = await response.json();
+        const ids = Array.isArray(data?.productIds) ? data.productIds : [];
+        favoritesSet = new Set(ids.map(String));
+    } catch (e) {
+        console.error('❌ Error loading favorites:', e);
+        favoritesSet = new Set();
+    }
+}
+
+function isFavorite(productId) {
+    return favoritesSet && favoritesSet.has(String(productId));
+}
+
+function renderFavoriteButton(productId) {
+    const active = isFavorite(productId);
+    const cls = active ? 'favorite-btn active' : 'favorite-btn';
+    const label = active ? 'Убрать из избранного' : 'В избранное';
+    const icon = active ? '♥' : '♡';
+    return `<button class="${cls}" aria-label="${label}" title="${label}" onclick="event.stopPropagation(); toggleFavorite('${productId}', this)">${icon}</button>`;
+}
+
+async function toggleFavorite(productId, btnEl) {
+    if (!productId) return;
+    try {
+        // Optimistic update
+        const currently = isFavorite(productId);
+        if (currently) favoritesSet.delete(String(productId));
+        else favoritesSet.add(String(productId));
+
+        if (btnEl) {
+            const nowActive = !currently;
+            btnEl.classList.toggle('active', nowActive);
+            btnEl.textContent = nowActive ? '♥' : '♡';
+        }
+
+        const response = await fetch(`${API_BASE}/favorites/toggle`, {
+            method: 'POST',
+            headers: getApiHeaders(),
+            body: JSON.stringify({ productId })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData?.error || `HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        const serverActive = !!data?.isFavorite;
+        if (serverActive) favoritesSet.add(String(productId));
+        else favoritesSet.delete(String(productId));
+
+        if (btnEl) {
+            btnEl.classList.toggle('active', serverActive);
+            btnEl.textContent = serverActive ? '♥' : '♡';
+        }
+
+        // If we're currently in favorites screen, refresh it
+        if (currentSection === 'favorites') {
+            const body = document.getElementById('section-body');
+            if (body) {
+                body.innerHTML = await loadFavoritesContent();
+            }
+        }
+    } catch (e) {
+        console.error('❌ Error toggling favorite:', e);
+        showError('Не удалось обновить избранное. Попробуйте позже.');
+        await loadFavorites();
+        if (btnEl) {
+            const active = isFavorite(productId);
+            btnEl.classList.toggle('active', active);
+            btnEl.textContent = active ? '♥' : '♡';
+        }
+    }
+}
 
 // Navigation functions
 function closeApp() {
@@ -1374,7 +1459,8 @@ function renderProductCardHorizontal(product) {
     const summary = escapeHtml(cleanSummary.substring(0, 80));
     const priceRub = product.price ? (product.price * 100).toFixed(0) : '0';
     return `
-        <div class="product-card-forma-horizontal" onclick="showProductDetails('${product.id}')">
+        <div class="product-card-forma-horizontal" onclick="showProductDetails('${product.id}')" style="position: relative;">
+            ${renderFavoriteButton(product.id)}
             ${imageHtml}
             <div class="product-card-content">
                 <h3 class="product-card-title">${title}</h3>
@@ -1401,7 +1487,8 @@ function renderProductCard(product) {
     const summary = escapeHtml(cleanSummary.substring(0, 100));
     const priceRub = product.price ? (product.price * 100).toFixed(0) : '0';
     return `
-        <div class="product-card-forma" onclick="showProductDetails('${product.id}')">
+        <div class="product-card-forma" onclick="showProductDetails('${product.id}')" style="position: relative;">
+            ${renderFavoriteButton(product.id)}
             ${imageHtml}
             <div class="product-card-content">
                 <h3 class="product-card-title">${title}</h3>
@@ -1859,9 +1946,9 @@ async function loadSupportContent() {
                     <div class="loading"><div class="loading-spinner"></div></div>
                 </div>
 
-                <div style="display: flex; gap: 10px; margin-top: 12px;">
-                    <input id="supportMessageInput" type="text" placeholder="Напишите сообщение…" style="flex: 1; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border-color);" />
-                    <button class="btn" onclick="sendSupportChatMessage()" style="white-space: nowrap;">Отправить</button>
+                <div style="display: grid; gap: 10px; margin-top: 12px;">
+                    <input id="supportMessageInput" type="text" placeholder="Напишите сообщение…" style="width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border-color);" />
+                    <button class="btn" onclick="sendSupportChatMessage()" style="width: 100%;">Отправить</button>
                 </div>
 
                 <p style="margin-top: 10px; color: #9ca3af; font-size: 12px;">
@@ -1892,16 +1979,59 @@ async function loadChatsContent() {
 
 // Favorites content
 async function loadFavoritesContent() {
-    return `
-        <div class="content-section">
-            <h3>Избранное</h3>
-            <p>Ваши сохранённые товары и материалы</p>
-            
-            <div style="margin: 20px 0;">
-                <p style="color: #666666; text-align: center;">Пока ничего не добавлено в избранное</p>
+    try {
+        // Ensure latest favorites are loaded
+        await loadFavorites();
+        const response = await fetch(`${API_BASE}/favorites/products`, { headers: getApiHeaders() });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            return `
+                <div class="content-section">
+                    <h3>Избранное</h3>
+                    <div class="error-message">
+                        <h3>Ошибка загрузки</h3>
+                        <p>${escapeHtml(errorData?.error || 'Не удалось загрузить избранное')}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        const products = await response.json();
+        const list = Array.isArray(products) ? products : [];
+
+        if (list.length === 0) {
+            return `
+                <div class="content-section">
+                    <h3>Избранное</h3>
+                    <p>Ваши сохранённые товары</p>
+                    <div style="margin: 20px 0;">
+                        <p style="color: #666666; text-align: center;">Пока ничего не добавлено в избранное</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        let html = `
+            <div class="content-section">
+                <h3>Избранное</h3>
+                <p>Ваши сохранённые товары</p>
+                <div class="products-grid" style="margin-top: 12px;">
+        `;
+
+        list.forEach((p) => {
+            html += renderProductCard(p);
+        });
+
+        html += `
+                </div>
             </div>
-        </div>
-    `;
+        `;
+
+        return html;
+    } catch (e) {
+        console.error('❌ Error loading favorites content:', e);
+        return '<div class="error-message"><h3>Ошибка загрузки избранного</h3><p>Попробуйте позже</p></div>';
+    }
 }
 
 // Action functions
@@ -3283,7 +3413,10 @@ async function showProductDetails(productId) {
         let content = `
             <div class="product-details">
                 <div class="product-details-header">
-                    <h2>${cleanProductTitle(product.title)}</h2>
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+                        <h2 style="margin:0;">${cleanProductTitle(product.title)}</h2>
+                        ${renderFavoriteButton(product.id)}
+                    </div>
                 </div>
                 
                 <div class="product-details-content">

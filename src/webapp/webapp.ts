@@ -822,6 +822,139 @@ router.post('/api/support/messages', async (req, res) => {
   }
 });
 
+// Favorites (webapp) - store in UserHistory and compute current set by folding toggles
+async function getOrCreateWebappUser(req: express.Request) {
+  const telegramUser = getTelegramUser(req);
+  if (!telegramUser) return null;
+
+  const { prisma } = await import('../lib/prisma.js');
+  let user = await prisma.user.findUnique({
+    where: { telegramId: telegramUser.id.toString() }
+  });
+
+  if (!user) {
+    try {
+      user = await prisma.user.create({
+        data: {
+          telegramId: telegramUser.id.toString(),
+          firstName: telegramUser.first_name,
+          lastName: telegramUser.last_name,
+          username: telegramUser.username,
+        }
+      });
+    } catch (error: any) {
+      if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  return user;
+}
+
+async function getFavoritesSetForUserId(userId: string): Promise<Set<string>> {
+  const { prisma } = await import('../lib/prisma.js');
+  const events = await prisma.userHistory.findMany({
+    where: { userId, action: 'favorites:toggle' },
+    orderBy: { createdAt: 'asc' },
+    take: 5000
+  });
+
+  const set = new Set<string>();
+  for (const e of events as any[]) {
+    const payload = (e.payload || {}) as any;
+    const productId = (payload.productId || '').toString();
+    const isFavorite = !!payload.isFavorite;
+    if (!productId) continue;
+    if (isFavorite) set.add(productId);
+    else set.delete(productId);
+  }
+  return set;
+}
+
+router.get('/api/favorites', async (req, res) => {
+  try {
+    const user = await getOrCreateWebappUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const set = await getFavoritesSetForUserId(user.id);
+    res.json({ productIds: Array.from(set) });
+  } catch (error: any) {
+    console.error('❌ Error fetching favorites:', error);
+    if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
+      return res.status(503).json({ error: 'Database temporarily unavailable. Please try again later.' });
+    }
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/api/favorites/products', async (req, res) => {
+  try {
+    const user = await getOrCreateWebappUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const set = await getFavoritesSetForUserId(user.id);
+    const ids = Array.from(set).slice(0, 200);
+    if (ids.length === 0) return res.json([]);
+
+    const { prisma } = await import('../lib/prisma.js');
+    const products = await prisma.product.findMany({
+      where: { id: { in: ids } },
+      include: { category: true }
+    });
+
+    // Preserve user order
+    const byId = new Map(products.map((p: any) => [p.id, p]));
+    res.json(ids.map(id => byId.get(id)).filter(Boolean));
+  } catch (error: any) {
+    console.error('❌ Error fetching favorite products:', error);
+    if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
+      return res.status(503).json({ error: 'Database temporarily unavailable. Please try again later.' });
+    }
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/api/favorites/toggle', async (req, res) => {
+  try {
+    const user = await getOrCreateWebappUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const productId = (req.body?.productId || '').toString();
+    if (!productId) {
+      return res.status(400).json({ error: 'Product ID is required' });
+    }
+
+    // Determine next state
+    const currentSet = await getFavoritesSetForUserId(user.id);
+    const next = !currentSet.has(productId);
+
+    const { prisma } = await import('../lib/prisma.js');
+    await prisma.userHistory.create({
+      data: {
+        userId: user.id,
+        action: 'favorites:toggle',
+        payload: { productId, isFavorite: next }
+      }
+    });
+
+    res.json({ success: true, isFavorite: next });
+  } catch (error: any) {
+    console.error('❌ Error toggling favorite:', error);
+    if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
+      return res.status(503).json({ error: 'Database temporarily unavailable. Please try again later.' });
+    }
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Order create endpoint
 router.post('/api/orders/create', async (req, res) => {
   try {
