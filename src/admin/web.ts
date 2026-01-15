@@ -6786,15 +6786,27 @@ router.get('/products', requireAdmin, async (req, res) => {
               };
             }
             
-            // Проверяем, что window.editProduct определена
-            function checkEditProductFunction() {
-              if (typeof window.editProduct !== 'function') {
-                console.error('❌ CRITICAL: window.editProduct is not defined!');
+            // КРИТИЧНО: Убеждаемся, что window.editProduct определена ДО инициализации обработчиков
+            // Если функция не определена, ждем её определения
+            function waitForEditProductFunction(maxAttempts = 50, attempt = 0) {
+              if (typeof window.editProduct === 'function') {
+                console.log('✅ window.editProduct is defined:', typeof window.editProduct);
+                return true;
+              }
+              
+              if (attempt >= maxAttempts) {
+                console.error('❌ CRITICAL: window.editProduct is not defined after', maxAttempts, 'attempts!');
                 console.error('❌ Available window properties:', Object.keys(window).filter(k => k.toLowerCase().includes('edit')));
+                // Не показываем alert здесь, так как это может быть вызвано до загрузки страницы
                 return false;
               }
-              console.log('✅ window.editProduct is defined:', typeof window.editProduct);
-              return true;
+              
+              // Ждем и проверяем снова
+              setTimeout(() => {
+                waitForEditProductFunction(maxAttempts, attempt + 1);
+              }, 50);
+              
+              return false;
             }
             
             // Устанавливаем обработчик сразу, но он сработает только после загрузки DOM
@@ -6807,16 +6819,22 @@ router.get('/products', requireAdmin, async (req, res) => {
               console.log('✅ Initializing event delegation for product buttons');
               
               // Проверяем функции перед установкой обработчика
-              if (!checkEditProductFunction()) {
-                console.error('❌ Cannot initialize event delegation: window.editProduct is not defined');
-                // Попробуем еще раз через небольшую задержку
-                setTimeout(() => {
-                  if (checkEditProductFunction()) {
+              if (typeof window.editProduct !== 'function') {
+                console.warn('⚠️ window.editProduct not yet defined, waiting...');
+                // Ждем определения функции с несколькими попытками
+                let attempts = 0;
+                const checkInterval = setInterval(() => {
+                  attempts++;
+                  if (typeof window.editProduct === 'function') {
+                    clearInterval(checkInterval);
+                    console.log('✅ window.editProduct is now defined, initializing event delegation');
                     initEventDelegation();
-                  } else {
-                    alert('ОШИБКА: Функция редактирования не загружена. Пожалуйста, обновите страницу.');
+                  } else if (attempts >= 20) {
+                    clearInterval(checkInterval);
+                    console.error('❌ Cannot initialize event delegation: window.editProduct is not defined after 1 second');
+                    // Не показываем alert здесь, так как onclick обработчик покажет свою ошибку
                   }
-                }, 100);
+                }, 50);
                 return;
               }
               
