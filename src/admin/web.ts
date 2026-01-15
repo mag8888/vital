@@ -6807,11 +6807,15 @@ router.get('/products', requireAdmin, async (req, res) => {
               eventHandlerAttached = true;
               
               document.addEventListener('click', function(event) {
+                // event.target может быть Text node — тогда .closest не существует и весь обработчик падает,
+                // из‑за чего клики по кнопкам (фото/фильтры) перестают работать.
                 const target = event.target;
+                const el = (target && target.nodeType === 1) ? target : (target && target.parentElement ? target.parentElement : null);
+                if (!el) return;
                 
                 // Обработка кнопки редактирования товара (проверяем первой, так как она самая важная)
                 // Ищем кнопку через closest, так как клик может быть на дочернем элементе (текст, иконка)
-                const editBtn = target.closest('.edit-btn') || (target.classList && target.classList.contains('edit-btn') ? target : null);
+                const editBtn = el.closest('.edit-btn') || (el.classList && el.classList.contains('edit-btn') ? el : null);
                 
                 if (editBtn) {
                   // Проверяем, что это действительно кнопка редактирования
@@ -6847,8 +6851,22 @@ router.get('/products', requireAdmin, async (req, res) => {
                   }
                 }
                 
+                // Фильтры категорий (дублируем inline onclick, чтобы работало даже если он сломан/перекрыт)
+                const filterBtn = el.closest('.filter-btn');
+                if (filterBtn && typeof window.filterProducts === 'function') {
+                  console.log('🔵 Filter button clicked', filterBtn);
+                  event.preventDefault();
+                  event.stopPropagation();
+                  try {
+                    window.filterProducts(filterBtn);
+                  } catch (error) {
+                    console.error('❌ Error in filterProducts:', error);
+                  }
+                  return;
+                }
+                
                 // Обработка кнопки "Выбрать из загруженных"
-                const selectImageBtn = target.closest('.select-image-btn');
+                const selectImageBtn = el.closest('.select-image-btn');
                 if (selectImageBtn) {
                   console.log('🔵 Select image button clicked');
                   event.preventDefault();
@@ -6867,7 +6885,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 }
                 
                 // Обработка кнопки загрузки изображения через data-атрибут
-                const imageBtn = target.closest('.image-btn[data-image-input-id]');
+                const imageBtn = el.closest('.image-btn[data-image-input-id]');
                 if (imageBtn) {
                   console.log('🔵 Image upload button clicked');
                   event.preventDefault();
@@ -6883,7 +6901,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 }
                 
                 // Обработка формы удаления товара (кнопка внутри формы)
-                const deleteBtn = target.closest('.delete-btn');
+                const deleteBtn = el.closest('.delete-btn');
                 if (deleteBtn) {
                   const deleteForm = deleteBtn.closest('.delete-product-form');
                   if (deleteForm) {
