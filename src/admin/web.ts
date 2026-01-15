@@ -5735,31 +5735,8 @@ router.get('/products', requireAdmin, async (req, res) => {
             }
           };
           
-          window.showInstructionSafe = function(button) {
-            try {
-              const productId = button.dataset.instructionId;
-              let instructionText = button.dataset.instructionText || '';
-              
-              // Безопасное декодирование HTML entities и очистка от проблемных символов
-              let decodedText = instructionText
-                .replace(/&quot;/g, '"')
-                .replace(/&#39;/g, "'")
-                .replace(/&#96;/g, String.fromCharCode(96))
-                .replace(/[\r\n]/g, ' ') // Заменяем переносы строк на пробелы
-                .replace(/[\\]/g, '\\\\') // Экранируем обратные слеши
-                .replace(/['"]/g, function(match) { return match === '"' ? '\\"' : "\\'"; }); // Экранируем кавычки
-              
-              if (window.showInstruction && typeof window.showInstruction === 'function') {
-                window.showInstruction(productId, decodedText);
-              } else {
-                const safeMessage = 'Инструкция:\\n\\n' + (decodedText || 'Инструкция не добавлена');
-                alert(safeMessage);
-              }
-            } catch (error) {
-              console.error('Error showing instruction:', error);
-              alert('Ошибка отображения инструкции');
-            }
-          };
+          // NOTE: Инструкция удалена из карточек по требованию — не держим лишние обработчики,
+          // чтобы не ломать парсинг JS в HTML-шаблоне.
           
           // КРИТИЧНО: Проверяем, что функция определена
           if (typeof window.editProduct !== 'function') {
@@ -6077,7 +6054,9 @@ router.get('/products', requireAdmin, async (req, res) => {
               const result = await response.json();
               
               if (result.success) {
-                alert('✅ Успешно!\n\nПеремещено продуктов: ' + (result.movedCount || 0) + '\nКатегория: "' + (result.categoryName || 'Косметика') + '"');
+                // ВНИМАНИЕ: внутри серверного шаблона нельзя писать '\n' напрямую — оно превращается в реальный перенос строки
+                // и ломает JavaScript-строку. Используем экранированные \\n.
+                alert('✅ Успешно!\\n\\nПеремещено продуктов: ' + (result.movedCount || 0) + '\\nКатегория: \"' + (result.categoryName || 'Косметика') + '\"');
                 location.reload();
               } else {
                 alert('❌ Ошибка: ' + (result.error || 'Не удалось переместить продукты'));
