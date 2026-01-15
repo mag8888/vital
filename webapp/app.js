@@ -346,56 +346,60 @@ async function loadProfileContent() {
     }
 }
 
-async function copyReferralLink() {
+async function copyReferralLink(link) {
     const input = document.getElementById('referral-link-input');
-    if (!input) {
-        console.error('Referral link input not found');
-        alert('Ошибка: ссылка не найдена');
-        return;
-    }
 
-    let linkText = input.value || '';
+    let linkText = (link ?? (input?.value ?? '')).toString();
 
     // Clean up the link text - remove any undefined/null values
     if (linkText.includes('undefined') || linkText.includes('null')) {
         console.warn('Link contains undefined/null, cleaning up...');
-        // Replace undefined/null in the link
         linkText = linkText.replace(/undefined/g, '').replace(/null/g, '');
     }
 
+    linkText = linkText.trim();
+
     // Final validation
-    if (!linkText || linkText.trim() === '' || linkText === 'undefined' || linkText === 'null') {
+    if (!linkText || linkText === 'undefined' || linkText === 'null') {
         console.error('Referral link is empty or invalid:', linkText);
-        alert('Ошибка: ссылка не загружена. Попробуйте обновить страницу.');
+        showError('Ошибка: ссылка не загружена. Попробуйте обновить страницу.');
         return;
     }
 
     // Ensure it's a valid URL
     if (!linkText.startsWith('http')) {
         console.error('Invalid link format:', linkText);
-        alert('Ошибка: неверный формат ссылки');
+        showError('Ошибка: неверный формат ссылки');
         return;
     }
 
     try {
-        // Use modern Clipboard API
         if (navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(linkText.trim());
+            await navigator.clipboard.writeText(linkText);
         } else {
             // Fallback for older browsers
-            input.select();
-            input.setSelectionRange(0, 99999); // For mobile devices
-            document.execCommand('copy');
+            if (input) {
+                input.value = linkText;
+                input.select();
+                input.setSelectionRange(0, 99999);
+            } else {
+                const textArea = document.createElement('textarea');
+                textArea.value = linkText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            }
         }
 
         if (tg && tg.HapticFeedback) {
             tg.HapticFeedback.notificationOccurred('success');
         }
 
-        alert('✅ Реферальная ссылка скопирована!');
+        showSuccess('✅ Реферальная ссылка скопирована!');
     } catch (error) {
         console.error('Error copying referral link:', error);
-        alert('Ошибка копирования ссылки. Попробуйте выделить и скопировать вручную.');
+        showError('Ошибка копирования ссылки. Попробуйте выделить и скопировать вручную.');
     }
 }
 
@@ -2192,25 +2196,6 @@ function openTelegram() {
 }
 
 // Функции для партнёрской программы
-function copyReferralLink(link) {
-    try {
-        navigator.clipboard.writeText(link).then(() => {
-            showSuccess('Ссылка скопирована в буфер обмена!');
-        }).catch(() => {
-            // Fallback для старых браузеров
-            const textArea = document.createElement('textarea');
-            textArea.value = link;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
-            showSuccess('Ссылка скопирована!');
-        });
-    } catch (error) {
-        console.error('Error copying link:', error);
-        showError('Не удалось скопировать ссылку');
-    }
-}
 
 function showShareText(text) {
     const content = `
