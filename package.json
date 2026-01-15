@@ -41,7 +41,9 @@
     "test-scrape": "ts-node --esm scripts/test-scrape-shop.ts",
     "upload-image": "node scripts/upload-product-image.js",
     "upload-all-images": "node scripts/upload-all-product-images.js",
-    "add-praktiki-category": "ts-node --esm scripts/add-praktiki-category.ts"
+    "add-praktiki-category": "ts-node --esm scripts/add-praktiki-category.ts",
+    "test:admin": "node tests/admin.test.js",
+    "test:admin:prod": "TEST_BASE_URL=https://vital-production-82b0.up.railway.app node tests/admin.test.js"
   },
   "dependencies": {
     "@adminjs/express": "^6.1.1",
@@ -64,7 +66,7 @@
     "@types/node": "^20.14.10",
     "@types/pdf-parse": "^1.1.5",
     "nodemon": "^3.1.4",
-    "pdf-parse": "^2.4.5",
+    "pdf-parse": "^1.1.1",
     "prisma": "^5.22.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.4"

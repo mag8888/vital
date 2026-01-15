@@ -83,3 +83,4 @@ pids/
 
 # Yarn Integrity file
 .yarn-integrity
+scripts/set_railway_vars.sh
