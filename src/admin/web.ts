@@ -6254,7 +6254,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                   '<button class="close-btn" style="background: rgba(255,255,255,0.2); border: none; font-size: 24px; cursor: pointer; color: white; padding: 0; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center;">&times;</button>' +
                 '</div>' +
                 '<div id="galleryContent" style="padding: 20px; overflow-y: auto; flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;">' +
-                  '<div style="grid-column: 1 / -1; text-align: center; padding: 40px;">' +
+                  '<div style="grid-column: span 999; text-align: center; padding: 40px;">' +
                     '<div class="loading-spinner" style="width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px;"></div>' +
                     '<p style="color: #6b7280;">Загрузка изображений...</p>' +
                   '</div>' +
@@ -6361,7 +6361,11 @@ router.get('/products', requireAdmin, async (req, res) => {
               console.log('Gallery images response:', result);
               
               if (!result.success || !result.images || result.images.length === 0) {
-                galleryContent.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #6b7280;"><p style="font-size: 18px; margin-bottom: 8px;">📦 Нет загруженных изображений</p><p style="font-size: 14px;">Сначала загрузите изображения для товаров</p></div>';
+                const emptyDiv = document.createElement('div');
+                emptyDiv.style.cssText = 'grid-column: span 999; text-align: center; padding: 40px; color: #6b7280;';
+                emptyDiv.innerHTML = '<p style="font-size: 18px; margin-bottom: 8px;">📦 Нет загруженных изображений</p><p style="font-size: 14px;">Сначала загрузите изображения для товаров</p>';
+                galleryContent.innerHTML = '';
+                galleryContent.appendChild(emptyDiv);
                 return;
               }
               
@@ -6410,7 +6414,11 @@ router.get('/products', requireAdmin, async (req, res) => {
             } catch (error) {
               console.error('Error loading gallery images:', error);
               const errorMsg = error instanceof Error ? error.message : 'Попробуйте обновить страницу';
-              galleryContent.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #dc3545;"><p style="font-size: 18px; margin-bottom: 8px;">❌ Ошибка загрузки изображений</p><p style="font-size: 14px;">' + errorMsg + '</p></div>';
+              const errorDiv = document.createElement('div');
+              errorDiv.style.cssText = 'grid-column: span 999; text-align: center; padding: 40px; color: #dc3545;';
+              errorDiv.innerHTML = '<p style="font-size: 18px; margin-bottom: 8px;">❌ Ошибка загрузки изображений</p><p style="font-size: 14px;">' + (errorMsg || 'Попробуйте обновить страницу') + '</p>';
+              galleryContent.innerHTML = '';
+              galleryContent.appendChild(errorDiv);
             }
           };
           
