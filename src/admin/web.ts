@@ -6115,8 +6115,6 @@ router.get('/products', requireAdmin, async (req, res) => {
               const result = await response.json();
               
               if (result.success) {
-                // ВНИМАНИЕ: внутри серверного шаблона нельзя писать '\n' напрямую — оно превращается в реальный перенос строки
-                // и ломает JavaScript-строку. Используем экранированные \\n.
                 alert('✅ Успешно!\\n\\nПеремещено продуктов: ' + (result.movedCount || 0) + '\\nКатегория: \"' + (result.categoryName || 'Косметика') + '\"');
                 location.reload();
               } else {
