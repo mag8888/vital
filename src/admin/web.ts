@@ -5970,7 +5970,7 @@ router.get('/products', requireAdmin, async (req, res) => {
             <form id="addCategoryForm" class="modal-form">
               <div class="form-group">
                 <label for="categoryName">Название категории</label>
-                <input type="text" id="categoryName" name="name" required placeholder="Например: Косметика">
+                <input type="text" id="categoryName" name="name" autocomplete="off" required placeholder="Например: Косметика">
               </div>
               <div class="form-group">
                 <label for="categoryDescription">Описание (необязательно)</label>
@@ -5994,7 +5994,7 @@ router.get('/products', requireAdmin, async (req, res) => {
             <form id="addSubcategoryForm" class="modal-form">
               <div class="form-group">
                 <label for="subcategoryName">Название подкатегории</label>
-                <input type="text" id="subcategoryName" name="name" required placeholder="Например: Кремы для лица">
+                <input type="text" id="subcategoryName" name="name" autocomplete="off" required placeholder="Например: Кремы для лица">
               </div>
               <div class="form-group">
                 <label for="subcategoryParent">Родительская категория</label>
@@ -6088,12 +6088,6 @@ router.get('/products', requireAdmin, async (req, res) => {
             }
           };
           
-          // Function to scrape all images
-          window.scrapeAllImages = async function() {
-            const statusDiv = document.getElementById('scraping-status');
-            // ... (existing code)
-          };
-
           // Function to filter products
           window.filterProducts = function(button) {
             const filter = button.dataset.filter;
@@ -6112,41 +6106,6 @@ router.get('/products', requireAdmin, async (req, res) => {
                 card.style.display = 'none';
               }
             });
-          };
-            const progressDiv = document.getElementById('scraping-progress');
-            
-            if (statusDiv) statusDiv.style.display = 'block';
-            
-            try {
-              if (progressDiv) progressDiv.textContent = '🚀 Запуск сбора фотографий...';
-              
-              const response = await fetch('/admin/api/scrape-all-images', {
-                method: 'POST',
-                credentials: 'include',
-                headers: {
-                  'Content-Type': 'application/json'
-                }
-              });
-              
-              if (!response.ok) {
-                throw new Error('Ошибка запуска сбора фотографий');
-              }
-              
-              // Открываем новую вкладку с логами или показываем статус
-              if (progressDiv) progressDiv.innerHTML = '✅ Сбор фотографий запущен! Проверьте логи в консоли сервера или подождите завершения...';
-              
-              // Через 5 секунд перезагружаем страницу для проверки результатов
-              setTimeout(() => {
-                window.location.href = '/admin/products?success=images_scraped';
-              }, 5000);
-              
-            } catch (error) {
-              console.error('Error scraping images:', error);
-              if (progressDiv) progressDiv.innerHTML = '❌ Ошибка: ' + (error instanceof Error ? error.message : String(error));
-              setTimeout(() => {
-                if (statusDiv) statusDiv.style.display = 'none';
-              }, 5000);
-            }
           };
           
           // NOTE: window.editProduct and window.closeEditModal already defined at the beginning of script
