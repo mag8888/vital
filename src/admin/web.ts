@@ -5927,7 +5927,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 <button type="button" class="image-btn" data-image-input-id="image-${escapeAttr(product.id)}">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</button>
               </form>
               <button type="button" class="image-btn select-image-btn" style="background: #6366f1;" data-product-id="${escapeAttr(product.id)}">🖼️ Выбрать из загруженных</button>
-              <form method="post" action="/admin/products/${escapeAttr(product.id)}/delete" class="delete-product-form" data-product-id="${escapeAttr(product.id)}">
+              <form method="post" action="/admin/products/${escapeAttr(product.id)}/delete" class="delete-product-form" data-product-id="${escapeAttr(product.id)}" data-product-title="${escapeAttr(product.title)}">
                 <button type="submit" class="delete-btn">Удалить</button>
               </form>
             </div>
@@ -5992,6 +5992,25 @@ router.get('/products', requireAdmin, async (req, res) => {
           </div>
         </div>
 
+        <!-- Modal: confirm delete product -->
+        <div id="confirmDeleteModal" class="modal-overlay" style="display: none; z-index: 11000;">
+          <div class="modal-content" style="max-width: 520px;">
+            <div class="modal-header">
+              <h2>🗑️ Удалить товар?</h2>
+              <button class="close-btn" type="button" onclick="window.closeConfirmDeleteModal()">&times;</button>
+            </div>
+            <div class="modal-form" style="padding: 20px 28px;">
+              <p id="confirmDeleteText" style="margin: 0; color: #374151; font-size: 14px; line-height: 1.5;">
+                Вы точно хотите удалить этот товар? Это действие нельзя отменить.
+              </p>
+            </div>
+            <div class="form-actions">
+              <button type="button" onclick="window.closeConfirmDeleteModal()">Отмена</button>
+              <button type="button" id="confirmDeleteBtn" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white;">Удалить</button>
+            </div>
+          </div>
+        </div>
+
         <script>
           // Определяем функции глобально ДО загрузки страницы - сразу, не в IIFE
           'use strict';
@@ -6034,6 +6053,48 @@ router.get('/products', requireAdmin, async (req, res) => {
             if (form) {
               form.reset();
             }
+          };
+
+          // Delete confirmation modal
+          window.__pendingDeleteForm = null;
+          window.openConfirmDeleteModal = function(deleteForm) {
+            try {
+              const modal = document.getElementById('confirmDeleteModal');
+              const text = document.getElementById('confirmDeleteText');
+              const btn = document.getElementById('confirmDeleteBtn');
+              if (!modal || !text || !btn) return;
+
+              const title = (deleteForm && deleteForm.getAttribute && deleteForm.getAttribute('data-product-title')) || '';
+              text.textContent = title
+                ? ('Вы точно хотите удалить товар: ' + title + '? Это действие нельзя отменить.')
+                : 'Вы точно хотите удалить этот товар? Это действие нельзя отменить.';
+
+              window.__pendingDeleteForm = deleteForm || null;
+              modal.style.display = 'flex';
+
+              // close on overlay click
+              modal.onclick = function(e) {
+                if (e.target === modal) window.closeConfirmDeleteModal();
+              };
+
+              btn.onclick = function() {
+                const form = window.__pendingDeleteForm;
+                window.closeConfirmDeleteModal();
+                if (form && typeof form.submit === 'function') {
+                  form.submit();
+                }
+              };
+            } catch (e) {
+              console.error('openConfirmDeleteModal error:', e);
+              // fallback
+              if (deleteForm && typeof deleteForm.submit === 'function') deleteForm.submit();
+            }
+          };
+
+          window.closeConfirmDeleteModal = function() {
+            const modal = document.getElementById('confirmDeleteModal');
+            if (modal) modal.style.display = 'none';
+            window.__pendingDeleteForm = null;
           };
           
           // Function to move all products to "Косметика" category
@@ -6908,8 +6969,10 @@ router.get('/products', requireAdmin, async (req, res) => {
                     console.log('🔵 Delete button clicked');
                     event.preventDefault();
                     event.stopPropagation();
-                    if (confirm('Удалить товар?')) {
-                      deleteForm.submit();
+                    if (typeof window.openConfirmDeleteModal === 'function') {
+                      window.openConfirmDeleteModal(deleteForm);
+                    } else {
+                      if (confirm('Удалить товар?')) deleteForm.submit();
                     }
                     return;
                   }
@@ -8201,9 +8264,48 @@ router.post('/products/:id/toggle-active', requireAdmin, async (req, res) => {
       return res.redirect('/admin/products?error=product_not_found');
     }
 
+    // Ensure "Отключенные" category exists (slug: disabled)
+    let disabledCategory = await prisma.category.findFirst({
+      where: {
+        OR: [{ name: 'Отключенные' }, { slug: 'disabled' }],
+      },
+    });
+
+    if (!disabledCategory) {
+      disabledCategory = await prisma.category.create({
+        data: {
+          name: 'Отключенные',
+          slug: 'disabled',
+          description: 'Автоматическая категория для отключенных товаров',
+          isActive: true,
+        },
+      });
+    }
+
+    // Cosmetics category (for returning when enabling from disabled)
+    const cosmeticsCategory = await prisma.category.findFirst({
+      where: {
+        OR: [{ name: 'Косметика' }, { slug: 'kosmetika' }],
+      },
+    });
+
+    const willDisable = product.isActive === true;
+    const willEnable = product.isActive === false;
+
+    const updateData: any = { isActive: !product.isActive };
+    if (willDisable) {
+      // When disabling: move to "Отключенные"
+      updateData.categoryId = disabledCategory.id;
+    } else if (willEnable) {
+      // When enabling: if currently in "Отключенные" — move back to cosmetics (if exists)
+      if (String(product.categoryId) === String(disabledCategory.id) && cosmeticsCategory) {
+        updateData.categoryId = cosmeticsCategory.id;
+      }
+    }
+
     await prisma.product.update({
       where: { id },
-      data: { isActive: !product.isActive }
+      data: updateData,
     });
 
     res.redirect('/admin/products?success=product_updated');
