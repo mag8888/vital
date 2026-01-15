@@ -7570,13 +7570,20 @@ router.get('/product2', requireAdmin, async (req, res) => {
 
           // Edit product from list
           function editProductFromList(productId, title, summary, description, price, categoryId, isActive, availableInRussia, availableInBali, imageUrl, stock, sku) {
-            // Create edit modal if it doesn't exist
+            console.log('🔵 editProductFromList called', { productId, title: title.substring(0, 30) });
+            
+            // Удаляем старое модальное окно если оно есть, чтобы пересоздать его заново
             let editModal = document.getElementById('editProductModal2');
-            if (!editModal) {
-              editModal = document.createElement('div');
-              editModal.id = 'editProductModal2';
-              editModal.className = 'modal-overlay';
-              editModal.innerHTML = \`
+            if (editModal) {
+              console.log('🗑️ Removing existing modal');
+              editModal.remove();
+            }
+            
+            // Создаем новое модальное окно каждый раз
+            editModal = document.createElement('div');
+            editModal.id = 'editProductModal2';
+            editModal.className = 'modal-overlay';
+            editModal.innerHTML = \`
                 <div class="modal-content" style="max-width: 800px;">
                   <div class="modal-header">
                     <h2>✏️ Редактировать товар</h2>
@@ -7652,10 +7659,23 @@ router.get('/product2', requireAdmin, async (req, res) => {
                 </div>
               \`;
               document.body.appendChild(editModal);
+            }
+            
+            // ВАЖНО: Устанавливаем обработчик формы КАЖДЫЙ РАЗ при открытии модального окна
+            // Удаляем старый обработчик если есть
+            const editForm = document.getElementById('editProductForm2');
+            if (editForm) {
+              // Удаляем все старые обработчики
+              const newForm = editForm.cloneNode(true);
+              editForm.parentNode.replaceChild(newForm, editForm);
               
-              // Setup form submission
+              // Устанавливаем новый обработчик формы
               document.getElementById('editProductForm2').onsubmit = async function(e) {
                 e.preventDefault();
+                e.stopPropagation();
+                
+                console.log('📤 Submitting edit form for product:', productId);
+                
                 const formData = new FormData();
                 formData.append('productId', document.getElementById('editProductId2').value);
                 formData.append('sku', document.getElementById('editProductSku2').value || '');
@@ -7665,9 +7685,9 @@ router.get('/product2', requireAdmin, async (req, res) => {
                 formData.append('price', document.getElementById('editProductPrice2').value);
                 formData.append('stock', document.getElementById('editProductStock2').value);
                 formData.append('categoryId', document.getElementById('editProductCategory2').value);
-                formData.append('isActive', document.getElementById('editProductActive2').checked);
-                formData.append('availableInRussia', document.getElementById('editProductRussia2').checked);
-                formData.append('availableInBali', document.getElementById('editProductBali2').checked);
+                formData.append('isActive', document.getElementById('editProductActive2').checked ? 'true' : 'false');
+                formData.append('availableInRussia', document.getElementById('editProductRussia2').checked ? 'true' : 'false');
+                formData.append('availableInBali', document.getElementById('editProductBali2').checked ? 'true' : 'false');
                 
                 const imageFile = document.getElementById('editProductImage2').files[0];
                 const selectedImageUrl = document.getElementById('editSelectedImageUrl2').value;
@@ -7702,15 +7722,27 @@ router.get('/product2', requireAdmin, async (req, res) => {
                     showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
                   }
                 } catch (error) {
-                  showAlert('❌ Ошибка: ' + error.message, 'error');
+                  console.error('❌ Update error:', error);
+                  showAlert('❌ Ошибка: ' + (error instanceof Error ? error.message : String(error)), 'error');
                 }
               };
               
-              // Price conversion
-              document.getElementById('editProductPrice2').addEventListener('input', function() {
-                const pzPrice = parseFloat(this.value) || 0;
-                document.getElementById('editProductPriceRub2').value = (pzPrice * 100).toFixed(2);
-              });
+              // Price conversion - устанавливаем каждый раз
+              const priceInput = document.getElementById('editProductPrice2');
+              if (priceInput) {
+                // Удаляем старые обработчики
+                const newPriceInput = priceInput.cloneNode(true);
+                priceInput.parentNode.replaceChild(newPriceInput, priceInput);
+                
+                // Устанавливаем новый обработчик
+                document.getElementById('editProductPrice2').addEventListener('input', function() {
+                  const pzPrice = parseFloat(this.value) || 0;
+                  const rubInput = document.getElementById('editProductPriceRub2');
+                  if (rubInput) {
+                    rubInput.value = (pzPrice * 100).toFixed(2);
+                  }
+                });
+              }
             }
             
             // Fill form
@@ -7755,6 +7787,12 @@ router.get('/product2', requireAdmin, async (req, res) => {
             const modal = document.getElementById('editProductModal2');
             if (modal) {
               modal.classList.remove('active');
+              // НЕ удаляем модальное окно, чтобы оно могло быть использовано снова
+              // Но сбрасываем форму
+              const form = document.getElementById('editProductForm2');
+              if (form) {
+                form.reset();
+              }
             }
           }
           
