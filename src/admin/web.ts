@@ -5359,7 +5359,9 @@ router.get('/products', requireAdmin, async (req, res) => {
         </style>
         <script>
           // КРИТИЧНО: Определяем функции глобально ДО загрузки HTML, чтобы они были доступны для onclick обработчиков
-          window.editProduct = function(button) {
+          // Защита от ошибок выполнения - оборачиваем в try-catch
+          try {
+            window.editProduct = function(button) {
             console.log('🔵 editProduct called', button);
             
             if (!button) {
