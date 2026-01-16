@@ -5228,6 +5228,21 @@ router.get('/products', requireAdmin, async (req, res) => {
           .product-actions .image-btn:hover { 
             background: linear-gradient(135deg, #059669 0%, #047857 100%);
           }
+          /* iOS/Safari: input[type=file].click() may fail if input is display:none.
+             Keep it in DOM (not display:none) but visually hidden. */
+          .product-image-input {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            overflow: hidden;
+            pointer-events: none;
+            left: -9999px;
+          }
+          .file-label-btn {
+            display: inline-block;
+            user-select: none;
+          }
           .product-actions .edit-btn { 
             background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
             color: #fff;
@@ -5987,9 +6002,9 @@ router.get('/products', requireAdmin, async (req, res) => {
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/toggle-active">
                 <button type="submit" class="toggle-btn">${product.isActive ? 'Отключить' : 'Включить'}</button>
               </form>
-              <form method="post" action="/admin/products/${escapeAttr(product.id)}/upload-image" enctype="multipart/form-data" style="display: inline;" class="upload-image-form" data-product-id="${escapeAttr(product.id)}">
-                <input type="file" name="image" accept="image/*" style="display: none;" id="image-${escapeAttr(product.id)}" class="product-image-input">
-                <button type="button" class="image-btn" data-image-input-id="image-${escapeAttr(product.id)}">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</button>
+              <form method="post" action="/admin/products/${escapeAttr(product.id)}/upload-image" enctype="multipart/form-data" style="display: inline; position: relative;" class="upload-image-form" data-product-id="${escapeAttr(product.id)}">
+                <input type="file" name="image" accept="image/*" id="image-${escapeAttr(product.id)}" class="product-image-input">
+                <label for="image-${escapeAttr(product.id)}" class="image-btn file-label-btn">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</label>
               </form>
               <button type="button" class="image-btn select-image-btn" style="background: #6366f1;" data-product-id="${escapeAttr(product.id)}">🖼️ Выбрать из загруженных</button>
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/delete" class="delete-product-form" data-product-id="${escapeAttr(product.id)}" data-product-title="${escapeAttr(product.title)}">
@@ -8807,8 +8822,8 @@ router.get('/reviews', requireAdmin, async (req, res) => {
               <button type="submit" class="toggle-btn">${review.isPinned ? 'Открепить' : 'Закрепить'}</button>
             </form>
             <form method="post" action="/admin/reviews/${safeId}/upload-image" enctype="multipart/form-data" style="display: inline;">
-              <input type="file" name="image" accept="image/*" style="display: none;" id="review-image-${safeId}" onchange="this.form.submit()">
-              <button type="button" class="image-btn" onclick="document.getElementById('review-image-${safeId}').click()">📷 ${review.photoUrl ? 'Изменить фото' : 'Добавить фото'}</button>
+              <input type="file" name="image" accept="image/*" id="review-image-${safeId}" class="product-image-input" onchange="this.form.submit()">
+              <label for="review-image-${safeId}" class="image-btn file-label-btn">📷 ${review.photoUrl ? 'Изменить фото' : 'Добавить фото'}</label>
             </form>
             <form method="post" action="/admin/reviews/${safeId}/delete" onsubmit="return confirm('Удалить отзыв от «${safeName}»?')">
               <button type="submit" class="delete-btn">Удалить</button>
