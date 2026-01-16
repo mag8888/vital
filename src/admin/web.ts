@@ -5898,8 +5898,8 @@ router.get('/products', requireAdmin, async (req, res) => {
                       '<div style="font-weight:900; font-size:16px;">🖼️ Выбрать изображение</div>' +
                       '<button type="button" id="closeGalleryBtn" style="border:none; background:#e5e7eb; border-radius:12px; padding:10px 12px; cursor:pointer; font-weight:800;">✕</button>' +
                     '</div>' +
-                    '<div style="display:flex; gap:12px; padding:12px; flex:1; overflow:hidden; flex-wrap:wrap;">' +
-                      '<div style="flex: 1 1 420px; min-width: 300px; border:1px solid #e5e7eb; border-radius:14px; overflow:hidden; background:#f8fafc; display:flex; flex-direction:column;">' +
+                    '<div style="display:flex; gap:12px; padding:12px; flex:1; overflow:hidden; flex-wrap:wrap; min-height:0;">' +
+                      '<div style="flex: 1 1 420px; min-width: 300px; border:1px solid #e5e7eb; border-radius:14px; overflow:hidden; background:#f8fafc; display:flex; flex-direction:column; min-height:0;">' +
                         '<div style="padding:10px 12px; border-bottom:1px solid #e5e7eb; display:flex; gap:10px; align-items:center; justify-content:space-between;">' +
                           '<div style="font-weight:800; font-size:13px; color:#111827;">Предпросмотр</div>' +
                           '<button type="button" id="galleryOpenBtn" disabled style="border:none; background:#e5e7eb; border-radius:12px; padding:8px 10px; cursor:pointer; font-weight:800;">Открыть</button>' +
@@ -5908,7 +5908,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                           '<img id="galleryPreviewImg" src="" alt="preview" style="max-width:100%; max-height:100%; object-fit:contain; background:#fff; border-radius:12px; border:1px solid #e5e7eb;" />' +
                         '</div>' +
                       '</div>' +
-                      '<div id="galleryContent" style="flex: 1 1 520px; min-width: 320px; overflow:auto; display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:12px; padding:2px;">' +
+                      '<div id="galleryContent" style="flex: 1 1 520px; min-width: 320px; min-height:0; overflow:auto; -webkit-overflow-scrolling: touch; display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:12px; padding:2px;">' +
                         '<div style="grid-column: span 999; text-align:center; padding:30px; color:#6b7280;">Загрузка...</div>' +
                       '</div>' +
                     '</div>' +
