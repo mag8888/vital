@@ -5851,8 +5851,8 @@ router.get('/products', requireAdmin, async (req, res) => {
                   html +=
                     '<button type="button" class="gallery-item" data-image-url="' + escapedUrl + '" data-product-id="' + String(productId) + '" ' +
                       'style="border:2px solid #e2e8f0; border-radius:12px; overflow:hidden; cursor:pointer; background:#fff; padding:0; width:100%;">' +
-                      '<div style="width:100%; aspect-ratio:1; background:#f8fafc; display:flex; align-items:center; justify-content:center;">' +
-                        '<img src="' + String(imageUrl).replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '" style="width:100%; height:100%; object-fit:contain; background:#ffffff;" alt="img" data-onerror-hide="true" />' +
+                      '<div style="width:100%; height:120px; background:#ffffff; display:flex; align-items:center; justify-content:center; padding:8px;">' +
+                        '<img src="' + String(imageUrl).replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '" style="display:block; max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain;" alt="img" data-onerror-hide="true" />' +
                       '</div>' +
                     '</button>';
                 });
@@ -5940,24 +5940,8 @@ router.get('/products', requireAdmin, async (req, res) => {
                   '</div>';
                 document.body.appendChild(modal);
                 modal.onclick = function(e) { if (e.target === modal) window.closeImageGallery(); };
-                // Prevent scrolling on backdrop to stop background scrolling
-                // (avoid addEventListener options object to prevent any parsing issues in older environments)
-                modal.addEventListener('touchmove', function(ev) {
-                  const t = ev.target;
-                  const el = (t && t.nodeType === 1) ? t : (t && t.parentElement ? t.parentElement : null);
-                  if (!el) { ev.preventDefault(); return; }
-                  const insideScrollable = el.closest('#galleryContent');
-                  if (!insideScrollable) ev.preventDefault();
-                }, false);
-                
-                // Desktop wheel: allow scroll only inside #galleryContent
-                modal.addEventListener('wheel', function(ev) {
-                  const t = ev.target;
-                  const el = (t && t.nodeType === 1) ? t : (t && t.parentElement ? t.parentElement : null);
-                  if (!el) { ev.preventDefault(); return; }
-                  const insideScrollable = el.closest('#galleryContent');
-                  if (!insideScrollable) ev.preventDefault();
-                }, false);
+                // NOTE: do not block wheel/touch events here.
+                // Background scroll is locked via html/body overflow:hidden, and galleryContent has overflow:auto.
                 const closeBtn = document.getElementById('closeGalleryBtn');
                 if (closeBtn) closeBtn.onclick = function() { window.closeImageGallery(); };
                 const cancelBtn = document.getElementById('galleryCancelBtn');
