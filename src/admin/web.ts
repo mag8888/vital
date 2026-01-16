@@ -9340,6 +9340,134 @@ router.post('/api/sync-siam-pdf', requireAdmin, express.json(), async (req, res)
   }
 });
 
+// Siam JSON sync (paste JSON extracted from PDF / tools; prices stay untouched)
+router.get('/sync-siam-json', requireAdmin, async (req, res) => {
+  res.send(`
+    <!doctype html>
+    <html lang="ru">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Siam: синк из JSON</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 1100px; margin: 20px auto; padding: 20px; background:#f5f5f5; }
+        .card { background:white; border-radius:14px; padding:18px; box-shadow:0 8px 22px rgba(0,0,0,.08); }
+        .btn { display:inline-block; padding:12px 16px; border-radius:12px; border:none; cursor:pointer; font-weight:800; }
+        .btn-primary { background:#111827; color:white; }
+        .btn-secondary { background:#e5e7eb; color:#111827; }
+        .btn-danger { background:#b91c1c; color:white; }
+        .row { display:flex; gap:12px; flex-wrap:wrap; margin-top:14px; align-items:center; }
+        pre { white-space: pre-wrap; background:#0b1020; color:#e5e7eb; padding:14px; border-radius:12px; overflow:auto; }
+        .muted { color:#6b7280; font-size:12px; }
+        label { display:flex; align-items:center; gap:10px; margin-top:12px; }
+        textarea { width:100%; min-height: 260px; border-radius:12px; border:1px solid #e5e7eb; padding:12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <a class="btn btn-secondary" href="/admin">← Назад</a>
+      <div class="card" style="margin-top:12px;">
+        <h2 style="margin:0 0 8px 0;">🧾 Siam: синхронизация из JSON</h2>
+        <p class="muted" style="margin:0 0 14px 0;">
+          Вставь массив объектов JSON (как ты прислал). Мы обновим <b>title/summary/description</b> строго по SKU.
+          <b>Цены не трогаем.</b> Поля <b>ingredients/volume</b> при желании добавим в конец description.
+        </p>
+
+        <label>
+          <input type="checkbox" id="includeMeta" checked />
+          Добавлять ingredients/volume в description
+        </label>
+
+        <label>
+          <input type="checkbox" id="apply" />
+          Применить изменения (иначе — только отчёт)
+        </label>
+
+        <div style="margin-top:12px;">
+          <textarea id="jsonInput" placeholder='Вставь сюда JSON-массив: [ { \"title\": \"...\", \"sku\": \"...\" }, ... ]'></textarea>
+        </div>
+
+        <div class="row">
+          <button class="btn btn-primary" onclick="run(false)">Проверить (dry-run)</button>
+          <button class="btn btn-danger" onclick="run(true)">Применить</button>
+        </div>
+
+        <div style="margin-top:14px;">
+          <pre id="out">Готово. Вставь JSON и нажми «Проверить».</pre>
+        </div>
+      </div>
+
+      <script>
+        async function run(forceApply) {
+          const out = document.getElementById('out');
+          const text = document.getElementById('jsonInput').value || '';
+          const includeMeta = document.getElementById('includeMeta').checked;
+          const applyChecked = document.getElementById('apply').checked;
+          const apply = !!forceApply || !!applyChecked;
+
+          if (!text.trim()) {
+            out.textContent = '❌ Вставь JSON в поле.';
+            return;
+          }
+
+          out.textContent = '⏳ Запуск...';
+          try {
+            const res = await fetch('/admin/api/sync-siam-json', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jsonText: text, includeMeta, apply })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              out.textContent = '❌ Ошибка: ' + (data.error || ('HTTP ' + res.status));
+              return;
+            }
+            out.textContent = JSON.stringify(data, null, 2);
+          } catch (e) {
+            out.textContent = '❌ Ошибка запуска: ' + (e && e.message ? e.message : String(e));
+          }
+        }
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+router.post('/api/sync-siam-json', requireAdmin, express.json({ limit: '6mb' }), async (req, res) => {
+  try {
+    const jsonText = String(req.body?.jsonText || '');
+    const includeMeta = req.body?.includeMeta !== false; // default true
+    const apply = !!req.body?.apply;
+    if (!jsonText.trim()) {
+      res.status(400).json({ success: false, error: 'jsonText is empty' });
+      return;
+    }
+    let parsed: any;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      res.status(400).json({ success: false, error: 'Invalid JSON: ' + msg });
+      return;
+    }
+    if (!Array.isArray(parsed)) {
+      res.status(400).json({ success: false, error: 'JSON must be an array of entries' });
+      return;
+    }
+
+    const { syncProductsFromSiamJsonOnServer } = await import('../services/siam-json-sync-service.js');
+    const report = await syncProductsFromSiamJsonOnServer({
+      entries: parsed,
+      apply,
+      includeMetaInDescription: includeMeta,
+      limit: 20000,
+    });
+    res.json({ success: true, ...report });
+  } catch (error) {
+    console.error('sync-siam-json error:', error);
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
 // Logout
 // Страница с инструкциями
 router.get('/instructions', requireAdmin, (req, res) => {

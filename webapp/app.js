@@ -2634,57 +2634,9 @@ function closeInstruction() {
     }
 }
 
-// Show category products
-async function showCategoryProducts(categoryId) {
-    try {
-        const response = await fetch(`${API_BASE}/categories/${categoryId}/products`);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const products = await response.json();
-
-        let content = `
-            <div class="content-section">
-                    <button class="btn-back-to-catalog" onclick="openSection('shop')">
-                        ← Назад к каталогу
-                    </button>
-                <h3>Товары категории</h3>
-        `;
-
-        if (products && products.length > 0) {
-            content += '<div class="products-grid">';
-            products.forEach(product => {
-                content += `
-                    <div class="product-tile">
-                        ${product.imageUrl ? `<div class="product-image" onclick="showProductDetails('${product.id}')"><img src="${product.imageUrl}" alt="${product.title}" onerror="this.style.display='none'"></div>` : '<div class="product-image-placeholder" onclick="showProductDetails(\'' + product.id + '\')">📦</div>'}
-                        <h4 onclick="showProductDetails('${product.id}')">${product.title}</h4>
-                        <div class="product-description" onclick="showProductDetails('${product.id}')">${product.summary || product.description || 'Описание товара'}</div>
-                        <div class="product-actions">
-                            <button class="btn-add-to-cart" onclick="addToCart('${product.id}')">
-                                🛒 В корзину
-                            </button>
-                            <button class="btn-buy" onclick="buyProduct('${product.id}')">
-                                🛍 Купить
-                            </button>
-                            ${product.instruction ? `<button class="btn-instruction" onclick="showInstruction('${product.id}', \`${product.instruction.replace(/`/g, '\\`')}\`)">📋 Инструкция</button>` : ''}
-                        </div>
-                    </div>
-                `;
-            });
-            content += '</div>';
-        } else {
-            content += '<p>В этой категории пока нет товаров</p>';
-        }
-
-        content += '</div>';
-
-        // Show the products section
-        showProductsSection(content);
-    } catch (error) {
-        console.error('Error loading category products:', error);
-        showError('Ошибка загрузки товаров');
-    }
-}
+// NOTE: showCategoryProducts is defined earlier in this file.
+// This legacy duplicate implementation was removed to avoid "Identifier ... has already been declared"
+// and potential runtime issues in strict environments.
 
 // NOTE: do not add duplicate addToCart/buyProduct implementations below.
 
@@ -2965,10 +2917,7 @@ async function confirmAddress(address) {
     showSuccess('Адрес подтвержден! Заказ будет доставлен по указанному адресу.');
     closeSection();
 }
-
-async function changeAddress() {
-    await requestDeliveryAddress();
-}
+// NOTE: changeAddress is defined above; duplicate removed.
 
 // New section content loaders
 function loadCertificatesContent() {
