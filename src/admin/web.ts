@@ -9244,6 +9244,89 @@ router.post('/chats/:telegramId/reply', requireAdmin, express.urlencoded({ exten
   }
 });
 
+// Siam PDF sync (run on server where DB + Cloudinary are available)
+router.get('/sync-siam-pdf', requireAdmin, async (req, res) => {
+  res.send(`
+    <!doctype html>
+    <html lang="ru">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Синхронизация Siam из PDF</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 20px auto; padding: 20px; background:#f5f5f5; }
+        .card { background:white; border-radius:14px; padding:18px; box-shadow:0 8px 22px rgba(0,0,0,.08); }
+        .btn { display:inline-block; padding:12px 16px; border-radius:12px; border:none; cursor:pointer; font-weight:800; }
+        .btn-primary { background:#111827; color:white; }
+        .btn-secondary { background:#e5e7eb; color:#111827; }
+        .row { display:flex; gap:12px; flex-wrap:wrap; margin-top:14px; }
+        pre { white-space: pre-wrap; background:#0b1020; color:#e5e7eb; padding:14px; border-radius:12px; overflow:auto; }
+        .muted { color:#6b7280; font-size:12px; }
+        label { display:flex; align-items:center; gap:10px; margin-top:12px; }
+      </style>
+    </head>
+    <body>
+      <a class="btn btn-secondary" href="/admin">← Назад</a>
+      <div class="card">
+        <h2 style="margin:0 0 8px 0;">📄 Синхронизация товаров Siam из PDF</h2>
+        <p class="muted" style="margin:0 0 14px 0;">
+          Обновляет товары строго по SKU из PDF: <b>title/summary/description</b>. Товары, которых нет в PDF — не трогаем.
+          Опционально обновляет <b>фото</b> из встроенных картинок PDF (нужно Cloudinary).
+        </p>
+
+        <label>
+          <input type="checkbox" id="withImages" />
+          Обновить фото 1:1 из PDF (Cloudinary)
+        </label>
+
+        <div class="row">
+          <button class="btn btn-primary" onclick="runSync()">Запустить синхронизацию</button>
+        </div>
+
+        <div style="margin-top:14px;">
+          <pre id="out">Готово к запуску.</pre>
+        </div>
+      </div>
+
+      <script>
+        async function runSync() {
+          const out = document.getElementById('out');
+          out.textContent = '⏳ Запуск...';
+          const withImages = document.getElementById('withImages').checked;
+          try {
+            const res = await fetch('/admin/api/sync-siam-pdf', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ withImages })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              out.textContent = '❌ Ошибка: ' + (data.error || ('HTTP ' + res.status));
+              return;
+            }
+            out.textContent = JSON.stringify(data, null, 2);
+          } catch (e) {
+            out.textContent = '❌ Ошибка запуска: ' + (e && e.message ? e.message : String(e));
+          }
+        }
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+router.post('/api/sync-siam-pdf', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const withImages = !!req.body?.withImages;
+    const { syncSiamFromPdfOnServer } = await import('../services/siam-pdf-sync-service.js');
+    const result = await syncSiamFromPdfOnServer({ updateImages: withImages });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('sync-siam-pdf error:', error);
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
 // Logout
 // Страница с инструкциями
 router.get('/instructions', requireAdmin, (req, res) => {

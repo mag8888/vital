@@ -59,6 +59,7 @@
     "express": "^4.19.2",
     "express-session": "^1.18.2",
     "multer": "^2.0.2",
+    "pdfjs-dist": "^4.10.38",
     "telegraf": "^4.16.3"
   },
   "devDependencies": {
