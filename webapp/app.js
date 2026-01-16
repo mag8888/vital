@@ -38,6 +38,68 @@ let favoritesSet = new Set();
 // API Base URL - adjust based on your backend
 const API_BASE = '/webapp/api';
 
+// Optional client-side catalog structure (categories -> subcategories -> SKU mapping)
+let CATALOG_STRUCTURE = null;
+
+async function loadCatalogStructure() {
+    if (CATALOG_STRUCTURE) return CATALOG_STRUCTURE;
+    try {
+        const res = await fetch(`${API_BASE}/catalog-structure`);
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data && data.success && Array.isArray(data.structure)) {
+            CATALOG_STRUCTURE = data.structure;
+            return CATALOG_STRUCTURE;
+        }
+    } catch (e) {
+        console.warn('Failed to load catalog structure:', e);
+    }
+    CATALOG_STRUCTURE = null;
+    return null;
+}
+
+function normalizeSku(sku) {
+    return String(sku || '').trim().toUpperCase();
+}
+
+function skuPrefix(sku) {
+    const s = normalizeSku(sku);
+    const m = s.match(/^([A-Z]{1,3}\\d{4})-/);
+    return m ? m[1] : '';
+}
+
+function matchProductsByRelatedSkus(allProducts, relatedSkus) {
+    const want = (Array.isArray(relatedSkus) ? relatedSkus : []).map(normalizeSku);
+    const wantSet = new Set(want);
+    const wantPrefixes = new Set(want.map(skuPrefix).filter(Boolean));
+
+    const out = [];
+    const seen = new Set();
+    for (const p of (allProducts || [])) {
+        const ps = normalizeSku(p.sku || '');
+        if (!ps) continue;
+        const okExact = wantSet.has(ps);
+        const okPrefix = wantPrefixes.size ? wantPrefixes.has(skuPrefix(ps)) : false;
+        if (okExact || okPrefix) {
+            if (!seen.has(p.id)) {
+                seen.add(p.id);
+                out.push(p);
+            }
+        }
+    }
+    return out;
+}
+
+async function fetchAllActiveProducts() {
+    const categoriesRes = await fetch(`${API_BASE}/categories`);
+    if (!categoriesRes.ok) throw new Error('Failed to fetch categories');
+    const categories = await categoriesRes.json();
+    const all = [];
+    (categories || []).forEach(cat => {
+        (cat.products || []).forEach(p => all.push(p));
+    });
+    return all;
+}
+
 // Get Telegram user data
 function getTelegramUserData() {
     if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
@@ -226,9 +288,28 @@ function closeSearch() {
 async function loadCategoriesForSearch() {
     const container = document.getElementById('search-body');
     try {
+        const structure = await loadCatalogStructure();
+        if (structure && structure.length > 0) {
+            let html = '<div class="categories-list">';
+            structure.forEach(group => {
+                html += `
+                    <div class="category-item" onclick="openStructuredCategory('${group.id}')">
+                        <span class="category-icon">📁</span>
+                        <span class="category-name">${escapeHtml(group.name)}</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                            <path d="M9 18L15 12L9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+            return;
+        }
+
+        // fallback to DB categories
         const response = await fetch(`${API_BASE}/categories`);
         if (!response.ok) throw new Error('Failed to fetch categories');
-
         const categories = await response.json();
         if (categories && categories.length > 0) {
             let html = '<div class="categories-list">';
@@ -251,6 +332,74 @@ async function loadCategoriesForSearch() {
     } catch (error) {
         console.error('Error loading categories:', error);
         container.innerHTML = '<div class="error-message"><p>Ошибка загрузки категорий</p></div>';
+    }
+}
+
+async function openStructuredCategory(groupId) {
+    closeSearch();
+    openSection('shop');
+    await showStructuredCategory(groupId);
+}
+
+async function showStructuredCategory(groupId) {
+    const container = document.getElementById('section-body');
+    try {
+        const structure = await loadCatalogStructure();
+        const group = (structure || []).find(g => g.id === groupId);
+        if (!group) throw new Error('Category group not found');
+
+        let html = '<div class="content-section">';
+        html += `<button class="btn-back-to-catalog" onclick="openSection('shop')" style="margin-bottom: 12px;">← Назад</button>`;
+        html += `<h3>${escapeHtml(group.name)}</h3>`;
+        html += '<div class="categories-list" style="margin-top:10px;">';
+        (group.subcategories || []).forEach(sc => {
+            html += `
+                <div class="category-item" onclick="showStructuredSubcategory('${group.id}','${sc.id}')">
+                    <span class="category-icon">🧴</span>
+                    <span class="category-name">${escapeHtml(sc.name)}</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                        <path d="M9 18L15 12L9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+            `;
+        });
+        html += '</div></div>';
+        container.innerHTML = html;
+    } catch (e) {
+        console.error('Structured category error:', e);
+        container.innerHTML = '<div class="error-message"><p>Ошибка загрузки категорий</p></div>';
+    }
+}
+
+async function showStructuredSubcategory(groupId, subId) {
+    const container = document.getElementById('section-body');
+    try {
+        const structure = await loadCatalogStructure();
+        const group = (structure || []).find(g => g.id === groupId);
+        const sub = group && (group.subcategories || []).find(s => s.id === subId);
+        if (!group || !sub) throw new Error('Subcategory not found');
+
+        const allProducts = await fetchAllActiveProducts();
+        const products = matchProductsByRelatedSkus(allProducts, sub.related_skus);
+
+        let html = '<div class="content-section">';
+        html += `<button class="btn-back-to-catalog" onclick="showStructuredCategory('${group.id}')" style="margin-bottom: 12px;">← ${escapeHtml(group.name)}</button>`;
+        html += `<h3>${escapeHtml(sub.name)}</h3>`;
+        if (sub.description) html += `<p style="color:#6b7280; margin-top:6px;">${escapeHtml(sub.description)}</p>`;
+
+        if (products && products.length > 0) {
+            html += '<div class="products-grid" style="margin-top:12px;">';
+            products.forEach(product => { html += renderProductCard(product); });
+            html += '</div>';
+        } else {
+            html += '<div class="empty-state"><p>Товары не найдены</p></div>';
+        }
+
+        html += '</div>';
+        container.innerHTML = html;
+    } catch (e) {
+        console.error('Structured subcategory error:', e);
+        container.innerHTML = '<div class="error-message"><p>Ошибка загрузки товаров</p></div>';
     }
 }
 

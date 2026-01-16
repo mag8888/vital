@@ -8,6 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import { ensureUser } from '../services/user-history.js';
 import { getActiveCategories, getCategoryById, getProductById, getProductsByCategory, getAllActiveProducts } from '../services/shop-service.js';
+import { CATALOG_STRUCTURE } from '../services/catalog-structure.js';
 import { addProductToCart, getCartItems, cartItemsToText } from '../services/cart-service.js';
 import { createOrderRequest } from '../services/order-service.js';
 import { getActiveReviews } from '../services/review-service.js';
@@ -298,6 +299,11 @@ router.get('/api/categories', async (req, res) => {
     console.error('Error getting categories:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// Client catalog structure (categories -> subcategories -> SKU mapping)
+router.get('/api/catalog-structure', async (_req, res) => {
+  res.json({ success: true, structure: CATALOG_STRUCTURE });
 });
 
 // Total products count endpoint (must be before /api/products/:id)
