@@ -5793,6 +5793,20 @@ router.get('/products', requireAdmin, async (req, res) => {
             window.closeImageGallery = function() {
               const modal = document.getElementById('imageGalleryModal');
               if (modal) modal.remove();
+              try {
+                const body = document.body;
+                const prevTop = body.getAttribute('data-scroll-lock-top');
+                if (body && body.style && body.style.position === 'fixed') {
+                  body.style.position = '';
+                  body.style.top = '';
+                  body.style.left = '';
+                  body.style.right = '';
+                  body.style.width = '';
+                }
+                body.removeAttribute('data-scroll-lock-top');
+                const y = prevTop ? Math.abs(parseInt(prevTop, 10) || 0) : 0;
+                if (y) window.scrollTo(0, y);
+              } catch (_) {}
             };
           }
 
@@ -5837,12 +5851,12 @@ router.get('/products', requireAdmin, async (req, res) => {
                 let html = '';
                 result.images.forEach((imageData) => {
                   const imageUrl = imageData.url || '';
-                  const escapedUrl = String(imageUrl).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                  const escapedUrl = encodeURIComponent(String(imageUrl));
                   html +=
                     '<button type="button" class="gallery-item" data-image-url="' + escapedUrl + '" data-product-id="' + String(productId) + '" ' +
                       'style="border:2px solid #e2e8f0; border-radius:12px; overflow:hidden; cursor:pointer; background:#fff; padding:0; width:100%;">' +
                       '<div style="width:100%; aspect-ratio:1; background:#f8fafc; display:flex; align-items:center; justify-content:center;">' +
-                        '<img src="' + escapedUrl + '" style="width:100%; height:100%; object-fit:contain; background:#ffffff;" alt="img" data-onerror-hide="true" />' +
+                        '<img src="' + String(imageUrl).replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '" style="width:100%; height:100%; object-fit:contain; background:#ffffff;" alt="img" data-onerror-hide="true" />' +
                       '</div>' +
                     '</button>';
                 });
@@ -5853,7 +5867,8 @@ router.get('/products', requireAdmin, async (req, res) => {
                   if (!el) return;
                   const item = el.closest('.gallery-item');
                   if (!item) return;
-                  const imageUrl = item.getAttribute('data-image-url') || '';
+                  const encoded = item.getAttribute('data-image-url') || '';
+                  const imageUrl = encoded ? decodeURIComponent(encoded) : '';
                   const pid = item.getAttribute('data-product-id') || '';
                   if (modal) modal.setAttribute('data-selected-url', imageUrl);
                   if (previewImg) previewImg.src = imageUrl;
@@ -5869,7 +5884,8 @@ router.get('/products', requireAdmin, async (req, res) => {
                 // preselect first image for better UX
                 const first = galleryContent.querySelector('.gallery-item');
                 if (first && first.getAttribute) {
-                  const firstUrl = first.getAttribute('data-image-url') || '';
+                  const firstEncoded = first.getAttribute('data-image-url') || '';
+                  const firstUrl = firstEncoded ? decodeURIComponent(firstEncoded) : '';
                   if (modal) modal.setAttribute('data-selected-url', firstUrl);
                   if (previewImg) previewImg.src = firstUrl;
                   if (openBtn) openBtn.disabled = !firstUrl;
@@ -5887,11 +5903,22 @@ router.get('/products', requireAdmin, async (req, res) => {
             window.openImageGallery = function(productId) {
               try {
                 if (!productId) return;
+                // Lock background scroll (mobile-friendly)
+                try {
+                  const body = document.body;
+                  const y = window.scrollY || window.pageYOffset || 0;
+                  body.setAttribute('data-scroll-lock-top', String(y));
+                  body.style.position = 'fixed';
+                  body.style.top = '-' + y + 'px';
+                  body.style.left = '0';
+                  body.style.right = '0';
+                  body.style.width = '100%';
+                } catch (_) {}
                 const existingModal = document.getElementById('imageGalleryModal');
                 if (existingModal) existingModal.remove();
                 const modal = document.createElement('div');
                 modal.id = 'imageGalleryModal';
-                modal.style.cssText = 'position:fixed; inset:0; background: rgba(0,0,0,0.65); z-index: 10000; display:flex; align-items:center; justify-content:center; padding: 14px;';
+                modal.style.cssText = 'position:fixed; inset:0; background: rgba(0,0,0,0.65); z-index: 10000; display:flex; align-items:center; justify-content:center; padding: 14px; overscroll-behavior: contain;';
                 modal.innerHTML =
                   '<div style="max-width:96vw; max-height:92vh; width:1100px; background:#fff; border-radius:16px; overflow:hidden; display:flex; flex-direction:column;">' +
                     '<div style="padding:14px 16px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; gap:12px;">' +
@@ -5902,7 +5929,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                       '<div style="flex: 1 1 420px; min-width: 300px; border:1px solid #e5e7eb; border-radius:14px; overflow:hidden; background:#f8fafc; display:flex; flex-direction:column; min-height:0;">' +
                         '<div style="padding:10px 12px; border-bottom:1px solid #e5e7eb; display:flex; gap:10px; align-items:center; justify-content:space-between;">' +
                           '<div style="font-weight:800; font-size:13px; color:#111827;">Предпросмотр</div>' +
-                          '<button type="button" id="galleryOpenBtn" disabled style="border:none; background:#e5e7eb; border-radius:12px; padding:8px 10px; cursor:pointer; font-weight:800;">Открыть</button>' +
+                          '<button type="button" id="galleryOpenBtn" disabled style="border:none; background:#e5e7eb; border-radius:12px; padding:8px 10px; cursor:pointer; font-weight:800;">Увеличить</button>' +
                         '</div>' +
                         '<div style="flex:1; display:flex; align-items:center; justify-content:center; padding:10px;">' +
                           '<img id="galleryPreviewImg" src="" alt="preview" style="max-width:100%; max-height:100%; object-fit:contain; background:#fff; border-radius:12px; border:1px solid #e5e7eb;" />' +
@@ -5919,6 +5946,14 @@ router.get('/products', requireAdmin, async (req, res) => {
                   '</div>';
                 document.body.appendChild(modal);
                 modal.onclick = function(e) { if (e.target === modal) window.closeImageGallery(); };
+                // Prevent touchmove on backdrop to stop background scrolling (iOS)
+                modal.addEventListener('touchmove', function(ev) {
+                  const t = ev.target;
+                  const el = (t && t.nodeType === 1) ? t : (t && t.parentElement ? t.parentElement : null);
+                  if (!el) { ev.preventDefault(); return; }
+                  const insideScrollable = el.closest('#galleryContent');
+                  if (!insideScrollable) ev.preventDefault();
+                }, { passive: false });
                 const closeBtn = document.getElementById('closeGalleryBtn');
                 if (closeBtn) closeBtn.onclick = function() { window.closeImageGallery(); };
                 const cancelBtn = document.getElementById('galleryCancelBtn');
@@ -5926,7 +5961,17 @@ router.get('/products', requireAdmin, async (req, res) => {
                 const openBtn = document.getElementById('galleryOpenBtn');
                 if (openBtn) openBtn.onclick = function() {
                   const u = modal.getAttribute('data-selected-url') || '';
-                  if (u) window.open(u, '_blank');
+                  if (!u) return;
+                  // Fullscreen preview inside modal (no new tab)
+                  const existing = document.getElementById('galleryFullscreen');
+                  if (existing) existing.remove();
+                  const fs = document.createElement('div');
+                  fs.id = 'galleryFullscreen';
+                  fs.style.cssText = 'position:fixed; inset:0; z-index: 10001; background: rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; padding: 14px;';
+                  fs.innerHTML = '<img src="' + String(u).replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '" style="max-width:100%; max-height:100%; object-fit:contain; background:#fff; border-radius:12px;" />' +
+                    '<button type="button" style="position:absolute; top:16px; right:16px; border:none; background:#e5e7eb; border-radius:12px; padding:10px 12px; font-weight:900; cursor:pointer;">✕</button>';
+                  fs.onclick = function(e2) { fs.remove(); };
+                  document.body.appendChild(fs);
                 };
                 const chooseBtn = document.getElementById('galleryChooseBtn');
                 if (chooseBtn) chooseBtn.onclick = function() {
