@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { prisma } from '../lib/prisma.js';
 import { uploadImage, isCloudinaryConfigured } from './cloudinary-service.js';
+import { aiTranslationService } from './ai-translation-service.js';
 import { createRequire } from 'module';
 
 // pdf-parse is CJS; use createRequire
@@ -373,5 +374,88 @@ export async function syncSiamFromPdfOnServer(opts?: { updateImages?: boolean })
       skipped: imagesSkipped,
     }
   };
+}
+
+function looksLatinOnlyTitle(title: string): boolean {
+  const t = String(title || '').trim();
+  if (!t) return false;
+  return /[A-Za-z]/.test(t) && !/[А-Яа-яЁё]/.test(t);
+}
+
+function cleanupEnglishTitleForTranslation(title: string): string {
+  let t = String(title || '').trim();
+  // Remove long marketing tails like "-COSMOS ...", extra certifications, etc.
+  t = t.replace(/\s*-+\s*COSMOS[\s\S]*$/i, '').trim();
+  t = t.replace(/\s*-+\s*certified[\s\S]*$/i, '').trim();
+  // Normalize weight units
+  t = t.replace(/\b(\d+)\s*G\b/gi, '$1 g');
+  // Collapse whitespace
+  t = t.replace(/\s{2,}/g, ' ').trim();
+  return t;
+}
+
+function fallbackTranslateTitleRu(englishTitle: string): string {
+  let t = cleanupEnglishTitleForTranslation(englishTitle);
+  t = t.replace(/\b(\d+)\s*g\b/gi, '$1 г');
+  const rules: Array<[RegExp, string]> = [
+    [/^Body Wash\b/i, 'Гель для душа'],
+    [/^Body Lotion\b/i, 'Лосьон для тела'],
+    [/^Hair Conditioner\b/i, 'Кондиционер для волос'],
+    [/^Hair Shampoo\b/i, 'Шампунь для волос'],
+    [/^Hair Treatment\b/i, 'Средство для ухода за волосами'],
+    [/^Face Milk Cleanser\b/i, 'Молочко для умывания'],
+    [/^Aloe Pure Milk Cleanser\b/i, 'Молочко для умывания с алоэ'],
+    [/^Face Polish\b/i, 'Скраб для лица'],
+    [/^Lip Balm\b/i, 'Бальзам для губ'],
+    [/^Mineral Sun Protection\b/i, 'Минеральная солнцезащита для лица'],
+    [/^Sun Protection\b/i, 'Солнцезащитное средство'],
+  ];
+  for (const [re, ru] of rules) {
+    if (re.test(t)) {
+      const rest = t.replace(re, '').trim();
+      const combined = (ru + (rest ? ' ' + rest : '')).replace(/\s{2,}/g, ' ').trim();
+      return combined;
+    }
+  }
+  return t;
+}
+
+export async function translateRemainingTitlesToRussianOnServer(opts?: { limit?: number }) {
+  const limit = Math.max(1, Math.min(Number(opts?.limit || 200), 2000));
+  const products = await prisma.product.findMany({
+    where: { isActive: true },
+    select: { id: true, sku: true, title: true }
+  });
+  const candidates = products.filter(p => looksLatinOnlyTitle(p.title || ''));
+  let updated = 0;
+  let skipped = 0;
+  let failed = 0;
+  const sample: Array<{ sku: string | null; before: string; after: string; method: string }> = [];
+  for (const p of candidates.slice(0, limit)) {
+    const before = String(p.title || '').trim();
+    const cleaned = cleanupEnglishTitleForTranslation(before);
+    try {
+      let after = '';
+      let method = 'fallback';
+      if (aiTranslationService.isEnabled()) {
+        after = await aiTranslationService.translateTitle(cleaned);
+        method = 'ai';
+      } else {
+        after = fallbackTranslateTitleRu(cleaned);
+      }
+      after = String(after || '').trim();
+      if (!after || after === before) {
+        skipped++;
+        continue;
+      }
+      await prisma.product.update({ where: { id: p.id }, data: { title: after } });
+      updated++;
+      if (sample.length < 20) sample.push({ sku: (p.sku as any) ?? null, before, after, method });
+    } catch (_e) {
+      failed++;
+      continue;
+    }
+  }
+  return { candidates: candidates.length, limit, updated, skipped, failed, aiEnabled: aiTranslationService.isEnabled(), sample };
 }
 

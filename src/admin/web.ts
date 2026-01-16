@@ -9279,6 +9279,11 @@ router.get('/sync-siam-pdf', requireAdmin, async (req, res) => {
           Обновить фото 1:1 из PDF (Cloudinary)
         </label>
 
+        <label>
+          <input type="checkbox" id="translateTitles" checked />
+          Перевести оставшиеся английские названия на русский
+        </label>
+
         <div class="row">
           <button class="btn btn-primary" onclick="runSync()">Запустить синхронизацию</button>
         </div>
@@ -9293,11 +9298,12 @@ router.get('/sync-siam-pdf', requireAdmin, async (req, res) => {
           const out = document.getElementById('out');
           out.textContent = '⏳ Запуск...';
           const withImages = document.getElementById('withImages').checked;
+          const translateTitles = document.getElementById('translateTitles').checked;
           try {
             const res = await fetch('/admin/api/sync-siam-pdf', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ withImages })
+              body: JSON.stringify({ withImages, translateTitles })
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
@@ -9318,9 +9324,16 @@ router.get('/sync-siam-pdf', requireAdmin, async (req, res) => {
 router.post('/api/sync-siam-pdf', requireAdmin, express.json(), async (req, res) => {
   try {
     const withImages = !!req.body?.withImages;
-    const { syncSiamFromPdfOnServer } = await import('../services/siam-pdf-sync-service.js');
+    const translateTitles = req.body?.translateTitles !== false; // default true
+    const { syncSiamFromPdfOnServer, translateRemainingTitlesToRussianOnServer } = await import('../services/siam-pdf-sync-service.js');
     const result = await syncSiamFromPdfOnServer({ updateImages: withImages });
-    res.json({ success: true, ...result });
+
+    let translation = null;
+    if (translateTitles) {
+      translation = await translateRemainingTitlesToRussianOnServer({ limit: 2000 });
+    }
+
+    res.json({ success: true, ...result, translation });
   } catch (error) {
     console.error('sync-siam-pdf error:', error);
     res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
