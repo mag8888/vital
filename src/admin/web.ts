@@ -869,6 +869,8 @@ router.get('/', requireAdmin, async (req, res) => {
                 <button class="btn" onclick="openAddProductModal()" style="background: #28a745;">➕ Добавить товар</button>
                 <a href="/admin/product2" class="btn" style="background: #9c27b0;">🛍️ Товар 2</a>
                 <button class="btn import-siam-btn" style="background: #17a2b8; cursor: pointer; pointer-events: auto !important;">🤖 Импорт Siam Botanicals</button>
+                <a href="/admin/sync-siam-pdf" class="btn" style="background:#111827;">📄 Siam из PDF</a>
+                <a href="/admin/sync-siam-json" class="btn" style="background:#374151;">🧾 Siam из JSON</a>
               </div>
             </div>
             <p>Управление каталогом товаров, отзывами и заказами.</p>
@@ -9367,6 +9369,7 @@ router.get('/sync-siam-json', requireAdmin, async (req, res) => {
       <a class="btn btn-secondary" href="/admin">← Назад</a>
       <div class="card" style="margin-top:12px;">
         <h2 style="margin:0 0 8px 0;">🧾 Siam: синхронизация из JSON</h2>
+        <div class="muted" style="margin:0 0 10px 0;">build: ${String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local'}</div>
         <p class="muted" style="margin:0 0 14px 0;">
           Вставь массив объектов JSON (как ты прислал). Мы обновим <b>title/summary/description</b> строго по SKU.
           <b>Цены не трогаем.</b> Поля <b>ingredients/volume</b> при желании добавим в конец description.
