@@ -5853,8 +5853,8 @@ router.get('/products', requireAdmin, async (req, res) => {
                   html +=
                     '<button type="button" class="gallery-item" data-image-url="' + escapedUrl + '" data-product-id="' + String(productId) + '" ' +
                       'style="border:2px solid #e2e8f0; border-radius:12px; overflow:hidden; cursor:pointer; background:#fff; padding:0; width:100%;">' +
-                      '<div style="width:100%; height:120px; background:#ffffff; display:flex; align-items:center; justify-content:center; padding:8px;">' +
-                        '<img src="' + String(imageUrl).replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '" style="display:block; max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain;" alt="img" data-onerror-hide="true" />' +
+                      '<div style="width:100%; height:140px; background:#ffffff; display:flex; align-items:center; justify-content:center;">' +
+                        '<img src="' + String(imageUrl).replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '" style="width:100%; height:100%; object-fit:contain; display:block; background:#ffffff;" alt="img" data-onerror-hide="true" />' +
                       '</div>' +
                     '</button>';
                 });
@@ -5921,7 +5921,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                       '<div style="font-weight:900; font-size:16px;">🖼️ Выбрать изображение</div>' +
                       '<button type="button" id="closeGalleryBtn" style="border:none; background:#e5e7eb; border-radius:12px; padding:10px 12px; cursor:pointer; font-weight:800;">✕</button>' +
                     '</div>' +
-                    '<div style="display:grid; grid-template-columns: minmax(300px, 420px) 1fr; gap:12px; padding:12px; flex:1; overflow:hidden; min-height:0;">' +
+                    '<div style="display:grid; grid-template-columns: minmax(300px, 420px) 1fr; grid-template-rows: 1fr; gap:12px; padding:12px; flex:1; overflow:hidden; min-height:0;">' +
                       '<div style="border:1px solid #e5e7eb; border-radius:14px; overflow:hidden; background:#f8fafc; display:flex; flex-direction:column; min-height:0;">' +
                         '<div style="padding:10px 12px; border-bottom:1px solid #e5e7eb; display:flex; gap:10px; align-items:center; justify-content:space-between;">' +
                           '<div style="font-weight:800; font-size:13px; color:#111827;">Предпросмотр</div>' +
@@ -5931,7 +5931,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                           '<img id="galleryPreviewImg" src="" alt="preview" style="max-width:100%; max-height:100%; object-fit:contain; background:#fff; border-radius:12px; border:1px solid #e5e7eb;" />' +
                         '</div>' +
                       '</div>' +
-                      '<div id="galleryContent" style="min-height:0; overflow:auto; -webkit-overflow-scrolling: touch; display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:12px; padding:2px;">' +
+                      '<div id="galleryContent" style="min-height:0; height:100%; overflow-y:auto; overflow-x:hidden; display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap:12px; padding:2px; align-content:start;">' +
                         '<div style="grid-column: span 999; text-align:center; padding:30px; color:#6b7280;">Загрузка...</div>' +
                       '</div>' +
                     '</div>' +
