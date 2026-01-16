@@ -5946,14 +5946,24 @@ router.get('/products', requireAdmin, async (req, res) => {
                   '</div>';
                 document.body.appendChild(modal);
                 modal.onclick = function(e) { if (e.target === modal) window.closeImageGallery(); };
-                // Prevent touchmove on backdrop to stop background scrolling (iOS)
+                // Prevent scrolling on backdrop to stop background scrolling
+                // (avoid addEventListener options object to prevent any parsing issues in older environments)
                 modal.addEventListener('touchmove', function(ev) {
                   const t = ev.target;
                   const el = (t && t.nodeType === 1) ? t : (t && t.parentElement ? t.parentElement : null);
                   if (!el) { ev.preventDefault(); return; }
                   const insideScrollable = el.closest('#galleryContent');
                   if (!insideScrollable) ev.preventDefault();
-                }, { passive: false });
+                }, false);
+                
+                // Desktop wheel: allow scroll only inside #galleryContent
+                modal.addEventListener('wheel', function(ev) {
+                  const t = ev.target;
+                  const el = (t && t.nodeType === 1) ? t : (t && t.parentElement ? t.parentElement : null);
+                  if (!el) { ev.preventDefault(); return; }
+                  const insideScrollable = el.closest('#galleryContent');
+                  if (!insideScrollable) ev.preventDefault();
+                }, false);
                 const closeBtn = document.getElementById('closeGalleryBtn');
                 if (closeBtn) closeBtn.onclick = function() { window.closeImageGallery(); };
                 const cancelBtn = document.getElementById('galleryCancelBtn');
