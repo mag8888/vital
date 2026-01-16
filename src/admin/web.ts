@@ -9377,6 +9377,15 @@ router.get('/sync-siam-json', requireAdmin, async (req, res) => {
           Добавлять ingredients/volume в description
         </label>
 
+        <div style="margin-top:12px;">
+          <div class="muted" style="margin-bottom:6px;">Ссылка на JSON (опционально, удобнее чем вставлять большой массив):</div>
+          <input id="jsonUrl" placeholder="Напр.: https://raw.githubusercontent.com/.../siam.json"
+                 style="width:100%; border-radius:12px; border:1px solid #e5e7eb; padding:12px; font-size:13px;" />
+          <div class="muted" style="margin-top:6px;">
+            Если заполнено — сервер скачает JSON по ссылке. Иначе используем поле ниже.
+          </div>
+        </div>
+
         <label>
           <input type="checkbox" id="apply" />
           Применить изменения (иначе — только отчёт)
@@ -9400,12 +9409,13 @@ router.get('/sync-siam-json', requireAdmin, async (req, res) => {
         async function run(forceApply) {
           const out = document.getElementById('out');
           const text = document.getElementById('jsonInput').value || '';
+          const jsonUrl = (document.getElementById('jsonUrl').value || '').trim();
           const includeMeta = document.getElementById('includeMeta').checked;
           const applyChecked = document.getElementById('apply').checked;
           const apply = !!forceApply || !!applyChecked;
 
-          if (!text.trim()) {
-            out.textContent = '❌ Вставь JSON в поле.';
+          if (!jsonUrl && !text.trim()) {
+            out.textContent = '❌ Вставь JSON в поле или укажи ссылку на JSON.';
             return;
           }
 
@@ -9414,7 +9424,7 @@ router.get('/sync-siam-json', requireAdmin, async (req, res) => {
             const res = await fetch('/admin/api/sync-siam-json', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ jsonText: text, includeMeta, apply })
+              body: JSON.stringify({ jsonText: text, jsonUrl, includeMeta, apply })
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
@@ -9435,20 +9445,51 @@ router.get('/sync-siam-json', requireAdmin, async (req, res) => {
 router.post('/api/sync-siam-json', requireAdmin, express.json({ limit: '6mb' }), async (req, res) => {
   try {
     const jsonText = String(req.body?.jsonText || '');
+    const jsonUrl = String(req.body?.jsonUrl || '').trim();
     const includeMeta = req.body?.includeMeta !== false; // default true
     const apply = !!req.body?.apply;
-    if (!jsonText.trim()) {
-      res.status(400).json({ success: false, error: 'jsonText is empty' });
-      return;
-    }
+
     let parsed: any;
-    try {
-      parsed = JSON.parse(jsonText);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      res.status(400).json({ success: false, error: 'Invalid JSON: ' + msg });
-      return;
+    if (jsonUrl) {
+      if (!/^https?:\/\//i.test(jsonUrl)) {
+        res.status(400).json({ success: false, error: 'jsonUrl must start with http(s)://' });
+        return;
+      }
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 15000);
+      try {
+        const r = await fetch(jsonUrl, { signal: controller.signal });
+        const body = await r.text().catch(() => '');
+        if (!r.ok) {
+          res.status(400).json({ success: false, error: `Failed to fetch jsonUrl: HTTP ${r.status}` });
+          return;
+        }
+        if (body.length > 6_000_000) {
+          res.status(400).json({ success: false, error: 'JSON слишком большой (> ~6MB). Разбей файл или сожми поля.' });
+          return;
+        }
+        parsed = JSON.parse(body);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        res.status(400).json({ success: false, error: 'Failed to fetch/parse jsonUrl: ' + msg });
+        return;
+      } finally {
+        clearTimeout(t);
+      }
+    } else {
+      if (!jsonText.trim()) {
+        res.status(400).json({ success: false, error: 'jsonText is empty (or provide jsonUrl)' });
+        return;
+      }
+      try {
+        parsed = JSON.parse(jsonText);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        res.status(400).json({ success: false, error: 'Invalid JSON: ' + msg });
+        return;
+      }
     }
+
     if (!Array.isArray(parsed)) {
       res.status(400).json({ success: false, error: 'JSON must be an array of entries' });
       return;
@@ -9461,7 +9502,7 @@ router.post('/api/sync-siam-json', requireAdmin, express.json({ limit: '6mb' }),
       includeMetaInDescription: includeMeta,
       limit: 20000,
     });
-    res.json({ success: true, ...report });
+    res.json({ success: true, source: jsonUrl ? { type: 'url', url: jsonUrl } : { type: 'text' }, ...report });
   } catch (error) {
     console.error('sync-siam-json error:', error);
     res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
