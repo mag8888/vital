@@ -6782,9 +6782,11 @@ router.get('/products', requireAdmin, async (req, res) => {
               } else {
                 throw new Error(result.error || 'Ошибка при переводе');
               }
-            } catch (error: any) {
+            } catch (error) {
               console.error('Translation error:', error);
-              const errorMsg = error.message || 'Неизвестная ошибка. Убедитесь, что OPENAI_API_KEY настроен в переменных окружения.';
+              const errorMsg = (error instanceof Error && error.message)
+                ? error.message
+                : 'Неизвестная ошибка. Убедитесь, что OPENAI_API_KEY настроен в переменных окружения.';
               alert('Ошибка при переводе: ' + errorMsg);
             } finally {
               // Restore button state
