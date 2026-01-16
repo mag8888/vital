@@ -9422,6 +9422,8 @@ router.get('/sync-siam-json', requireAdmin, async (req, res) => {
 
         <div class="row" style="margin-top:10px;">
           <button class="btn btn-secondary" onclick="translateTitles()">Перевести оставшиеся английские названия</button>
+          <button class="btn btn-secondary" onclick="normalizeTitles(false)">Проверить нормализацию названий</button>
+          <button class="btn btn-secondary" style="background:#111827; color:white;" onclick="normalizeTitles(true)">Применить нормализацию названий</button>
         </div>
 
         <div style="margin-top:14px;">
@@ -9492,6 +9494,26 @@ router.get('/sync-siam-json', requireAdmin, async (req, res) => {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ limit: 2000 })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              out.textContent = '❌ Ошибка: ' + (data.error || ('HTTP ' + res.status));
+              return;
+            }
+            out.textContent = JSON.stringify(data, null, 2);
+          } catch (e) {
+            out.textContent = '❌ Ошибка запуска: ' + (e && e.message ? e.message : String(e));
+          }
+        }
+
+        async function normalizeTitles(apply) {
+          const out = document.getElementById('out');
+          out.textContent = (apply ? '⏳ Применение нормализации...' : '⏳ Проверка нормализации...');
+          try {
+            const res = await fetch('/admin/api/normalize-titles-ru', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ apply: !!apply, limit: 3000 })
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
@@ -9604,6 +9626,20 @@ router.post('/api/translate-titles-ru', requireAdmin, express.json({ limit: '256
     res.json({ success: true, ...result });
   } catch (error) {
     console.error('translate-titles-ru error:', error);
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+// Normalize product titles to a consistent Russian style (no quotes)
+router.post('/api/normalize-titles-ru', requireAdmin, express.json({ limit: '256kb' }), async (req, res) => {
+  try {
+    const apply = !!req.body?.apply;
+    const limit = Number(req.body?.limit || 3000);
+    const { normalizeProductTitlesOnServer } = await import('../services/siam-title-normalizer.js');
+    const result = await normalizeProductTitlesOnServer({ apply, limit });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('normalize-titles-ru error:', error);
     res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
   }
 });
