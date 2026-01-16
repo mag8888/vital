@@ -5794,18 +5794,14 @@ router.get('/products', requireAdmin, async (req, res) => {
               const modal = document.getElementById('imageGalleryModal');
               if (modal) modal.remove();
               try {
+                const html = document.documentElement;
                 const body = document.body;
-                const prevTop = body.getAttribute('data-scroll-lock-top');
-                if (body && body.style && body.style.position === 'fixed') {
-                  body.style.position = '';
-                  body.style.top = '';
-                  body.style.left = '';
-                  body.style.right = '';
-                  body.style.width = '';
-                }
-                body.removeAttribute('data-scroll-lock-top');
-                const y = prevTop ? Math.abs(parseInt(prevTop, 10) || 0) : 0;
-                if (y) window.scrollTo(0, y);
+                const prevHtml = html.getAttribute('data-prev-overflow');
+                const prevBody = body.getAttribute('data-prev-overflow');
+                if (prevHtml !== null) html.style.overflow = prevHtml;
+                if (prevBody !== null) body.style.overflow = prevBody;
+                html.removeAttribute('data-prev-overflow');
+                body.removeAttribute('data-prev-overflow');
               } catch (_) {}
             };
           }
@@ -5903,16 +5899,14 @@ router.get('/products', requireAdmin, async (req, res) => {
             window.openImageGallery = function(productId) {
               try {
                 if (!productId) return;
-                // Lock background scroll (mobile-friendly)
+                // Lock background scroll (desktop-safe)
                 try {
+                  const html = document.documentElement;
                   const body = document.body;
-                  const y = window.scrollY || window.pageYOffset || 0;
-                  body.setAttribute('data-scroll-lock-top', String(y));
-                  body.style.position = 'fixed';
-                  body.style.top = '-' + y + 'px';
-                  body.style.left = '0';
-                  body.style.right = '0';
-                  body.style.width = '100%';
+                  if (!html.hasAttribute('data-prev-overflow')) html.setAttribute('data-prev-overflow', html.style.overflow || '');
+                  if (!body.hasAttribute('data-prev-overflow')) body.setAttribute('data-prev-overflow', body.style.overflow || '');
+                  html.style.overflow = 'hidden';
+                  body.style.overflow = 'hidden';
                 } catch (_) {}
                 const existingModal = document.getElementById('imageGalleryModal');
                 if (existingModal) existingModal.remove();
@@ -5920,13 +5914,13 @@ router.get('/products', requireAdmin, async (req, res) => {
                 modal.id = 'imageGalleryModal';
                 modal.style.cssText = 'position:fixed; inset:0; background: rgba(0,0,0,0.65); z-index: 10000; display:flex; align-items:center; justify-content:center; padding: 14px; overscroll-behavior: contain;';
                 modal.innerHTML =
-                  '<div style="max-width:96vw; max-height:92vh; width:1100px; background:#fff; border-radius:16px; overflow:hidden; display:flex; flex-direction:column;">' +
+                  '<div style="max-width:96vw; width:1100px; height:92vh; background:#fff; border-radius:16px; overflow:hidden; display:flex; flex-direction:column;">' +
                     '<div style="padding:14px 16px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; gap:12px;">' +
                       '<div style="font-weight:900; font-size:16px;">🖼️ Выбрать изображение</div>' +
                       '<button type="button" id="closeGalleryBtn" style="border:none; background:#e5e7eb; border-radius:12px; padding:10px 12px; cursor:pointer; font-weight:800;">✕</button>' +
                     '</div>' +
-                    '<div style="display:flex; gap:12px; padding:12px; flex:1; overflow:hidden; flex-wrap:wrap; min-height:0;">' +
-                      '<div style="flex: 1 1 420px; min-width: 300px; border:1px solid #e5e7eb; border-radius:14px; overflow:hidden; background:#f8fafc; display:flex; flex-direction:column; min-height:0;">' +
+                    '<div style="display:grid; grid-template-columns: minmax(300px, 420px) 1fr; gap:12px; padding:12px; flex:1; overflow:hidden; min-height:0;">' +
+                      '<div style="border:1px solid #e5e7eb; border-radius:14px; overflow:hidden; background:#f8fafc; display:flex; flex-direction:column; min-height:0;">' +
                         '<div style="padding:10px 12px; border-bottom:1px solid #e5e7eb; display:flex; gap:10px; align-items:center; justify-content:space-between;">' +
                           '<div style="font-weight:800; font-size:13px; color:#111827;">Предпросмотр</div>' +
                           '<button type="button" id="galleryOpenBtn" disabled style="border:none; background:#e5e7eb; border-radius:12px; padding:8px 10px; cursor:pointer; font-weight:800;">Увеличить</button>' +
@@ -5935,7 +5929,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                           '<img id="galleryPreviewImg" src="" alt="preview" style="max-width:100%; max-height:100%; object-fit:contain; background:#fff; border-radius:12px; border:1px solid #e5e7eb;" />' +
                         '</div>' +
                       '</div>' +
-                      '<div id="galleryContent" style="flex: 1 1 520px; min-width: 320px; min-height:0; overflow:auto; -webkit-overflow-scrolling: touch; display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:12px; padding:2px;">' +
+                      '<div id="galleryContent" style="min-height:0; overflow:auto; -webkit-overflow-scrolling: touch; display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:12px; padding:2px;">' +
                         '<div style="grid-column: span 999; text-align:center; padding:30px; color:#6b7280;">Загрузка...</div>' +
                       '</div>' +
                     '</div>' +
