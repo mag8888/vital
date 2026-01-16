@@ -5823,6 +5823,10 @@ router.get('/products', requireAdmin, async (req, res) => {
             window.loadGalleryImages = async function(productId) {
               const galleryContent = document.getElementById('galleryContent');
               if (!galleryContent) return;
+              const previewImg = document.getElementById('galleryPreviewImg');
+              const openBtn = document.getElementById('galleryOpenBtn');
+              const chooseBtn = document.getElementById('galleryChooseBtn');
+              const modal = document.getElementById('imageGalleryModal');
               try {
                 const response = await fetch('/admin/api/products/images', { credentials: 'include' });
                 const result = await response.json().catch(() => ({}));
@@ -5835,12 +5839,12 @@ router.get('/products', requireAdmin, async (req, res) => {
                   const imageUrl = imageData.url || '';
                   const escapedUrl = String(imageUrl).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
                   html +=
-                    '<div class="gallery-item" data-image-url="' + escapedUrl + '" data-product-id="' + String(productId) + '" ' +
-                      'style="border:2px solid #e2e8f0; border-radius:10px; overflow:hidden; cursor:pointer; background:#fff;">' +
-                      '<div style="width:100%; aspect-ratio:1; background:#f3f4f6; overflow:hidden;">' +
-                        '<img src="' + escapedUrl + '" style="width:100%; height:100%; object-fit:cover;" alt="img" data-onerror-hide="true" />' +
+                    '<button type="button" class="gallery-item" data-image-url="' + escapedUrl + '" data-product-id="' + String(productId) + '" ' +
+                      'style="border:2px solid #e2e8f0; border-radius:12px; overflow:hidden; cursor:pointer; background:#fff; padding:0; width:100%;">' +
+                      '<div style="width:100%; aspect-ratio:1; background:#f8fafc; display:flex; align-items:center; justify-content:center;">' +
+                        '<img src="' + escapedUrl + '" style="width:100%; height:100%; object-fit:contain; background:#ffffff;" alt="img" data-onerror-hide="true" />' +
                       '</div>' +
-                    '</div>';
+                    '</button>';
                 });
                 galleryContent.innerHTML = html;
                 galleryContent.onclick = function(e) {
@@ -5851,8 +5855,28 @@ router.get('/products', requireAdmin, async (req, res) => {
                   if (!item) return;
                   const imageUrl = item.getAttribute('data-image-url') || '';
                   const pid = item.getAttribute('data-product-id') || '';
-                  if (typeof window.selectGalleryImage === 'function') window.selectGalleryImage(imageUrl, pid);
+                  if (modal) modal.setAttribute('data-selected-url', imageUrl);
+                  if (previewImg) previewImg.src = imageUrl;
+                  if (openBtn) openBtn.disabled = !imageUrl;
+                  if (chooseBtn) chooseBtn.disabled = !imageUrl;
+                  // highlight selection
+                  const all = galleryContent.querySelectorAll('.gallery-item');
+                  all.forEach((b) => { b.style.borderColor = '#e2e8f0'; b.style.boxShadow = 'none'; });
+                  item.style.borderColor = '#6366f1';
+                  item.style.boxShadow = '0 8px 18px rgba(99,102,241,0.20)';
                 };
+
+                // preselect first image for better UX
+                const first = galleryContent.querySelector('.gallery-item');
+                if (first && first.getAttribute) {
+                  const firstUrl = first.getAttribute('data-image-url') || '';
+                  if (modal) modal.setAttribute('data-selected-url', firstUrl);
+                  if (previewImg) previewImg.src = firstUrl;
+                  if (openBtn) openBtn.disabled = !firstUrl;
+                  if (chooseBtn) chooseBtn.disabled = !firstUrl;
+                  first.style.borderColor = '#6366f1';
+                  first.style.boxShadow = '0 8px 18px rgba(99,102,241,0.20)';
+                }
               } catch (e) {
                 galleryContent.innerHTML = '<div style="grid-column: span 999; text-align:center; padding:30px; color:#dc2626;">Ошибка загрузки галереи</div>';
               }
@@ -5867,21 +5891,48 @@ router.get('/products', requireAdmin, async (req, res) => {
                 if (existingModal) existingModal.remove();
                 const modal = document.createElement('div');
                 modal.id = 'imageGalleryModal';
-                modal.style.cssText = 'position:fixed; inset:0; background: rgba(0,0,0,0.6); z-index: 10000; display:flex; align-items:center; justify-content:center;';
+                modal.style.cssText = 'position:fixed; inset:0; background: rgba(0,0,0,0.65); z-index: 10000; display:flex; align-items:center; justify-content:center; padding: 14px;';
                 modal.innerHTML =
-                  '<div style="max-width:90vw; max-height:90vh; width:900px; background:#fff; border-radius:12px; overflow:hidden; display:flex; flex-direction:column;">' +
-                    '<div style="padding:14px 16px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center;">' +
-                      '<div style="font-weight:800;">🖼️ Выбрать изображение</div>' +
-                      '<button type="button" id="closeGalleryBtn" style="border:none; background:#e5e7eb; border-radius:10px; padding:8px 10px; cursor:pointer;">✕</button>' +
+                  '<div style="max-width:96vw; max-height:92vh; width:1100px; background:#fff; border-radius:16px; overflow:hidden; display:flex; flex-direction:column;">' +
+                    '<div style="padding:14px 16px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; gap:12px;">' +
+                      '<div style="font-weight:900; font-size:16px;">🖼️ Выбрать изображение</div>' +
+                      '<button type="button" id="closeGalleryBtn" style="border:none; background:#e5e7eb; border-radius:12px; padding:10px 12px; cursor:pointer; font-weight:800;">✕</button>' +
                     '</div>' +
-                    '<div id="galleryContent" style="padding:16px; overflow:auto; flex:1; display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap:12px;">' +
-                      '<div style="grid-column: span 999; text-align:center; padding:30px; color:#6b7280;">Загрузка...</div>' +
+                    '<div style="display:flex; gap:12px; padding:12px; flex:1; overflow:hidden; flex-wrap:wrap;">' +
+                      '<div style="flex: 1 1 420px; min-width: 300px; border:1px solid #e5e7eb; border-radius:14px; overflow:hidden; background:#f8fafc; display:flex; flex-direction:column;">' +
+                        '<div style="padding:10px 12px; border-bottom:1px solid #e5e7eb; display:flex; gap:10px; align-items:center; justify-content:space-between;">' +
+                          '<div style="font-weight:800; font-size:13px; color:#111827;">Предпросмотр</div>' +
+                          '<button type="button" id="galleryOpenBtn" disabled style="border:none; background:#e5e7eb; border-radius:12px; padding:8px 10px; cursor:pointer; font-weight:800;">Открыть</button>' +
+                        '</div>' +
+                        '<div style="flex:1; display:flex; align-items:center; justify-content:center; padding:10px;">' +
+                          '<img id="galleryPreviewImg" src="" alt="preview" style="max-width:100%; max-height:100%; object-fit:contain; background:#fff; border-radius:12px; border:1px solid #e5e7eb;" />' +
+                        '</div>' +
+                      '</div>' +
+                      '<div id="galleryContent" style="flex: 1 1 520px; min-width: 320px; overflow:auto; display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:12px; padding:2px;">' +
+                        '<div style="grid-column: span 999; text-align:center; padding:30px; color:#6b7280;">Загрузка...</div>' +
+                      '</div>' +
+                    '</div>' +
+                    '<div style="padding:12px 16px; border-top:1px solid #e5e7eb; display:flex; gap:10px; justify-content:flex-end;">' +
+                      '<button type="button" id="galleryCancelBtn" style="border:none; background:#e5e7eb; border-radius:12px; padding:10px 14px; cursor:pointer; font-weight:800;">Отмена</button>' +
+                      '<button type="button" id="galleryChooseBtn" disabled style="border:none; background:#111827; color:#fff; border-radius:12px; padding:10px 14px; cursor:pointer; font-weight:900;">Выбрать</button>' +
                     '</div>' +
                   '</div>';
                 document.body.appendChild(modal);
                 modal.onclick = function(e) { if (e.target === modal) window.closeImageGallery(); };
                 const closeBtn = document.getElementById('closeGalleryBtn');
                 if (closeBtn) closeBtn.onclick = function() { window.closeImageGallery(); };
+                const cancelBtn = document.getElementById('galleryCancelBtn');
+                if (cancelBtn) cancelBtn.onclick = function() { window.closeImageGallery(); };
+                const openBtn = document.getElementById('galleryOpenBtn');
+                if (openBtn) openBtn.onclick = function() {
+                  const u = modal.getAttribute('data-selected-url') || '';
+                  if (u) window.open(u, '_blank');
+                };
+                const chooseBtn = document.getElementById('galleryChooseBtn');
+                if (chooseBtn) chooseBtn.onclick = function() {
+                  const u = modal.getAttribute('data-selected-url') || '';
+                  if (u && typeof window.selectGalleryImage === 'function') window.selectGalleryImage(u, productId);
+                };
                 if (typeof window.loadGalleryImages === 'function') window.loadGalleryImages(productId);
               } catch (e) {
                 alert('❌ Ошибка галереи: ' + (e instanceof Error ? e.message : String(e)));
@@ -6372,7 +6423,9 @@ router.get('/products', requireAdmin, async (req, res) => {
           });
           
           // Image Gallery Functions - определяем сразу глобально
-          window.openImageGallery = function(productId) {
+          // NOTE: основные реализации вынесены в <head> (устойчиво к SyntaxError ниже).
+          // Здесь оставляем только fallback, чтобы не перетирать уже определенные функции.
+          if (typeof window.openImageGallery !== 'function') window.openImageGallery = function(productId) {
             console.log('🖼️ Opening image gallery for product:', productId);
             
             if (!productId) {
@@ -6443,7 +6496,7 @@ router.get('/products', requireAdmin, async (req, res) => {
             window.loadGalleryImages(productId);
           };
           
-          window.closeImageGallery = function() {
+          if (typeof window.closeImageGallery !== 'function') window.closeImageGallery = function() {
             const modal = document.getElementById('imageGalleryModal');
             if (modal) {
               modal.remove();
@@ -6451,7 +6504,7 @@ router.get('/products', requireAdmin, async (req, res) => {
           };
           
           // Определяем selectGalleryImage глобально, чтобы она была доступна для loadGalleryImages
-          window.selectGalleryImage = async function(imageUrl, productId) {
+          if (typeof window.selectGalleryImage !== 'function') window.selectGalleryImage = async function(imageUrl, productId) {
             if (!imageUrl || !productId) {
               console.error('Missing parameters:', { imageUrl, productId });
               alert('❌ Ошибка: Не указаны параметры изображения или товара');
@@ -6495,7 +6548,7 @@ router.get('/products', requireAdmin, async (req, res) => {
           };
           
           // Определяем loadGalleryImages глобально, чтобы она была доступна
-          window.loadGalleryImages = async function(productId) {
+          if (typeof window.loadGalleryImages !== 'function') window.loadGalleryImages = async function(productId) {
             const galleryContent = document.getElementById('galleryContent');
             if (!galleryContent) {
               console.error('Gallery content element not found');
