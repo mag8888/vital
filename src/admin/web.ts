@@ -5852,9 +5852,9 @@ router.get('/products', requireAdmin, async (req, res) => {
                   const escapedUrl = encodeURIComponent(String(imageUrl));
                   html +=
                     '<button type="button" class="gallery-item" data-image-url="' + escapedUrl + '" data-product-id="' + String(productId) + '" ' +
-                      'style="border:2px solid #e2e8f0; border-radius:12px; overflow:hidden; cursor:pointer; background:#fff; padding:0; width:100%;">' +
-                      '<div style="width:100%; height:140px; background:#ffffff; display:flex; align-items:center; justify-content:center;">' +
-                        '<img src="' + String(imageUrl).replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '" style="width:100%; height:100%; object-fit:contain; display:block; background:#ffffff;" alt="img" data-onerror-hide="true" />' +
+                      'style="border:2px solid #e2e8f0; border-radius:12px; overflow:hidden; cursor:pointer; background:#fff; padding:0; width:160px;">' +
+                      '<div style="width:160px; height:160px; background:#ffffff; display:flex; align-items:center; justify-content:center;">' +
+                        '<img src="' + String(imageUrl).replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '" style="width:160px; height:160px; object-fit:contain; display:block; background:#ffffff;" alt="img" data-onerror-hide="true" />' +
                       '</div>' +
                     '</button>';
                 });
@@ -5931,7 +5931,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                           '<img id="galleryPreviewImg" src="" alt="preview" style="max-width:100%; max-height:100%; object-fit:contain; background:#fff; border-radius:12px; border:1px solid #e5e7eb;" />' +
                         '</div>' +
                       '</div>' +
-                      '<div id="galleryContent" style="min-height:0; height:100%; overflow-y:auto; overflow-x:hidden; display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap:12px; padding:2px; align-content:start;">' +
+                      '<div id="galleryContent" style="min-height:0; height:100%; overflow-y:auto; overflow-x:hidden; display:grid; grid-template-columns: repeat(auto-fill, 160px); gap:12px; padding:2px; align-content:start; justify-content:start;">' +
                         '<div style="grid-column: span 999; text-align:center; padding:30px; color:#6b7280;">Загрузка...</div>' +
                       '</div>' +
                     '</div>' +
