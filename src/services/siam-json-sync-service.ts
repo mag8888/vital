@@ -16,7 +16,20 @@ function normalizeSku(sku: string): string {
 
 function extractVariantNumbersFromVolume(volume: string): string[] {
   const v = String(volume || '');
-  const nums = Array.from(v.matchAll(/(\d{1,4})\s*(?:мл|ml|г|g)\b/gi)).map(m => m[1]);
+  // Support formats like:
+  // - "90 мл / 220 мл"
+  // - "470 мл (доступны 100/230 мл)"
+  // - "25 г / 50 г / 100 г"
+  // Important: do NOT use \\b with Cyrillic units (мл/г) — it breaks matching.
+  const nums: string[] = [];
+  const unitRe = /(\d{1,4}(?:\s*\/\s*\d{1,4})*)\s*(?:мл|ml|г|g)(?=\s|$|[),.\]])/giu;
+  for (const m of v.matchAll(unitRe)) {
+    const group = String(m[1] || '');
+    for (const part of group.split('/')) {
+      const n = part.trim();
+      if (/^\d{1,4}$/.test(n)) nums.push(n);
+    }
+  }
   const seen = new Set<string>();
   return nums.filter(n => (seen.has(n) ? false : (seen.add(n), true)));
 }
