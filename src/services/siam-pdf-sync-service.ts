@@ -313,7 +313,12 @@ function rgbaToPng(rgba: Buffer, width: number, height: number): Buffer {
 export async function syncSiamFromPdfOnServer(opts?: { updateImages?: boolean; pdfUrl?: string }) {
   const pdfUrl = String(opts?.pdfUrl || '').trim();
   const pdfPath = pdfUrl ? await fetchPdfToTmp(pdfUrl) : pickPdfPath();
-  if (!fs.existsSync(pdfPath)) throw new Error(`PDF not found at ${pdfPathPrimary} or ${pdfPathFallback}`);
+  if (!fs.existsSync(pdfPath)) {
+    if (!pdfUrl) {
+      throw new Error(`PDF not found on server. Provide pdfUrl (direct link to .pdf) or add file at ${pdfPathPrimary} (or ${pdfPathFallback}).`);
+    }
+    throw new Error(`PDF not found at ${pdfPathPrimary} or ${pdfPathFallback}`);
+  }
 
   const data = await pdfParse(fs.readFileSync(pdfPath));
   const catalog = parseSiamCatalogFromPdfText(data.text || '');

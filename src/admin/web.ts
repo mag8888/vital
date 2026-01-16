@@ -9271,6 +9271,7 @@ router.get('/sync-siam-pdf', requireAdmin, async (req, res) => {
       <a class="btn btn-secondary" href="/admin">← Назад</a>
       <div class="card">
         <h2 style="margin:0 0 8px 0;">📄 Синхронизация товаров Siam из PDF</h2>
+        <div class="muted" style="margin:0 0 10px 0;">build: ${String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local'}</div>
         <p class="muted" style="margin:0 0 14px 0;">
           Обновляет товары строго по SKU из PDF: <b>title/summary/description</b>. Товары, которых нет в PDF — не трогаем.
           Опционально обновляет <b>фото</b> из встроенных картинок PDF (нужно Cloudinary).
