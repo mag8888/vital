@@ -4968,6 +4968,8 @@ router.get('/products', requireAdmin, async (req, res) => {
       categoryName: category.name,
     })));
 
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
+
     let html = `
       <!DOCTYPE html>
       <html>
@@ -6016,6 +6018,7 @@ router.get('/products', requireAdmin, async (req, res) => {
       </head>
       <body>
         <h2>🛍 Управление товарами</h2>
+        <div style="margin:-10px 0 14px 0; color:#6b7280; font-size:12px;">build: ${buildMarker}</div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
           <a href="/admin" class="btn">← Назад</a>
           <button onclick="scrapeAllImages()" class="btn" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">📸 Собрать ВСЕ фото с сайта</button>
