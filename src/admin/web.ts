@@ -9281,6 +9281,15 @@ router.get('/sync-siam-pdf', requireAdmin, async (req, res) => {
           Обновить фото 1:1 из PDF (Cloudinary)
         </label>
 
+        <div style="margin-top:12px;">
+          <div class="muted" style="margin-bottom:6px;">PDF по ссылке (если на сервере нет файла):</div>
+          <input id="pdfUrl" placeholder="Вставь прямую ссылку на PDF (https://...)"
+                 style="width:100%; border-radius:12px; border:1px solid #e5e7eb; padding:12px; font-size:13px;" />
+          <div class="muted" style="margin-top:6px;">
+            Если заполнено — сервер скачает PDF и выполнит синхронизацию.
+          </div>
+        </div>
+
         <label>
           <input type="checkbox" id="translateTitles" checked />
           Перевести оставшиеся английские названия на русский
@@ -9300,12 +9309,13 @@ router.get('/sync-siam-pdf', requireAdmin, async (req, res) => {
           const out = document.getElementById('out');
           out.textContent = '⏳ Запуск...';
           const withImages = document.getElementById('withImages').checked;
+          const pdfUrl = (document.getElementById('pdfUrl').value || '').trim();
           const translateTitles = document.getElementById('translateTitles').checked;
           try {
             const res = await fetch('/admin/api/sync-siam-pdf', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ withImages, translateTitles })
+              body: JSON.stringify({ withImages, translateTitles, pdfUrl })
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
@@ -9327,8 +9337,9 @@ router.post('/api/sync-siam-pdf', requireAdmin, express.json(), async (req, res)
   try {
     const withImages = !!req.body?.withImages;
     const translateTitles = req.body?.translateTitles !== false; // default true
+    const pdfUrl = String(req.body?.pdfUrl || '').trim();
     const { syncSiamFromPdfOnServer, translateRemainingTitlesToRussianOnServer } = await import('../services/siam-pdf-sync-service.js');
-    const result = await syncSiamFromPdfOnServer({ updateImages: withImages });
+    const result = await syncSiamFromPdfOnServer({ updateImages: withImages, pdfUrl });
 
     let translation = null;
     if (translateTitles) {
@@ -9408,6 +9419,10 @@ router.get('/sync-siam-json', requireAdmin, async (req, res) => {
           <button class="btn btn-secondary" style="background:#d1d5db; color:#111827;" onclick="runBundled(true)">Применить встроенный JSON</button>
         </div>
 
+        <div class="row" style="margin-top:10px;">
+          <button class="btn btn-secondary" onclick="translateTitles()">Перевести оставшиеся английские названия</button>
+        </div>
+
         <div style="margin-top:14px;">
           <pre id="out">Готово. Вставь JSON и нажми «Проверить».</pre>
         </div>
@@ -9456,6 +9471,26 @@ router.get('/sync-siam-json', requireAdmin, async (req, res) => {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ includeMeta, apply })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              out.textContent = '❌ Ошибка: ' + (data.error || ('HTTP ' + res.status));
+              return;
+            }
+            out.textContent = JSON.stringify(data, null, 2);
+          } catch (e) {
+            out.textContent = '❌ Ошибка запуска: ' + (e && e.message ? e.message : String(e));
+          }
+        }
+
+        async function translateTitles() {
+          const out = document.getElementById('out');
+          out.textContent = '⏳ Перевод оставшихся английских названий...';
+          try {
+            const res = await fetch('/admin/api/translate-titles-ru', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ limit: 2000 })
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
@@ -9555,6 +9590,19 @@ router.post('/api/sync-siam-json-bundled', requireAdmin, express.json({ limit: '
     res.json({ success: true, source: { type: 'bundled' }, ...report });
   } catch (error) {
     console.error('sync-siam-json-bundled error:', error);
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+// Translate remaining English titles to Russian (no PDF needed)
+router.post('/api/translate-titles-ru', requireAdmin, express.json({ limit: '256kb' }), async (req, res) => {
+  try {
+    const limit = Number(req.body?.limit || 2000);
+    const { translateRemainingTitlesToRussianOnServer } = await import('../services/siam-pdf-sync-service.js');
+    const result = await translateRemainingTitlesToRussianOnServer({ limit });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('translate-titles-ru error:', error);
     res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
   }
 });

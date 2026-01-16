@@ -161,6 +161,28 @@ function pickPdfPath(): string {
   return pdfPathFallback;
 }
 
+async function fetchPdfToTmp(pdfUrl: string): Promise<string> {
+  const url = String(pdfUrl || '').trim();
+  if (!/^https?:\/\//i.test(url)) {
+    throw new Error('pdfUrl must start with http(s)://');
+  }
+
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) throw new Error(`Failed to fetch PDF: HTTP ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length < 1000) throw new Error('PDF is too small (download failed)');
+    if (buf.length > 25 * 1024 * 1024) throw new Error('PDF is too large (>25MB)');
+    const tmpPath = '/tmp/siam-catalog.pdf';
+    fs.writeFileSync(tmpPath, buf);
+    return tmpPath;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 // ---- Image extraction (pdfjs-dist) ----
 // We use a pragmatic pairing strategy:
 // for each page: collect SKUs found on that page (in order) and images painted on that page (in order),
@@ -288,11 +310,10 @@ function rgbaToPng(rgba: Buffer, width: number, height: number): Buffer {
   return Buffer.concat([sig, chunk('IHDR', ihdr), idat, iend]);
 }
 
-export async function syncSiamFromPdfOnServer(opts?: { updateImages?: boolean }) {
-  const pdfPath = pickPdfPath();
-  if (!fs.existsSync(pdfPath)) {
-    throw new Error(`PDF not found at ${pdfPathPrimary} or ${pdfPathFallback}`);
-  }
+export async function syncSiamFromPdfOnServer(opts?: { updateImages?: boolean; pdfUrl?: string }) {
+  const pdfUrl = String(opts?.pdfUrl || '').trim();
+  const pdfPath = pdfUrl ? await fetchPdfToTmp(pdfUrl) : pickPdfPath();
+  if (!fs.existsSync(pdfPath)) throw new Error(`PDF not found at ${pdfPathPrimary} or ${pdfPathFallback}`);
 
   const data = await pdfParse(fs.readFileSync(pdfPath));
   const catalog = parseSiamCatalogFromPdfText(data.text || '');
@@ -395,8 +416,13 @@ function cleanupEnglishTitleForTranslation(title: string): string {
 }
 
 function fallbackTranslateTitleRu(englishTitle: string): string {
+  // Very small “good-enough” dictionary for common Siam titles
+  // If AI is configured, we won't use this.
   let t = cleanupEnglishTitleForTranslation(englishTitle);
+
+  // Weight to Russian 'г'
   t = t.replace(/\b(\d+)\s*g\b/gi, '$1 г');
+
   const rules: Array<[RegExp, string]> = [
     [/^Body Wash\b/i, 'Гель для душа'],
     [/^Body Lotion\b/i, 'Лосьон для тела'],
@@ -410,52 +436,77 @@ function fallbackTranslateTitleRu(englishTitle: string): string {
     [/^Mineral Sun Protection\b/i, 'Минеральная солнцезащита для лица'],
     [/^Sun Protection\b/i, 'Солнцезащитное средство'],
   ];
+
   for (const [re, ru] of rules) {
     if (re.test(t)) {
+      // Keep the rest after the matched prefix
       const rest = t.replace(re, '').trim();
-      const combined = (ru + (rest ? ' ' + rest : '')).replace(/\s{2,}/g, ' ').trim();
-      return combined;
+      return (ru + (rest ? ` ${rest}` : '')).replace(/\s{2,}/g, ' ').trim();
     }
   }
+
+  // Fallback: just return cleaned title (better than raw)
   return t;
 }
 
 export async function translateRemainingTitlesToRussianOnServer(opts?: { limit?: number }) {
   const limit = Math.max(1, Math.min(Number(opts?.limit || 200), 2000));
+
   const products = await prisma.product.findMany({
     where: { isActive: true },
     select: { id: true, sku: true, title: true }
   });
+
   const candidates = products.filter(p => looksLatinOnlyTitle(p.title || ''));
+
   let updated = 0;
   let skipped = 0;
   let failed = 0;
   const sample: Array<{ sku: string | null; before: string; after: string; method: string }> = [];
+
   for (const p of candidates.slice(0, limit)) {
     const before = String(p.title || '').trim();
     const cleaned = cleanupEnglishTitleForTranslation(before);
+
     try {
       let after = '';
       let method = 'fallback';
+
       if (aiTranslationService.isEnabled()) {
         after = await aiTranslationService.translateTitle(cleaned);
         method = 'ai';
       } else {
         after = fallbackTranslateTitleRu(cleaned);
       }
+
       after = String(after || '').trim();
       if (!after || after === before) {
         skipped++;
         continue;
       }
-      await prisma.product.update({ where: { id: p.id }, data: { title: after } });
+
+      await prisma.product.update({
+        where: { id: p.id },
+        data: { title: after }
+      });
+
       updated++;
-      if (sample.length < 20) sample.push({ sku: (p.sku as any) ?? null, before, after, method });
-    } catch (_e) {
+      if (sample.length < 20) {
+        sample.push({ sku: (p.sku as any) ?? null, before, after, method });
+      }
+    } catch (e) {
       failed++;
       continue;
     }
   }
-  return { candidates: candidates.length, limit, updated, skipped, failed, aiEnabled: aiTranslationService.isEnabled(), sample };
-}
 
+  return {
+    candidates: candidates.length,
+    limit,
+    updated,
+    skipped,
+    failed,
+    aiEnabled: aiTranslationService.isEnabled(),
+    sample,
+  };
+}
