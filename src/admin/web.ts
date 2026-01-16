@@ -5788,6 +5788,107 @@ router.get('/products', requireAdmin, async (req, res) => {
             }
           };
 
+          // КРИТИЧНО: галерея "Выбрать из загруженных" должна работать даже если нижний <script> сломается
+          if (typeof window.closeImageGallery !== 'function') {
+            window.closeImageGallery = function() {
+              const modal = document.getElementById('imageGalleryModal');
+              if (modal) modal.remove();
+            };
+          }
+
+          if (typeof window.selectGalleryImage !== 'function') {
+            window.selectGalleryImage = async function(imageUrl, productId) {
+              try {
+                if (!imageUrl || !productId) return;
+                const response = await fetch('/admin/api/products/' + encodeURIComponent(productId) + '/select-image', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({ imageUrl: String(imageUrl).trim() })
+                });
+                const result = await response.json().catch(() => ({}));
+                if (response.ok && result && result.success) {
+                  window.closeImageGallery();
+                  setTimeout(() => location.reload(), 300);
+                } else {
+                  alert('❌ Ошибка: ' + (result.error || ('HTTP ' + response.status)));
+                }
+              } catch (e) {
+                alert('❌ Ошибка: ' + (e instanceof Error ? e.message : String(e)));
+              }
+            };
+          }
+
+          if (typeof window.loadGalleryImages !== 'function') {
+            window.loadGalleryImages = async function(productId) {
+              const galleryContent = document.getElementById('galleryContent');
+              if (!galleryContent) return;
+              try {
+                const response = await fetch('/admin/api/products/images', { credentials: 'include' });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok || !result.success || !Array.isArray(result.images) || result.images.length === 0) {
+                  galleryContent.innerHTML = '<div style="grid-column: span 999; text-align:center; padding:30px; color:#6b7280;">Нет загруженных изображений</div>';
+                  return;
+                }
+                let html = '';
+                result.images.forEach((imageData) => {
+                  const imageUrl = imageData.url || '';
+                  const escapedUrl = String(imageUrl).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                  html +=
+                    '<div class="gallery-item" data-image-url="' + escapedUrl + '" data-product-id="' + String(productId) + '" ' +
+                      'style="border:2px solid #e2e8f0; border-radius:10px; overflow:hidden; cursor:pointer; background:#fff;">' +
+                      '<div style="width:100%; aspect-ratio:1; background:#f3f4f6; overflow:hidden;">' +
+                        '<img src="' + escapedUrl + '" style="width:100%; height:100%; object-fit:cover;" alt="img" data-onerror-hide="true" />' +
+                      '</div>' +
+                    '</div>';
+                });
+                galleryContent.innerHTML = html;
+                galleryContent.onclick = function(e) {
+                  const target = e.target;
+                  const el = (target && target.nodeType === 1) ? target : (target && target.parentElement ? target.parentElement : null);
+                  if (!el) return;
+                  const item = el.closest('.gallery-item');
+                  if (!item) return;
+                  const imageUrl = item.getAttribute('data-image-url') || '';
+                  const pid = item.getAttribute('data-product-id') || '';
+                  if (typeof window.selectGalleryImage === 'function') window.selectGalleryImage(imageUrl, pid);
+                };
+              } catch (e) {
+                galleryContent.innerHTML = '<div style="grid-column: span 999; text-align:center; padding:30px; color:#dc2626;">Ошибка загрузки галереи</div>';
+              }
+            };
+          }
+
+          if (typeof window.openImageGallery !== 'function') {
+            window.openImageGallery = function(productId) {
+              try {
+                if (!productId) return;
+                const existingModal = document.getElementById('imageGalleryModal');
+                if (existingModal) existingModal.remove();
+                const modal = document.createElement('div');
+                modal.id = 'imageGalleryModal';
+                modal.style.cssText = 'position:fixed; inset:0; background: rgba(0,0,0,0.6); z-index: 10000; display:flex; align-items:center; justify-content:center;';
+                modal.innerHTML =
+                  '<div style="max-width:90vw; max-height:90vh; width:900px; background:#fff; border-radius:12px; overflow:hidden; display:flex; flex-direction:column;">' +
+                    '<div style="padding:14px 16px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center;">' +
+                      '<div style="font-weight:800;">🖼️ Выбрать изображение</div>' +
+                      '<button type="button" id="closeGalleryBtn" style="border:none; background:#e5e7eb; border-radius:10px; padding:8px 10px; cursor:pointer;">✕</button>' +
+                    '</div>' +
+                    '<div id="galleryContent" style="padding:16px; overflow:auto; flex:1; display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap:12px;">' +
+                      '<div style="grid-column: span 999; text-align:center; padding:30px; color:#6b7280;">Загрузка...</div>' +
+                    '</div>' +
+                  '</div>';
+                document.body.appendChild(modal);
+                modal.onclick = function(e) { if (e.target === modal) window.closeImageGallery(); };
+                const closeBtn = document.getElementById('closeGalleryBtn');
+                if (closeBtn) closeBtn.onclick = function() { window.closeImageGallery(); };
+                if (typeof window.loadGalleryImages === 'function') window.loadGalleryImages(productId);
+              } catch (e) {
+                alert('❌ Ошибка галереи: ' + (e instanceof Error ? e.message : String(e)));
+              }
+            };
+          }
+
           // КРИТИЧНО: модалка подтверждения удаления должна работать даже если нижний <script> сломается
           window.__pendingDeleteForm = null;
           window.openConfirmDeleteModal = function(deleteForm) {
@@ -6006,7 +6107,8 @@ router.get('/products', requireAdmin, async (req, res) => {
                 <input type="file" name="image" accept="image/*" id="image-${escapeAttr(product.id)}" class="product-image-input">
                 <label for="image-${escapeAttr(product.id)}" class="image-btn file-label-btn">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</label>
               </form>
-              <button type="button" class="image-btn select-image-btn" style="background: #6366f1;" data-product-id="${escapeAttr(product.id)}">🖼️ Выбрать из загруженных</button>
+              <button type="button" class="image-btn select-image-btn" style="background: #6366f1;" data-product-id="${escapeAttr(product.id)}"
+                onclick="try{const pid=this.getAttribute('data-product-id'); if(pid && typeof window.openImageGallery==='function'){window.openImageGallery(pid);} else {alert('Ошибка: галерея не загружена. Обновите страницу.');}}catch(e){alert('Ошибка: '+(e&&e.message?e.message:String(e)));} return false;">🖼️ Выбрать из загруженных</button>
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/delete" class="delete-product-form" data-product-id="${escapeAttr(product.id)}" data-product-title="${escapeAttr(product.title)}">
                 <button type="button" class="delete-btn">Удалить</button>
               </form>
