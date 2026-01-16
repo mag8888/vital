@@ -75,9 +75,24 @@ function extractCatalogEntriesFromPdfText(pdfText) {
     if (!blockRaw) continue;
 
     // Weight is usually on same line as SKU: "<SKU> ВЕС: 24 г"
-    const afterSku = text.substring(cur.index, Math.min(text.length, cur.index + 80));
-    const weightMatch = afterSku.match(new RegExp(`${cur.sku}\\s+ВЕС:\\s*([^\\n]+)`));
-    const weight = weightMatch ? weightMatch[1].trim() : '';
+    const afterSku = text.substring(cur.index, Math.min(text.length, cur.index + 160));
+    const afterLine = afterSku.split('\n')[0] || afterSku;
+
+    // Support SKU variants like: "SP0021-470 / 230 / 100 ВЕС: 470 г / 230 г / 100 г"
+    const variants = new Map();
+    const prefixMatch = afterLine.match(/\b([A-Z]{1,3}\d{4})-(\d{2,4})\b/);
+    const weightsPartMatch = afterLine.match(/ВЕС:\s*([^\n]+)/i);
+    const weightNums = weightsPartMatch ? Array.from(weightsPartMatch[1].matchAll(/(\d+)\s*г/gi)).map(m => `${m[1]} г`) : [];
+    if (prefixMatch) {
+      const prefix = prefixMatch[1];
+      const nums = [prefixMatch[2]];
+      const rest = afterLine.slice((prefixMatch.index || 0) + prefixMatch[0].length);
+      const beforeWeight = (rest.split(/ВЕС:/i)[0] || '');
+      for (const m of beforeWeight.matchAll(/\/\s*(\d{2,4})\b/g)) nums.push(m[1]);
+      const seenNums = new Set();
+      const uniqNums = nums.filter(n => (seenNums.has(n) ? false : (seenNums.add(n), true)));
+      uniqNums.forEach((n, idx) => variants.set(`${prefix}-${n}`, weightNums[idx] || ''));
+    }
 
     // Parse block lines
     const lines = blockRaw.split('\n').map(l => l.trim()).filter(Boolean);
@@ -89,7 +104,7 @@ function extractCatalogEntriesFromPdfText(pdfText) {
     }
 
     const fullText = cleanedLines.join('\n').trim();
-    if (fullText.length < 20) continue;
+    if (fullText.length < 5) continue;
 
     // Ingredients: keep them inside description, but also useful to ensure title selection
     const ingredientsIdx = fullText.lastIndexOf('ИНГРЕДИЕНТЫ:');
@@ -124,15 +139,18 @@ function extractCatalogEntriesFromPdfText(pdfText) {
 
     title = title.replace(/\s{2,}/g, ' ').trim();
     const summaryBase = extractFirstParagraph(description);
-    const summary = normalizeWhitespace(`${weight ? `ВЕС: ${weight}\n` : ''}${summaryBase}`).slice(0, 200);
+    const defaultWeight = variants.get(cur.sku) || '';
+    const baseDescription = normalizeWhitespace(description);
 
-    result.set(cur.sku, {
-      sku: cur.sku,
-      title,
-      summary,
-      description: normalizeWhitespace(description),
-      weight,
-    });
+    if (variants.size > 0) {
+      for (const [sku, w] of variants.entries()) {
+        const summary = normalizeWhitespace(`${w ? `ВЕС: ${w}\n` : ''}${summaryBase}`).slice(0, 200);
+        result.set(sku, { sku, title, summary, description: baseDescription, weight: w });
+      }
+    } else {
+      const summary = normalizeWhitespace(`${defaultWeight ? `ВЕС: ${defaultWeight}\n` : ''}${summaryBase}`).slice(0, 200);
+      result.set(cur.sku, { sku: cur.sku, title, summary, description: baseDescription, weight: defaultWeight });
+    }
   }
 
   return result;

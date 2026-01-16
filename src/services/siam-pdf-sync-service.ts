@@ -76,9 +76,32 @@ export function parseSiamCatalogFromPdfText(pdfText: string): Map<string, Catalo
     const blockRaw = text.substring(blockStart, blockEnd).trim();
     if (!blockRaw) continue;
 
-    const afterSku = text.substring(cur.index, Math.min(text.length, cur.index + 80));
-    const weightMatch = afterSku.match(new RegExp(`${cur.sku}\\s+ВЕС:\\s*([^\\n]+)`));
-    const weight = weightMatch ? weightMatch[1].trim() : '';
+    const afterSku = text.substring(cur.index, Math.min(text.length, cur.index + 160));
+    const afterLine = afterSku.split('\n')[0] || afterSku;
+
+    // Support SKU variants like: "SP0021-470 / 230 / 100 ВЕС: 470 г / 230 г / 100 г"
+    // Build mapping sku -> weight (if available)
+    const variants = new Map<string, string>();
+    const prefixMatch = afterLine.match(/\b([A-Z]{1,3}\d{4})-(\d{2,4})\b/);
+    const weightsPartMatch = afterLine.match(/ВЕС:\s*([^\n]+)/i);
+    const weightNums = weightsPartMatch ? Array.from(weightsPartMatch[1].matchAll(/(\d+)\s*г/gi)).map(m => `${m[1]} г`) : [];
+
+    if (prefixMatch) {
+      const prefix = prefixMatch[1];
+      const nums: string[] = [];
+      nums.push(prefixMatch[2]);
+      const rest = afterLine.slice(prefixMatch.index! + prefixMatch[0].length);
+      const beforeWeight = rest.split(/ВЕС:/i)[0] || '';
+      for (const m of beforeWeight.matchAll(/\/\s*(\d{2,4})\b/g)) {
+        nums.push(m[1]);
+      }
+      // Unique in order
+      const seenNums = new Set<string>();
+      const uniqNums = nums.filter(n => (seenNums.has(n) ? false : (seenNums.add(n), true)));
+      uniqNums.forEach((n, idx) => {
+        variants.set(`${prefix}-${n}`, weightNums[idx] || '');
+      });
+    }
 
     const lines = blockRaw.split('\n').map(l => l.trim()).filter(Boolean);
     const cleanedLines: string[] = [];
@@ -88,7 +111,7 @@ export function parseSiamCatalogFromPdfText(pdfText: string): Map<string, Catalo
     }
 
     const fullText = cleanedLines.join('\n').trim();
-    if (fullText.length < 20) continue;
+    if (fullText.length < 5) continue;
 
     const ingredientsIdx = fullText.lastIndexOf('ИНГРЕДИЕНТЫ:');
     let title = '';
@@ -113,15 +136,20 @@ export function parseSiamCatalogFromPdfText(pdfText: string): Map<string, Catalo
 
     title = title.replace(/\s{2,}/g, ' ').trim();
     const summaryBase = extractFirstParagraph(fullText);
-    const summary = normalizeWhitespace(`${weight ? `ВЕС: ${weight}\n` : ''}${summaryBase}`).slice(0, 200);
+    const defaultWeight = variants.get(cur.sku) || '';
+    const baseSummary = normalizeWhitespace(`${defaultWeight ? `ВЕС: ${defaultWeight}\n` : ''}${summaryBase}`).slice(0, 200);
 
-    result.set(cur.sku, {
-      sku: cur.sku,
-      title,
-      summary,
-      description: normalizeWhitespace(fullText),
-      weight,
-    });
+    const description = normalizeWhitespace(fullText);
+
+    // Save entry for the main SKU and for any variants on the same line
+    if (variants.size > 0) {
+      for (const [sku, w] of variants.entries()) {
+        const sum = normalizeWhitespace(`${w ? `ВЕС: ${w}\n` : ''}${summaryBase}`).slice(0, 200);
+        result.set(sku, { sku, title, summary: sum, description, weight: w });
+      }
+    } else {
+      result.set(cur.sku, { sku: cur.sku, title, summary: baseSummary, description, weight: defaultWeight });
+    }
   }
 
   return result;
