@@ -9400,6 +9400,11 @@ router.get('/sync-siam-json', requireAdmin, async (req, res) => {
           <button class="btn btn-danger" onclick="run(true)">Применить</button>
         </div>
 
+        <div class="row" style="margin-top:10px;">
+          <button class="btn btn-secondary" onclick="runBundled(false)">Проверить встроенный JSON</button>
+          <button class="btn btn-secondary" style="background:#d1d5db; color:#111827;" onclick="runBundled(true)">Применить встроенный JSON</button>
+        </div>
+
         <div style="margin-top:14px;">
           <pre id="out">Готово. Вставь JSON и нажми «Проверить».</pre>
         </div>
@@ -9425,6 +9430,29 @@ router.get('/sync-siam-json', requireAdmin, async (req, res) => {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ jsonText: text, jsonUrl, includeMeta, apply })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              out.textContent = '❌ Ошибка: ' + (data.error || ('HTTP ' + res.status));
+              return;
+            }
+            out.textContent = JSON.stringify(data, null, 2);
+          } catch (e) {
+            out.textContent = '❌ Ошибка запуска: ' + (e && e.message ? e.message : String(e));
+          }
+        }
+
+        async function runBundled(forceApply) {
+          const out = document.getElementById('out');
+          const includeMeta = document.getElementById('includeMeta').checked;
+          const applyChecked = document.getElementById('apply').checked;
+          const apply = !!forceApply || !!applyChecked;
+          out.textContent = '⏳ Запуск встроенного JSON...';
+          try {
+            const res = await fetch('/admin/api/sync-siam-json-bundled', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ includeMeta, apply })
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
@@ -9505,6 +9533,25 @@ router.post('/api/sync-siam-json', requireAdmin, express.json({ limit: '6mb' }),
     res.json({ success: true, source: jsonUrl ? { type: 'url', url: jsonUrl } : { type: 'text' }, ...report });
   } catch (error) {
     console.error('sync-siam-json error:', error);
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+router.post('/api/sync-siam-json-bundled', requireAdmin, express.json({ limit: '1mb' }), async (req, res) => {
+  try {
+    const includeMeta = req.body?.includeMeta !== false; // default true
+    const apply = !!req.body?.apply;
+    const { SIAM_JSON_ENTRIES } = await import('../services/siam-json-dataset.js');
+    const { syncProductsFromSiamJsonOnServer } = await import('../services/siam-json-sync-service.js');
+    const report = await syncProductsFromSiamJsonOnServer({
+      entries: SIAM_JSON_ENTRIES,
+      apply,
+      includeMetaInDescription: includeMeta,
+      limit: 20000,
+    });
+    res.json({ success: true, source: { type: 'bundled' }, ...report });
+  } catch (error) {
+    console.error('sync-siam-json-bundled error:', error);
     res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
   }
 });
