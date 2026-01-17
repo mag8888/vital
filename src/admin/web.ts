@@ -8,6 +8,111 @@ import { uploadImage, isCloudinaryConfigured } from '../services/cloudinary-serv
 
 const router = express.Router();
 
+// Shared UI styles for the web admin (keep inline to avoid relying on static assets).
+// Goal: consistent buttons/inputs/focus states across all admin pages.
+const ADMIN_UI_CSS = `
+  :root{
+    --admin-bg: #f5f5f5;
+    --admin-surface: #ffffff;
+    --admin-text: #111827;
+    --admin-muted: #6b7280;
+    --admin-border: #e5e7eb;
+    --admin-primary: #667eea;
+    --admin-primary-2: #764ba2;
+    --admin-danger: #dc3545;
+    --admin-success: #28a745;
+    --admin-radius: 12px;
+    --admin-shadow: 0 2px 10px rgba(0,0,0,0.10);
+  }
+
+  /* Base */
+  body{
+    color: var(--admin-text);
+    background: var(--admin-bg);
+  }
+  a{ color: inherit; }
+  *:focus{ outline: none; }
+  :focus-visible{
+    outline: 3px solid rgba(102,126,234,0.35);
+    outline-offset: 2px;
+  }
+
+  /* Buttons */
+  a.btn, button.btn, .btn{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 0;
+    text-decoration: none;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    transition: transform .15s ease, box-shadow .15s ease, background .15s ease, opacity .15s ease;
+    box-shadow: 0 2px 6px rgba(17,24,39,0.12);
+    background: linear-gradient(135deg, var(--admin-primary) 0%, var(--admin-primary-2) 100%);
+    color: #fff;
+  }
+  a.btn:hover, button.btn:hover, .btn:hover{
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(17,24,39,0.16);
+  }
+  a.btn:active, button.btn:active, .btn:active{
+    transform: translateY(0px);
+  }
+  .btn-secondary{
+    background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+  }
+  .btn-danger{
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  }
+  .btn-success{
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  }
+  button:disabled, .btn[aria-disabled="true"]{
+    opacity: .6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* Compact action buttons (tables, toolbars) */
+  .action-btn{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 0;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 12px;
+    line-height: 1;
+    background: #007bff;
+    color: #fff;
+    box-shadow: 0 1px 3px rgba(17,24,39,0.12);
+    transition: transform .15s ease, box-shadow .15s ease, background .15s ease, opacity .15s ease;
+    text-decoration: none;
+  }
+  .action-btn:hover{
+    background: #0056b3;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px rgba(17,24,39,0.14);
+  }
+
+  /* Inputs */
+  input, select, textarea{
+    font: inherit;
+  }
+  input[type="text"], input[type="password"], input[type="number"], select, textarea{
+    border-radius: 10px;
+    border: 1px solid var(--admin-border);
+    background: var(--admin-surface);
+  }
+`;
+
 // Configure multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -50,6 +155,9 @@ router.get('/login', (req, res) => {
         button:hover { background: #0056b3; }
         .error { color: red; margin-top: 10px; text-align: center; }
         h2 { text-align: center; color: #333; margin-bottom: 30px; }
+
+        /* Shared admin UI baseline */
+        ${ADMIN_UI_CSS}
       </style>
     </head>
     <body>
@@ -60,7 +168,7 @@ router.get('/login', (req, res) => {
             <label>Пароль:</label>
             <input type="password" name="password" placeholder="Введите пароль" required>
           </div>
-          <button type="submit">Войти</button>
+          <button type="submit" class="btn">Войти</button>
           ${error ? '<div class="error">Неверный пароль</div>' : ''}
         </form>
       </div>
@@ -736,6 +844,9 @@ router.get('/', requireAdmin, async (req, res) => {
             .product-section { padding: 18px 20px; }
             .product-media { grid-template-columns: 1fr; }
           }
+
+          /* Shared admin UI baseline */
+          ${ADMIN_UI_CSS}
         </style>
       </head>
       <body>
@@ -749,12 +860,12 @@ router.get('/', requireAdmin, async (req, res) => {
           ${req.query.error === 'bonus_recalculation' ? '<div class="alert alert-error">❌ Ошибка при пересчёте бонусов</div>' : ''}
           
           <div class="tabs">
-            <button class="tab active" onclick="switchTab('overview')">📊 Обзор</button>
+            <button class="tab active" data-tab="overview" onclick="switchTab('overview', this)">📊 Обзор</button>
             <button class="tab" onclick="window.location.href='/admin/users-detailed'">👥 Пользователи</button>
-            <button class="tab" onclick="switchTab('partners')">🤝 Партнёры</button>
-            <button class="tab" onclick="switchTab('content')">📦 Контент</button>
-            <button class="tab" onclick="switchTab('invoice-import')">📥 Импорт инвойса</button>
-            <button class="tab" onclick="switchTab('tools')">🔧 Инструменты</button>
+            <button class="tab" data-tab="partners" onclick="switchTab('partners', this)">🤝 Партнёры</button>
+            <button class="tab" data-tab="content" onclick="switchTab('content', this)">📦 Контент</button>
+            <button class="tab" data-tab="invoice-import" onclick="switchTab('invoice-import', this)">📥 Импорт инвойса</button>
+            <button class="tab" data-tab="tools" onclick="switchTab('tools', this)">🔧 Инструменты</button>
           </div>
           
           <!-- Overview Tab -->
@@ -1234,7 +1345,7 @@ router.get('/', requireAdmin, async (req, res) => {
             }, 50);
           })();
           
-          window.switchTab = function(tabName) {
+          window.switchTab = function(tabName, tabEl) {
             // Hide all tab contents
             const contents = document.querySelectorAll('.tab-content');
             contents.forEach(content => content.classList.remove('active'));
@@ -1244,11 +1355,36 @@ router.get('/', requireAdmin, async (req, res) => {
             tabs.forEach(tab => tab.classList.remove('active'));
             
             // Show selected tab content
-            document.getElementById(tabName).classList.add('active');
+            const target = document.getElementById(tabName);
+            if (target) target.classList.add('active');
             
-            // Add active class to clicked tab
-            event.target.classList.add('active');
+            // Add active class to clicked tab (or infer by data-tab)
+            const candidate = (typeof event !== 'undefined' && event && event.target ? event.target : null);
+            const el =
+              tabEl ||
+              (candidate && candidate.classList && candidate.classList.contains('tab') ? candidate : null) ||
+              document.querySelector('.tab[data-tab="' + tabName + '"]');
+            if (el && el.classList) el.classList.add('active');
+
+            // Persist in URL for sharable links (e.g. /admin?tab=content)
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.set('tab', tabName);
+              history.replaceState({}, '', url.toString());
+            } catch {}
           }
+
+          // Restore tab from URL on initial load
+          (function(){
+            try {
+              const tab = new URL(window.location.href).searchParams.get('tab');
+              if (!tab) return;
+              const tabBtn = document.querySelector('.tab[data-tab="' + tab + '"]');
+              if (typeof window.switchTab === 'function') {
+                window.switchTab(tab, tabBtn);
+              }
+            } catch {}
+          })();
           
           window.showHierarchy = function(userId) {
             window.open(\`/admin/partners-hierarchy?user=\${userId}\`, '_blank', 'width=800,height=600');
@@ -2574,6 +2710,9 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
           .empty-state { text-align: center; padding: 60px 20px; color: #6c757d; }
           .empty-state h3 { margin: 0 0 10px 0; font-size: 24px; }
           .empty-state p { margin: 0; font-size: 16px; }
+
+          /* Shared admin UI baseline */
+          ${ADMIN_UI_CSS}
         </style>
       </head>
       <body>
@@ -5597,8 +5736,12 @@ router.get('/products', requireAdmin, async (req, res) => {
                       alert('✅ Товар успешно обновлен!');
                     window.closeEditModal();
                       setTimeout(() => {
+                        if (typeof window.reloadAdminProductsPreservingState === 'function') {
+                          window.reloadAdminProductsPreservingState({ success: 'product_updated' });
+                        } else {
                     location.reload();
-                      }, 500);
+                        }
+                      }, 150);
                   } else {
                       alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
                   }
@@ -5768,25 +5911,213 @@ router.get('/products', requireAdmin, async (req, res) => {
             console.log('✅ window.editProduct successfully defined');
           }
 
+          // ===== /admin/products UI state (filter/search/view/sort) =====
+          window.__adminProductsState = window.__adminProductsState || {
+            filter: 'all',
+            q: '',
+            view: 'cards', // cards | table
+            sort: 'title_asc' // title_asc | title_desc | category_asc | category_desc
+          };
+
+          function __safeStr(v) { try { return String(v || ''); } catch (_) { return ''; } }
+          function __norm(v) { return __safeStr(v).trim().toLowerCase(); }
+
+          window.__setAdminProductsUrl = function() {
+            try {
+              const st = window.__adminProductsState || {};
+              const url = new URL(window.location.href);
+              url.searchParams.set('filter', __safeStr(st.filter || 'all'));
+              url.searchParams.set('q', __safeStr(st.q || ''));
+              url.searchParams.set('view', __safeStr(st.view || 'cards'));
+              url.searchParams.set('sort', __safeStr(st.sort || 'title_asc'));
+              // не ломаем success/error если они есть
+              window.history.replaceState(null, '', url.toString());
+            } catch (e) {
+              console.warn('Failed to update URL state:', e);
+            }
+          };
+
+          window.__persistAdminProductsState = function() {
+            try {
+              const st = window.__adminProductsState || {};
+              localStorage.setItem('admin_products_filter', __safeStr(st.filter || 'all'));
+              localStorage.setItem('admin_products_q', __safeStr(st.q || ''));
+              localStorage.setItem('admin_products_view', __safeStr(st.view || 'cards'));
+              localStorage.setItem('admin_products_sort', __safeStr(st.sort || 'title_asc'));
+            } catch (e) {
+              console.warn('Failed to persist admin products state:', e);
+            }
+          };
+
+          window.__restoreAdminProductsState = function() {
+            try {
+              const st = window.__adminProductsState || {};
+              const url = new URL(window.location.href);
+              const sp = url.searchParams;
+              const urlFilter = sp.get('filter');
+              const urlQ = sp.get('q');
+              const urlView = sp.get('view');
+              const urlSort = sp.get('sort');
+
+              const lsFilter = localStorage.getItem('admin_products_filter');
+              const lsQ = localStorage.getItem('admin_products_q');
+              const lsView = localStorage.getItem('admin_products_view');
+              const lsSort = localStorage.getItem('admin_products_sort');
+
+              st.filter = (urlFilter !== null ? urlFilter : (lsFilter || st.filter || 'all')) || 'all';
+              st.q = (urlQ !== null ? urlQ : (lsQ || st.q || '')) || '';
+              st.view = (urlView !== null ? urlView : (lsView || st.view || 'cards')) || 'cards';
+              st.sort = (urlSort !== null ? urlSort : (lsSort || st.sort || 'title_asc')) || 'title_asc';
+              window.__adminProductsState = st;
+            } catch (e) {
+              console.warn('Failed to restore admin products state:', e);
+            }
+          };
+
+          window.__applyAdminProductsView = function() {
+            try {
+              const st = window.__adminProductsState || {};
+              const cardsWrap = document.getElementById('productsCardsContainer');
+              const tableWrap = document.getElementById('productsTableContainer');
+              const sortWrap = document.getElementById('productsSortWrap');
+              if (cardsWrap && tableWrap) {
+                if (st.view === 'table') {
+                  cardsWrap.style.display = 'none';
+                  tableWrap.style.display = 'block';
+                  if (sortWrap) sortWrap.style.display = 'flex';
+              } else {
+                  tableWrap.style.display = 'none';
+                  cardsWrap.style.display = 'block';
+                  if (sortWrap) sortWrap.style.display = 'none';
+                }
+              }
+              const btnCards = document.getElementById('viewCardsBtn');
+              const btnTable = document.getElementById('viewTableBtn');
+              if (btnCards && btnCards.classList && btnTable && btnTable.classList) {
+                btnCards.classList.toggle('active', st.view !== 'table');
+                btnTable.classList.toggle('active', st.view === 'table');
+              }
+            } catch (e) {
+              console.warn('Failed to apply view:', e);
+            }
+          };
+
+          window.__sortAdminProductsTable = function() {
+            try {
+              const st = window.__adminProductsState || {};
+              const table = document.getElementById('productsTable');
+              if (!table) return;
+              const tbody = table.querySelector('tbody');
+              if (!tbody) return;
+              const rows = Array.from(tbody.querySelectorAll('tr'));
+              const sort = __safeStr(st.sort || 'title_asc');
+              const by = sort.startsWith('category') ? 'category' : 'title';
+              const dir = sort.endsWith('_desc') ? -1 : 1;
+              rows.sort((a, b) => {
+                const av = __norm(a.getAttribute('data-' + by));
+                const bv = __norm(b.getAttribute('data-' + by));
+                if (av < bv) return -1 * dir;
+                if (av > bv) return 1 * dir;
+                return 0;
+              });
+              rows.forEach(r => tbody.appendChild(r));
+            } catch (e) {
+              console.warn('Failed to sort table:', e);
+            }
+          };
+
+          window.__applyAdminProductsFilters = function() {
+            try {
+              const st = window.__adminProductsState || {};
+              const filter = __safeStr(st.filter || 'all');
+              const q = __norm(st.q || '');
+
+              const cards = document.querySelectorAll('.product-card');
+              cards.forEach(card => {
+                const catOk = (filter === 'all' || __safeStr(card.dataset.category) === filter);
+                const title = __norm(card.getAttribute('data-title') || '');
+                const sku = __norm(card.getAttribute('data-sku') || '');
+                const qOk = (!q || title.includes(q) || sku.includes(q));
+                card.style.display = (catOk && qOk) ? 'flex' : 'none';
+              });
+
+              const rows = document.querySelectorAll('#productsTable tbody tr');
+              rows.forEach(row => {
+                const rowCat = __safeStr(row.getAttribute('data-category-id') || '');
+                const catOk = (filter === 'all' || rowCat === filter);
+                const title = __norm(row.getAttribute('data-title') || '');
+                const sku = __norm(row.getAttribute('data-sku') || '');
+                const qOk = (!q || title.includes(q) || sku.includes(q));
+                row.style.display = (catOk && qOk) ? '' : 'none';
+              });
+
+              // active button
+              const buttons = document.querySelectorAll('.filter-btn');
+              buttons.forEach(btn => btn.classList.remove('active'));
+              const activeBtn = document.querySelector('.filter-btn[data-filter="' + filter.replace(/"/g, '\\"') + '"]');
+              if (activeBtn && activeBtn.classList) activeBtn.classList.add('active');
+
+              window.__applyAdminProductsView();
+              window.__sortAdminProductsTable();
+              window.__persistAdminProductsState();
+              window.__setAdminProductsUrl();
+            } catch (e) {
+              console.error('applyAdminProductsFilters error:', e);
+            }
+          };
+
+          window.setAdminProductsView = function(view) {
+            const st = window.__adminProductsState || {};
+            st.view = (view === 'table') ? 'table' : 'cards';
+            window.__adminProductsState = st;
+            window.__applyAdminProductsFilters();
+          };
+
+          window.setAdminProductsSort = function(sort) {
+            const st = window.__adminProductsState || {};
+            st.sort = __safeStr(sort || 'title_asc') || 'title_asc';
+            window.__adminProductsState = st;
+            window.__applyAdminProductsFilters();
+          };
+
+          window.setAdminProductsSearch = function(value) {
+            const st = window.__adminProductsState || {};
+            st.q = __safeStr(value || '');
+            window.__adminProductsState = st;
+            window.__applyAdminProductsFilters();
+          };
+
           // КРИТИЧНО: фильтры категорий должны работать даже если нижний <script> сломается
           window.filterProducts = function(button) {
             try {
               const filter = button && button.dataset ? button.dataset.filter : 'all';
-              const buttons = document.querySelectorAll('.filter-btn');
-              const cards = document.querySelectorAll('.product-card');
-
-              buttons.forEach(btn => btn.classList.remove('active'));
-              if (button && button.classList) button.classList.add('active');
-
-              cards.forEach(card => {
-                if (filter === 'all' || card.dataset.category === filter) {
-                  card.style.display = 'flex';
-              } else {
-                  card.style.display = 'none';
-                }
-              });
+              const st = window.__adminProductsState || {};
+              st.filter = __safeStr(filter || 'all') || 'all';
+              window.__adminProductsState = st;
+              window.__applyAdminProductsFilters();
             } catch (e) {
               console.error('filterProducts error:', e);
+            }
+          };
+
+          window.reloadAdminProductsPreservingState = function(extraParams) {
+            try {
+              const st = window.__adminProductsState || {};
+              const url = new URL(window.location.href);
+              url.searchParams.set('filter', __safeStr(st.filter || 'all'));
+              url.searchParams.set('q', __safeStr(st.q || ''));
+              url.searchParams.set('view', __safeStr(st.view || 'cards'));
+              url.searchParams.set('sort', __safeStr(st.sort || 'title_asc'));
+              if (extraParams && typeof extraParams === 'object') {
+                Object.keys(extraParams).forEach(k => {
+                  if (extraParams[k] === null || typeof extraParams[k] === 'undefined') return;
+                  url.searchParams.set(k, __safeStr(extraParams[k]));
+                });
+              }
+              window.location.href = url.toString();
+            } catch (e) {
+              console.warn('reloadAdminProductsPreservingState failed, fallback reload:', e);
+              window.location.reload();
             }
           };
 
@@ -6037,7 +6368,30 @@ router.get('/products', requireAdmin, async (req, res) => {
           <div id="scraping-progress" style="color: #666; font-size: 14px;">Инициализация...</div>
         </div>
 
-        <div class="filters">
+        <div class="filters" style="gap: 10px;">
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; width:100%; margin-bottom:10px;">
+            <div style="display:flex; gap:8px; align-items:center; flex:1; min-width:260px;">
+              <input id="adminProductsSearch" type="search" placeholder="Поиск по названию или SKU..." autocomplete="off"
+                style="flex:1; padding:10px 12px; border:1px solid #d1d5db; border-radius:10px; font-size:14px;"
+                oninput="if(typeof window.setAdminProductsSearch==='function'){window.setAdminProductsSearch(this.value);}">
+              <button type="button" class="filter-btn" style="min-width:120px;"
+                id="viewCardsBtn"
+                onclick="if(typeof window.setAdminProductsView==='function'){window.setAdminProductsView('cards');}return false;">Карточки</button>
+              <button type="button" class="filter-btn" style="min-width:120px;"
+                id="viewTableBtn"
+                onclick="if(typeof window.setAdminProductsView==='function'){window.setAdminProductsView('table');}return false;">Таблица</button>
+            </div>
+            <div id="productsSortWrap" style="display:none; gap:8px; align-items:center;">
+              <span style="color:#6b7280; font-size:13px;">Сортировка:</span>
+              <select id="adminProductsSort" style="padding:10px 12px; border:1px solid #d1d5db; border-radius:10px; font-size:14px;"
+                onchange="if(typeof window.setAdminProductsSort==='function'){window.setAdminProductsSort(this.value);}">
+                <option value="title_asc">Название (А-Я)</option>
+                <option value="title_desc">Название (Я-А)</option>
+                <option value="category_asc">Категория (А-Я)</option>
+                <option value="category_desc">Категория (Я-А)</option>
+              </select>
+            </div>
+          </div>
           <button type="button" class="filter-btn active" onclick="if(typeof window.filterProducts==='function'){window.filterProducts(this);}return false;" data-filter="all">Все категории (${allProducts.length})</button>
     `;
 
@@ -6056,6 +6410,7 @@ router.get('/products', requireAdmin, async (req, res) => {
           </button>
         </div>
 
+        <div id="productsCardsContainer">
         <div class="product-grid">
     `;
 
@@ -6144,7 +6499,11 @@ router.get('/products', requireAdmin, async (req, res) => {
            </div>`;
 
       html += `
-          <div class="product-card" data-category="${escapeAttr(product.categoryId)}" data-id="${escapeAttr(product.id)}">
+          <div class="product-card"
+               data-category="${escapeAttr(product.categoryId)}"
+               data-id="${escapeAttr(product.id)}"
+               data-title="${escapeAttr(product.title)}"
+               data-sku="${escapeAttr(((product as any).sku || ''))}">
             ${imageSection}
             <div class="product-header">
               <h3 class="product-title">
@@ -6205,6 +6564,69 @@ router.get('/products', requireAdmin, async (req, res) => {
       `;
     });
     html += `
+          </div>
+        </div>
+
+        <div id="productsTableContainer" style="display:none; margin-top: 14px;">
+          <div style="overflow:auto; background:#fff; border-radius:12px; box-shadow: 0 6px 16px rgba(0,0,0,0.08); border:1px solid #e5e7eb;">
+            <table id="productsTable" style="width:100%; border-collapse: collapse; min-width: 980px;">
+              <thead>
+                <tr style="background:#f9fafb; text-align:left;">
+                  <th style="padding:12px; border-bottom:1px solid #e5e7eb;">Название</th>
+                  <th style="padding:12px; border-bottom:1px solid #e5e7eb;">SKU</th>
+                  <th style="padding:12px; border-bottom:1px solid #e5e7eb;">Категория</th>
+                  <th style="padding:12px; border-bottom:1px solid #e5e7eb;">Статус</th>
+                  <th style="padding:12px; border-bottom:1px solid #e5e7eb;">Цена</th>
+                  <th style="padding:12px; border-bottom:1px solid #e5e7eb;">Действия</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${allProducts.map((p) => {
+                  const rubPrice = (p.price * 100).toFixed(2);
+                  const priceFormatted = rubPrice + ' руб. / ' + p.price.toFixed(2) + ' PZ';
+                  const sku = String((p as any).sku || '').trim();
+                  return (
+                    '<tr ' +
+                      'data-id="' + escapeAttr(p.id) + '" ' +
+                      'data-category-id="' + escapeAttr(p.categoryId) + '" ' +
+                      'data-category="' + escapeAttr(p.categoryName) + '" ' +
+                      'data-title="' + escapeAttr(p.title) + '" ' +
+                      'data-sku="' + escapeAttr(sku) + '">' +
+                      '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' + escapeHtml(p.title) + '</td>' +
+                      '<td style="padding:12px; border-bottom:1px solid #f1f5f9; color:#6b7280;">' + (sku ? escapeHtml(sku) : '-') + '</td>' +
+                      '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' + escapeHtml(p.categoryName) + '</td>' +
+                      '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' + (p.isActive ? '✅ Активен' : '❌ Неактивен') + '</td>' +
+                      '<td style="padding:12px; border-bottom:1px solid #f1f5f9; white-space:nowrap;">' + priceFormatted + '</td>' +
+                      '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' +
+                        '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
+                          '<button type="button" class="edit-btn" ' +
+                            'data-id="' + escapeAttr(p.id) + '" ' +
+                            'data-title="' + escapeAttr(p.title) + '" ' +
+                            'data-summary="' + escapeAttr(p.summary) + '" ' +
+                            'data-description="' + escapeAttr((p.description || '').substring(0, 5000)) + '" ' +
+                            'data-instruction="' + escapeAttr((((p as any).instruction || '') as string).substring(0, 5000)) + '" ' +
+                            'data-price="' + (p.price as any) + '" ' +
+                            'data-category-id="' + escapeAttr(p.categoryId) + '" ' +
+                            'data-active="' + (p.isActive ? 'true' : 'false') + '" ' +
+                            'data-russia="' + ((p as any).availableInRussia ? 'true' : 'false') + '" ' +
+                            'data-bali="' + ((p as any).availableInBali ? 'true' : 'false') + '" ' +
+                            'data-image="' + escapeAttr(p.imageUrl) + '" ' +
+                            'onclick="if(typeof window.editProduct===\'function\'){window.editProduct(this);}else{alert(\'Ошибка: функция редактирования не загружена.\');} return false;"' +
+                          '>✏️</button>' +
+                          '<form method="post" action="/admin/products/' + escapeAttr(p.id) + '/toggle-active" style="display:inline;">' +
+                            '<button type="submit" class="toggle-btn" style="padding:8px 10px;">' + (p.isActive ? 'Отключить' : 'Включить') + '</button>' +
+                          '</form>' +
+                          '<form method="post" action="/admin/products/' + escapeAttr(p.id) + '/delete" class="delete-product-form" data-product-id="' + escapeAttr(p.id) + '" data-product-title="' + escapeAttr(p.title) + '" style="display:inline;">' +
+                            '<button type="button" class="delete-btn" style="padding:8px 10px;">Удалить</button>' +
+                          '</form>' +
+                        '</div>' +
+                      '</td>' +
+                    '</tr>'
+                  );
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <!-- Modal for adding category -->
@@ -6357,16 +6779,13 @@ router.get('/products', requireAdmin, async (req, res) => {
           };
 
           // Function to filter products
+          // NOTE: основная реализация уже определена в <head> (с поиском/видом/сортировкой).
+          // Не перезатираем её здесь, чтобы не ломать сохранение состояния.
+          if (typeof window.filterProducts !== 'function') {
           window.filterProducts = function(button) {
-            const filter = button.dataset.filter;
-            const buttons = document.querySelectorAll('.filter-btn');
+              try {
+                const filter = button && button.dataset ? button.dataset.filter : 'all';
             const cards = document.querySelectorAll('.product-card');
-
-            // Update active button state
-            buttons.forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
-
-            // Filter cards
             cards.forEach(card => {
               if (filter === 'all' || card.dataset.category === filter) {
                 card.style.display = 'flex';
@@ -6374,12 +6793,35 @@ router.get('/products', requireAdmin, async (req, res) => {
                 card.style.display = 'none';
               }
             });
-          };
+              } catch (e) {
+                console.error('filterProducts fallback error:', e);
+              }
+            };
+          }
           
           // NOTE: window.editProduct and window.closeEditModal already defined at the beginning of script
           
           // Handle category form submission
           document.addEventListener('DOMContentLoaded', function() {
+            // Restore admin products UI state (filter/search/view/sort)
+            try {
+              if (typeof window.__restoreAdminProductsState === 'function') window.__restoreAdminProductsState();
+              const st = window.__adminProductsState || {};
+              const searchInput = document.getElementById('adminProductsSearch');
+              if (searchInput) searchInput.value = String(st.q || '');
+              const sortSelect = document.getElementById('adminProductsSort');
+              if (sortSelect) sortSelect.value = String(st.sort || 'title_asc');
+              // Apply filter button if exists
+              const filterBtn = document.querySelector('.filter-btn[data-filter="' + String(st.filter || 'all').replace(/"/g, '\\"') + '"]');
+              if (filterBtn && typeof window.filterProducts === 'function') {
+                window.filterProducts(filterBtn);
+              } else if (typeof window.__applyAdminProductsFilters === 'function') {
+                window.__applyAdminProductsFilters();
+              }
+            } catch (e) {
+              console.warn('Failed to restore UI state:', e);
+            }
+
             const categoryForm = document.getElementById('addCategoryForm');
             if (categoryForm) {
               categoryForm.addEventListener('submit', async function(e) {
@@ -9888,6 +10330,9 @@ router.get('/instructions', requireAdmin, (req, res) => {
         .btn:hover { background: #5a6fd8; transform: translateY(-2px); }
         .btn-secondary { background: #6c757d; }
         .btn-secondary:hover { background: #5a6268; }
+
+        /* Shared admin UI baseline */
+        ${ADMIN_UI_CSS}
       </style>
     </head>
     <body>
@@ -9927,7 +10372,7 @@ router.get('/instructions', requireAdmin, (req, res) => {
               <div class="card">
                 <h4>📊 Список пользователей</h4>
                 <p>Просмотр всех пользователей с возможностью фильтрации и сортировки</p>
-                <a href="/admin/resources/users" class="btn">Перейти к пользователям</a>
+                <a href="/admin/users" class="btn">Перейти к пользователям</a>
               </div>
               <div class="card">
                 <h4>🔍 Детальная информация</h4>
@@ -9950,7 +10395,7 @@ router.get('/instructions', requireAdmin, (req, res) => {
               <div class="card">
                 <h4>📦 Каталог товаров</h4>
                 <p>Управление всеми товарами в системе</p>
-                <a href="/admin/resources/products" class="btn">Перейти к товарам</a>
+                <a href="/admin/products" class="btn">Перейти к товарам</a>
               </div>
               <div class="card">
                 <h4>📂 Категории</h4>
@@ -9973,7 +10418,7 @@ router.get('/instructions', requireAdmin, (req, res) => {
               <div class="card">
                 <h4>📋 Список заказов</h4>
                 <p>Все заказы с фильтрацией по статусу</p>
-                <a href="/admin/resources/order-requests" class="btn">Перейти к заказам</a>
+                <a href="/admin/orders" class="btn">Перейти к заказам</a>
               </div>
               <div class="card">
                 <h4>📊 Статусы заказов</h4>
@@ -10012,12 +10457,12 @@ router.get('/instructions', requireAdmin, (req, res) => {
           </div>
 
           <div class="section">
-            <h2>📝 Контент бота</h2>
+            <h2>📝 Контент и каталог</h2>
             <div class="grid">
               <div class="card">
-                <h4>✏️ Редактирование текстов</h4>
-                <p>Все сообщения бота можно редактировать</p>
-                <a href="/admin/resources/bot-content" class="btn">Редактировать контент</a>
+                <h4>📦 Управление контентом</h4>
+                <p>Категории, товары, чаты поддержки, отзывы и заказы</p>
+                <a href="/admin?tab=content" class="btn">Открыть вкладку «Контент»</a>
               </div>
               <div class="card">
                 <h4>🌍 Многоязычность</h4>
