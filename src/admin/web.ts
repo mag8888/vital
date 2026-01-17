@@ -7469,7 +7469,8 @@ router.get('/products', requireAdmin, async (req, res) => {
                 }
                 
                 // Фильтры категорий (дублируем inline onclick, чтобы работало даже если он сломан/перекрыт)
-                const filterBtn = el.closest('.filter-btn');
+                // Важно: не перехватываем кнопки вида "Карточки/Таблица" — у них нет data-filter.
+                const filterBtn = el.closest('.filter-btn[data-filter]');
                 if (filterBtn && typeof window.filterProducts === 'function') {
                   console.log('🔵 Filter button clicked', filterBtn);
                   event.preventDefault();
