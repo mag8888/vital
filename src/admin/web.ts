@@ -860,12 +860,12 @@ router.get('/', requireAdmin, async (req, res) => {
           ${req.query.error === 'bonus_recalculation' ? '<div class="alert alert-error">❌ Ошибка при пересчёте бонусов</div>' : ''}
           
           <div class="tabs">
-            <button class="tab active" data-tab="overview" onclick="switchTab('overview', this)">📊 Обзор</button>
-            <button class="tab" onclick="window.location.href='/admin/users-detailed'">👥 Пользователи</button>
-            <button class="tab" data-tab="partners" onclick="switchTab('partners', this)">🤝 Партнёры</button>
-            <button class="tab" data-tab="content" onclick="switchTab('content', this)">📦 Контент</button>
-            <button class="tab" data-tab="invoice-import" onclick="switchTab('invoice-import', this)">📥 Импорт инвойса</button>
-            <button class="tab" data-tab="tools" onclick="switchTab('tools', this)">🔧 Инструменты</button>
+            <button type="button" class="tab active" data-tab="overview" onclick="if(typeof window.switchTab==='function'){window.switchTab('overview', this);}return false;">📊 Обзор</button>
+            <button type="button" class="tab" onclick="window.location.href='/admin/users-detailed'">👥 Пользователи</button>
+            <button type="button" class="tab" data-tab="partners" onclick="if(typeof window.switchTab==='function'){window.switchTab('partners', this);}return false;">🤝 Партнёры</button>
+            <button type="button" class="tab" data-tab="content" onclick="if(typeof window.switchTab==='function'){window.switchTab('content', this);}return false;">📦 Контент</button>
+            <button type="button" class="tab" data-tab="invoice-import" onclick="if(typeof window.switchTab==='function'){window.switchTab('invoice-import', this);}return false;">📥 Импорт инвойса</button>
+            <button type="button" class="tab" data-tab="tools" onclick="if(typeof window.switchTab==='function'){window.switchTab('tools', this);}return false;">🔧 Инструменты</button>
           </div>
           
           <!-- Overview Tab -->
@@ -875,27 +875,27 @@ router.get('/', requireAdmin, async (req, res) => {
             </div>
             
             <div class="stats">
-              <button class="stat-card" onclick="switchTab('users')">
+              <button type="button" class="stat-card" onclick="if(typeof window.switchTab==='function'){window.switchTab('users');}return false;">
                 <div class="stat-number">${stats.users}</div>
                 <div class="stat-label">Пользователи</div>
               </button>
-              <button class="stat-card" onclick="switchTab('partners')">
+              <button type="button" class="stat-card" onclick="if(typeof window.switchTab==='function'){window.switchTab('partners');}return false;">
                 <div class="stat-number">${stats.partners}</div>
                 <div class="stat-label">Партнёры</div>
               </button>
-              <button class="stat-card" onclick="switchTab('content')">
+              <button type="button" class="stat-card" onclick="if(typeof window.switchTab==='function'){window.switchTab('content');}return false;">
                 <div class="stat-number">${stats.products}</div>
                 <div class="stat-label">Товары</div>
               </button>
-              <button class="stat-card" onclick="switchTab('content')">
+              <button type="button" class="stat-card" onclick="if(typeof window.switchTab==='function'){window.switchTab('content');}return false;">
                 <div class="stat-number">${stats.categories}</div>
                 <div class="stat-label">Категории</div>
               </button>
-              <button class="stat-card" onclick="switchTab('content')">
+              <button type="button" class="stat-card" onclick="if(typeof window.switchTab==='function'){window.switchTab('content');}return false;">
                 <div class="stat-number">${stats.reviews}</div>
                 <div class="stat-label">Отзывы</div>
               </button>
-              <button class="stat-card" onclick="switchTab('content')">
+              <button type="button" class="stat-card" onclick="if(typeof window.switchTab==='function'){window.switchTab('content');}return false;">
                 <div class="stat-number">${stats.orders}</div>
                 <div class="stat-label">Заказы</div>
               </button>
@@ -1347,12 +1347,41 @@ router.get('/', requireAdmin, async (req, res) => {
           
           window.switchTab = function(tabName, tabEl) {
             // Guard: allow only known tabs (prevents invalid selector + broken UI)
-            const allowedTabs = ['overview', 'users', 'partners', 'content', 'invoice-import', 'tools'];
+            // Но список берём динамически из DOM, чтобы не ломать вкладки при добавлениях.
+            const getAllowedTabs = function() {
+              const out = [];
+              try {
+                const tabBtns = document.querySelectorAll('.tab[data-tab]');
+                for (let i = 0; i < tabBtns.length; i++) {
+                  const t = tabBtns[i];
+                  if (t && t.dataset && t.dataset.tab) out.push(String(t.dataset.tab));
+                }
+                const tabContents = document.querySelectorAll('.tab-content[id]');
+                for (let j = 0; j < tabContents.length; j++) {
+                  const c = tabContents[j];
+                  if (c && c.id) out.push(String(c.id));
+                }
+              } catch (_) {}
+              // уникальные
+              const uniq = [];
+              const seen = {};
+              for (let k = 0; k < out.length; k++) {
+                const v = out[k];
+                if (!v) continue;
+                if (seen[v]) continue;
+                seen[v] = true;
+                uniq.push(v);
+              }
+              return uniq;
+            };
+            const allowedTabs = getAllowedTabs();
             const normalizeTab = function(v) {
               try { return String(v || '').trim(); } catch (_) { return ''; }
             };
             const safeTab = normalizeTab(tabName);
-            const finalTab = allowedTabs.includes(safeTab) ? safeTab : 'overview';
+            const finalTab = (allowedTabs && allowedTabs.indexOf(safeTab) !== -1)
+              ? safeTab
+              : ((allowedTabs && allowedTabs.length > 0 ? allowedTabs[0] : null) || 'overview');
 
             // Hide all tab contents
             const contents = document.querySelectorAll('.tab-content');
@@ -1398,9 +1427,34 @@ router.get('/', requireAdmin, async (req, res) => {
               const tabRaw = url.searchParams.get('tab');
               if (!tabRaw) return;
 
-              const allowedTabs = ['overview', 'users', 'partners', 'content', 'invoice-import', 'tools'];
               const tab = String(tabRaw || '').trim();
-              if (!allowedTabs.includes(tab)) {
+              const allowedTabs = (function(){
+                const out = [];
+                try {
+                  const tabBtns = document.querySelectorAll('.tab[data-tab]');
+                  for (let i = 0; i < tabBtns.length; i++) {
+                    const t = tabBtns[i];
+                    if (t && t.dataset && t.dataset.tab) out.push(String(t.dataset.tab));
+                  }
+                  const tabContents = document.querySelectorAll('.tab-content[id]');
+                  for (let j = 0; j < tabContents.length; j++) {
+                    const c = tabContents[j];
+                    if (c && c.id) out.push(String(c.id));
+                  }
+                } catch (_) {}
+                const uniq = [];
+                const seen = {};
+                for (let k = 0; k < out.length; k++) {
+                  const v = out[k];
+                  if (!v) continue;
+                  if (seen[v]) continue;
+                  seen[v] = true;
+                  uniq.push(v);
+                }
+                return uniq;
+              })();
+
+              if (!allowedTabs || allowedTabs.indexOf(tab) === -1) {
                 // Drop invalid tab param to avoid breaking the page
                 url.searchParams.delete('tab');
                 history.replaceState({}, '', url.toString());
