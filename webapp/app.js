@@ -1090,6 +1090,16 @@ function openSection(sectionName) {
 
     title.textContent = titles[sectionName] || 'Раздел';
 
+    // Главные разделы (из нижнего меню) — стрелка "назад" не нужна
+    try {
+        const mainSections = new Set(['about', 'support', 'favorites', 'partner', 'chats']);
+        if (overlay && overlay.classList) {
+            overlay.classList.toggle('no-back', mainSections.has(String(sectionName)));
+        }
+    } catch (e) {
+        console.warn('Failed to toggle no-back:', e);
+    }
+
     // Load section content
     loadSectionContent(sectionName, body);
 
@@ -2221,7 +2231,7 @@ async function loadFavoritesContent() {
             <div class="content-section">
                 <h3>Избранное</h3>
                 <p>Ваши сохранённые товары</p>
-                <div class="products-grid" style="margin-top: 12px;">
+                <div class="products-grid favorites-products-grid" style="margin-top: 12px;">
         `;
 
         list.forEach((p) => {

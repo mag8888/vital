@@ -844,6 +844,11 @@ h4 {
     z-index: 10;
 }
 
+.section-overlay.no-back .back-btn {
+    opacity: 0;
+    pointer-events: none;
+}
+
 .back-btn {
     width: 40px;
     height: 40px;
@@ -1496,6 +1501,26 @@ h4 {
 
 .product-card-btn:active {
     transform: scale(0.98);
+}
+
+/* Favorites: button under price, centered */
+.favorites-products-grid .product-card-footer {
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+}
+
+.favorites-products-grid .product-card-price {
+    align-items: center;
+    margin: 0;
+}
+
+.favorites-products-grid .product-card-btn {
+    display: block;
+    width: 100%;
+    max-width: 260px;
+    margin: 0 auto;
 }
 
 /* Loading and empty states */
