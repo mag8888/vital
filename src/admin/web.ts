@@ -1346,6 +1346,14 @@ router.get('/', requireAdmin, async (req, res) => {
           })();
           
           window.switchTab = function(tabName, tabEl) {
+            // Guard: allow only known tabs (prevents invalid selector + broken UI)
+            const allowedTabs = ['overview', 'users', 'partners', 'content', 'invoice-import', 'tools'];
+            const normalizeTab = function(v) {
+              try { return String(v || '').trim(); } catch (_) { return ''; }
+            };
+            const safeTab = normalizeTab(tabName);
+            const finalTab = allowedTabs.includes(safeTab) ? safeTab : 'overview';
+
             // Hide all tab contents
             const contents = document.querySelectorAll('.tab-content');
             contents.forEach(content => content.classList.remove('active'));
@@ -1355,21 +1363,30 @@ router.get('/', requireAdmin, async (req, res) => {
             tabs.forEach(tab => tab.classList.remove('active'));
             
             // Show selected tab content
-            const target = document.getElementById(tabName);
+            const target = document.getElementById(finalTab);
             if (target) target.classList.add('active');
             
             // Add active class to clicked tab (or infer by data-tab)
             const candidate = (typeof event !== 'undefined' && event && event.target ? event.target : null);
-            const el =
-              tabEl ||
-              (candidate && candidate.classList && candidate.classList.contains('tab') ? candidate : null) ||
-              document.querySelector('.tab[data-tab="' + tabName + '"]');
+            let inferred = null;
+            try {
+              if (!inferred && tabEl) inferred = tabEl;
+              if (!inferred && candidate && candidate.classList && candidate.classList.contains('tab')) inferred = candidate;
+              if (!inferred) {
+                const list = document.querySelectorAll('.tab');
+                for (let i = 0; i < list.length; i++) {
+                  const t = list[i];
+                  if (t && t.dataset && t.dataset.tab === finalTab) { inferred = t; break; }
+                }
+              }
+            } catch (_) {}
+            const el = inferred;
             if (el && el.classList) el.classList.add('active');
 
             // Persist in URL for sharable links (e.g. /admin?tab=content)
             try {
               const url = new URL(window.location.href);
-              url.searchParams.set('tab', tabName);
+              url.searchParams.set('tab', finalTab);
               history.replaceState({}, '', url.toString());
             } catch {}
           }
@@ -1377,12 +1394,27 @@ router.get('/', requireAdmin, async (req, res) => {
           // Restore tab from URL on initial load
           (function(){
             try {
-              const tab = new URL(window.location.href).searchParams.get('tab');
-              if (!tab) return;
-              const tabBtn = document.querySelector('.tab[data-tab="' + tab + '"]');
-              if (typeof window.switchTab === 'function') {
-                window.switchTab(tab, tabBtn);
+              const url = new URL(window.location.href);
+              const tabRaw = url.searchParams.get('tab');
+              if (!tabRaw) return;
+
+              const allowedTabs = ['overview', 'users', 'partners', 'content', 'invoice-import', 'tools'];
+              const tab = String(tabRaw || '').trim();
+              if (!allowedTabs.includes(tab)) {
+                // Drop invalid tab param to avoid breaking the page
+                url.searchParams.delete('tab');
+                history.replaceState({}, '', url.toString());
+                return;
               }
+
+              let tabBtn = null;
+              const list = document.querySelectorAll('.tab');
+              for (let i = 0; i < list.length; i++) {
+                const t = list[i];
+                if (t && t.dataset && t.dataset.tab === tab) { tabBtn = t; break; }
+              }
+
+              if (typeof window.switchTab === 'function') window.switchTab(tab, tabBtn);
             } catch {}
           })();
           
