@@ -1090,11 +1090,16 @@ function openSection(sectionName) {
 
     title.textContent = titles[sectionName] || 'Раздел';
 
-    // Главные разделы (из нижнего меню) — стрелка "назад" не нужна
+    // Главные разделы (из нижнего меню): нижнее меню всегда видно, стрелка "назад" не нужна
     try {
         const mainSections = new Set(['about', 'support', 'favorites', 'partner', 'chats']);
+        const isMain = mainSections.has(String(sectionName));
         if (overlay && overlay.classList) {
-            overlay.classList.toggle('no-back', mainSections.has(String(sectionName)));
+            overlay.classList.toggle('no-back', isMain);
+            overlay.classList.toggle('main-section', isMain);
+        }
+        if (document && document.body && document.body.classList) {
+            document.body.classList.toggle('main-section-open', isMain);
         }
     } catch (e) {
         console.warn('Failed to toggle no-back:', e);
@@ -1113,6 +1118,15 @@ function openSection(sectionName) {
 function closeSection() {
     const overlay = document.getElementById('section-overlay');
     overlay.classList.remove('open');
+    try {
+        if (overlay && overlay.classList) {
+            overlay.classList.remove('main-section');
+            overlay.classList.remove('no-back');
+        }
+        if (document && document.body && document.body.classList) {
+            document.body.classList.remove('main-section-open');
+        }
+    } catch (_) {}
     setTimeout(() => {
         overlay.classList.add('hidden');
         currentSection = null;

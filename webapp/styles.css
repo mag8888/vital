@@ -818,6 +818,17 @@ h4 {
     overflow: hidden;
 }
 
+.section-overlay.main-section {
+    /* Keep bottom nav visible for main sections */
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    height: calc(100vh - 72px - env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh - 72px - env(safe-area-inset-bottom, 0px));
+}
+
+.main-section-open .bottom-nav {
+    z-index: 2000;
+}
+
 .section-overlay.open {
     transform: translateX(0);
 }
