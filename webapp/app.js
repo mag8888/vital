@@ -1077,7 +1077,8 @@ function openSection(sectionName) {
         audio: 'Звуковые матрицы',
         reviews: 'Отзывы',
         about: 'О нас',
-        chats: 'Чаты',
+        // оставляем для обратной совместимости (если где-то ещё остались ссылки на 'chats')
+        chats: 'Поддержка',
         support: 'Поддержка',
         favorites: 'Избранное',
         cart: 'Корзина',
@@ -1129,7 +1130,8 @@ async function loadSectionContent(sectionName, container) {
                 content = await loadAboutContent();
                 break;
             case 'chats':
-                content = await loadChatsContent();
+                // Раньше был список чатов, но сейчас нужен прямой переход в чат поддержки.
+                content = await loadSupportContent();
                 break;
             case 'support':
                 content = await loadSupportContent();
@@ -1159,7 +1161,7 @@ async function loadSectionContent(sectionName, container) {
         container.innerHTML = content;
 
         // Post-render hooks
-        if (sectionName === 'support') {
+        if (sectionName === 'support' || sectionName === 'chats') {
             initSupportChat();
         }
     } catch (error) {
