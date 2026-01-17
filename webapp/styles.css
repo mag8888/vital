@@ -870,7 +870,7 @@ h4 {
 }
 
 .section-overlay.no-back .back-btn {
-    opacity: 0;
+    visibility: hidden;
     pointer-events: none;
 }
 

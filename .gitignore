@@ -84,3 +84,7 @@ pids/
 # Yarn Integrity file
 .yarn-integrity
 scripts/set_railway_vars.sh
+
+# Playwright artifacts
+playwright-report/
+test-results/

@@ -44,7 +44,8 @@
     "add-praktiki-category": "ts-node --esm scripts/add-praktiki-category.ts",
     "test:admin": "node tests/admin.test.js",
     "test:admin:prod": "TEST_BASE_URL=https://vital-production-82b0.up.railway.app node tests/admin.test.js",
-    "test:webapp": "node --test tests/webapp.test.js tests/webapp.static.test.js"
+    "test:webapp": "node --test tests/webapp.test.js tests/webapp.static.test.js",
+    "test:webapp:e2e": "playwright test tests/webapp.e2e.spec.js --project=chromium"
   },
   "dependencies": {
     "@adminjs/express": "^6.1.1",
@@ -64,6 +65,7 @@
     "telegraf": "^4.16.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.10",
     "@types/pdf-parse": "^1.1.5",
