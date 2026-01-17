@@ -825,6 +825,20 @@ h4 {
     height: calc(100dvh - 72px - env(safe-area-inset-bottom, 0px));
 }
 
+.section-overlay.main-section .section-header h2 {
+    /* Center title for bottom-nav main pages */
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    flex: 0;
+    text-align: center;
+    width: max-content;
+    max-width: calc(100% - 120px); /* keep space for back/spacer */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .main-section-open .bottom-nav {
     z-index: 2000;
 }
