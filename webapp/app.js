@@ -89,6 +89,54 @@ function matchProductsByRelatedSkus(allProducts, relatedSkus) {
     return out;
 }
 
+function dedupeByKey(items, getKey) {
+    const out = [];
+    const seen = new Set();
+    for (const item of (items || [])) {
+        const key = String(getKey(item) || '');
+        if (!key) continue;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(item);
+    }
+    return out;
+}
+
+function dedupeProductsById(products) {
+    const out = [];
+    const seen = new Set();
+    for (const p of (products || [])) {
+        const id = p && p.id;
+        if (!id) continue;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        out.push(p);
+    }
+    return out;
+}
+
+function dedupeCategoriesPreferMoreProducts(categories, productsByCategory) {
+    // 1) убираем повторы по id
+    const byId = new Map();
+    (categories || []).forEach(cat => {
+        if (cat && cat.id && !byId.has(cat.id)) byId.set(cat.id, cat);
+    });
+    const uniqueById = Array.from(byId.values());
+
+    // 2) убираем повторы по name (берём категорию с большим количеством товаров)
+    const byName = new Map();
+    uniqueById.forEach(cat => {
+        const name = String(cat?.name || '').trim();
+        if (!name) return;
+        const count = (productsByCategory && productsByCategory[cat.id]) ? productsByCategory[cat.id].length : 0;
+        const prev = byName.get(name);
+        if (!prev || count > prev.count) {
+            byName.set(name, { cat, count });
+        }
+    });
+    return Array.from(byName.values()).map(x => x.cat);
+}
+
 async function fetchAllActiveProducts() {
     const categoriesRes = await fetch(`${API_BASE}/categories`);
     if (!categoriesRes.ok) throw new Error('Failed to fetch categories');
@@ -1164,6 +1212,8 @@ async function loadProductsOnMainPage() {
                         cat.name && cat.name.startsWith('Косметика >') && cat.name !== 'Косметика'
                     );
 
+                    cosmeticsSubcategories = dedupeCategoriesPreferMoreProducts(cosmeticsSubcategories, productsByCategory);
+
                     // Находим категорию "Косметика"
                     const cosmeticsCategory = allCategories.find(cat => cat.name === 'Косметика');
                     if (cosmeticsCategory) {
@@ -1177,6 +1227,7 @@ async function loadProductsOnMainPage() {
                             const subcatProducts = productsByCategory[subcat.id]?.products || [];
                             cosmeticsProducts = cosmeticsProducts.concat(subcatProducts);
                         });
+                        cosmeticsProducts = dedupeProductsById(cosmeticsProducts);
                     }
                 }
             } catch (error) {
@@ -1489,9 +1540,10 @@ async function showCosmeticsSubcategories(parentCategoryId) {
         const products = await productsResponse.json();
 
         // Находим подкатегории "Косметика"
-        const cosmeticsSubcategories = allCategories.filter(cat =>
+        let cosmeticsSubcategories = allCategories.filter(cat =>
             cat.name && cat.name.startsWith('Косметика >') && cat.name !== 'Косметика'
         );
+        cosmeticsSubcategories = dedupeCategoriesPreferMoreProducts(cosmeticsSubcategories, productsByCategory);
 
         // Группируем товары по категориям
         const productsByCategory = {};
@@ -1784,7 +1836,7 @@ async function loadShopContent() {
         if (!categoriesResponse.ok) throw new Error('Failed to fetch categories');
         if (!productsResponse.ok) throw new Error('Failed to fetch products');
 
-        const categories = await categoriesResponse.json();
+        let categories = await categoriesResponse.json();
         const products = await productsResponse.json();
 
         console.log(`✅ Loaded ${categories?.length || 0} categories and ${products?.length || 0} products`);
@@ -1798,6 +1850,9 @@ async function loadShopContent() {
             }
             productsByCategory[categoryId].push(product);
         });
+
+        // Дедуп категорий (в БД могут появляться дубли по названию)
+        categories = dedupeCategoriesPreferMoreProducts(categories, productsByCategory);
 
         // Группируем подкатегории по родительским категориям
         const categoriesByParent = {};
@@ -1821,7 +1876,7 @@ async function loadShopContent() {
 
         // Отображаем каждую подкатегорию как горизонтальную линию
         Object.keys(categoriesByParent).forEach(parentName => {
-            const subcategories = categoriesByParent[parentName];
+            const subcategories = dedupeCategoriesPreferMoreProducts(categoriesByParent[parentName], productsByCategory);
 
             subcategories.forEach(subcat => {
                 const subcatProducts = productsByCategory[subcat.id] || [];
