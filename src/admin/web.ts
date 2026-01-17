@@ -1418,10 +1418,10 @@ router.get('/', requireAdmin, async (req, res) => {
               url.searchParams.set('tab', finalTab);
               history.replaceState({}, '', url.toString());
             } catch {}
-          }
+          };
 
           // Restore tab from URL on initial load
-          (function(){
+          ;(function(){
             try {
               const url = new URL(window.location.href);
               const tabRaw = url.searchParams.get('tab');
