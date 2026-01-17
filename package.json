@@ -45,7 +45,8 @@
     "test:admin": "node tests/admin.test.js",
     "test:admin:prod": "TEST_BASE_URL=https://vital-production-82b0.up.railway.app node tests/admin.test.js",
     "test:webapp": "node --test tests/webapp.test.js tests/webapp.static.test.js",
-    "test:webapp:e2e": "playwright test tests/webapp.e2e.spec.js --project=chromium"
+    "test:webapp:e2e": "playwright test tests/webapp.e2e.spec.js --project=chromium",
+    "test:admin:e2e": "playwright test tests/admin.e2e.spec.js --project=chromium"
   },
   "dependencies": {
     "@adminjs/express": "^6.1.1",
