@@ -1090,12 +1090,14 @@ function openSection(sectionName) {
 
     title.textContent = titles[sectionName] || 'Раздел';
 
-    // Главные разделы (из нижнего меню): нижнее меню всегда видно, стрелка "назад" не нужна
+    // Главные разделы (из нижнего меню): нижнее меню всегда видно.
+    // Исключение: "Партнеры" — стрелка назад нужна (как на внутренних страницах).
     try {
         const mainSections = new Set(['about', 'support', 'favorites', 'partner', 'chats']);
         const isMain = mainSections.has(String(sectionName));
+        const showBackInHeader = String(sectionName) === 'partner';
         if (overlay && overlay.classList) {
-            overlay.classList.toggle('no-back', isMain);
+            overlay.classList.toggle('no-back', isMain && !showBackInHeader);
             overlay.classList.toggle('main-section', isMain);
         }
         if (document && document.body && document.body.classList) {
