@@ -6207,6 +6207,103 @@ router.get('/products', requireAdmin, async (req, res) => {
             }
           };
 
+          // ===== Table thumbnails modal (preview + replace image) =====
+          window.__tableImageModalState = window.__tableImageModalState || { productId: null, title: '' };
+
+          window.openTableImageModal = function(productId, imageUrl, title) {
+            try {
+              const modal = document.getElementById('tableImageModal');
+              const img = document.getElementById('tableImageModalImg');
+              const titleEl = document.getElementById('tableImageModalTitle');
+              const empty = document.getElementById('tableImageModalEmpty');
+              const pid = __safeStr(productId);
+              if (!modal || !img || !titleEl || !pid) return;
+
+              window.__tableImageModalState.productId = pid;
+              window.__tableImageModalState.title = __safeStr(title);
+              titleEl.textContent = __safeStr(title) || 'Фото товара';
+
+              const src = __safeStr(imageUrl);
+              if (src) {
+                img.src = src;
+                img.style.display = 'block';
+                if (empty) empty.style.display = 'none';
+              } else {
+                img.removeAttribute('src');
+                img.style.display = 'none';
+                if (empty) empty.style.display = 'block';
+              }
+
+              modal.style.display = 'flex';
+              modal.onclick = function(e) { if (e && e.target === modal) window.closeTableImageModal(); };
+            } catch (e) {
+              console.error('openTableImageModal error:', e);
+            }
+          };
+
+          window.closeTableImageModal = function() {
+            try {
+              const modal = document.getElementById('tableImageModal');
+              const input = document.getElementById('tableImageFileInput');
+              const img = document.getElementById('tableImageModalImg');
+              const empty = document.getElementById('tableImageModalEmpty');
+              if (modal) modal.style.display = 'none';
+              if (input) input.value = '';
+              if (img) { img.removeAttribute('src'); img.style.display = 'none'; }
+              if (empty) empty.style.display = 'block';
+              window.__tableImageModalState.productId = null;
+              window.__tableImageModalState.title = '';
+            } catch (_) {}
+          };
+
+          window.triggerTableImageReplace = function() {
+            try {
+              const input = document.getElementById('tableImageFileInput');
+              if (input) input.click();
+            } catch (_) {}
+          };
+
+          window.handleTableImageFileSelected = async function(inputEl) {
+            try {
+              const pid = window.__tableImageModalState && window.__tableImageModalState.productId;
+              if (!pid) return;
+              if (!inputEl || !inputEl.files || !inputEl.files[0]) return;
+
+              const btn = document.getElementById('tableImageReplaceBtn');
+              const oldText = btn ? btn.textContent : '';
+              if (btn) { btn.disabled = true; btn.textContent = 'Загрузка...'; }
+
+              const formData = new FormData();
+              formData.append('image', inputEl.files[0]);
+
+              const resp = await fetch('/admin/products/' + encodeURIComponent(pid) + '/upload-image', {
+                method: 'POST',
+                body: formData,
+                credentials: 'include'
+              });
+
+              if (resp && resp.ok) {
+                window.closeTableImageModal();
+                if (typeof window.reloadAdminProductsPreservingState === 'function') {
+                  window.reloadAdminProductsPreservingState({ success: 'image_updated', view: 'table' });
+                } else {
+                  location.reload();
+                }
+              } else {
+                alert('❌ Ошибка загрузки фото (HTTP ' + (resp ? resp.status : '0') + ')');
+              }
+
+              if (btn) { btn.disabled = false; btn.textContent = oldText || 'Заменить фото'; }
+            } catch (e) {
+              console.error('handleTableImageFileSelected error:', e);
+              alert('❌ Ошибка: ' + (e && e.message ? e.message : String(e)));
+              try {
+                const btn = document.getElementById('tableImageReplaceBtn');
+                if (btn) { btn.disabled = false; btn.textContent = 'Заменить фото'; }
+              } catch (_) {}
+            }
+          };
+
           // КРИТИЧНО: галерея "Выбрать из загруженных" должна работать даже если нижний <script> сломается
           if (typeof window.closeImageGallery !== 'function') {
             window.closeImageGallery = function() {
@@ -6658,6 +6755,7 @@ router.get('/products', requireAdmin, async (req, res) => {
             <table id="productsTable" style="width:100%; border-collapse: collapse; min-width: 980px;">
               <thead>
                 <tr style="background:#f9fafb; text-align:left;">
+                  <th style="padding:12px; border-bottom:1px solid #e5e7eb; width:72px;">Фото</th>
                   <th style="padding:12px; border-bottom:1px solid #e5e7eb;">Название</th>
                   <th style="padding:12px; border-bottom:1px solid #e5e7eb;">SKU</th>
                   <th style="padding:12px; border-bottom:1px solid #e5e7eb;">Категория</th>
@@ -6671,6 +6769,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                   const rubPrice = (p.price * 100).toFixed(2);
                   const priceFormatted = rubPrice + ' руб. / ' + p.price.toFixed(2) + ' PZ';
                   const sku = String((p as any).sku || '').trim();
+                  const imgUrl = String((p as any).imageUrl || '').trim();
                   return (
                     '<tr ' +
                       'data-id="' + escapeAttr(p.id) + '" ' +
@@ -6678,6 +6777,19 @@ router.get('/products', requireAdmin, async (req, res) => {
                       'data-category="' + escapeAttr(p.categoryName) + '" ' +
                       'data-title="' + escapeAttr(p.title) + '" ' +
                       'data-sku="' + escapeAttr(sku) + '">' +
+                      '<td style="padding:10px 12px; border-bottom:1px solid #f1f5f9;">' +
+                        '<button type="button" class="table-thumb" ' +
+                          'data-product-id="' + escapeAttr(p.id) + '" ' +
+                          'data-title="' + escapeAttr(p.title) + '" ' +
+                          'data-image="' + escapeAttr(imgUrl) + '" ' +
+                          'style="width:48px; height:48px; border-radius:10px; overflow:hidden; border:1px solid #e5e7eb; background:#f9fafb; padding:0; cursor:pointer; display:flex; align-items:center; justify-content:center;"' +
+                        '>' +
+                          (imgUrl
+                            ? ('<img src="' + escapeAttr(imgUrl) + '" alt="" style="width:100%; height:100%; object-fit:cover; display:block;" loading="lazy">')
+                            : ('<span style="font-size:16px; color:#9ca3af;">📷</span>')
+                          ) +
+                        '</button>' +
+                      '</td>' +
                       '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' + escapeHtml(p.title) + '</td>' +
                       '<td style="padding:12px; border-bottom:1px solid #f1f5f9; color:#6b7280;">' + (sku ? escapeHtml(sku) : '-') + '</td>' +
                       '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' + escapeHtml(p.categoryName) + '</td>' +
@@ -6712,6 +6824,28 @@ router.get('/products', requireAdmin, async (req, res) => {
                 }).join('')}
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- Modal: table image preview + replace -->
+        <div id="tableImageModal" class="modal-overlay" style="display:none; z-index: 12000;">
+          <div class="modal-content" style="max-width: 820px; width: 92%; padding: 0; overflow: hidden;">
+            <div class="modal-header" style="display:flex; align-items:center; justify-content:space-between;">
+              <h2 id="tableImageModalTitle" style="margin:0; font-size:16px;">Фото товара</h2>
+              <button class="close-btn" type="button" onclick="window.closeTableImageModal()">&times;</button>
+            </div>
+            <div style="padding: 16px 18px; background:#fff; display:grid; grid-template-columns: 1fr; gap: 14px;">
+              <div style="display:flex; align-items:center; justify-content:center; background:#f9fafb; border:1px solid #e5e7eb; border-radius:12px; min-height: 360px;">
+                <img id="tableImageModalImg" src="" alt="" style="max-width: 100%; max-height: 520px; object-fit: contain; display:none;">
+                <div id="tableImageModalEmpty" style="color:#9ca3af; font-size:14px;">Нет фото</div>
+              </div>
+              <div style="display:flex; gap:10px; justify-content:flex-end; align-items:center; flex-wrap:wrap;">
+                <button type="button" class="btn" style="background:#6366f1;" onclick="try{ if(typeof window.openImageGallery==='function' && window.__tableImageModalState && window.__tableImageModalState.productId){ window.openImageGallery(window.__tableImageModalState.productId);} }catch(e){}">🖼️ Выбрать из загруженных</button>
+                <button type="button" class="btn" id="tableImageReplaceBtn" style="background:linear-gradient(135deg,#28a745 0%,#20c997 100%); color:#fff;" onclick="window.triggerTableImageReplace()">📷 Заменить фото</button>
+                <button type="button" class="btn" style="background:#6c757d; color:#fff;" onclick="window.closeTableImageModal()">Закрыть</button>
+              </div>
+              <input id="tableImageFileInput" type="file" accept="image/*" style="display:none" onchange="window.handleTableImageFileSelected(this)">
+            </div>
           </div>
         </div>
 
@@ -7466,6 +7600,24 @@ router.get('/products', requireAdmin, async (req, res) => {
                     }
                     return false;
                   }
+                }
+
+                // Миниатюры в табличном виде (клик -> модалка с большим фото + замена)
+                const tableThumb = el.closest('.table-thumb');
+                if (tableThumb) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  try {
+                    const pid = tableThumb.getAttribute('data-product-id') || '';
+                    const img = tableThumb.getAttribute('data-image') || '';
+                    const title = tableThumb.getAttribute('data-title') || '';
+                    if (typeof window.openTableImageModal === 'function') {
+                      window.openTableImageModal(pid, img, title);
+                    }
+                  } catch (e) {
+                    console.error('Table thumb click error:', e);
+                  }
+                  return;
                 }
                 
                 // Фильтры категорий (дублируем inline onclick, чтобы работало даже если он сломан/перекрыт)
