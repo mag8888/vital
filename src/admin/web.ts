@@ -7318,10 +7318,8 @@ router.get('/products', requireAdmin, async (req, res) => {
                   const escapedUrl = encodeURIComponent(String(imageUrl));
                   html +=
                     '<button type="button" class="gallery-item" data-image-url="' + escapedUrl + '" data-product-id="' + String(productId) + '" ' +
-                      'style="border:2px solid #e2e8f0; border-radius:12px; overflow:hidden; cursor:pointer; background:#fff; padding:0; width:160px;">' +
-                      '<div style="width:160px; height:160px; background:#ffffff; display:flex; align-items:center; justify-content:center;">' +
-                        '<img src="' + String(imageUrl).replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '" style="width:160px; height:160px; object-fit:contain; display:block; background:#ffffff;" alt="img" data-onerror-hide="true" />' +
-                      '</div>' +
+                      'style="border:2px solid #e2e8f0; border-radius:14px; overflow:hidden; cursor:pointer; background:#fff; padding:0; width:160px; height:160px; display:flex; align-items:center; justify-content:center;">' +
+                        '<img src="' + String(imageUrl).replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '" style="width:100%; height:100%; object-fit:contain; display:block; background:#ffffff;" alt="img" data-onerror-hide="true" />' +
                     '</button>';
                 });
                 galleryContent.innerHTML = html;
@@ -7397,7 +7395,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                           '<img id="galleryPreviewImg" src="" alt="preview" style="max-width:100%; max-height:100%; object-fit:contain; background:#fff; border-radius:12px; border:1px solid #e5e7eb;" />' +
                         '</div>' +
                       '</div>' +
-                      '<div id="galleryContent" style="min-height:0; height:100%; overflow-y:auto; overflow-x:hidden; display:grid; grid-template-columns: repeat(auto-fill, 160px); gap:12px; padding:2px; align-content:start; justify-content:start;">' +
+                      '<div id="galleryContent" style="min-height:0; height:100%; overflow-y:auto; overflow-x:hidden; overscroll-behavior: contain; display:grid; grid-template-columns: repeat(auto-fill, 160px); grid-auto-rows:160px; gap:12px; padding:2px; align-content:start; justify-content:start;">' +
                         '<div style="grid-column: span 999; text-align:center; padding:30px; color:#6b7280;">Загрузка...</div>' +
                       '</div>' +
                     '</div>' +
@@ -8296,6 +8294,16 @@ router.get('/products', requireAdmin, async (req, res) => {
               alert('Ошибка: не указан ID товара');
               return;
             }
+
+            // Lock background scroll (desktop-safe)
+            try {
+              const html = document.documentElement;
+              const body = document.body;
+              if (!html.hasAttribute('data-prev-overflow')) html.setAttribute('data-prev-overflow', html.style.overflow || '');
+              if (!body.hasAttribute('data-prev-overflow')) body.setAttribute('data-prev-overflow', body.style.overflow || '');
+              html.style.overflow = 'hidden';
+              body.style.overflow = 'hidden';
+            } catch (_) {}
             
             // Закрываем предыдущее модальное окно, если оно открыто
             const existingModal = document.getElementById('imageGalleryModal');
@@ -8326,7 +8334,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                   '<h2 style="margin: 0; font-size: 20px; font-weight: 600; color: white;">🖼️ Выбрать изображение из загруженных</h2>' +
                   '<button class="close-btn" style="background: rgba(255,255,255,0.2); border: none; font-size: 24px; cursor: pointer; color: white; padding: 0; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center;">&times;</button>' +
                 '</div>' +
-                '<div id="galleryContent" style="padding: 20px; overflow-y: auto; flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;">' +
+                '<div id="galleryContent" style="padding: 12px; overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height:0; display: grid; grid-template-columns: repeat(auto-fill, 160px); grid-auto-rows:160px; gap: 12px; align-content:start; justify-content:start;">' +
                   '<div style="grid-column: span 999; text-align: center; padding: 40px;">' +
                     '<div class="loading-spinner" style="width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px;"></div>' +
                     '<p style="color: #6b7280;">Загрузка изображений...</p>' +
@@ -8361,9 +8369,17 @@ router.get('/products', requireAdmin, async (req, res) => {
           
           if (typeof window.closeImageGallery !== 'function') window.closeImageGallery = function() {
             const modal = document.getElementById('imageGalleryModal');
-            if (modal) {
-              modal.remove();
-            }
+            if (modal) modal.remove();
+            try {
+              const html = document.documentElement;
+              const body = document.body;
+              const prevHtml = html.getAttribute('data-prev-overflow');
+              const prevBody = body.getAttribute('data-prev-overflow');
+              if (prevHtml !== null) html.style.overflow = prevHtml;
+              if (prevBody !== null) body.style.overflow = prevBody;
+              html.removeAttribute('data-prev-overflow');
+              body.removeAttribute('data-prev-overflow');
+            } catch (_) {}
           };
           
           // Определяем selectGalleryImage глобально, чтобы она была доступна для loadGalleryImages
@@ -8445,27 +8461,16 @@ router.get('/products', requireAdmin, async (req, res) => {
               let html = '';
               result.images.forEach((imageData) => {
                 const imageUrl = imageData.url;
-                const productTitles = imageData.products ? imageData.products.map((p) => p.title).join(', ') : '';
-                const productCount = imageData.products ? imageData.products.length : (imageData.count || 0);
                 const escapedUrl = imageUrl ? imageUrl.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : '';
-                const escapedTitles = productTitles.replace(/"/g, '&quot;');
                 
                 // Используем одинарные кавычки для JS-строки, чтобы не полагаться на экранирование \" внутри server-rendered шаблона
                 // (иначе легко получить SyntaxError: Unexpected identifier 'gallery')
                 html +=
-                  '<div class="gallery-item" data-image-url="' + escapedUrl + '" data-product-id="' + productId + '" ' +
-                    'style="border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden; cursor: pointer; transition: all 0.2s; background: white;">' +
-                    '<div style="width: 100%; aspect-ratio: 1; overflow: hidden; background: #f3f4f6;">' +
+                  '<button type="button" class="gallery-item" data-image-url="' + escapedUrl + '" data-product-id="' + productId + '" ' +
+                    'style="border: 2px solid #e2e8f0; border-radius: 14px; overflow: hidden; cursor: pointer; transition: all 0.2s; background: white; padding:0; width:160px; height:160px; display:flex; align-items:center; justify-content:center;">' +
                       '<img src="' + escapedUrl + '" alt="Product image" class="gallery-image" ' +
-                        'style="width: 100%; height: 100%; object-fit: cover;" data-onerror-hide="true">' +
-                    '</div>' +
-                    '<div style="padding: 12px; font-size: 12px; color: #6b7280;">' +
-                      '<div style="font-weight: 600; margin-bottom: 4px; color: #374151;">Используется в:</div>' +
-                      '<div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + escapedTitles + '">' +
-                        productCount + ' товар(ов)' +
-                      '</div>' +
-                    '</div>' +
-                  '</div>';
+                        'style="width: 100%; height: 100%; object-fit: contain; display:block; background:#fff;" data-onerror-hide="true">' +
+                  '</button>';
               });
               
               galleryContent.innerHTML = html;
