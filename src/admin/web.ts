@@ -1187,6 +1187,22 @@ router.get('/', requireAdmin, async (req, res) => {
             box-shadow: 0 14px 34px rgba(17,24,39,0.06);
             min-height: 120px;
           }
+          .dash-card-link{
+            display:block;
+            text-decoration:none;
+            color: inherit;
+            cursor: pointer;
+            transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+          }
+          .dash-card-link:hover{
+            transform: translateY(-2px);
+            box-shadow: 0 18px 44px rgba(17,24,39,0.08);
+            background: rgba(17,24,39,0.01);
+          }
+          .dash-card-link:focus-visible{
+            outline: 3px solid rgba(102,126,234,0.35);
+            outline-offset: 3px;
+          }
           .dash-card.solid{ border-style: solid; }
           .dash-card h3{ margin:0; font-size: 14px; color: var(--admin-muted); font-weight: 800; }
           .dash-card .value{ margin-top: 12px; font-size: 30px; font-weight: 900; letter-spacing: -0.04em; }
@@ -1240,30 +1256,30 @@ router.get('/', requireAdmin, async (req, res) => {
         <div class="dash-wrap">
           <div>
             <div class="dash-cards">
-              <div class="dash-card">
+              <a class="dash-card dash-card-link" href="/admin/users-detailed" aria-label="Перейти к пользователям">
                 <div class="dash-row">
                   <h3>Пользователи</h3>
                   <span class="pill">Всего</span>
                 </div>
                 <div class="value">${stats.users}</div>
                 <div class="sub">Аккаунты в системе</div>
-              </div>
-              <div class="dash-card">
+              </a>
+              <a class="dash-card dash-card-link" href="/admin/products" aria-label="Перейти к товарам">
                 <div class="dash-row">
                   <h3>Товары</h3>
                   <span class="pill">Каталог</span>
                 </div>
                 <div class="value">${stats.products}</div>
                 <div class="sub">Позиции</div>
-              </div>
-              <div class="dash-card">
+              </a>
+              <a class="dash-card dash-card-link" href="/admin/orders" aria-label="Перейти к заказам">
                 <div class="dash-row">
                   <h3>Заказы</h3>
                   <span class="pill">Заявки</span>
                 </div>
                 <div class="value">${stats.orders}</div>
                 <div class="sub">Новые/в работе/выполнено</div>
-              </div>
+              </a>
             </div>
 
             <div style="height: 16px;"></div>
