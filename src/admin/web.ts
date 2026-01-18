@@ -2830,6 +2830,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
   try {
     const sortBy = req.query.sort as string || 'orders';
     const sortOrder = req.query.order as string || 'desc';
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
 
     // Get all users with their related data
     // Optional search by username
@@ -3063,40 +3064,40 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
         <title>Детальная информация о пользователях - Vital Admin</title>
         <meta charset="utf-8">
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-          .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
-          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
-          .header h1 { margin: 0; font-size: 28px; font-weight: 600; }
-          .header p { margin: 10px 0 0 0; opacity: 0.9; font-size: 16px; }
-          .back-btn:hover { background: rgba(255,255,255,0.3) !important; transform: translateY(-2px); }
+          /* UI kit baseline */
+          ${ADMIN_UI_CSS}
+
+          body { margin: 0; padding: 0; background: var(--admin-bg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+          .page-title{ margin: 0; font-size: 18px; font-weight: 900; letter-spacing: -0.02em; }
+          .page-subtitle{ margin-top: 6px; font-size: 12px; color: var(--admin-muted); }
+          .page-header-row{ display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; margin-bottom: 12px; }
           
-          .controls { padding: 20px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; }
+          .controls { padding: 14px; background: #fff; border: 1px solid var(--admin-border); border-radius: 18px; }
           .sort-controls { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
           .sort-group { display: flex; gap: 10px; align-items: center; }
           .sort-group label { font-weight: 600; color: #495057; }
-          .sort-group select, .sort-group button { padding: 8px 12px; border: 1px solid #ced4da; border-radius: 6px; font-size: 14px; }
-          .sort-group button { background: #007bff; color: white; border: none; cursor: pointer; }
-          .sort-group button:hover { background: #0056b3; }
+          .sort-group select { padding: 10px 12px; border: 1px solid var(--admin-border-strong); border-radius: 12px; background: #fff; }
+          .sort-group input { padding: 10px 12px; border: 1px solid var(--admin-border-strong); border-radius: 12px; background: #fff; }
           
-          .stats-bar { display: flex; gap: 20px; padding: 15px 20px; background: #e3f2fd; border-bottom: 1px solid #bbdefb; }
-          .stat-item { text-align: center; }
-          .stat-number { font-size: 24px; font-weight: bold; color: #1976d2; }
-          .stat-label { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+          .stats-bar { display: grid; grid-template-columns: repeat(5, minmax(160px, 1fr)); gap: 12px; margin-top: 12px; }
+          .stat-item { text-align: left; background:#fff; border: 1px solid var(--admin-border); border-radius: 18px; padding: 12px 14px; }
+          .stat-number { font-size: 22px; font-weight: 900; letter-spacing: -0.03em; color: var(--admin-text); }
+          .stat-label { font-size: 11px; color: var(--admin-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 6px; }
           
-          .table-container { overflow-x: auto; width: 100%; border: 1px solid #dee2e6; border-radius: 8px; }
+          .table-container { overflow: auto; width: 100%; border: 1px solid var(--admin-border); border-radius: 18px; background:#fff; margin-top: 12px; }
           .users-table { width: 100%; border-collapse: collapse; min-width: 100%; table-layout: fixed; }
-          .users-table th { background: #f8f9fa; padding: 6px 4px; text-align: left; font-weight: 600; color: #495057; border-bottom: 2px solid #dee2e6; white-space: nowrap; position: sticky; top: 0; z-index: 10; font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
-          .users-table td { padding: 6px 4px; border-bottom: 1px solid #dee2e6; vertical-align: top; white-space: nowrap; font-size: 11px; overflow: hidden; text-overflow: ellipsis; position: relative; }
-          .users-table tr:hover { background: #f8f9fa; }
+          .users-table th { background: rgba(17,24,39,0.03); padding: 10px 8px; text-align: left; font-weight: 900; color: var(--admin-muted); border-bottom: 1px solid rgba(17,24,39,0.08); white-space: nowrap; position: sticky; top: 0; z-index: 10; font-size: 11px; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; letter-spacing: .06em; }
+          .users-table td { padding: 10px 8px; border-bottom: 1px solid rgba(17,24,39,0.06); vertical-align: top; white-space: nowrap; font-size: 12px; overflow: hidden; text-overflow: ellipsis; position: relative; }
+          .users-table tr:hover td { background: rgba(17,24,39,0.02); }
           
           /* Sticky колонка пользователя с улучшенным эффектом */
           .users-table th.user-cell, .users-table td.user-cell { 
             position: sticky; left: 0; z-index: 15; 
-            background: #f8f9fa; border-right: 3px solid #007bff;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            background: #fff; border-right: 1px solid rgba(17,24,39,0.10);
+            box-shadow: 2px 0 10px rgba(17,24,39,0.06);
             min-width: 140px; max-width: 140px;
           }
-          .users-table tr:hover td.user-cell { background: #f8f9fa; }
+          .users-table tr:hover td.user-cell { background: #fff; }
           
           /* Стили для горизонтального скролла */
           .table-container::-webkit-scrollbar { height: 8px; }
@@ -3169,67 +3170,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             border-bottom: none;
           }
           
-          /* Стили для модальных окон */
-          .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-          }
-          
-          .modal-content {
-            background: white;
-            border-radius: 12px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-          }
-          
-          .modal-header {
-            padding: 20px;
-            border-bottom: 1px solid #dee2e6;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-          }
-          
-          .modal-header h2 {
-            margin: 0;
-            color: #212529;
-            font-size: 18px;
-          }
-          
-          .modal-close {
-            font-size: 24px;
-            font-weight: bold;
-            color: #6c757d;
-            cursor: pointer;
-            line-height: 1;
-          }
-          
-          .modal-close:hover {
-            color: #dc3545;
-          }
-          
-          .modal-body {
-            padding: 20px;
-          }
-          
-          .modal-footer {
-            padding: 15px 20px;
-            border-top: 1px solid #dee2e6;
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-          }
+          /* Модалки: используем UI kit (не переопределяем глобальные .modal-*) */
           
           /* Стили для формы сообщений */
           .message-form-group {
@@ -3305,23 +3246,16 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
           .partners-count { background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 8px; font-size: 10px; font-weight: 600; }
           .orders-sum { background: #fff3cd; color: #856404; padding: 2px 6px; border-radius: 8px; font-size: 10px; font-weight: 600; }
           
-          .action-btn { background: #007bff; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; margin: 1px; }
-          .action-btn:hover { background: #0056b3; }
-          .action-btn.hierarchy { background: #28a745; }
-          .action-btn.hierarchy:hover { background: #1e7e34; }
-          
-          .back-btn { background: #6c757d; color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; display: inline-block; margin-bottom: 20px; }
-          .back-btn:hover { background: #5a6268; }
+          /* action-btn already styled by ADMIN_UI_CSS */
           
           .empty-state { text-align: center; padding: 60px 20px; color: #6c757d; }
           .empty-state h3 { margin: 0 0 10px 0; font-size: 24px; }
           .empty-state p { margin: 0; font-size: 16px; }
 
-          /* Shared admin UI baseline */
-          ${ADMIN_UI_CSS}
         </style>
       </head>
       <body>
+        ${renderAdminShellStart({ title: 'Пользователи', activePath: '/admin/users-detailed', buildMarker })}
         <script>
           // Определяем все функции ДО загрузки HTML
           (function() {
@@ -3476,25 +3410,21 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             });
           })();
         </script>
-        <div class="container">
-          <div class="header">
-            <div style="display: flex; align-items: center; justify-content: space-between;">
-              <div>
-            <h1>👥 Детальная информация о пользователях</h1>
-            <p>Полная статистика, балансы, партнёры и заказы</p>
-              </div>
-              <a href="/admin" class="back-btn" style="background: rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; border: 1px solid rgba(255,255,255,0.3); transition: all 0.3s ease;">
-                ← Назад к панели
-              </a>
-            </div>
+
+        <div class="page-header-row">
+          <div>
+            <div class="page-title">Детальная информация о пользователях</div>
+            <div class="page-subtitle">Полная статистика, балансы, партнёры и заказы</div>
           </div>
+          <a class="btn" href="/admin">Назад</a>
+        </div>
           
           <div class="controls">
             <div class="sort-controls">
               <div class="sort-group" style="position: relative;">
                 <label>Найти по юзернейм:</label>
-                <input type="text" id="searchUsername" placeholder="@username" style="padding:8px 12px; border:1px solid #ced4da; border-radius:6px; font-size:14px;" autocomplete="off" />
-                <button onclick="searchByUsername()">🔎 Найти</button>
+                <input type="text" id="searchUsername" placeholder="@username" autocomplete="off" />
+                <button type="button" class="btn" onclick="searchByUsername()">Найти</button>
                 <div id="searchSuggestions" style="position:absolute; top:36px; left:0; background:#fff; border:1px solid #e5e7eb; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,.1); width:260px; max-height:220px; overflow:auto; display:none; z-index:5"></div>
               </div>
               <div class="sort-group">
@@ -3515,10 +3445,10 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                 </select>
               </div>
               
-              <button onclick="applySorting()">🔄 Применить</button>
+              <button type="button" class="btn" onclick="applySorting()">Применить</button>
             </div>
             <div class="message-controls" style="margin-top: 10px;">
-              <button class="btn delete-selected-btn" style="background: #dc3545;">🗑️ Удалить выбранных</button>
+              <button type="button" class="btn btn-danger delete-selected-btn">Удалить выбранных</button>
             </div>
           </div>
           
@@ -3557,8 +3487,8 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                   <tr>
                     <th class="compact-cell">
                       <input type="checkbox" id="selectAllUsers" style="margin-right: 5px;">
-                      <button onclick="openMessageModal()" class="action-btn" style="font-size: 10px; padding: 2px 6px;">📧</button>
-                      <button class="action-btn delete-selected-btn" style="font-size: 10px; padding: 2px 6px; background: #dc3545; color: white;" title="Удалить выбранных">🗑️</button>
+                      <button type="button" onclick="openMessageModal()" class="action-btn" title="Сообщение">Сообщение</button>
+                      <button type="button" class="action-btn delete-selected-btn" title="Удалить выбранных" style="border-color: rgba(220,38,38,0.35); color:#991b1b;">Удалить</button>
                     </th>
                     <th class="compact-cell">Партнерская программа</th>
                     <th class="compact-cell">Баланс</th>
@@ -4103,6 +4033,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             });
           }
         </script>
+        ${renderAdminShellEnd()}
       </body>
       </html>
     `);
