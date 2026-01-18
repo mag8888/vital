@@ -2496,9 +2496,9 @@ router.get('/', requireAdmin, async (req, res) => {
             // Set image preview (div with background-image)
             const imagePreview = document.getElementById('imagePreview');
             if (imagePreview) {
-              if (imageUrl) {
+            if (imageUrl) {
                 imagePreview.style.backgroundImage = 'url(' + imageUrl + ')';
-              } else {
+            } else {
                 imagePreview.style.backgroundImage = '';
               }
             }
@@ -5377,10 +5377,13 @@ router.get('/partners', requireAdmin, async (req, res) => {
           th { background: rgba(17,24,39,0.03); font-size: 12px; color: var(--admin-muted); text-transform: uppercase; letter-spacing: .06em; }
           tr:hover td{ background: rgba(17,24,39,0.02); }
 
-          .actions{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+          /* Row actions: compact and predictable (no giant stacks) */
+          .actions{ display:grid; gap:8px; justify-content:flex-end; }
+          .actions form{ display:flex; gap:8px; align-items:center; justify-content:flex-end; margin:0; flex-wrap:nowrap; }
           .mini-input{
-            width: 128px;
-            padding: 8px 10px;
+            width: 160px;
+            height: 34px;
+            padding: 0 10px;
             border-radius: 12px;
             border: 1px solid var(--admin-border-strong);
             font-size: 12px;
@@ -5409,25 +5412,25 @@ router.get('/partners', requireAdmin, async (req, res) => {
           <a href="/admin/debug-partners" class="btn">Отладка</a>
           <form method="post" action="/admin/recalculate-bonuses">
             <button type="submit" class="btn" onclick="return confirm('Пересчитать бонусы всех партнёров?')">Пересчитать бонусы</button>
-          </form>
+        </form>
           <form method="post" action="/admin/recalculate-all-balances">
             <button type="submit" class="btn" onclick="return confirm('Пересчитать ВСЕ балансы партнёров?')">Пересчитать балансы</button>
-          </form>
+        </form>
           <form method="post" action="/admin/cleanup-duplicates">
             <button type="submit" class="btn btn-danger" onclick="return confirm('Удалить дублирующиеся записи партнёров и транзакций? Это действие необратимо!')">Очистить дубли</button>
-          </form>
+        </form>
           <form method="post" action="/admin/cleanup-referral-duplicates">
             <button type="submit" class="btn btn-danger" onclick="return confirm('Очистить дублирующиеся записи рефералов? Это действие необратимо!')">Очистить дубли рефералов</button>
-          </form>
+        </form>
           <form method="post" action="/admin/cleanup-duplicate-bonuses">
             <button type="submit" class="btn btn-danger" onclick="return confirm('Удалить дублирующиеся бонусы? Это действие необратимо!')">Очистить дубли бонусов</button>
-          </form>
+        </form>
           <form method="post" action="/admin/fix-roman-bonuses">
             <button type="submit" class="btn" onclick="return confirm('Исправить бонусы Roman Arctur?')">Исправить бонусы Roman</button>
-          </form>
+        </form>
           <form method="post" action="/admin/reset-all-partners">
             <button type="submit" class="btn btn-danger" onclick="const confirmed = confirm('КРИТИЧЕСКОЕ ПОДТВЕРЖДЕНИЕ!\\n\\nЭто удалит ВСЕ партнерские профили, рефералы и транзакции!\\n\\nЭто действие НЕОБРАТИМО!\\n\\nПродолжить?'); if (!confirmed) return false; const doubleCheck = prompt('Для подтверждения введите точно: УДАЛИТЬ ВСЕХ ПАРТНЕРОВ'); return doubleCheck === 'УДАЛИТЬ ВСЕХ ПАРТНЕРОВ';">Сбросить всех партнёров</button>
-          </form>
+        </form>
         </div>
         
         <div class="metric-card">
@@ -5492,9 +5495,10 @@ router.get('/partners', requireAdmin, async (req, res) => {
                 <input class="mini-input" type="number" name="amount" placeholder="Сумма" step="0.01" required>
                 <button type="submit" class="btn-mini">+PZ</button>
               </form>
-              <form method="post" action="/admin/partners/${partner.id}/subtract-balance">
+              <form method="post" action="/admin/partners/${partner.id}/adjust-balance">
                 <input class="mini-input" type="number" name="amount" placeholder="Сумма" step="0.01" required>
-                <button type="submit" class="btn-mini danger">-PZ</button>
+                <button type="submit" class="btn-mini" name="op" value="add">+PZ</button>
+                <button type="submit" class="btn-mini danger" name="op" value="sub">-PZ</button>
               </form>
             </div>
           </td>
@@ -5912,6 +5916,59 @@ router.post('/partners/:id/change-inviter', requireAdmin, async (req, res) => {
     }
     return res.redirect('/admin/partners?error=inviter_change');
   }
+});
+
+// Partner balance adjust (used by /admin/partners actions)
+router.post('/partners/:id/adjust-balance', requireAdmin, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const op = String((req.body && (req.body.op || req.body.operation)) || '').trim();
+    const amountRaw = (req.body && req.body.amount);
+    const amount = Number.parseFloat(String(amountRaw || '0'));
+    if (!id) return res.redirect('/admin/partners?error=balance_add');
+    if (!Number.isFinite(amount) || amount <= 0) return res.redirect('/admin/partners?error=balance_add');
+
+    const partner = await prisma.partnerProfile.findUnique({ where: { id }, include: { user: true } });
+    if (!partner) return res.redirect('/admin/partners?error=partner_not_found');
+
+    const isSub = (op === 'sub' || op === 'subtract' || op === 'debit' || op === '-');
+    const txType = isSub ? 'DEBIT' : 'CREDIT';
+    const txAmount = amount;
+    const description = (isSub ? 'Admin: subtract balance' : 'Admin: add balance');
+
+    // Update balance & bonus to keep them consistent
+    await prisma.partnerProfile.update({
+      where: { id },
+      data: {
+        balance: isSub ? { decrement: txAmount } : { increment: txAmount },
+        bonus: isSub ? { decrement: txAmount } : { increment: txAmount },
+      }
+    });
+
+    await prisma.partnerTransaction.create({
+      data: {
+        profileId: id,
+        amount: txAmount,
+        type: txType,
+        description
+      }
+    });
+
+    return res.redirect('/admin/partners?success=' + (isSub ? 'balance_subtracted' : 'balance_added'));
+  } catch (error) {
+    console.error('Partner adjust balance error:', error);
+    return res.redirect('/admin/partners?error=balance_add');
+  }
+});
+
+// Backward-compatible routes (old UI)
+router.post('/partners/:id/add-balance', requireAdmin, async (req, res) => {
+  req.body = { ...(req.body || {}), op: 'add' };
+  return res.redirect(307, `/admin/partners/${encodeURIComponent(String(req.params.id || ''))}/adjust-balance`);
+});
+router.post('/partners/:id/subtract-balance', requireAdmin, async (req, res) => {
+  req.body = { ...(req.body || {}), op: 'sub' };
+  return res.redirect(307, `/admin/partners/${encodeURIComponent(String(req.params.id || ''))}/adjust-balance`);
 });
 
 // Handle user inviter change
@@ -7688,7 +7745,7 @@ router.get('/products', requireAdmin, async (req, res) => {
               <span>ID: ${escapeHtml(product.id.slice(0, 8))}...</span>
             </div>
             <div class="product-actions">
-                <button 
+              <button 
                 type="button" 
                 class="btn-action btn-solid-black edit-btn"
                 data-id="${escapeAttr(product.id)}"
