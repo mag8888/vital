@@ -379,7 +379,13 @@ function adminIcon(name: string): string {
 
 function renderAdminShellStart(opts: { title: string; activePath: string; buildMarker?: string }): string {
   const { title, activePath, buildMarker } = opts;
-  const isActive = (href: string) => (activePath === href ? 'active' : '');
+  const isActive = (href: string, opts?: { also?: string[]; prefixes?: string[] }) => {
+    const also = opts?.also || [];
+    const prefixes = opts?.prefixes || [];
+    if ([href, ...also].includes(activePath)) return 'active';
+    if (prefixes.some((p) => activePath.startsWith(p))) return 'active';
+    return '';
+  };
   return `
     <div class="admin-shell">
       <aside class="admin-sidebar">
@@ -391,7 +397,7 @@ function renderAdminShellStart(opts: { title: string; activePath: string; buildM
         <div class="admin-nav-group">Главное</div>
         <nav class="admin-nav">
           <a class="admin-nav-item ${isActive('/admin')}" href="/admin"><span class="admin-ico">${adminIcon('dashboard')}</span><span>Dashboard</span></a>
-          <a class="admin-nav-item ${isActive('/admin/users')}" href="/admin/users"><span class="admin-ico">${adminIcon('users')}</span><span>Пользователи</span></a>
+          <a class="admin-nav-item ${isActive('/admin/users-detailed', { also: ['/admin/users'], prefixes: ['/admin/users/'] })}" href="/admin/users-detailed"><span class="admin-ico">${adminIcon('users')}</span><span>Пользователи</span></a>
           <a class="admin-nav-item ${isActive('/admin/partners')}" href="/admin/partners"><span class="admin-ico">${adminIcon('partners')}</span><span>Партнёры</span></a>
         </nav>
 
