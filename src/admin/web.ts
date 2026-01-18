@@ -16,11 +16,11 @@ const ADMIN_UI_CSS = `
     --admin-surface: #ffffff;
     --admin-text: #111827;
     --admin-muted: #6b7280;
-    --admin-border: #e5e7eb;
-    --admin-primary: #667eea;
-    --admin-primary-2: #764ba2;
-    --admin-danger: #dc3545;
-    --admin-success: #28a745;
+    --admin-border: #111827;
+    --admin-primary: #111827;
+    --admin-primary-2: #111827;
+    --admin-danger: #111827;
+    --admin-success: #111827;
     --admin-radius: 12px;
     --admin-shadow: 0 2px 10px rgba(0,0,0,0.10);
   }
@@ -45,31 +45,37 @@ const ADMIN_UI_CSS = `
     gap: 8px;
     padding: 10px 16px;
     border-radius: 10px;
-    border: 0;
+    border: 1px solid var(--admin-border);
     text-decoration: none;
     font-weight: 600;
     cursor: pointer;
     user-select: none;
     transition: transform .15s ease, box-shadow .15s ease, background .15s ease, opacity .15s ease;
-    box-shadow: 0 2px 6px rgba(17,24,39,0.12);
-    background: linear-gradient(135deg, var(--admin-primary) 0%, var(--admin-primary-2) 100%);
-    color: #fff;
+    box-shadow: none;
+    background: transparent;
+    color: var(--admin-text);
   }
   a.btn:hover, button.btn:hover, .btn:hover{
-    transform: translateY(-1px);
-    box-shadow: 0 8px 18px rgba(17,24,39,0.16);
+    transform: none;
+    box-shadow: none;
+    background: var(--admin-text);
+    color: #fff;
   }
   a.btn:active, button.btn:active, .btn:active{
-    transform: translateY(0px);
+    transform: none;
   }
   .btn-secondary{
-    background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+    background: transparent;
+    color: var(--admin-text);
   }
   .btn-danger{
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    background: transparent;
+    color: var(--admin-text);
+    border-style: dashed;
   }
   .btn-success{
-    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    background: var(--admin-text);
+    color: #fff;
   }
   button:disabled, .btn[aria-disabled="true"]{
     opacity: .6;
@@ -90,16 +96,18 @@ const ADMIN_UI_CSS = `
     font-weight: 600;
     font-size: 12px;
     line-height: 1;
-    background: #007bff;
-    color: #fff;
-    box-shadow: 0 1px 3px rgba(17,24,39,0.12);
+    background: transparent;
+    color: var(--admin-text);
+    border: 1px solid var(--admin-border);
+    box-shadow: none;
     transition: transform .15s ease, box-shadow .15s ease, background .15s ease, opacity .15s ease;
     text-decoration: none;
   }
   .action-btn:hover{
-    background: #0056b3;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 14px rgba(17,24,39,0.14);
+    background: var(--admin-text);
+    color: #fff;
+    transform: none;
+    box-shadow: none;
   }
 
   /* Inputs */
@@ -847,6 +855,30 @@ router.get('/', requireAdmin, async (req, res) => {
 
           /* Shared admin UI baseline */
           ${ADMIN_UI_CSS}
+
+          /* Monochrome admin buttons (override inline colors) */
+          :root { --mono-fg: #111; --mono-bg: #fff; --mono-border: #111; }
+          .btn, button, .filter-btn, .toggle-btn, .delete-btn, .image-btn, .edit-btn, .status-btn {
+            background: transparent !important;
+            color: var(--mono-fg) !important;
+            border: 1px solid var(--mono-border) !important;
+            border-radius: 10px !important;
+            box-shadow: none !important;
+          }
+          .btn:hover, button:hover, .filter-btn:hover, .toggle-btn:hover, .delete-btn:hover, .image-btn:hover, .edit-btn:hover {
+            background: #111 !important;
+            color: #fff !important;
+          }
+          .product-actions { display: grid !important; grid-template-columns: 1fr !important; gap: 10px !important; }
+          .product-actions > * { width: 100% !important; }
+          .product-actions form { width: 100% !important; }
+          .product-actions form button, .product-actions button, .product-actions .image-btn, .product-actions .edit-btn {
+            width: 100% !important;
+            padding: 12px 14px !important;
+            justify-content: center !important;
+          }
+          .modal-footer { display:flex; gap:10px; justify-content:flex-end; }
+          .modal-footer .btn { min-width: 160px; }
         </style>
       </head>
       <body>
@@ -1096,7 +1128,7 @@ router.get('/', requireAdmin, async (req, res) => {
         <div id="addProductModal" class="modal">
           <div class="modal-content product-modal">
             <div class="modal-header">
-              <h2>➕ Добавить новый товар</h2>
+              <h2>Добавить новый товар</h2>
               <span class="close" onclick="closeAddProductModal()">&times;</span>
             </div>
             
@@ -1112,7 +1144,7 @@ router.get('/', requireAdmin, async (req, res) => {
                     <label>Название товара *</label>
                     <div style="display: flex; gap: 8px;">
                       <input type="text" id="productName" required placeholder="Введите название товара" style="flex: 1;">
-                      <button type="button" class="btn-translate" onclick="translateProductField('productName', 'title')" title="Перевести с английского через AI">🤖 AI</button>
+                      <button type="button" class="btn-translate" onclick="translateProductField('productName', 'title')" title="Перевести с английского через AI">AI</button>
                     </div>
                   </div>
                   <div class="form-group">
@@ -1147,8 +1179,8 @@ router.get('/', requireAdmin, async (req, res) => {
                   <span class="product-section-subtitle">Выберите регионы, где товар доступен</span>
                 </div>
                 <div class="regions-grid">
-                  <label class="switch-row"><input type="checkbox" id="regionRussia" checked> 🇷🇺 Россия</label>
-                  <label class="switch-row"><input type="checkbox" id="regionBali"> 🇮🇩 Бали</label>
+                  <label class="switch-row"><input type="checkbox" id="regionRussia" checked> Россия</label>
+                  <label class="switch-row"><input type="checkbox" id="regionBali"> Бали</label>
                 </div>
               </div>
 
@@ -1162,7 +1194,7 @@ router.get('/', requireAdmin, async (req, res) => {
                     <label>Краткое описание *</label>
                     <div style="position: relative;">
                       <textarea id="productShortDescription" required placeholder="Краткое описание товара (до 200 символов)" maxlength="200" style="padding-right: 50px;"></textarea>
-                      <button type="button" class="btn-translate" onclick="translateProductField('productShortDescription', 'summary')" title="Перевести с английского через AI" style="position: absolute; top: 8px; right: 8px;">🤖 AI</button>
+                      <button type="button" class="btn-translate" onclick="translateProductField('productShortDescription', 'summary')" title="Перевести с английского через AI" style="position: absolute; top: 8px; right: 8px;">AI</button>
                     </div>
                     <div class="char-count" id="shortDescCount">0/200</div>
                   </div>
@@ -1181,11 +1213,11 @@ router.get('/', requireAdmin, async (req, res) => {
                   <label>Полное описание *</label>
                   <div style="position: relative;">
                     <textarea id="productFullDescription" required placeholder="Подробное описание товара" style="padding-right: 50px;"></textarea>
-                    <button type="button" class="btn-translate" onclick="translateProductField('productFullDescription', 'description')" title="Перевести с английского через AI" style="position: absolute; top: 8px; right: 8px;">🤖 AI</button>
+                    <button type="button" class="btn-translate" onclick="translateProductField('productFullDescription', 'description')" title="Перевести с английского через AI" style="position: absolute; top: 8px; right: 8px;">AI</button>
                   </div>
                 </div>
                 <div class="form-group">
-                  <label>📋 Инструкция по применению</label>
+                  <label>Инструкция по применению</label>
                   <textarea id="productInstruction" placeholder="Инструкция по применению товара (необязательно)"></textarea>
                   <div class="char-count">Инструкция будет отображаться в мини-приложении</div>
                 </div>
@@ -1204,8 +1236,8 @@ router.get('/', requireAdmin, async (req, res) => {
               </div>
 
               <div class="modal-footer">
-                <button type="button" class="btn" onclick="closeAddProductModal()" style="background: #6c757d;">Отмена</button>
-                <button type="submit" class="btn" style="background: #28a745;">💾 Создать товар</button>
+                <button type="button" class="btn" onclick="closeAddProductModal()">Отмена</button>
+                <button type="submit" class="btn" id="productModalSubmit">Создать товар</button>
               </div>
             </form>
           </div>
@@ -1928,7 +1960,7 @@ router.get('/', requireAdmin, async (req, res) => {
             // Reset modal title and submit button
             const modalH2 = document.querySelector('.product-modal h2');
             const submitBtn = document.getElementById('productModalSubmit');
-            if (modalH2) modalH2.textContent = '➕ Добавить новый товар';
+            if (modalH2) modalH2.textContent = 'Добавить новый товар';
             if (submitBtn) submitBtn.textContent = 'Создать товар';
           }
           
@@ -1968,21 +2000,23 @@ router.get('/', requireAdmin, async (req, res) => {
             document.getElementById('productCategory').value = categoryId;
             
             // Set status toggle
-            document.getElementById('productStatus').checked = isActive;
+            const activeEl = document.getElementById('productActive');
+            if (activeEl) activeEl.checked = isActive;
             
             // Set region toggles
-            document.getElementById('productRussia').checked = availableInRussia;
-            document.getElementById('productBali').checked = availableInBali;
+            const rEl = document.getElementById('regionRussia');
+            const bEl = document.getElementById('regionBali');
+            if (rEl) rEl.checked = availableInRussia;
+            if (bEl) bEl.checked = availableInBali;
             
-            // Set image preview
+            // Set image preview (div with background-image)
             const imagePreview = document.getElementById('imagePreview');
-            if (imageUrl) {
-              imagePreview.src = imageUrl;
-              imagePreview.style.display = 'block';
-              imagePreview.nextElementSibling.style.display = 'none';
-            } else {
-              imagePreview.style.display = 'none';
-              imagePreview.nextElementSibling.style.display = 'flex';
+            if (imagePreview) {
+              if (imageUrl) {
+                imagePreview.style.backgroundImage = 'url(' + imageUrl + ')';
+              } else {
+                imagePreview.style.backgroundImage = '';
+              }
             }
             
             // Update modal title and submit button
@@ -2008,7 +2042,7 @@ router.get('/', requireAdmin, async (req, res) => {
               categories.forEach(category => {
                 const option = document.createElement('option');
                 option.value = category.id;
-                option.textContent = category.icon ? category.icon + ' ' + category.name : category.name;
+                option.textContent = category.name;
                 select.appendChild(option);
               });
             } catch (error) {
@@ -2024,18 +2058,19 @@ router.get('/', requireAdmin, async (req, res) => {
             const isEdit = productId !== '';
             
             const formData = new FormData();
-            formData.append('title', document.getElementById('productName').value);
+            // Backend /admin/api/products expects: name, shortDescription, fullDescription, active
+            formData.append('name', document.getElementById('productName').value);
             formData.append('price', document.getElementById('productPrice').value);
             formData.append('categoryId', document.getElementById('productCategory').value);
-            formData.append('stock', document.getElementById('productStock').value || 0);
-            formData.append('summary', document.getElementById('productShortDescription').value);
-            formData.append('description', document.getElementById('productFullDescription').value);
+            formData.append('stock', String(document.getElementById('productStock').value || 0));
+            formData.append('shortDescription', document.getElementById('productShortDescription').value);
+            formData.append('fullDescription', document.getElementById('productFullDescription').value);
             formData.append('instruction', document.getElementById('productInstruction').value);
-            formData.append('isActive', document.getElementById('productStatus').checked);
+            formData.append('active', document.getElementById('productActive').checked ? 'true' : 'false');
             
             // Regions
-            formData.append('availableInRussia', document.getElementById('productRussia').checked);
-            formData.append('availableInBali', document.getElementById('productBali').checked);
+            formData.append('availableInRussia', document.getElementById('regionRussia').checked ? 'true' : 'false');
+            formData.append('availableInBali', document.getElementById('regionBali').checked ? 'true' : 'false');
             
             // Add image if selected
             const imageFile = document.getElementById('productImage').files[0];
@@ -2053,15 +2088,15 @@ router.get('/', requireAdmin, async (req, res) => {
               const result = await response.json();
               
               if (result.success) {
-                alert(isEdit ? '✅ Товар успешно обновлен!' : '✅ Товар успешно создан!');
+                alert(isEdit ? 'Товар успешно обновлен' : 'Товар успешно создан');
                 closeAddProductModal();
                 // Refresh the page to show changes
                 window.location.reload();
               } else {
-                alert(\`❌ Ошибка при \${isEdit ? 'обновлении' : 'создании'} товара: \` + result.error);
+                alert('Ошибка: ' + result.error);
               }
             } catch (error) {
-              alert('❌ Ошибка: ' + (error instanceof Error ? error.message : String(error)));
+              alert('Ошибка: ' + (error instanceof Error ? error.message : String(error)));
             }
           });
           // Handle category form submission
@@ -5291,7 +5326,7 @@ router.get('/products', requireAdmin, async (req, res) => {
             margin-bottom: 16px; padding-bottom: 8px; 
             border-bottom: 2px solid #e2e8f0; display: flex; align-items: center; gap: 8px;
           }
-          .form-section-title::before { content: '📋'; font-size: 18px; }
+          .form-section-title::before { content: ''; }
           
           .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
           .form-grid.single { grid-template-columns: 1fr; }
@@ -5663,8 +5698,8 @@ router.get('/products', requireAdmin, async (req, res) => {
               // Разбиваем длинную innerHTML строку на части для предотвращения SyntaxError
               content.innerHTML = 
                 '<div class="modal-header">' +
-                  '<h2>✏️ Редактировать товар</h2>' +
-                  '<button class="close-btn" onclick="window.closeEditModal()">&times;</button>' +
+                  '<h2>Редактировать товар</h2>' +
+                  '<button type="button" class="close-btn" onclick="window.closeEditModal()">&times;</button>' +
                 '</div>' +
                 '<form id="editProductForm" enctype="multipart/form-data" class="modal-form">' +
                   '<input type="hidden" id="editProductId" name="productId" value="">' +
@@ -5722,12 +5757,12 @@ router.get('/products', requireAdmin, async (req, res) => {
                         '<label class="switch-row">' +
                           '<input type="checkbox" id="editProductRussia" name="availableInRussia">' +
                           '<span class="switch-slider"></span>' +
-                          '<span class="switch-label">🇷🇺 Россия</span>' +
+                          '<span class="switch-label">Россия</span>' +
                         '</label>' +
                         '<label class="switch-row">' +
                           '<input type="checkbox" id="editProductBali" name="availableInBali">' +
                           '<span class="switch-slider"></span>' +
-                          '<span class="switch-label">🇮🇩 Бали</span>' +
+                          '<span class="switch-label">Бали</span>' +
                         '</label>' +
                       '</div>' +
                     '</div>' +
@@ -5738,13 +5773,13 @@ router.get('/products', requireAdmin, async (req, res) => {
                       '<label class="status-row">' +
                         '<input type="checkbox" id="editProductStatus" name="isActive">' +
                         '<span class="switch-slider"></span>' +
-                        '<span class="status-label">✅ Товар активен и доступен для покупки</span>' +
+                        '<span class="status-label">Товар активен и доступен для покупки</span>' +
                       '</label>' +
                     '</div>' +
                   '</div>' +
                   '<div class="form-actions">' +
-                    '<button type="button" onclick="window.closeEditModal()">❌ Отмена</button>' +
-                    '<button type="submit">💾 Обновить товар</button>' +
+                    '<button type="button" onclick="window.closeEditModal()">Отмена</button>' +
+                    '<button type="submit">Обновить товар</button>' +
                   '</div>' +
                 '</form>';
               modal.appendChild(content);
@@ -5957,8 +5992,13 @@ router.get('/products', requireAdmin, async (req, res) => {
             console.log('✅ Modal display set to:', modal.style.display);
             console.log('✅ Modal computed style:', window.getComputedStyle(modal).display);
             
-            // Убеждаемся, что модальное окно видимо
-            setTimeout(() => {
+            // Убеждаемся, что модальное окно видимо (и не переоткрываем после закрытия)
+            try { modal.dataset.__closing = '0'; } catch (_) {}
+            if (modal.__forceShowTimer) { try { clearTimeout(modal.__forceShowTimer); } catch (_) {} }
+            modal.__forceShowTimer = setTimeout(() => {
+              try {
+                if (modal.dataset && modal.dataset.__closing === '1') return;
+              } catch (_) {}
               const computedDisplay = window.getComputedStyle(modal).display;
               if (computedDisplay === 'none') {
                 console.error('❌ Modal still hidden! Forcing display...');
@@ -5980,7 +6020,10 @@ router.get('/products', requireAdmin, async (req, res) => {
           window.closeEditModal = function() {
             const modal = document.getElementById('editProductModal');
             if (modal) {
-              modal.style.display = 'none';
+              try { modal.dataset.__closing = '1'; } catch (_) {}
+              if (modal.__forceShowTimer) { try { clearTimeout(modal.__forceShowTimer); } catch (_) {} }
+              // remove to avoid any CSS/display re-open edge cases
+              modal.remove();
             }
           };
           
@@ -6714,7 +6757,7 @@ router.get('/products', requireAdmin, async (req, res) => {
               <span>ID: ${escapeHtml(product.id.slice(0, 8))}...</span>
             </div>
             <div class="product-actions">
-              <button 
+                <button 
                 type="button" 
                 class="edit-btn"
                 data-id="${escapeAttr(product.id)}"
@@ -6729,7 +6772,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 data-bali="${(product as any).availableInBali ? 'true' : 'false'}"
                 data-image="${escapeAttr(product.imageUrl)}"
                 onclick="if(typeof window.editProduct==='function'){window.editProduct(this);}else{alert('Ошибка: функция редактирования не загружена. Обновите страницу.');}return false;"
-              >✏️ Редактировать</button>
+              >Редактировать</button>
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/toggle-active">
                 <button type="submit" class="toggle-btn">${product.isActive ? 'Отключить' : 'Включить'}</button>
               </form>
@@ -6737,8 +6780,8 @@ router.get('/products', requireAdmin, async (req, res) => {
                 <input type="file" name="image" accept="image/*" id="image-${escapeAttr(product.id)}" class="product-image-input">
                 <label for="image-${escapeAttr(product.id)}" class="image-btn file-label-btn">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</label>
               </form>
-              <button type="button" class="image-btn select-image-btn" style="background: #6366f1;" data-product-id="${escapeAttr(product.id)}"
-                onclick="try{const pid=this.getAttribute('data-product-id'); if(pid && typeof window.openImageGallery==='function'){window.openImageGallery(pid);} else {alert('Ошибка: галерея не загружена. Обновите страницу.');}}catch(e){alert('Ошибка: '+(e&&e.message?e.message:String(e)));} return false;">🖼️ Выбрать из загруженных</button>
+              <button type="button" class="image-btn select-image-btn" data-product-id="${escapeAttr(product.id)}"
+                onclick="try{const pid=this.getAttribute('data-product-id'); if(pid && typeof window.openImageGallery==='function'){window.openImageGallery(pid);} else {alert('Ошибка: галерея не загружена. Обновите страницу.');}}catch(e){alert('Ошибка: '+(e&&e.message?e.message:String(e)));} return false;">Выбрать из загруженных</button>
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/delete" class="delete-product-form" data-product-id="${escapeAttr(product.id)}" data-product-title="${escapeAttr(product.title)}">
                 <button type="button" class="delete-btn">Удалить</button>
               </form>
@@ -6810,7 +6853,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                             'data-bali="' + ((p as any).availableInBali ? 'true' : 'false') + '" ' +
                             'data-image="' + escapeAttr(p.imageUrl) + '" ' +
                             'onclick="if(typeof window.editProduct===\'function\'){window.editProduct(this);}else{alert(\'Ошибка: функция редактирования не загружена.\');} return false;"' +
-                          '>✏️</button>' +
+                          '>Редактировать</button>' +
                           '<form method="post" action="/admin/products/' + escapeAttr(p.id) + '/toggle-active" style="display:inline;">' +
                             '<button type="submit" class="toggle-btn" style="padding:8px 10px;">' + (p.isActive ? 'Отключить' : 'Включить') + '</button>' +
                           '</form>' +

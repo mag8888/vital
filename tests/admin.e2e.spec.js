@@ -62,6 +62,19 @@ test.describe('Admin E2E (Senior QA)', () => {
     await js.assertNone();
   });
 
+  test('Create product modal opens (no submit)', async ({ page }) => {
+    const js = attachNoJsErrors(page);
+    await login(page);
+    await page.locator('button.tab[data-tab="content"]').click();
+    // open modal
+    await page.getByRole('button', { name: /Добавить товар/i }).click();
+    await expect(page.locator('#addProductModal')).toBeVisible();
+    // close modal
+    await page.locator('#addProductModal .close').click();
+    await expect(page.locator('#addProductModal')).toBeHidden();
+    await js.assertNone();
+  });
+
   test('Content links: Products page loads and UI works (filter/search/table/modal) without mutations', async ({ page }) => {
     const js = attachNoJsErrors(page);
     await login(page);
@@ -124,6 +137,8 @@ test.describe('Admin E2E (Senior QA)', () => {
       await expect(page.locator('#editProductModal')).toBeVisible();
       // close without saving
       await page.locator('#editProductModal .close-btn').click({ force: true });
+      // safety: if a delayed "force show" timer existed, closing should still win
+      await page.waitForTimeout(100);
       await expect(page.locator('#editProductModal')).toBeHidden();
     }
 
