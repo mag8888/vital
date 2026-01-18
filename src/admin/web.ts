@@ -4357,6 +4357,75 @@ router.post('/api/categories', requireAdmin, async (req, res) => {
   }
 });
 
+// API: Update category
+router.post('/api/categories/:id/update', requireAdmin, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const name = String((req.body && req.body.name) || '').trim();
+    const description = String((req.body && req.body.description) || '').trim();
+    const isActiveRaw = (req.body && req.body.isActive);
+    const isActive = typeof isActiveRaw === 'boolean' ? isActiveRaw : String(isActiveRaw || '').trim();
+
+    if (!id) return res.status(400).json({ success: false, error: 'category_id_required' });
+    if (!name) return res.status(400).json({ success: false, error: 'Название категории обязательно' });
+
+    const slug = name.toLowerCase().replace(/\s+/g, '-');
+    const data: any = { name, slug, description };
+    if (typeof isActive === 'boolean') data.isActive = isActive;
+    if (isActive === 'true' || isActive === 'false') data.isActive = (isActive === 'true');
+
+    const updated = await prisma.category.update({
+      where: { id },
+      data
+    });
+
+    return res.json({ success: true, category: updated });
+  } catch (error: any) {
+    console.error('Update category error:', error);
+    if (error.code === 'P2002') {
+      return res.status(400).json({ success: false, error: 'Категория с таким названием/slug уже существует' });
+    }
+    return res.status(500).json({ success: false, error: 'Ошибка обновления категории' });
+  }
+});
+
+// API: Delete category (safe: do not allow deleting non-empty categories)
+router.post('/api/categories/:id/delete', requireAdmin, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ success: false, error: 'category_id_required' });
+
+    const productsCount = await prisma.product.count({ where: { categoryId: id } });
+    if (productsCount > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Нельзя удалить категорию: в ней есть товары (${productsCount}). Сначала переместите товары в другую категорию.`
+      });
+    }
+
+    await prisma.category.delete({ where: { id } });
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Delete category error:', error);
+    return res.status(500).json({ success: false, error: 'Ошибка удаления категории' });
+  }
+});
+
+// HTML action: toggle category active (used by /admin/categories page)
+router.post('/categories/:id/toggle-active', requireAdmin, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.redirect('/admin/categories?error=category_not_found');
+    const cat = await prisma.category.findUnique({ where: { id } });
+    if (!cat) return res.redirect('/admin/categories?error=category_not_found');
+    await prisma.category.update({ where: { id }, data: { isActive: !cat.isActive } });
+    return res.redirect('/admin/categories?success=category_updated');
+  } catch (error) {
+    console.error('Toggle category error:', error);
+    return res.redirect('/admin/categories?error=category_update_failed');
+  }
+});
+
 // API: Move all products to "Косметика" category
 router.post('/api/move-all-to-cosmetics', requireAdmin, async (req, res) => {
   try {
@@ -4901,9 +4970,13 @@ router.post('/force-recalculate-all-bonuses', requireAdmin, async (req, res) => 
 router.get('/categories', requireAdmin, async (req, res) => {
   try {
     console.log('📁 Admin categories page accessed');
-    const categories = await prisma.category.findMany({
+    const categoriesRaw = await prisma.category.findMany({
       orderBy: { createdAt: 'desc' }
     });
+    const categories = await Promise.all(categoriesRaw.map(async (c) => {
+      const productsCount = await prisma.product.count({ where: { categoryId: c.id } });
+      return { ...c, productsCount };
+    }));
     const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
 
     let html = `
@@ -4915,43 +4988,290 @@ router.get('/categories', requireAdmin, async (req, res) => {
         <style>
           ${ADMIN_UI_CSS}
           body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--admin-bg); }
-          .btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; margin: 5px; }
-          .btn:hover { background: #0056b3; }
-          table { width: 100%; border-collapse: collapse; margin-top: 10px; background: var(--admin-surface); border: 1px solid var(--admin-border); border-radius: 14px; overflow: hidden; }
-          th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-          th { background-color: #f2f2f2; }
-          .status-btn { transition: all 0.2s ease; }
-          .status-btn:hover { transform: scale(1.1); }
-          .status-btn.active { color: #28a745; }
-          .status-btn.inactive { color: #dc3545; }
+          .page-actions{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom: 14px; }
+          .page-actions .btn{ height: 40px; border-radius: 14px; font-weight: 800; }
+          .alert { padding: 12px 14px; margin: 10px 0; border-radius: 16px; border: 1px solid var(--admin-border); background: #fff; }
+          .alert-success { border-color: rgba(34,197,94,0.25); background: rgba(34,197,94,0.08); color: #166534; }
+          .alert-error { border-color: rgba(220,38,38,0.25); background: rgba(220,38,38,0.08); color: #991b1b; }
+          table { width: 100%; border-collapse: collapse; margin-top: 12px; background: #fff; border: 1px solid var(--admin-border); border-radius: 18px; overflow:hidden; }
+          th, td { padding: 12px 12px; text-align: left; border-bottom: 1px solid rgba(17,24,39,0.06); vertical-align: middle; }
+          th { background: rgba(17,24,39,0.03); font-size: 12px; color: var(--admin-muted); text-transform: uppercase; letter-spacing: .06em; }
+          tr:hover td{ background: rgba(17,24,39,0.02); }
+          .actions{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:flex-end; }
+          .btn-mini{
+            height: 34px;
+            padding: 0 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 900;
+            border: 1px solid var(--admin-border-strong);
+            background: #fff;
+            cursor: pointer;
+          }
+          .btn-mini:hover{ background: rgba(17,24,39,0.06); }
+          .btn-mini.danger{ border-color: rgba(220,38,38,0.35); color: #991b1b; }
+          .btn-mini.danger:hover{ background: rgba(220,38,38,0.08); }
+          .pill{ display:inline-flex; align-items:center; justify-content:center; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--admin-border); background: rgba(255,255,255,0.7); font-size: 12px; font-weight: 900; }
+          .muted{ color: var(--admin-muted); font-size: 12px; }
         </style>
       </head>
       <body>
         ${renderAdminShellStart({ title: 'Категории', activePath: '/admin/categories', buildMarker })}
+        <div class="page-actions">
+          <button type="button" class="btn" onclick="window.openCategoryModal()">Добавить категорию</button>
+        </div>
+
+        ${req.query.success ? '<div class="alert alert-success">Изменения сохранены</div>' : ''}
+        ${req.query.error ? '<div class="alert alert-error">Ошибка: ' + String(req.query.error) + '</div>' : ''}
+
         <table>
-          <tr><th>ID</th><th>Название</th><th>Слаг</th><th>Статус</th><th>Создана</th></tr>
+          <thead>
+            <tr>
+              <th>Название</th>
+              <th>Slug</th>
+              <th>Товары</th>
+              <th>Статус</th>
+              <th>Создана</th>
+              <th style="text-align:right;">Действия</th>
+            </tr>
+          </thead>
+          <tbody>
     `;
+
+    const escapeHtml = (str: any) => String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    const escapeAttr = (str: any) => escapeHtml(str).replace(/'/g, '&#39;');
 
     categories.forEach(cat => {
       html += `
         <tr>
-          <td>${cat.id.substring(0, 8)}...</td>
-          <td>${cat.name}</td>
-          <td>${cat.slug}</td>
           <td>
-            <form method="post" action="/admin/categories/${cat.id}/toggle-active" style="display: inline;">
-              <button type="submit" class="status-btn ${cat.isActive ? 'active' : 'inactive'}" style="border: none; background: none; cursor: pointer; font-size: 16px;">
-                ${cat.isActive ? '✅ Активна' : '❌ Неактивна'}
-              </button>
+            <div style="font-weight: 900;">${escapeHtml(cat.name)}</div>
+            ${cat.description ? `<div class="muted">${escapeHtml(cat.description)}</div>` : ''}
+          </td>
+          <td style="color:#6b7280;">${escapeHtml(cat.slug)}</td>
+          <td><span class="pill">${Number((cat as any).productsCount || 0)}</span></td>
+          <td>
+            <form method="post" action="/admin/categories/${escapeAttr(cat.id)}/toggle-active" style="display:inline; margin:0;">
+              <button type="submit" class="btn-mini" title="Переключить статус">${cat.isActive ? 'Активна' : 'Отключена'}</button>
             </form>
           </td>
-          <td>${new Date(cat.createdAt).toLocaleDateString()}</td>
+          <td>${new Date(cat.createdAt).toLocaleDateString('ru-RU')}</td>
+          <td style="text-align:right;">
+            <div class="actions">
+              <button type="button" class="btn-mini cat-edit"
+                data-id="${escapeAttr(cat.id)}"
+                data-name="${escapeAttr(cat.name)}"
+                data-description="${escapeAttr(cat.description || '')}"
+                data-active="${cat.isActive ? 'true' : 'false'}">Редактировать</button>
+              <button type="button" class="btn-mini danger cat-delete"
+                data-id="${escapeAttr(cat.id)}"
+                data-name="${escapeAttr(cat.name)}"
+                data-products-count="${escapeAttr((cat as any).productsCount || 0)}">Удалить</button>
+            </div>
+          </td>
         </tr>
       `;
     });
 
     html += `
+          </tbody>
         </table>
+
+        <!-- Modal: add/edit category -->
+        <div id="categoryModal" class="modal-overlay" style="display:none; z-index: 12000;">
+          <div class="modal-content" style="max-width: 680px;">
+            <div class="modal-header">
+              <h2 id="categoryModalTitle" style="margin:0;">Категория</h2>
+              <button class="close-btn" type="button" onclick="window.closeCategoryModal()">&times;</button>
+            </div>
+            <form id="categoryForm" class="modal-form">
+              <input type="hidden" id="categoryId">
+              <div class="form-group">
+                <label for="categoryNameInput">Название *</label>
+                <input id="categoryNameInput" type="text" required placeholder="Например: Косметика">
+              </div>
+              <div class="form-group">
+                <label for="categoryDescInput">Описание</label>
+                <textarea id="categoryDescInput" rows="4" placeholder="Описание категории (опционально)"></textarea>
+              </div>
+              <div class="form-group">
+                <label style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--admin-border-strong); border-radius:12px; background:#fff;">
+                  <input id="categoryActiveInput" type="checkbox" checked>
+                  <span style="font-weight:800;">Активна</span>
+                </label>
+              </div>
+              <div class="form-actions">
+                <button type="button" onclick="window.closeCategoryModal()">Отмена</button>
+                <button type="submit" id="categorySaveBtn">Сохранить</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Modal: confirm delete -->
+        <div id="deleteCategoryModal" class="modal-overlay" style="display:none; z-index: 12000;">
+          <div class="modal-content" style="max-width: 560px;">
+            <div class="modal-header">
+              <h2 style="margin:0;">Удалить категорию?</h2>
+              <button class="close-btn" type="button" onclick="window.closeDeleteCategoryModal()">&times;</button>
+            </div>
+            <div class="modal-form">
+              <p id="deleteCategoryText" style="margin:0; color:#374151; font-size:14px; line-height:1.5;"></p>
+            </div>
+            <div class="form-actions">
+              <button type="button" onclick="window.closeDeleteCategoryModal()">Отмена</button>
+              <button type="button" id="deleteCategoryConfirmBtn" style="background: var(--admin-danger); color:#fff; border-color: var(--admin-danger);">Удалить</button>
+            </div>
+          </div>
+        </div>
+
+        <script>
+          'use strict';
+          window.__categoryDeleteId = null;
+
+          window.openCategoryModal = function(cat){
+            const modal = document.getElementById('categoryModal');
+            const title = document.getElementById('categoryModalTitle');
+            const idEl = document.getElementById('categoryId');
+            const nameEl = document.getElementById('categoryNameInput');
+            const descEl = document.getElementById('categoryDescInput');
+            const activeEl = document.getElementById('categoryActiveInput');
+            if (!modal || !title || !idEl || !nameEl || !descEl || !activeEl) return;
+
+            const isEdit = !!(cat && cat.id);
+            title.textContent = isEdit ? 'Редактировать категорию' : 'Добавить категорию';
+            idEl.value = isEdit ? String(cat.id) : '';
+            nameEl.value = isEdit ? String(cat.name || '') : '';
+            descEl.value = isEdit ? String(cat.description || '') : '';
+            activeEl.checked = isEdit ? (String(cat.isActive) === 'true') : true;
+            modal.style.display = 'flex';
+            modal.onclick = function(e){ if (e && e.target === modal) window.closeCategoryModal(); };
+            setTimeout(() => { try { nameEl.focus(); } catch(_){} }, 30);
+          };
+
+          window.closeCategoryModal = function(){
+            const modal = document.getElementById('categoryModal');
+            if (modal) modal.style.display = 'none';
+          };
+
+          window.openDeleteCategoryModal = function(id, name, productsCount){
+            const modal = document.getElementById('deleteCategoryModal');
+            const text = document.getElementById('deleteCategoryText');
+            const btn = document.getElementById('deleteCategoryConfirmBtn');
+            if (!modal || !text || !btn) return;
+            window.__categoryDeleteId = String(id || '');
+            const cnt = parseInt(String(productsCount || '0'), 10) || 0;
+            if (cnt > 0){
+              text.textContent = 'Категорию “' + (name || '') + '” нельзя удалить: в ней есть товары (' + cnt + '). Сначала переместите товары в другую категорию.';
+              btn.disabled = true;
+              btn.style.opacity = '0.5';
+            } else {
+              text.textContent = 'Вы точно хотите удалить категорию “' + (name || '') + '”? Это действие нельзя отменить.';
+              btn.disabled = false;
+              btn.style.opacity = '1';
+            }
+            modal.style.display = 'flex';
+            modal.onclick = function(e){ if (e && e.target === modal) window.closeDeleteCategoryModal(); };
+          };
+
+          window.closeDeleteCategoryModal = function(){
+            const modal = document.getElementById('deleteCategoryModal');
+            if (modal) modal.style.display = 'none';
+            window.__categoryDeleteId = null;
+          };
+
+          document.addEventListener('click', function(e){
+            const t = e.target;
+            const el = (t && t.nodeType === 1) ? t : (t && t.parentElement ? t.parentElement : null);
+            if (!el) return;
+            const edit = el.closest('.cat-edit');
+            if (edit){
+              e.preventDefault();
+              window.openCategoryModal({
+                id: edit.getAttribute('data-id'),
+                name: edit.getAttribute('data-name'),
+                description: edit.getAttribute('data-description'),
+                isActive: edit.getAttribute('data-active')
+              });
+              return;
+            }
+            const del = el.closest('.cat-delete');
+            if (del){
+              e.preventDefault();
+              window.openDeleteCategoryModal(
+                del.getAttribute('data-id'),
+                del.getAttribute('data-name'),
+                del.getAttribute('data-products-count')
+              );
+              return;
+            }
+          }, true);
+
+          document.getElementById('categoryForm').addEventListener('submit', async function(e){
+            e.preventDefault();
+            const id = document.getElementById('categoryId').value.trim();
+            const name = document.getElementById('categoryNameInput').value.trim();
+            const description = document.getElementById('categoryDescInput').value.trim();
+            const isActive = document.getElementById('categoryActiveInput').checked ? 'true' : 'false';
+            if (!name) { alert('Введите название'); return; }
+
+            const btn = document.getElementById('categorySaveBtn');
+            const old = btn ? btn.textContent : '';
+            if (btn){ btn.disabled = true; btn.textContent = 'Сохранение...'; }
+            try{
+              const payload = { name, description, isActive };
+              const url = id ? ('/admin/api/categories/' + encodeURIComponent(id) + '/update') : '/admin/api/categories';
+              const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(payload)
+              });
+              const result = await resp.json().catch(() => ({}));
+              if (resp.ok && result && result.success){
+                window.closeCategoryModal();
+                window.location.reload();
+              } else {
+                alert('Ошибка: ' + (result && result.error ? result.error : ('HTTP ' + resp.status)));
+              }
+            }catch(err){
+              alert('Ошибка: ' + (err && err.message ? err.message : String(err)));
+            }finally{
+              if (btn){ btn.disabled = false; btn.textContent = old || 'Сохранить'; }
+            }
+          });
+
+          document.getElementById('deleteCategoryConfirmBtn').addEventListener('click', async function(){
+            const id = window.__categoryDeleteId;
+            if (!id) return;
+            const btn = this;
+            const old = btn.textContent;
+            btn.disabled = true; btn.textContent = 'Удаление...';
+            try{
+              const resp = await fetch('/admin/api/categories/' + encodeURIComponent(id) + '/delete', {
+                method: 'POST',
+                credentials: 'include'
+              });
+              const result = await resp.json().catch(() => ({}));
+              if (resp.ok && result && result.success){
+                window.closeDeleteCategoryModal();
+                window.location.reload();
+              } else {
+                alert('Ошибка: ' + (result && result.error ? result.error : ('HTTP ' + resp.status)));
+              }
+            }catch(err){
+              alert('Ошибка: ' + (err && err.message ? err.message : String(err)));
+            }finally{
+              btn.textContent = old || 'Удалить';
+            }
+          });
+        </script>
+
         ${renderAdminShellEnd()}
       </body>
       </html>
