@@ -1223,6 +1223,7 @@ router.get('/', requireAdmin, async (req, res) => {
             font-size: 12px; font-weight: 800;
           }
           .dash-actions{ display:flex; gap:10px; flex-wrap:wrap; }
+          .dash-top-actions{ display:flex; justify-content:flex-end; margin-bottom: 12px; }
           .dash-list{ margin-top: 12px; display:flex; flex-direction:column; gap: 10px; }
           .dash-item{
             background:#fff;
@@ -1255,6 +1256,12 @@ router.get('/', requireAdmin, async (req, res) => {
 
         <div class="dash-wrap">
           <div>
+            <div class="dash-top-actions">
+              <div class="dash-actions">
+                <a class="btn" href="/admin/products?openAdd=1" style="background:var(--admin-text); color:#fff; border-color:var(--admin-text);">Добавить товар</a>
+                <a class="btn" href="/admin/products">Открыть товары</a>
+              </div>
+            </div>
             <div class="dash-cards">
               <a class="dash-card dash-card-link" href="/admin/users-detailed" aria-label="Перейти к пользователям">
                 <div class="dash-row">
@@ -7148,6 +7155,7 @@ router.get('/products', requireAdmin, async (req, res) => {
       <body>
         ${renderAdminShellStart({ title: 'Товары', activePath: '/admin/products', buildMarker })}
         <div class="admin-page-row">
+          <button type="button" class="btn" onclick="try{ if(typeof window.openAddProductModal==='function'){ window.openAddProductModal(); } else { window.location.href='/admin/products?openAdd=1'; } }catch(e){}">Добавить товар</button>
           <button type="button" class="btn" onclick="scrapeAllImages()">Собрать фото</button>
           <button type="button" class="btn" onclick="moveAllToCosmetics()">Переместить в «Косметика»</button>
         </div>
@@ -7538,12 +7546,223 @@ router.get('/products', requireAdmin, async (req, res) => {
           </div>
         </div>
 
+        <!-- Modal: create product -->
+        <div id="createProductModal" class="modal-overlay" style="display:none; z-index: 12000;">
+          <div class="modal-content" style="max-width: 920px; width: min(920px, 96vw);">
+            <div class="modal-header">
+              <h2 style="margin:0;">Добавить товар</h2>
+              <button class="close-btn" type="button" onclick="window.closeAddProductModal()">&times;</button>
+            </div>
+            <form id="createProductForm" class="modal-form">
+              <div class="form-group" style="display:grid; grid-template-columns: 1fr 160px 160px; gap:12px;">
+                <div>
+                  <label for="cpName">Название *</label>
+                  <input id="cpName" name="name" type="text" required placeholder="Введите название товара">
+                </div>
+                <div>
+                  <label for="cpPriceRub">Цена (₽) *</label>
+                  <input id="cpPriceRub" type="number" min="0" step="1" required placeholder="0">
+                  <div style="font-size:12px; color:#6b7280; margin-top:6px;">1 PZ = 100 ₽</div>
+                </div>
+                <div>
+                  <label for="cpPricePz">Цена (PZ) *</label>
+                  <input id="cpPricePz" name="price" type="number" min="0" step="0.01" required placeholder="0.00">
+                  <div style="font-size:12px; color:#6b7280; margin-top:6px;">1 PZ = 100 ₽</div>
+                </div>
+              </div>
+
+              <div class="form-group" style="display:grid; grid-template-columns: 1fr 200px 180px; gap:12px;">
+                <div>
+                  <label for="cpCategory">Категория *</label>
+                  <select id="cpCategory" name="categoryId" required>
+                    <option value="">Загрузка...</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="cpStock">Количество на складе</label>
+                  <input id="cpStock" name="stock" type="number" min="0" step="1" placeholder="0">
+                </div>
+                <div style="display:flex; align-items:flex-end; gap:10px;">
+                  <label style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--admin-border-strong); border-radius:12px; background:#fff; width:100%;">
+                    <input id="cpActive" type="checkbox" checked>
+                    <span style="font-weight:700;">Активен</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-group" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+                <label style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--admin-border-strong); border-radius:12px; background:#fff;">
+                  <input id="cpRussia" type="checkbox" checked>
+                  <span style="font-weight:700;">Россия</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--admin-border-strong); border-radius:12px; background:#fff;">
+                  <input id="cpBali" type="checkbox">
+                  <span style="font-weight:700;">Бали</span>
+                </label>
+              </div>
+
+              <div class="form-group">
+                <label for="cpSummary">Краткое описание *</label>
+                <textarea id="cpSummary" name="shortDescription" rows="4" maxlength="200" required placeholder="Краткое описание (до 200 символов)"></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="cpDescription">Полное описание</label>
+                <textarea id="cpDescription" name="fullDescription" rows="6" placeholder="Полное описание товара"></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="cpInstruction">Инструкция (опционально)</label>
+                <textarea id="cpInstruction" name="instruction" rows="4" placeholder="Инструкция"></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="cpImage">Фото (опционально)</label>
+                <input id="cpImage" type="file" accept="image/*">
+                <div style="font-size:12px; color:#6b7280; margin-top:6px;">Квадратное фото 1:1, ~800x800px, JPG/PNG</div>
+              </div>
+
+              <div class="form-actions">
+                <button type="button" onclick="window.closeAddProductModal()">Отмена</button>
+                <button type="submit">Создать</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
         <script>
           // Определяем функции глобально ДО загрузки страницы - сразу, не в IIFE
           'use strict';
           
           // NOTE: window.editProduct, window.closeEditModal, и window.showInstructionSafe уже определены в <head>
           // Они доступны ДО загрузки HTML, поэтому onclick обработчики будут работать
+
+          // ===== Create product modal (for /admin/products) =====
+          window.openAddProductModal = async function() {
+            try {
+              const modal = document.getElementById('createProductModal');
+              const form = document.getElementById('createProductForm');
+              if (!modal || !form) return;
+
+              // reset
+              try { form.reset(); } catch (_) {}
+              const activeEl = document.getElementById('cpActive');
+              const ruEl = document.getElementById('cpRussia');
+              const baliEl = document.getElementById('cpBali');
+              if (activeEl) activeEl.checked = true;
+              if (ruEl) ruEl.checked = true;
+              if (baliEl) baliEl.checked = false;
+
+              // load categories
+              const select = document.getElementById('cpCategory');
+              if (select) {
+                select.innerHTML = '<option value="">Загрузка...</option>';
+                try {
+                  const resp = await fetch('/admin/api/categories', { credentials: 'include' });
+                  const cats = await resp.json().catch(() => []);
+                  const arr = Array.isArray(cats) ? cats : [];
+                  select.innerHTML = '<option value="">Выберите категорию</option>' +
+                    arr.map(c => '<option value="' + String(c.id).replace(/"/g,'&quot;') + '">' + String(c.name || '').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</option>').join('');
+                } catch (e) {
+                  select.innerHTML = '<option value="">Ошибка загрузки категорий</option>';
+                }
+              }
+
+              modal.style.display = 'flex';
+              modal.onclick = function(e){ if (e && e.target === modal) window.closeAddProductModal(); };
+            } catch (e) {
+              console.error('openAddProductModal error:', e);
+              alert('Ошибка открытия формы добавления товара');
+            }
+          };
+
+          window.closeAddProductModal = function() {
+            try {
+              const modal = document.getElementById('createProductModal');
+              const form = document.getElementById('createProductForm');
+              const img = document.getElementById('cpImage');
+              if (modal) modal.style.display = 'none';
+              if (form) { try { form.reset(); } catch (_) {} }
+              if (img) img.value = '';
+            } catch (_) {}
+          };
+
+          (function(){
+            // price sync (RUB <-> PZ)
+            const rub = document.getElementById('cpPriceRub');
+            const pz = document.getElementById('cpPricePz');
+            function syncFromRub(){
+              try{
+                const v = parseFloat(rub.value || '0');
+                if (!isFinite(v)) return;
+                pz.value = (v / 100).toFixed(2);
+              }catch(_){}
+            }
+            function syncFromPz(){
+              try{
+                const v = parseFloat(pz.value || '0');
+                if (!isFinite(v)) return;
+                rub.value = String(Math.round(v * 100));
+              }catch(_){}
+            }
+            if (rub && pz) {
+              rub.addEventListener('input', syncFromRub);
+              pz.addEventListener('input', syncFromPz);
+            }
+
+            // auto-open via ?openAdd=1
+            try{
+              const url = new URL(window.location.href);
+              if (url.searchParams.get('openAdd') === '1') {
+                url.searchParams.delete('openAdd');
+                window.history.replaceState({}, '', url.toString());
+                if (typeof window.openAddProductModal === 'function') window.openAddProductModal();
+              }
+            }catch(_){}
+
+            // submit
+            const form = document.getElementById('createProductForm');
+            if (!form) return;
+            form.addEventListener('submit', async function(e){
+              e.preventDefault();
+              const submitBtn = form.querySelector('button[type="submit"]');
+              const oldText = submitBtn ? submitBtn.textContent : '';
+              if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Создание...'; }
+              try{
+                const fd = new FormData();
+                fd.append('name', (document.getElementById('cpName').value || '').trim());
+                fd.append('price', String(document.getElementById('cpPricePz').value || '0'));
+                fd.append('categoryId', String(document.getElementById('cpCategory').value || ''));
+                fd.append('stock', String(document.getElementById('cpStock').value || '0'));
+                fd.append('shortDescription', String(document.getElementById('cpSummary').value || ''));
+                fd.append('fullDescription', String(document.getElementById('cpDescription').value || ''));
+                fd.append('instruction', String(document.getElementById('cpInstruction').value || ''));
+                fd.append('active', (document.getElementById('cpActive').checked ? 'true' : 'false'));
+                fd.append('availableInRussia', (document.getElementById('cpRussia').checked ? 'true' : 'false'));
+                fd.append('availableInBali', (document.getElementById('cpBali').checked ? 'true' : 'false'));
+                const img = document.getElementById('cpImage');
+                if (img && img.files && img.files[0]) fd.append('image', img.files[0]);
+
+                const resp = await fetch('/admin/api/products', { method:'POST', body: fd, credentials:'include' });
+                const result = await resp.json().catch(() => ({}));
+                if (resp.ok && result && result.success) {
+                  window.closeAddProductModal();
+                  if (typeof window.reloadAdminProductsPreservingState === 'function') {
+                    window.reloadAdminProductsPreservingState({ success: 'product_created' });
+                  } else {
+                    window.location.reload();
+                  }
+                } else {
+                  alert('Ошибка: ' + (result && result.error ? result.error : ('HTTP ' + resp.status)));
+                }
+              }catch(err){
+                console.error('create product error:', err);
+                alert('Ошибка: ' + (err && err.message ? err.message : String(err)));
+              }finally{
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = oldText || 'Создать'; }
+              }
+            });
+          })();
           
           // Category modal functions
           window.openAddCategoryModal = function() {
