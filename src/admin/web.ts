@@ -239,6 +239,110 @@ const ADMIN_UI_CSS = `
     border: 1px solid var(--admin-border-strong);
     background: var(--admin-surface);
   }
+
+  /* Modals (Dribbble-like) */
+  .admin-shell .modal-overlay,
+  .admin-shell .modal{
+    position: fixed !important;
+    inset: 0 !important;
+    display: none;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 22px !important;
+    background: rgba(17,24,39,0.45) !important;
+    backdrop-filter: blur(10px) !important;
+    z-index: 12000 !important;
+  }
+  .admin-shell .modal-overlay[style*="display: flex"],
+  .admin-shell .modal[style*="display: block"],
+  .admin-shell .modal[style*="display:block"],
+  .admin-shell .modal[style*="display: flex"]{
+    display: flex !important;
+  }
+  .admin-shell .modal-content{
+    background: #fff !important;
+    border-radius: 26px !important;
+    border: 1px solid rgba(255,255,255,0.75) !important;
+    box-shadow: 0 35px 80px rgba(17,24,39,0.25) !important;
+    width: min(920px, 96vw) !important;
+    max-height: min(86vh, 980px) !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    transform: translateY(6px);
+    animation: adminModalIn .18s ease-out forwards;
+  }
+  @keyframes adminModalIn{
+    from{ opacity:0; transform: translateY(12px) scale(.98); }
+    to{ opacity:1; transform: translateY(0) scale(1); }
+  }
+  .admin-shell .modal-header{
+    background: transparent !important;
+    color: var(--admin-text) !important;
+    border-bottom: 1px solid var(--admin-border) !important;
+    padding: 18px 20px !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+  }
+  .admin-shell .modal-header h2,
+  .admin-shell .modal-header h3{
+    margin: 0 !important;
+    font-size: 22px !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.02em !important;
+    color: var(--admin-text) !important;
+    text-shadow: none !important;
+  }
+  .admin-shell .close-btn,
+  .admin-shell .close{
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 14px !important;
+    border: 1px solid var(--admin-border) !important;
+    background: rgba(255,255,255,0.72) !important;
+    color: var(--admin-text) !important;
+    cursor: pointer !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    font-size: 26px !important;
+    line-height: 1 !important;
+    box-shadow: none !important;
+  }
+  .admin-shell .close-btn:hover,
+  .admin-shell .close:hover{
+    background: rgba(17,24,39,0.06) !important;
+  }
+  .admin-shell .modal-form,
+  .admin-shell .modal-body{
+    padding: 18px 20px !important;
+    overflow: auto !important;
+    max-height: calc(86vh - 88px) !important;
+  }
+  .admin-shell .form-actions,
+  .admin-shell .modal-footer{
+    padding: 16px 20px !important;
+    border-top: 1px solid var(--admin-border) !important;
+    display:flex !important;
+    gap: 10px !important;
+    justify-content:flex-end !important;
+    background: rgba(255,255,255,0.6) !important;
+    backdrop-filter: blur(6px) !important;
+  }
+  .admin-shell .form-actions button[type="submit"],
+  .admin-shell .modal-footer button[type="submit"],
+  .admin-shell .form-actions .btn-primary{
+    background: var(--admin-text) !important;
+    color: #fff !important;
+    border-color: var(--admin-text) !important;
+  }
+  .admin-shell .form-actions button[type="button"],
+  .admin-shell .modal-footer button[type="button"]{
+    background: transparent !important;
+    color: var(--admin-text) !important;
+    border: 1px solid var(--admin-border-strong) !important;
+  }
 `;
 
 function adminIcon(name: string): string {

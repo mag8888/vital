@@ -83,7 +83,8 @@ test.describe('Admin E2E (Senior QA)', () => {
     await page.locator('button.tab[data-tab="content"]').click();
     await page.locator('#content a[href="/admin/products"]').click();
     await expect(page).toHaveURL(/\/admin\/products/);
-    await expect(page.locator('text=Управление товарами')).toBeVisible();
+    await expect(page.locator('.admin-shell')).toBeVisible();
+    await expect(page.locator('.admin-topbar h1')).toContainText(/Товары/i);
 
     // Basic UI
     const viewTableBtn = page.locator('#viewTableBtn');
@@ -152,15 +153,16 @@ test.describe('Admin E2E (Senior QA)', () => {
 
     await page.locator('#content a[href="/admin/categories"]').click();
     await expect(page).toHaveURL(/\/admin\/categories/);
-    await expect(page.locator('h2')).toContainText(/Категор/i);
+    await expect(page.locator('.admin-shell')).toBeVisible();
+    await expect(page.locator('.admin-topbar h1')).toContainText(/Категор/i);
 
     await page.goto('/admin/reviews');
     await expect(page).toHaveURL(/\/admin\/reviews/);
-    await expect(page.locator('h2')).toContainText(/Отзыв/i);
+    await expect(page.locator('.admin-topbar h1')).toContainText(/Отзыв/i);
 
     await page.goto('/admin/orders');
     await expect(page).toHaveURL(/\/admin\/orders/);
-    await expect(page.locator('h2')).toContainText(/Заказ/i);
+    await expect(page.locator('.admin-topbar h1')).toContainText(/Заказ/i);
 
     await js.assertNone();
   });
