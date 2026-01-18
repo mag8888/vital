@@ -786,20 +786,20 @@ router.get('/', requireAdmin, async (req, res) => {
         });
 
         if (users.length === 0) {
-          return '<div class="empty-list">Нет пользователей</div>';
+          return '<div class="dash-item"><div><div class="title">Нет пользователей</div><div class="muted">Пока пусто</div></div><div class="muted">—</div></div>';
         }
 
         return users.map(user => `
-          <div class="list-item">
-            <div class="list-info">
-              <div class="list-name">${user.firstName || 'Пользователь'} ${user.lastName || ''}</div>
-              <div class="list-time">${user.createdAt.toLocaleString('ru-RU')}</div>
+          <div class="dash-item">
+            <div>
+              <div class="title">${user.firstName || 'Пользователь'} ${user.lastName || ''}</div>
+              <div class="muted">${user.createdAt.toLocaleString('ru-RU')}</div>
             </div>
-            <div>@${user.username || 'без username'}</div>
+            <div class="muted">${user.username ? ('@' + user.username) : '—'}</div>
           </div>
         `).join('');
       } catch (error) {
-        return '<div class="empty-list">Ошибка загрузки</div>';
+        return '<div class="dash-item"><div><div class="title">Ошибка загрузки</div><div class="muted">Не удалось получить пользователей</div></div><div class="muted">—</div></div>';
       }
     }
 
@@ -814,20 +814,20 @@ router.get('/', requireAdmin, async (req, res) => {
         });
 
         if (orders.length === 0) {
-          return '<div class="empty-list">Нет заказов</div>';
+          return '<div class="dash-item"><div><div class="title">Нет заказов</div><div class="muted">Пока пусто</div></div><div class="muted">—</div></div>';
         }
 
         return orders.map(order => `
-          <div class="list-item">
-            <div class="list-info">
-              <div class="list-name">Заказ #${order.id}</div>
-              <div class="list-time">${order.createdAt.toLocaleString('ru-RU')}</div>
+          <div class="dash-item">
+            <div>
+              <div class="title">Заказ ${order.id.slice(0, 8)}…</div>
+              <div class="muted">${order.createdAt.toLocaleString('ru-RU')}</div>
             </div>
-            <div>${order.user?.firstName || 'Пользователь'}</div>
+            <div class="muted">${order.user?.firstName || 'Пользователь'}</div>
           </div>
         `).join('');
       } catch (error) {
-        return '<div class="empty-list">Ошибка загрузки</div>';
+        return '<div class="dash-item"><div><div class="title">Ошибка загрузки</div><div class="muted">Не удалось получить заказы</div></div><div class="muted">—</div></div>';
       }
     }
 
@@ -846,23 +846,22 @@ router.get('/', requireAdmin, async (req, res) => {
         });
 
         if (transactions.length === 0) {
-          return '<div class="empty-list">Нет транзакций</div>';
+          return '<div class="dash-item"><div><div class="title">Нет транзакций</div><div class="muted">Пока пусто</div></div><div class="muted">—</div></div>';
         }
 
         return transactions.map(tx => `
-          <div class="list-item">
-            <div class="list-info">
-              <div class="list-name">${tx.profile.user.firstName || 'Партнёр'}</div>
-              <div class="list-time">${tx.createdAt.toLocaleString('ru-RU')}</div>
-              <div style="font-size: 11px; color: #999; margin-top: 2px;">${tx.description}</div>
+          <div class="dash-item">
+            <div>
+              <div class="title">${tx.profile.user.firstName || 'Партнёр'}</div>
+              <div class="muted">${tx.createdAt.toLocaleString('ru-RU')} • ${(tx.description || '').toString().slice(0, 60)}${(tx.description || '').toString().length > 60 ? '…' : ''}</div>
             </div>
-            <div class="list-amount ${tx.amount < 0 ? 'negative' : ''}">
+            <div class="muted" style="font-weight:900; color:${tx.amount < 0 ? 'var(--admin-danger)' : 'var(--admin-text)'};">
               ${tx.amount > 0 ? '+' : ''}${tx.amount.toFixed(2)} PZ
             </div>
           </div>
         `).join('');
       } catch (error) {
-        return '<div class="empty-list">Ошибка загрузки</div>';
+        return '<div class="dash-item"><div><div class="title">Ошибка загрузки</div><div class="muted">Не удалось получить транзакции</div></div><div class="muted">—</div></div>';
       }
     }
     res.send(`
@@ -1156,34 +1155,164 @@ router.get('/', requireAdmin, async (req, res) => {
           /* Shared admin UI baseline */
           ${ADMIN_UI_CSS}
 
-          /* Monochrome admin buttons (override inline colors) */
-          :root { --mono-fg: #111; --mono-bg: #fff; --mono-border: #111; }
-          .btn, button, .filter-btn, .toggle-btn, .delete-btn, .image-btn, .edit-btn, .status-btn {
-            background: transparent !important;
-            color: var(--mono-fg) !important;
-            border: 1px solid var(--mono-border) !important;
-            border-radius: 10px !important;
-            box-shadow: none !important;
+          /* New Dashboard (Dribbble-like) */
+          .dash-wrap{ display:grid; grid-template-columns: 1.25fr 1fr; gap: 18px; }
+          .dash-cards{ display:grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+          .dash-card{
+            background: var(--admin-surface);
+            border: 1px dashed var(--admin-border-strong);
+            border-radius: 22px;
+            padding: 18px 18px;
+            box-shadow: 0 14px 34px rgba(17,24,39,0.06);
+            min-height: 120px;
           }
-          .btn:hover, button:hover, .filter-btn:hover, .toggle-btn:hover, .delete-btn:hover, .image-btn:hover, .edit-btn:hover {
-            background: #111 !important;
-            color: #fff !important;
+          .dash-card.solid{ border-style: solid; }
+          .dash-card h3{ margin:0; font-size: 14px; color: var(--admin-muted); font-weight: 800; }
+          .dash-card .value{ margin-top: 12px; font-size: 30px; font-weight: 900; letter-spacing: -0.04em; }
+          .dash-card .sub{ margin-top: 6px; font-size: 12px; color: var(--admin-muted); }
+          .dash-big{
+            background: var(--admin-surface);
+            border: 1px solid var(--admin-border);
+            border-radius: 22px;
+            padding: 18px;
+            box-shadow: 0 14px 34px rgba(17,24,39,0.06);
           }
-          .product-actions { display: grid !important; grid-template-columns: 1fr !important; gap: 10px !important; }
-          .product-actions > * { width: 100% !important; }
-          .product-actions form { width: 100% !important; }
-          .product-actions form button, .product-actions button, .product-actions .image-btn, .product-actions .edit-btn {
-            width: 100% !important;
-            padding: 12px 14px !important;
-            justify-content: center !important;
+          .dash-row{ display:flex; align-items:center; justify-content:space-between; gap: 10px; }
+          .pill{
+            display:inline-flex; align-items:center; justify-content:center;
+            padding: 8px 12px; border-radius: 999px;
+            border: 1px solid var(--admin-border);
+            background: rgba(255,255,255,0.7);
+            font-size: 12px; font-weight: 800;
           }
-          .modal-footer { display:flex; gap:10px; justify-content:flex-end; }
-          .modal-footer .btn { min-width: 160px; }
+          .dash-actions{ display:flex; gap:10px; flex-wrap:wrap; }
+          .dash-list{ margin-top: 12px; display:flex; flex-direction:column; gap: 10px; }
+          .dash-item{
+            background:#fff;
+            border: 1px solid var(--admin-border);
+            border-radius: 18px;
+            padding: 12px 14px;
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap: 12px;
+          }
+          .dash-item .title{ font-weight: 900; }
+          .dash-item .muted{ color: var(--admin-muted); font-size: 12px; }
+          .dash-table{ width:100%; border-collapse: collapse; margin-top: 12px; }
+          .dash-table th, .dash-table td{ padding: 12px 10px; border-bottom: 1px solid rgba(17,24,39,0.06); text-align:left; }
+          .dash-table th{ font-size: 12px; color: var(--admin-muted); text-transform: uppercase; letter-spacing: .06em; }
+          .dash-cta{
+            background: linear-gradient(135deg, rgba(17,24,39,0.92) 0%, rgba(17,24,39,0.82) 100%);
+            color: #fff;
+            border: 1px solid rgba(17,24,39,0.10);
+          }
+          .dash-cta .sub{ color: rgba(255,255,255,0.75); }
+          .dash-cta .value{ color: #fff; }
+          .legacy-admin{ display:none !important; }
+          @media (max-width: 1120px){ .dash-wrap{ grid-template-columns: 1fr; } .dash-cards{ grid-template-columns: 1fr; } }
         </style>
       </head>
       <body>
-        ${renderAdminShellStart({ title: 'Dashboard', activePath: '/admin', buildMarker })}
-        <div class="container">
+        ${renderAdminShellStart({ title: 'Analytics', activePath: '/admin', buildMarker })}
+
+        <div class="dash-wrap">
+          <div>
+            <div class="dash-cards">
+              <div class="dash-card">
+                <div class="dash-row">
+                  <h3>Пользователи</h3>
+                  <span class="pill">Всего</span>
+                </div>
+                <div class="value">${stats.users}</div>
+                <div class="sub">Аккаунты в системе</div>
+              </div>
+              <div class="dash-card">
+                <div class="dash-row">
+                  <h3>Товары</h3>
+                  <span class="pill">Каталог</span>
+                </div>
+                <div class="value">${stats.products}</div>
+                <div class="sub">Позиции</div>
+              </div>
+              <div class="dash-card">
+                <div class="dash-row">
+                  <h3>Заказы</h3>
+                  <span class="pill">Заявки</span>
+                </div>
+                <div class="value">${stats.orders}</div>
+                <div class="sub">Новые/в работе/выполнено</div>
+              </div>
+            </div>
+
+            <div style="height: 16px;"></div>
+
+            <div class="dash-big">
+              <div class="dash-row">
+                <div>
+                  <h3 style="margin:0; font-size:16px; font-weight:900;">Последние заказы</h3>
+                  <div class="muted" style="color:var(--admin-muted); font-size:12px; margin-top:6px;">Быстрый обзор активности</div>
+                </div>
+                <div class="dash-actions">
+                  <a class="btn" href="/admin/orders">Открыть заказы</a>
+                  <button type="button" class="btn" onclick="try{ if(typeof openAddProductModal==='function') openAddProductModal(); }catch(e){}">Добавить товар</button>
+                </div>
+              </div>
+              <div class="dash-list">
+                ${await getRecentOrders()}
+              </div>
+            </div>
+
+            <div style="height: 16px;"></div>
+
+            <div class="dash-big">
+              <div class="dash-row">
+                <div>
+                  <h3 style="margin:0; font-size:16px; font-weight:900;">Транзакции</h3>
+                  <div class="muted" style="color:var(--admin-muted); font-size:12px; margin-top:6px;">Последние начисления/списания</div>
+                </div>
+                <a class="btn" href="/admin/partners">Партнёры</a>
+              </div>
+              <div class="dash-list">
+                ${await getRecentTransactions()}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="dash-card dash-cta solid">
+              <h3 style="color:rgba(255,255,255,0.82);">Баланс пользователей</h3>
+              <div class="value">${stats.totalBalance.toFixed(2)} PZ</div>
+              <div class="sub">Сумма по всем пользователям</div>
+              <div style="height: 10px;"></div>
+              <div class="dash-actions">
+                <a class="btn" href="/admin/users-detailed" style="background:#fff; color:#111827;">Открыть пользователей</a>
+              </div>
+            </div>
+
+            <div style="height: 16px;"></div>
+
+            <div class="dash-big">
+              <div class="dash-row">
+                <div>
+                  <h3 style="margin:0; font-size:16px; font-weight:900;">Быстрые разделы</h3>
+                  <div class="muted" style="color:var(--admin-muted); font-size:12px; margin-top:6px;">Навигация по админке</div>
+                </div>
+              </div>
+              <table class="dash-table">
+                <tbody>
+                  <tr><td><a href="/admin/products" class="link">Товары</a></td><td class="muted">Каталог</td></tr>
+                  <tr><td><a href="/admin/categories" class="link">Категории</a></td><td class="muted">Структура</td></tr>
+                  <tr><td><a href="/admin/chats" class="link">Чаты</a></td><td class="muted">Поддержка</td></tr>
+                  <tr><td><a href="/admin/invoice-import" class="link">Импорт инвойса</a></td><td class="muted">Загрузка</td></tr>
+                  <tr><td><a href="/admin/sync-siam-json" class="link">Siam из JSON</a></td><td class="muted">Синхронизация</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="container legacy-admin">
           <div class="header">
             <h1>🚀 Админ-панель Vital Bot v2.0</h1>
             <p>Единое управление ботом, пользователями и партнёрами</p>
@@ -5552,25 +5681,7 @@ router.get('/products', requireAdmin, async (req, res) => {
         <style>
           ${ADMIN_UI_CSS}
           body { margin: 0; padding: 0; background: var(--admin-bg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-          a.btn, button.btn { 
-            display: inline-block; 
-            padding: 10px 20px; 
-            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-            color: white; 
-            text-decoration: none; 
-            border: none;
-            border-radius: 8px; 
-            margin: 5px 0 20px; 
-            transition: all 0.2s ease;
-            cursor: pointer;
-            font-weight: 600;
-            box-shadow: 0 2px 4px rgba(0,123,255,0.3);
-          }
-          a.btn:hover, button.btn:hover { 
-            background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(0,123,255,0.4);
-          }
+          /* Use shared .btn styles from ADMIN_UI_CSS (no gradients) */
           h2 { margin-top: 0; color: #1f2937; font-weight: 600; }
           .filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
           .filter-btn { padding: 8px 16px; border: 1px solid #111827; border-radius: 999px; background: transparent; color: #111827; cursor: pointer; transition: all 0.15s ease; }
@@ -5595,23 +5706,25 @@ router.get('/products', requireAdmin, async (req, res) => {
           .product-actions { display: grid; grid-template-columns: 1fr; gap: 10px; }
           .product-actions form { margin: 0; }
 
-          /* Card action buttons */
+          /* Card action buttons (clean + consistent) */
           .btn-action{
             width: 100%;
+            height: 52px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
-            padding: 12px 14px;
-            border-radius: 12px;
-            font-weight: 700;
+            gap: 12px;
+            padding: 0 16px;
+            border-radius: 18px;
+            font-weight: 800;
+            font-size: 15px;
             cursor: pointer;
-            border: 1px solid #111827;
-            background: transparent;
-            color: #111827;
-            box-shadow: none;
+            border: 1px solid var(--admin-border-strong);
+            background: #fff;
+            color: var(--admin-text);
+            box-shadow: 0 10px 22px rgba(17,24,39,0.06);
           }
-          .btn-compact{ padding: 8px 10px; border-radius: 10px; font-size: 12px; }
+          .btn-compact{ height: 40px; border-radius: 14px; font-size: 13px; font-weight: 800; box-shadow: none; }
           .btn-action .btn-ico{
             display:inline-flex;
             width: 18px;
@@ -5629,24 +5742,25 @@ router.get('/products', requireAdmin, async (req, res) => {
             stroke-linecap: round;
             stroke-linejoin: round;
           }
-          .btn-outline:hover{ background:#111827; color:#fff; }
+          .btn-outline{ background: #fff; }
+          .btn-outline:hover{ background: rgba(17,24,39,0.06); }
           .btn-solid-black{
             background:#111827;
-            border-color:#111827;
+            border-color:#111827 !important;
             color:#fff;
           }
           .btn-solid-black:hover{
-            background:#000;
-            border-color:#000;
+            background:#0b0f19;
+            border-color:#0b0f19 !important;
           }
           .btn-solid-danger{
-            background:#dc2626;
-            border-color:#dc2626;
+            background: var(--admin-danger);
+            border-color: var(--admin-danger) !important;
             color:#fff;
           }
           .btn-solid-danger:hover{
             background:#b91c1c;
-            border-color:#b91c1c;
+            border-color:#b91c1c !important;
           }
           .file-label-btn{ user-select:none; }
           .file-label-btn input{ display:none; }
@@ -5827,42 +5941,7 @@ router.get('/products', requireAdmin, async (req, res) => {
             .regions-grid { grid-template-columns: 1fr; }
             .form-actions { flex-direction: column; }
           }
-          .product-actions button { 
-            padding: 8px 14px; 
-            border: none; 
-            border-radius: 8px; 
-            cursor: pointer; 
-            font-size: 12px; 
-            font-weight: 600; 
-            white-space: nowrap;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-          }
-          .product-actions button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-          }
-          .product-actions .toggle-btn { 
-            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-            color: #fff;
-          }
-          .product-actions .toggle-btn:hover { 
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-          }
-          .product-actions .delete-btn { 
-            background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
-            color: #fff;
-          }
-          .product-actions .delete-btn:hover { 
-            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-          }
-          .product-actions .image-btn { 
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-            color: #fff;
-          }
-          .product-actions .image-btn:hover { 
-            background: linear-gradient(135deg, #059669 0%, #047857 100%);
-          }
+          /* Remove legacy rainbow button styles in cards */
           /* iOS/Safari: input[type=file].click() may fail if input is display:none.
              Keep it in DOM (not display:none) but visually hidden. */
           .product-image-input {
@@ -5878,20 +5957,7 @@ router.get('/products', requireAdmin, async (req, res) => {
             display: inline-block;
             user-select: none;
           }
-          .product-actions .edit-btn { 
-            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-            color: #fff;
-          }
-          .product-actions .edit-btn:hover { 
-            background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
-          }
-          .product-actions .instruction-btn {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: #fff;
-          }
-          .product-actions .instruction-btn:hover {
-            background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%);
-          }
+          /* Instruction button removed from cards; keep empty to avoid accidental legacy overrides */
           .empty-state { text-align: center; padding: 60px 20px; color: #6b7280; background: #fff; border-radius: 12px; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08); }
           img.product-image { width: 100%; height: 200px; object-fit: cover; border-radius: 10px; }
           .product-image-placeholder { 
@@ -14968,7 +15034,7 @@ async function distributeReferralBonuses(userId: string, orderAmount: number) {
   }
 }
 // Audio files management routes
-router.get('/admin/audio', requireAdmin, async (req, res) => {
+router.get('/audio', requireAdmin, async (req, res) => {
   try {
     const audioFiles = await prisma.audioFile.findMany({
       orderBy: { createdAt: 'desc' }
@@ -15177,7 +15243,7 @@ import invoiceImportRouter from './invoice-import.js';
 router.use('/admin', invoiceImportRouter);
 
 // GET: Settings page
-router.get('/admin/invoice-settings', requireAdmin, async (req, res) => {
+router.get('/invoice-settings', requireAdmin, async (req, res) => {
   try {
     const { getImportSettings } = await import('../services/invoice-import-service.js');
     const settings = await getImportSettings();
@@ -15334,7 +15400,7 @@ router.get('/admin/invoice-settings', requireAdmin, async (req, res) => {
 });
 
 // GET: Invoice import page
-router.get('/admin/invoice-import', requireAdmin, async (req, res) => {
+router.get('/invoice-import', requireAdmin, async (req, res) => {
   try {
     const { getImportSettings } = await import('../services/invoice-import-service.js');
     const settings = await getImportSettings();
