@@ -268,6 +268,8 @@ const ADMIN_UI_CSS = `
     max-height: min(86vh, 980px) !important;
     overflow: hidden !important;
     padding: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
     transform: translateY(6px);
     animation: adminModalIn .18s ease-out forwards;
   }
@@ -319,6 +321,19 @@ const ADMIN_UI_CSS = `
     padding: 18px 20px !important;
     overflow: auto !important;
     max-height: calc(86vh - 88px) !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Some existing modals use <form class="product-form"> or plain <form> without .modal-form */
+  .admin-shell .modal-content > form,
+  .admin-shell .modal-content > .product-form,
+  .admin-shell .modal-content > .product-modal{
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .admin-shell .modal-content > form.product-form{
+    padding: 18px 20px !important;
   }
   .admin-shell .form-actions,
   .admin-shell .modal-footer{
