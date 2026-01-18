@@ -5230,6 +5230,14 @@ router.get('/products', requireAdmin, async (req, res) => {
 
     const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
 
+    const ICONS = {
+      pencil: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+      power: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v10"/><path d="M6.4 4.9a8 8 0 1 0 11.2 0"/></svg>',
+      camera: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><path d="M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/></svg>',
+      image: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m8 13 2-2 4 4 2-2 3 3"/><path d="M8.5 8.5h.01"/></svg>',
+      trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>',
+    };
+
     let html = `
       <!DOCTYPE html>
       <html>
@@ -5259,9 +5267,9 @@ router.get('/products', requireAdmin, async (req, res) => {
           }
           h2 { margin-top: 0; color: #1f2937; font-weight: 600; }
           .filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
-          .filter-btn { padding: 8px 16px; border: none; border-radius: 999px; background: #e0e7ff; color: #1d4ed8; cursor: pointer; transition: all 0.2s ease; }
-          .filter-btn:hover { background: #c7d2fe; }
-          .filter-btn.active { background: #1d4ed8; color: #fff; box-shadow: 0 4px 10px rgba(29, 78, 216, 0.2); }
+          .filter-btn { padding: 8px 16px; border: 1px solid #111827; border-radius: 999px; background: transparent; color: #111827; cursor: pointer; transition: all 0.15s ease; }
+          .filter-btn:hover { background: #111827; color: #fff; }
+          .filter-btn.active { background: #111827; color: #fff; }
           .product-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
           .product-card { background: #fff; border-radius: 12px; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08); padding: 18px; display: flex; flex-direction: column; gap: 12px; transition: transform 0.2s ease, box-shadow 0.2s ease; }
           .product-card:hover { transform: translateY(-4px); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12); }
@@ -5278,8 +5286,64 @@ router.get('/products', requireAdmin, async (req, res) => {
           .product-summary { color: #4b5563; font-size: 14px; line-height: 1.5; margin: 0; }
           .product-price { font-size: 16px; font-weight: 600; color: #1f2937; }
           .product-meta { font-size: 12px; color: #6b7280; display: flex; justify-content: space-between; }
-          .product-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+          .product-actions { display: grid; grid-template-columns: 1fr; gap: 10px; }
           .product-actions form { margin: 0; }
+
+          /* Card action buttons */
+          .btn-action{
+            width: 100%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            border: 1px solid #111827;
+            background: transparent;
+            color: #111827;
+            box-shadow: none;
+          }
+          .btn-compact{ padding: 8px 10px; border-radius: 10px; font-size: 12px; }
+          .btn-action .btn-ico{
+            display:inline-flex;
+            width: 18px;
+            height: 18px;
+            align-items:center;
+            justify-content:center;
+            flex: 0 0 18px;
+          }
+          .btn-action svg{
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+          }
+          .btn-outline:hover{ background:#111827; color:#fff; }
+          .btn-solid-black{
+            background:#111827;
+            border-color:#111827;
+            color:#fff;
+          }
+          .btn-solid-black:hover{
+            background:#000;
+            border-color:#000;
+          }
+          .btn-solid-danger{
+            background:#dc2626;
+            border-color:#dc2626;
+            color:#fff;
+          }
+          .btn-solid-danger:hover{
+            background:#b91c1c;
+            border-color:#b91c1c;
+          }
+          .file-label-btn{ user-select:none; }
+          .file-label-btn input{ display:none; }
           
           /* Modal styles - Modern Design */
           .modal-overlay { 
@@ -6759,7 +6823,7 @@ router.get('/products', requireAdmin, async (req, res) => {
             <div class="product-actions">
                 <button 
                 type="button" 
-                class="edit-btn"
+                class="btn-action btn-solid-black edit-btn"
                 data-id="${escapeAttr(product.id)}"
                 data-title="${escapeAttr(product.title)}"
                 data-summary="${escapeAttr(product.summary)}"
@@ -6772,18 +6836,18 @@ router.get('/products', requireAdmin, async (req, res) => {
                 data-bali="${(product as any).availableInBali ? 'true' : 'false'}"
                 data-image="${escapeAttr(product.imageUrl)}"
                 onclick="if(typeof window.editProduct==='function'){window.editProduct(this);}else{alert('Ошибка: функция редактирования не загружена. Обновите страницу.');}return false;"
-              >Редактировать</button>
+              ><span class="btn-ico">${ICONS.pencil}</span><span>Редактировать</span></button>
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/toggle-active">
-                <button type="submit" class="toggle-btn">${product.isActive ? 'Отключить' : 'Включить'}</button>
+                <button type="submit" class="btn-action btn-outline toggle-btn"><span class="btn-ico">${ICONS.power}</span><span>${product.isActive ? 'Отключить' : 'Включить'}</span></button>
               </form>
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/upload-image" enctype="multipart/form-data" style="display: inline; position: relative;" class="upload-image-form" data-product-id="${escapeAttr(product.id)}">
                 <input type="file" name="image" accept="image/*" id="image-${escapeAttr(product.id)}" class="product-image-input">
-                <label for="image-${escapeAttr(product.id)}" class="image-btn file-label-btn">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</label>
+                <label for="image-${escapeAttr(product.id)}" class="btn-action btn-outline image-btn file-label-btn"><span class="btn-ico">${ICONS.camera}</span><span>${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</span></label>
               </form>
-              <button type="button" class="image-btn select-image-btn" data-product-id="${escapeAttr(product.id)}"
-                onclick="try{const pid=this.getAttribute('data-product-id'); if(pid && typeof window.openImageGallery==='function'){window.openImageGallery(pid);} else {alert('Ошибка: галерея не загружена. Обновите страницу.');}}catch(e){alert('Ошибка: '+(e&&e.message?e.message:String(e)));} return false;">Выбрать из загруженных</button>
+              <button type="button" class="btn-action btn-outline image-btn select-image-btn" data-product-id="${escapeAttr(product.id)}"
+                onclick="try{const pid=this.getAttribute('data-product-id'); if(pid && typeof window.openImageGallery==='function'){window.openImageGallery(pid);} else {alert('Ошибка: галерея не загружена. Обновите страницу.');}}catch(e){alert('Ошибка: '+(e&&e.message?e.message:String(e)));} return false;"><span class="btn-ico">${ICONS.image}</span><span>Выбрать из загруженных</span></button>
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/delete" class="delete-product-form" data-product-id="${escapeAttr(product.id)}" data-product-title="${escapeAttr(product.title)}">
-                <button type="button" class="delete-btn">Удалить</button>
+                <button type="button" class="btn-action btn-solid-danger delete-btn"><span class="btn-ico">${ICONS.trash}</span><span>Удалить</span></button>
               </form>
             </div>
           </div>
@@ -6840,7 +6904,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                       '<td style="padding:12px; border-bottom:1px solid #f1f5f9; white-space:nowrap;">' + priceFormatted + '</td>' +
                       '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' +
                         '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
-                          '<button type="button" class="edit-btn" ' +
+                          '<button type="button" class="btn-action btn-compact btn-solid-black edit-btn" ' +
                             'data-id="' + escapeAttr(p.id) + '" ' +
                             'data-title="' + escapeAttr(p.title) + '" ' +
                             'data-summary="' + escapeAttr(p.summary) + '" ' +
@@ -6853,12 +6917,12 @@ router.get('/products', requireAdmin, async (req, res) => {
                             'data-bali="' + ((p as any).availableInBali ? 'true' : 'false') + '" ' +
                             'data-image="' + escapeAttr(p.imageUrl) + '" ' +
                             'onclick="if(typeof window.editProduct===\'function\'){window.editProduct(this);}else{alert(\'Ошибка: функция редактирования не загружена.\');} return false;"' +
-                          '>Редактировать</button>' +
+                          '><span class="btn-ico">' + ICONS.pencil + '</span><span>Редактировать</span></button>' +
                           '<form method="post" action="/admin/products/' + escapeAttr(p.id) + '/toggle-active" style="display:inline;">' +
-                            '<button type="submit" class="toggle-btn" style="padding:8px 10px;">' + (p.isActive ? 'Отключить' : 'Включить') + '</button>' +
+                            '<button type="submit" class="btn-action btn-compact btn-outline toggle-btn"><span class="btn-ico">' + ICONS.power + '</span><span>' + (p.isActive ? 'Отключить' : 'Включить') + '</span></button>' +
                           '</form>' +
                           '<form method="post" action="/admin/products/' + escapeAttr(p.id) + '/delete" class="delete-product-form" data-product-id="' + escapeAttr(p.id) + '" data-product-title="' + escapeAttr(p.title) + '" style="display:inline;">' +
-                            '<button type="button" class="delete-btn" style="padding:8px 10px;">Удалить</button>' +
+                            '<button type="button" class="btn-action btn-compact btn-solid-danger delete-btn"><span class="btn-ico">' + ICONS.trash + '</span><span>Удалить</span></button>' +
                           '</form>' +
                         '</div>' +
                       '</td>' +
@@ -6883,9 +6947,9 @@ router.get('/products', requireAdmin, async (req, res) => {
                 <div id="tableImageModalEmpty" style="color:#9ca3af; font-size:14px;">Нет фото</div>
               </div>
               <div style="display:flex; gap:10px; justify-content:flex-end; align-items:center; flex-wrap:wrap;">
-                <button type="button" class="btn" style="background:#6366f1;" onclick="try{ if(typeof window.openImageGallery==='function' && window.__tableImageModalState && window.__tableImageModalState.productId){ window.openImageGallery(window.__tableImageModalState.productId);} }catch(e){}">🖼️ Выбрать из загруженных</button>
-                <button type="button" class="btn" id="tableImageReplaceBtn" style="background:linear-gradient(135deg,#28a745 0%,#20c997 100%); color:#fff;" onclick="window.triggerTableImageReplace()">📷 Заменить фото</button>
-                <button type="button" class="btn" style="background:#6c757d; color:#fff;" onclick="window.closeTableImageModal()">Закрыть</button>
+                <button type="button" class="btn-action btn-outline" onclick="try{ if(typeof window.openImageGallery==='function' && window.__tableImageModalState && window.__tableImageModalState.productId){ window.openImageGallery(window.__tableImageModalState.productId);} }catch(e){}"><span class="btn-ico">${ICONS.image}</span><span>Выбрать из загруженных</span></button>
+                <button type="button" class="btn-action btn-outline" id="tableImageReplaceBtn" onclick="window.triggerTableImageReplace()"><span class="btn-ico">${ICONS.camera}</span><span>Заменить фото</span></button>
+                <button type="button" class="btn-action btn-outline" onclick="window.closeTableImageModal()">Закрыть</button>
               </div>
               <input id="tableImageFileInput" type="file" accept="image/*" style="display:none" onchange="window.handleTableImageFileSelected(this)">
             </div>
