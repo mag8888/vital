@@ -4420,7 +4420,7 @@ router.post('/api/move-all-to-cosmetics', requireAdmin, async (req, res) => {
 // API: Create product
 router.post('/api/products', requireAdmin, upload.single('image'), async (req, res) => {
   try {
-    const { name, price, categoryId, stock, shortDescription, fullDescription, instruction, active, availableInRussia, availableInBali } = req.body;
+    const { name, price, categoryId, stock, sku, shortDescription, fullDescription, instruction, active, availableInRussia, availableInBali } = req.body;
 
     // Validation
     if (!name || !name.trim()) {
@@ -4469,6 +4469,13 @@ router.post('/api/products', requireAdmin, upload.single('image'), async (req, r
       }
     }
 
+    const stockNum = Number.parseInt(String(stock ?? ''), 10);
+    const finalStock = Number.isFinite(stockNum) ? Math.max(0, stockNum) : 999;
+
+    const cleanSku = String(sku || '').trim();
+    const generatedSku = 'MANUAL-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 5).toUpperCase();
+    const finalSku = cleanSku || generatedSku;
+
     // Create product
     const product = await prisma.product.create({
       data: {
@@ -4478,7 +4485,9 @@ router.post('/api/products', requireAdmin, upload.single('image'), async (req, r
         instruction: instruction?.trim() || null,
         price: parseFloat(price),
         categoryId,
-        imageUrl,
+        imageUrl: imageUrl || null,
+        stock: finalStock,
+        sku: finalSku,
         isActive: active === 'true' || active === true,
         availableInRussia: availableInRussia === 'true' || availableInRussia === true,
         availableInBali: availableInBali === 'true' || availableInBali === true
@@ -7910,7 +7919,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 </div>
                 <div>
                   <label for="cpStock">Количество на складе</label>
-                  <input id="cpStock" name="stock" type="number" min="0" step="1" placeholder="0">
+                  <input id="cpStock" name="stock" type="number" min="0" step="1" placeholder="999">
                 </div>
                 <div style="display:flex; align-items:flex-end; gap:10px;">
                   <label style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--admin-border-strong); border-radius:12px; background:#fff; width:100%;">
@@ -7918,6 +7927,11 @@ router.get('/products', requireAdmin, async (req, res) => {
                     <span style="font-weight:700;">Активен</span>
                   </label>
                 </div>
+              </div>
+
+              <div class="form-group">
+                <label for="cpSku">ID товара (Item / SKU)</label>
+                <input id="cpSku" name="sku" type="text" placeholder="Например: SP0021-230 (если пусто — сгенерируем автоматически)">
               </div>
 
               <div class="form-group" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
@@ -7937,8 +7951,8 @@ router.get('/products', requireAdmin, async (req, res) => {
               </div>
 
               <div class="form-group">
-                <label for="cpDescription">Полное описание</label>
-                <textarea id="cpDescription" name="fullDescription" rows="6" placeholder="Полное описание товара"></textarea>
+                <label for="cpDescription">Полное описание *</label>
+                <textarea id="cpDescription" name="fullDescription" rows="6" required placeholder="Полное описание товара"></textarea>
               </div>
 
               <div class="form-group">
@@ -7979,9 +7993,13 @@ router.get('/products', requireAdmin, async (req, res) => {
               const activeEl = document.getElementById('cpActive');
               const ruEl = document.getElementById('cpRussia');
               const baliEl = document.getElementById('cpBali');
+              const stockEl = document.getElementById('cpStock');
+              const skuEl = document.getElementById('cpSku');
               if (activeEl) activeEl.checked = true;
               if (ruEl) ruEl.checked = true;
               if (baliEl) baliEl.checked = false;
+              if (stockEl) stockEl.value = '999';
+              if (skuEl) skuEl.value = '';
 
               // load categories
               const select = document.getElementById('cpCategory');
@@ -8064,6 +8082,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 fd.append('price', String(document.getElementById('cpPricePz').value || '0'));
                 fd.append('categoryId', String(document.getElementById('cpCategory').value || ''));
                 fd.append('stock', String(document.getElementById('cpStock').value || '0'));
+                fd.append('sku', String(document.getElementById('cpSku').value || '').trim());
                 fd.append('shortDescription', String(document.getElementById('cpSummary').value || ''));
                 fd.append('fullDescription', String(document.getElementById('cpDescription').value || ''));
                 fd.append('instruction', String(document.getElementById('cpInstruction').value || ''));
