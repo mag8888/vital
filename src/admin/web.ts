@@ -4963,6 +4963,8 @@ router.get('/partners', requireAdmin, async (req, res) => {
       })
     );
 
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
+
     let html = `
       <!DOCTYPE html>
       <html>
@@ -4970,50 +4972,96 @@ router.get('/partners', requireAdmin, async (req, res) => {
         <title>Управление партнёрами</title>
         <meta charset="utf-8">
         <style>
-          body { font-family: Arial, sans-serif; max-width: 1000px; margin: 20px auto; padding: 20px; }
-          .btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; margin: 5px; }
-          .btn:hover { background: #0056b3; }
-          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-          th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-          th { background-color: #f2f2f2; }
+          ${ADMIN_UI_CSS}
+          body { margin: 0; padding: 0; background: var(--admin-bg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+
+          .page-actions{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom: 14px; }
+          .page-actions form{ display:inline; margin:0; }
+          .page-actions .btn{ height: 40px; border-radius: 14px; font-weight: 800; }
+
+          .metric-card{
+            background: var(--admin-surface);
+            border: 1px solid var(--admin-border);
+            border-radius: 22px;
+            padding: 18px;
+            box-shadow: 0 14px 34px rgba(17,24,39,0.06);
+            display:flex;
+            align-items:center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 10px 0 14px 0;
+          }
+          .metric-card .label{ font-weight: 900; font-size: 14px; color: var(--admin-muted); }
+          .metric-card .value{ font-weight: 900; font-size: 34px; letter-spacing: -0.04em; }
+
+          .alert { padding: 12px 14px; margin: 10px 0; border-radius: 16px; border: 1px solid var(--admin-border); background: #fff; }
+          .alert-success { border-color: rgba(34,197,94,0.25); background: rgba(34,197,94,0.08); color: #166534; }
+          .alert-error { border-color: rgba(220,38,38,0.25); background: rgba(220,38,38,0.08); color: #991b1b; }
+
+          table { width: 100%; border-collapse: collapse; margin-top: 12px; background: #fff; border: 1px solid var(--admin-border); border-radius: 18px; overflow:hidden; }
+          th, td { padding: 12px 12px; text-align: left; border-bottom: 1px solid rgba(17,24,39,0.06); vertical-align: top; }
+          th { background: rgba(17,24,39,0.03); font-size: 12px; color: var(--admin-muted); text-transform: uppercase; letter-spacing: .06em; }
+          tr:hover td{ background: rgba(17,24,39,0.02); }
+
+          .actions{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+          .mini-input{
+            width: 128px;
+            padding: 8px 10px;
+            border-radius: 12px;
+            border: 1px solid var(--admin-border-strong);
+            font-size: 12px;
+          }
+          .btn-mini{
+            height: 34px;
+            padding: 0 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 900;
+            border: 1px solid var(--admin-border-strong);
+            background: #fff;
+            cursor: pointer;
+          }
+          .btn-mini:hover{ background: rgba(17,24,39,0.06); }
+          .btn-mini.danger{ border-color: rgba(220,38,38,0.35); color: #991b1b; }
+          .btn-mini.danger:hover{ background: rgba(220,38,38,0.08); }
         </style>
       </head>
       <body>
-        <h2>👥 Управление партнёрами v2.0</h2>
-        <p style="color: #666; font-size: 12px; margin: 5px 0;">Версия: 2.0 | ${new Date().toLocaleString()}</p>
-        <a href="/admin" class="btn">← Назад</a>
-        <a href="/admin/partners-hierarchy" class="btn" style="background: #6f42c1;">🌳 Иерархия партнёров</a>
-        <a href="/admin/test-referral-links" class="btn" style="background: #17a2b8;">🧪 Тест ссылок</a>
-        <form method="post" action="/admin/recalculate-bonuses" style="display: inline;">
-          <button type="submit" class="btn" style="background: #28a745;" onclick="return confirm('Пересчитать бонусы всех партнёров?')">🔄 Пересчитать бонусы</button>
-        </form>
-        <form method="post" action="/admin/cleanup-duplicates" style="display: inline;">
-          <button type="submit" class="btn" style="background: #dc3545;" onclick="return confirm('⚠️ Удалить дублирующиеся записи партнёров и транзакций? Это действие необратимо!')">🧹 Очистить дубли</button>
-        </form>
-        <form method="post" action="/admin/recalculate-all-balances" style="display: inline;">
-          <button type="submit" class="btn" style="background: #ffc107; color: #000;" onclick="return confirm('🔄 Пересчитать ВСЕ балансы партнёров?')">🔄 Пересчитать все балансы</button>
-        </form>
-        <a href="/admin/debug-partners" class="btn" style="background: #6c757d;">🔍 Отладка партнёров</a>
-        <form method="post" action="/admin/cleanup-referral-duplicates" style="display: inline;">
-          <button type="submit" class="btn" style="background: #dc3545;" onclick="return confirm('⚠️ Очистить дублирующиеся записи рефералов? Это действие необратимо!')">🧹 Очистить дубли рефералов</button>
-        </form>
-        <form method="post" action="/admin/force-recalculate-bonuses" style="display: inline;">
-          <button type="submit" class="btn" style="background: #17a2b8;" onclick="return confirm('🔄 Принудительно пересчитать ВСЕ бонусы?')">🔄 Пересчитать бонусы</button>
-        </form>
-        <form method="post" action="/admin/cleanup-duplicate-bonuses" style="display: inline;">
-          <button type="submit" class="btn" style="background: #dc3545;" onclick="return confirm('⚠️ Удалить дублирующиеся бонусы? Это действие необратимо!')">🧹 Очистить дубли бонусов</button>
-        </form>
-        <form method="post" action="/admin/fix-roman-bonuses" style="display: inline;">
-          <button type="submit" class="btn" style="background: #28a745;" onclick="return confirm('🔧 Исправить бонусы Roman Arctur?')">🔧 Исправить бонусы Roman</button>
-        </form>
-        <form method="post" action="/admin/reset-all-partners" style="display: inline;">
-          <button type="submit" class="btn" style="background: #dc3545;" onclick="const confirmed = confirm('⚠️⚠️⚠️ КРИТИЧЕСКОЕ ПОДТВЕРЖДЕНИЕ!\\n\\nЭто удалит ВСЕ партнерские профили, рефералы и транзакции!\\n\\nЭто действие НЕОБРАТИМО!\\n\\nПродолжить?'); if (!confirmed) return false; const doubleCheck = prompt('Для подтверждения введите точно: УДАЛИТЬ ВСЕХ ПАРТНЕРОВ'); return doubleCheck === 'УДАЛИТЬ ВСЕХ ПАРТНЕРОВ';">🗑️ Сбросить всех партнёров</button>
-        </form>
+        ${renderAdminShellStart({ title: 'Партнёры', activePath: '/admin/partners', buildMarker })}
+
+        <div class="page-actions">
+          <a href="/admin/partners-hierarchy" class="btn">Иерархия</a>
+          <a href="/admin/test-referral-links" class="btn">Тест ссылок</a>
+          <a href="/admin/debug-partners" class="btn">Отладка</a>
+          <form method="post" action="/admin/recalculate-bonuses">
+            <button type="submit" class="btn" onclick="return confirm('Пересчитать бонусы всех партнёров?')">Пересчитать бонусы</button>
+          </form>
+          <form method="post" action="/admin/recalculate-all-balances">
+            <button type="submit" class="btn" onclick="return confirm('Пересчитать ВСЕ балансы партнёров?')">Пересчитать балансы</button>
+          </form>
+          <form method="post" action="/admin/cleanup-duplicates">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Удалить дублирующиеся записи партнёров и транзакций? Это действие необратимо!')">Очистить дубли</button>
+          </form>
+          <form method="post" action="/admin/cleanup-referral-duplicates">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Очистить дублирующиеся записи рефералов? Это действие необратимо!')">Очистить дубли рефералов</button>
+          </form>
+          <form method="post" action="/admin/cleanup-duplicate-bonuses">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Удалить дублирующиеся бонусы? Это действие необратимо!')">Очистить дубли бонусов</button>
+          </form>
+          <form method="post" action="/admin/fix-roman-bonuses">
+            <button type="submit" class="btn" onclick="return confirm('Исправить бонусы Roman Arctur?')">Исправить бонусы Roman</button>
+          </form>
+          <form method="post" action="/admin/reset-all-partners">
+            <button type="submit" class="btn btn-danger" onclick="const confirmed = confirm('КРИТИЧЕСКОЕ ПОДТВЕРЖДЕНИЕ!\\n\\nЭто удалит ВСЕ партнерские профили, рефералы и транзакции!\\n\\nЭто действие НЕОБРАТИМО!\\n\\nПродолжить?'); if (!confirmed) return false; const doubleCheck = prompt('Для подтверждения введите точно: УДАЛИТЬ ВСЕХ ПАРТНЕРОВ'); return doubleCheck === 'УДАЛИТЬ ВСЕХ ПАРТНЕРОВ';">Сбросить всех партнёров</button>
+          </form>
+        </div>
         
-        <div style="background: linear-gradient(135deg, #e8f5e8 0%, #d4edda 100%); padding: 20px; border-radius: 12px; margin: 20px 0; text-align: center; border: 3px solid #28a745; box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2);">
-          <h2 style="margin: 0 0 5px 0; color: #28a745; font-size: 28px;">💰 Общий баланс всех партнёров</h2>
-          <div style="font-size: 36px; font-weight: bold; color: #155724; margin: 10px 0;">${totalBalance.toFixed(2)} PZ</div>
-          <div style="font-size: 14px; color: #666; margin-top: 5px;">Сумма всех балансов партнёров в системе</div>
+        <div class="metric-card">
+          <div>
+            <div class="label">Общий баланс партнёров</div>
+            <div class="sub" style="color: var(--admin-muted); font-size: 12px; margin-top: 6px;">Сумма всех балансов партнёров в системе</div>
+          </div>
+          <div class="value">${totalBalance.toFixed(2)} PZ</div>
         </div>
         
         ${req.query.success === 'inviter_changed' ? '<div class="alert alert-success">✅ Пригласитель успешно изменен</div>' : ''}
@@ -5040,13 +5088,6 @@ router.get('/partners', requireAdmin, async (req, res) => {
         ${req.query.error === 'roman_profile_not_found' ? '<div class="alert alert-error">❌ Профиль Roman Arctur не найден</div>' : ''}
         ${req.query.error === 'referral_cleanup_failed' ? '<div class="alert alert-error">❌ Ошибка при очистке дублей рефералов</div>' : ''}
         ${req.query.error === 'cleanup_failed' ? '<div class="alert alert-error">❌ Ошибка при очистке дублей</div>' : ''}
-        <style>
-          .change-inviter-btn { background: #10b981; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 5px; }
-          .change-inviter-btn:hover { background: #059669; }
-          .alert { padding: 10px; margin: 10px 0; border-radius: 4px; }
-          .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-          .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-        </style>
         <table>
           <tr><th>Пользователь</th><th>Тип программы</th><th>Баланс</th><th>Всего бонусов</th><th>Партнёров</th><th>Код</th><th>Пригласитель</th><th>Создан</th><th>Действия</th></tr>
     `;
@@ -5068,18 +5109,18 @@ router.get('/partners', requireAdmin, async (req, res) => {
           </td>
           <td>${new Date(partner.createdAt).toLocaleDateString()}</td>
           <td>
-            <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-              <form method="post" action="/admin/partners/${partner.id}/change-inviter" style="display: inline;">
-                <input type="text" name="newInviterCode" placeholder="Код пригласителя" style="width: 120px; padding: 4px; font-size: 11px;" required>
-                <button type="submit" class="change-inviter-btn" onclick="return confirm('Изменить пригласителя для ${partner.user.firstName || 'пользователя'}?')" style="padding: 4px 8px; font-size: 11px;">🔄</button>
+            <div class="actions">
+              <form method="post" action="/admin/partners/${partner.id}/change-inviter">
+                <input class="mini-input" type="text" name="newInviterCode" placeholder="Код пригласителя" required>
+                <button type="submit" class="btn-mini" onclick="return confirm('Изменить пригласителя для ${partner.user.firstName || 'пользователя'}?')">Сменить</button>
               </form>
-              <form method="post" action="/admin/partners/${partner.id}/add-balance" style="display: inline;">
-                <input type="number" name="amount" placeholder="Сумма" style="width: 80px; padding: 4px; font-size: 11px;" step="0.01" required>
-                <button type="submit" class="balance-btn" style="background: #28a745; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 2px;">💰+</button>
+              <form method="post" action="/admin/partners/${partner.id}/add-balance">
+                <input class="mini-input" type="number" name="amount" placeholder="Сумма" step="0.01" required>
+                <button type="submit" class="btn-mini">+PZ</button>
               </form>
-              <form method="post" action="/admin/partners/${partner.id}/subtract-balance" style="display: inline;">
-                <input type="number" name="amount" placeholder="Сумма" style="width: 80px; padding: 4px; font-size: 11px;" step="0.01" required>
-                <button type="submit" class="balance-btn" style="background: #dc3545; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 2px;">💰-</button>
+              <form method="post" action="/admin/partners/${partner.id}/subtract-balance">
+                <input class="mini-input" type="number" name="amount" placeholder="Сумма" step="0.01" required>
+                <button type="submit" class="btn-mini danger">-PZ</button>
               </form>
             </div>
           </td>
@@ -5142,6 +5183,7 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
         };
       })
     );
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
 
     // Build interactive hierarchy with multi-level referrals (full tree)
     function buildInteractiveHierarchy() {
@@ -5281,7 +5323,8 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+          ${ADMIN_UI_CSS}
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background: var(--admin-bg); }
           .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px; }
           h2 { color: #333; margin-bottom: 20px; }
           .btn { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; margin: 5px; }
@@ -5321,6 +5364,7 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
         </style>
       </head>
       <body>
+        ${renderAdminShellStart({ title: 'Иерархия', activePath: '/admin/partners', buildMarker })}
         <div class="container">
           <h2>🌳 Иерархия партнёров ${userId ? '(фокус на пользователе)' : 'v3.0'}</h2>
           <p style="color: #666; font-size: 12px; margin: 5px 0;">Версия: 3.0 | ${new Date().toLocaleString()}</p>
@@ -5420,6 +5464,7 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
             });
           }
         </script>
+        ${renderAdminShellEnd()}
       </body>
       </html>
     `);
@@ -8251,6 +8296,8 @@ router.get('/product2', requireAdmin, async (req, res) => {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
+          ${ADMIN_UI_CSS}
+          body{ margin:0; padding:0; background: var(--admin-bg); }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
