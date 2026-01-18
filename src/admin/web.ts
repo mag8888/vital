@@ -7378,33 +7378,35 @@ router.get('/products', requireAdmin, async (req, res) => {
                 if (existingModal) existingModal.remove();
                 const modal = document.createElement('div');
                 modal.id = 'imageGalleryModal';
-                modal.style.cssText = 'position:fixed; inset:0; background: rgba(0,0,0,0.65); z-index: 10000; display:flex; align-items:center; justify-content:center; padding: 14px; overscroll-behavior: contain;';
+                modal.className = 'modal-overlay';
+                modal.style.cssText = 'display:flex; z-index:12000;';
                 modal.innerHTML =
-                  '<div style="max-width:96vw; width:1100px; height:92vh; background:#fff; border-radius:16px; overflow:hidden; display:flex; flex-direction:column;">' +
-                    '<div style="padding:14px 16px; border-bottom:1px solid #e5e7eb; display:flex; justify-content:space-between; align-items:center; gap:12px;">' +
-                      '<div style="font-weight:900; font-size:16px;">🖼️ Выбрать изображение</div>' +
-                      '<button type="button" id="closeGalleryBtn" style="border:none; background:#e5e7eb; border-radius:12px; padding:10px 12px; cursor:pointer; font-weight:800;">✕</button>' +
+                  '<div class="modal-content" style="max-width:1100px; width:min(1100px, 96vw); height:92vh;">' +
+                    '<div class="modal-header">' +
+                      '<h2 style="margin:0; font-size:18px;">Выбрать изображение</h2>' +
+                      '<button type="button" id="closeGalleryBtn" class="close-btn">&times;</button>' +
                     '</div>' +
-                    '<div style="display:grid; grid-template-columns: minmax(300px, 420px) 1fr; grid-template-rows: 1fr; gap:12px; padding:12px; flex:1; overflow:hidden; min-height:0;">' +
-                      '<div style="border:1px solid #e5e7eb; border-radius:14px; overflow:hidden; background:#f8fafc; display:flex; flex-direction:column; min-height:0;">' +
-                        '<div style="padding:10px 12px; border-bottom:1px solid #e5e7eb; display:flex; gap:10px; align-items:center; justify-content:space-between;">' +
-                          '<div style="font-weight:800; font-size:13px; color:#111827;">Предпросмотр</div>' +
-                          '<button type="button" id="galleryOpenBtn" disabled style="border:none; background:#e5e7eb; border-radius:12px; padding:8px 10px; cursor:pointer; font-weight:800;">Увеличить</button>' +
+                    '<div class="modal-body" style="padding:12px; overflow:hidden; flex:1; min-height:0; display:grid; grid-template-columns: minmax(300px, 420px) 1fr; gap:12px;">' +
+                      '<div style="border:1px solid var(--admin-border); border-radius:14px; overflow:hidden; background:#f8fafc; display:flex; flex-direction:column; min-height:0;">' +
+                        '<div style="padding:10px 12px; border-bottom:1px solid var(--admin-border); display:flex; gap:10px; align-items:center; justify-content:space-between;">' +
+                          '<div style="font-weight:900; font-size:13px; color:var(--admin-text);">Предпросмотр</div>' +
+                          '<button type="button" id="galleryOpenBtn" class="btn" disabled style="height:34px; padding:0 12px; border-radius:12px; font-weight:900;">Увеличить</button>' +
                         '</div>' +
-                        '<div style="flex:1; display:flex; align-items:center; justify-content:center; padding:10px;">' +
-                          '<img id="galleryPreviewImg" src="" alt="preview" style="max-width:100%; max-height:100%; object-fit:contain; background:#fff; border-radius:12px; border:1px solid #e5e7eb;" />' +
+                        '<div style="flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:10px;">' +
+                          '<img id="galleryPreviewImg" src="" alt="preview" style="max-width:100%; max-height:100%; object-fit:contain; background:#fff; border-radius:12px; border:1px solid var(--admin-border);" />' +
                         '</div>' +
                       '</div>' +
-                      '<div id="galleryContent" style="min-height:0; height:100%; overflow-y:auto; overflow-x:hidden; overscroll-behavior: contain; display:grid; grid-template-columns: repeat(auto-fill, 160px); grid-auto-rows:160px; gap:12px; padding:2px; align-content:start; justify-content:start;">' +
-                        '<div style="grid-column: span 999; text-align:center; padding:30px; color:#6b7280;">Загрузка...</div>' +
+                      '<div id="galleryContent" style="min-height:0; height:100%; overflow:auto; overscroll-behavior: contain; display:grid; grid-template-columns: repeat(auto-fill, 160px); grid-auto-rows:160px; gap:12px; padding:2px; align-content:start; justify-content:start;">' +
+                        '<div style="grid-column: span 999; text-align:center; padding:30px; color:var(--admin-muted);">Загрузка...</div>' +
                       '</div>' +
                     '</div>' +
-                    '<div style="padding:12px 16px; border-top:1px solid #e5e7eb; display:flex; gap:10px; justify-content:flex-end;">' +
-                      '<button type="button" id="galleryCancelBtn" style="border:none; background:#e5e7eb; border-radius:12px; padding:10px 14px; cursor:pointer; font-weight:800;">Отмена</button>' +
-                      '<button type="button" id="galleryChooseBtn" disabled style="border:none; background:#111827; color:#fff; border-radius:12px; padding:10px 14px; cursor:pointer; font-weight:900;">Выбрать</button>' +
+                    '<div class="modal-footer" style="display:flex; gap:10px; justify-content:flex-end;">' +
+                      '<button type="button" id="galleryCancelBtn" class="btn">Отмена</button>' +
+                      '<button type="button" id="galleryChooseBtn" class="btn btn-success" disabled>Выбрать</button>' +
                     '</div>' +
                   '</div>';
-                document.body.appendChild(modal);
+                const shell = document.querySelector('.admin-shell');
+                (shell || document.body).appendChild(modal);
                 modal.onclick = function(e) { if (e.target === modal) window.closeImageGallery(); };
                 // NOTE: do not block wheel/touch events here.
                 // Background scroll is locked via html/body overflow:hidden, and galleryContent has overflow:auto.
@@ -7416,16 +7418,28 @@ router.get('/products', requireAdmin, async (req, res) => {
                 if (openBtn) openBtn.onclick = function() {
                   const u = modal.getAttribute('data-selected-url') || '';
                   if (!u) return;
-                  // Fullscreen preview inside modal (no new tab)
+                  // Large preview as UI-kit modal (no new tab)
                   const existing = document.getElementById('galleryFullscreen');
                   if (existing) existing.remove();
                   const fs = document.createElement('div');
                   fs.id = 'galleryFullscreen';
-                  fs.style.cssText = 'position:fixed; inset:0; z-index: 10001; background: rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; padding: 14px;';
-                  fs.innerHTML = '<img src="' + String(u).replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '" style="max-width:100%; max-height:100%; object-fit:contain; background:#fff; border-radius:12px;" />' +
-                    '<button type="button" style="position:absolute; top:16px; right:16px; border:none; background:#e5e7eb; border-radius:12px; padding:10px 12px; font-weight:900; cursor:pointer;">✕</button>';
-                  fs.onclick = function(e2) { fs.remove(); };
-                  document.body.appendChild(fs);
+                  fs.className = 'modal-overlay';
+                  fs.style.cssText = 'display:flex; z-index:12001;';
+                  fs.innerHTML =
+                    '<div class="modal-content" style="max-width: 1100px; width:min(1100px, 96vw); max-height: 90vh;">' +
+                      '<div class="modal-header">' +
+                        '<h2 style="margin:0; font-size:16px;">Предпросмотр</h2>' +
+                        '<button type="button" class="close-btn" id="galleryFsClose">&times;</button>' +
+                      '</div>' +
+                      '<div class="modal-body" style="padding:14px; overflow:hidden; display:flex; align-items:center; justify-content:center; min-height: 60vh;">' +
+                        '<img src="' + String(u).replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '" style="max-width:100%; max-height:78vh; object-fit:contain; background:#fff; border-radius:12px; border:1px solid var(--admin-border);" />' +
+                      '</div>' +
+                    '</div>';
+                  const shell2 = document.querySelector('.admin-shell');
+                  (shell2 || document.body).appendChild(fs);
+                  fs.onclick = function(e2){ if (e2 && e2.target === fs) fs.remove(); };
+                  const c = document.getElementById('galleryFsClose');
+                  if (c) c.onclick = function(){ fs.remove(); };
                 };
                 const chooseBtn = document.getElementById('galleryChooseBtn');
                 if (chooseBtn) chooseBtn.onclick = function() {
