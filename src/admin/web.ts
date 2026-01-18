@@ -5754,7 +5754,7 @@ router.get('/products', requireAdmin, async (req, res) => {
           .filter-btn:hover { background: #111827; color: #fff; }
           .filter-btn.active { background: #111827; color: #fff; }
           .product-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
-          .product-card { background: #fff; border-radius: 12px; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08); padding: 18px; display: flex; flex-direction: column; gap: 12px; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+          .product-card { position: relative; background: #fff; border-radius: 12px; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08); padding: 18px; display: flex; flex-direction: column; gap: 12px; transition: transform 0.2s ease, box-shadow 0.2s ease; }
           .product-card:hover { transform: translateY(-4px); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12); }
           .product-header { display: flex; justify-content: space-between; align-items: flex-start; }
           .product-title { font-size: 18px; font-weight: 600; color: #111827; margin: 0; }
@@ -6040,6 +6040,57 @@ router.get('/products', requireAdmin, async (req, res) => {
           }
           .placeholder-icon { font-size: 32px; margin-bottom: 8px; }
           .placeholder-text { font-size: 14px; font-weight: 500; }
+          .product-image-btn{
+            display:block;
+            width:100%;
+            padding:0;
+            margin:0;
+            border:none;
+            background: transparent;
+            cursor:pointer;
+          }
+          .product-image-btn:focus-visible{
+            outline: 3px solid rgba(102,126,234,0.35);
+            outline-offset: 3px;
+            border-radius: 12px;
+          }
+          .card-toggle-form{
+            position:absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 2;
+            margin: 0;
+          }
+          .card-toggle-btn{
+            width: 40px;
+            height: 40px;
+            border-radius: 14px;
+            border: 1px solid var(--admin-border-strong);
+            background: rgba(255,255,255,0.9);
+            backdrop-filter: blur(6px);
+            color: #111827;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            cursor:pointer;
+            box-shadow: 0 10px 22px rgba(17,24,39,0.08);
+          }
+          .card-toggle-btn:hover{ background: rgba(17,24,39,0.06); }
+          .card-toggle-btn svg{
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+          }
+          .card-toggle-btn.is-inactive{
+            background: #111827;
+            border-color: #111827;
+            color: #fff;
+          }
+          .card-toggle-btn.is-inactive:hover{ background: #0b0f19; }
           .alert { padding: 12px 16px; margin: 16px 0; border-radius: 8px; font-weight: 500; }
           .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
           .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
@@ -7216,7 +7267,7 @@ router.get('/products', requireAdmin, async (req, res) => {
       const imageId = `product-img-${product.id.replace(/[^a-zA-Z0-9]/g, '-')}`;
       const placeholderId = `product-placeholder-${product.id.replace(/[^a-zA-Z0-9]/g, '-')}`;
 
-      const imageSection = product.imageUrl
+      const innerImageSection = product.imageUrl
         ? `<img id="${imageId}" src="${escapeAttr(product.imageUrl)}" alt="${escapeAttr(product.title)}" class="product-image" loading="lazy" data-onerror-img="${imageId}" data-onerror-placeholder="${placeholderId}">
            <div id="${placeholderId}" class="product-image-placeholder" style="display: none;">
              <span class="placeholder-icon">📷</span>
@@ -7227,23 +7278,34 @@ router.get('/products', requireAdmin, async (req, res) => {
              <span class="placeholder-text">Нет фото</span>
            </div>`;
 
+      const imageSection = `
+            <button type="button" class="product-image-btn"
+              data-product-id="${escapeAttr(product.id)}"
+              data-title="${escapeAttr(product.title)}"
+              data-image="${escapeAttr(product.imageUrl)}"
+              aria-label="Открыть фото товара">
+              ${innerImageSection}
+            </button>
+      `;
+
       html += `
           <div class="product-card"
                data-category="${escapeAttr(product.categoryId)}"
                data-id="${escapeAttr(product.id)}"
                data-title="${escapeAttr(product.title)}"
                data-sku="${escapeAttr(((product as any).sku || ''))}">
+            <form method="post" action="/admin/products/${escapeAttr(product.id)}/toggle-active" class="card-toggle-form" title="${product.isActive ? 'Отключить' : 'Включить'}">
+              <button type="submit" class="card-toggle-btn ${product.isActive ? 'is-active' : 'is-inactive'}" aria-label="${product.isActive ? 'Отключить товар' : 'Включить товар'}" onclick="event.stopPropagation();">
+                ${ICONS.power}
+              </button>
+            </form>
             ${imageSection}
             <div class="product-header">
               <h3 class="product-title">
                 ${escapeHtml(product.title)}
                 ${(product.description || '').includes('скопировано') ? ' 📷' : ''}
               </h3>
-              <form method="post" action="/admin/products/${escapeAttr(product.id)}/toggle-active" style="display: inline;">
-                <button type="submit" class="status-btn ${product.isActive ? 'active' : 'inactive'}" style="border: none; background: none; cursor: pointer; font-size: 12px; padding: 4px 8px; border-radius: 4px;">
-                  ${product.isActive ? '✅ Активен' : '❌ Неактивен'}
-                </button>
-              </form>
+              <span class="badge ${product.isActive ? 'badge-status-active' : 'badge-status-inactive'}">${product.isActive ? 'Активен' : 'Отключен'}</span>
             </div>
             ${(product.description || '').includes('скопировано') ? '<div style="margin: 4px 0; font-size: 11px; color: #f59e0b; background: #fef3c7; padding: 4px 8px; border-radius: 4px; display: inline-block;"><strong>📷 Копия фото</strong></div>' : ''}
             ${(product as any).sku ? `<div style="margin: 4px 0; font-size: 12px; color: #6b7280;"><strong>ID товара (Item):</strong> <span style="color: #1f2937; font-weight: 600;">${escapeHtml((product as any).sku)}</span></div>` : ''}
@@ -7276,15 +7338,6 @@ router.get('/products', requireAdmin, async (req, res) => {
                 data-image="${escapeAttr(product.imageUrl)}"
                 onclick="if(typeof window.editProduct==='function'){window.editProduct(this);}else{alert('Ошибка: функция редактирования не загружена. Обновите страницу.');}return false;"
               ><span class="btn-ico">${ICONS.pencil}</span><span>Редактировать</span></button>
-              <form method="post" action="/admin/products/${escapeAttr(product.id)}/toggle-active">
-                <button type="submit" class="btn-action btn-outline toggle-btn"><span class="btn-ico">${ICONS.power}</span><span>${product.isActive ? 'Отключить' : 'Включить'}</span></button>
-              </form>
-              <form method="post" action="/admin/products/${escapeAttr(product.id)}/upload-image" enctype="multipart/form-data" style="display: inline; position: relative;" class="upload-image-form" data-product-id="${escapeAttr(product.id)}">
-                <input type="file" name="image" accept="image/*" id="image-${escapeAttr(product.id)}" class="product-image-input">
-                <label for="image-${escapeAttr(product.id)}" class="btn-action btn-outline image-btn file-label-btn"><span class="btn-ico">${ICONS.camera}</span><span>${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</span></label>
-              </form>
-              <button type="button" class="btn-action btn-outline image-btn select-image-btn" data-product-id="${escapeAttr(product.id)}"
-                onclick="try{const pid=this.getAttribute('data-product-id'); if(pid && typeof window.openImageGallery==='function'){window.openImageGallery(pid);} else {alert('Ошибка: галерея не загружена. Обновите страницу.');}}catch(e){alert('Ошибка: '+(e&&e.message?e.message:String(e)));} return false;"><span class="btn-ico">${ICONS.image}</span><span>Выбрать из загруженных</span></button>
               <form method="post" action="/admin/products/${escapeAttr(product.id)}/delete" class="delete-product-form" data-product-id="${escapeAttr(product.id)}" data-product-title="${escapeAttr(product.title)}">
                 <button type="button" class="btn-action btn-solid-danger delete-btn"><span class="btn-ico">${ICONS.trash}</span><span>Удалить</span></button>
               </form>
@@ -8162,6 +8215,24 @@ router.get('/products', requireAdmin, async (req, res) => {
                     }
                   } catch (e) {
                     console.error('Table thumb click error:', e);
+                  }
+                  return;
+                }
+
+                // Фото в карточках (клик -> модалка с большим фото + замена / выбор из загруженных)
+                const cardImageBtn = el.closest('.product-image-btn');
+                if (cardImageBtn) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  try {
+                    const pid = cardImageBtn.getAttribute('data-product-id') || '';
+                    const img = cardImageBtn.getAttribute('data-image') || '';
+                    const title = cardImageBtn.getAttribute('data-title') || '';
+                    if (typeof window.openTableImageModal === 'function') {
+                      window.openTableImageModal(pid, img, title);
+                    }
+                  } catch (e) {
+                    console.error('Card image click error:', e);
                   }
                   return;
                 }
