@@ -12,15 +12,14 @@ const router = express.Router();
 // Goal: consistent buttons/inputs/focus states across all admin pages.
 const ADMIN_UI_CSS = `
   :root{
-    --admin-bg: #f5f5f5;
+    --admin-bg: #f5f6fb;
     --admin-surface: #ffffff;
     --admin-text: #111827;
     --admin-muted: #6b7280;
-    --admin-border: #111827;
+    --admin-border: rgba(17,24,39,0.12);
+    --admin-border-strong: rgba(17,24,39,0.18);
     --admin-primary: #111827;
-    --admin-primary-2: #111827;
-    --admin-danger: #111827;
-    --admin-success: #111827;
+    --admin-danger: #dc2626;
     --admin-radius: 12px;
     --admin-shadow: 0 2px 10px rgba(0,0,0,0.10);
   }
@@ -37,6 +36,127 @@ const ADMIN_UI_CSS = `
     outline-offset: 2px;
   }
 
+  /* Layout */
+  .admin-shell{
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 280px 1fr;
+  }
+  .admin-sidebar{
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    background: var(--admin-surface);
+    border-right: 1px solid var(--admin-border);
+    padding: 18px 14px;
+    overflow: auto;
+  }
+  .admin-brand{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 10px 18px 10px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    font-size: 18px;
+  }
+  .admin-brand-mark{
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+    border: 1px solid var(--admin-border-strong);
+    background: #fff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .admin-nav-group{
+    margin-top: 14px;
+    padding: 10px 10px 6px 10px;
+    font-size: 11px;
+    color: var(--admin-muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+  .admin-nav{
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 6px 10px 6px;
+  }
+  .admin-nav-item{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 10px;
+    border-radius: 12px;
+    text-decoration: none;
+    border: 1px solid transparent;
+    color: var(--admin-text);
+  }
+  .admin-nav-item:hover{
+    background: rgba(17,24,39,0.04);
+    border-color: var(--admin-border);
+  }
+  .admin-nav-item.active{
+    background: rgba(17,24,39,0.06);
+    border-color: var(--admin-border-strong);
+  }
+  .admin-ico{
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 18px;
+    color: rgba(17,24,39,0.85);
+  }
+  .admin-ico svg{
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .admin-main{
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .admin-topbar{
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--admin-border);
+    background: rgba(245,246,251,0.75);
+    backdrop-filter: blur(8px);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .admin-topbar h1{
+    margin: 0;
+    font-size: 22px;
+    letter-spacing: -0.02em;
+  }
+  .admin-build{
+    color: var(--admin-muted);
+    font-size: 12px;
+  }
+  .admin-content{
+    padding: 22px;
+    max-width: 1400px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  @media (max-width: 980px){
+    .admin-shell{ grid-template-columns: 1fr; }
+    .admin-sidebar{ position: relative; height: auto; }
+  }
+
   /* Buttons */
   a.btn, button.btn, .btn{
     display: inline-flex;
@@ -45,7 +165,7 @@ const ADMIN_UI_CSS = `
     gap: 8px;
     padding: 10px 16px;
     border-radius: 10px;
-    border: 1px solid var(--admin-border);
+    border: 1px solid var(--admin-border-strong);
     text-decoration: none;
     font-weight: 600;
     cursor: pointer;
@@ -69,9 +189,9 @@ const ADMIN_UI_CSS = `
     color: var(--admin-text);
   }
   .btn-danger{
-    background: transparent;
-    color: var(--admin-text);
-    border-style: dashed;
+    background: var(--admin-danger);
+    border-color: var(--admin-danger);
+    color: #fff;
   }
   .btn-success{
     background: var(--admin-text);
@@ -116,10 +236,85 @@ const ADMIN_UI_CSS = `
   }
   input[type="text"], input[type="password"], input[type="number"], select, textarea{
     border-radius: 10px;
-    border: 1px solid var(--admin-border);
+    border: 1px solid var(--admin-border-strong);
     background: var(--admin-surface);
   }
 `;
+
+function adminIcon(name: string): string {
+  const icons: Record<string, string> = {
+    dashboard: '<svg viewBox="0 0 24 24"><path d="M3 13h8V3H3z"/><path d="M13 21h8V11h-8z"/><path d="M13 3h8v6h-8z"/><path d="M3 21h8v-6H3z"/></svg>',
+    users: '<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    partners: '<svg viewBox="0 0 24 24"><path d="M16 11a4 4 0 0 1-8 0"/><path d="M12 12v9"/><path d="M7 21h10"/><circle cx="12" cy="7" r="4"/></svg>',
+    box: '<svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/></svg>',
+    tag: '<svg viewBox="0 0 24 24"><path d="M20.6 13.4 11 23H1V13l9.6-9.6a2 2 0 0 1 2.8 0l7.2 7.2a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>',
+    cart: '<svg viewBox="0 0 24 24"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2 2h3l2.4 12.4a2 2 0 0 0 2 1.6h9.2a2 2 0 0 0 2-1.6L23 6H6"/></svg>',
+    star: '<svg viewBox="0 0 24 24"><path d="M12 17.3 18.2 21l-1.6-7 5.4-4.7-7.1-.6L12 2 9.1 8.7 2 9.3l5.4 4.7L5.8 21z"/></svg>',
+    chat: '<svg viewBox="0 0 24 24"><path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>',
+    upload: '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v14"/></svg>',
+    wrench: '<svg viewBox="0 0 24 24"><path d="M14.7 6.3a5 5 0 0 0-6.4 6.4l-5.3 5.3a2 2 0 0 0 2.8 2.8l5.3-5.3a5 5 0 0 0 6.4-6.4l-3 3-2-2z"/></svg>',
+    logout: '<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>',
+  };
+  return icons[name] || icons.dashboard;
+}
+
+function renderAdminShellStart(opts: { title: string; activePath: string; buildMarker?: string }): string {
+  const { title, activePath, buildMarker } = opts;
+  const isActive = (href: string) => (activePath === href ? 'active' : '');
+  return `
+    <div class="admin-shell">
+      <aside class="admin-sidebar">
+        <div class="admin-brand">
+          <span class="admin-brand-mark"></span>
+          <span>Vital Admin</span>
+        </div>
+
+        <div class="admin-nav-group">Главное</div>
+        <nav class="admin-nav">
+          <a class="admin-nav-item ${isActive('/admin')}" href="/admin"><span class="admin-ico">${adminIcon('dashboard')}</span><span>Dashboard</span></a>
+          <a class="admin-nav-item ${isActive('/admin/users')}" href="/admin/users"><span class="admin-ico">${adminIcon('users')}</span><span>Пользователи</span></a>
+          <a class="admin-nav-item ${isActive('/admin/partners')}" href="/admin/partners"><span class="admin-ico">${adminIcon('partners')}</span><span>Партнёры</span></a>
+        </nav>
+
+        <div class="admin-nav-group">Контент</div>
+        <nav class="admin-nav">
+          <a class="admin-nav-item ${isActive('/admin/products')}" href="/admin/products"><span class="admin-ico">${adminIcon('box')}</span><span>Товары</span></a>
+          <a class="admin-nav-item ${isActive('/admin/categories')}" href="/admin/categories"><span class="admin-ico">${adminIcon('tag')}</span><span>Категории</span></a>
+          <a class="admin-nav-item ${isActive('/admin/reviews')}" href="/admin/reviews"><span class="admin-ico">${adminIcon('star')}</span><span>Отзывы</span></a>
+          <a class="admin-nav-item ${isActive('/admin/orders')}" href="/admin/orders"><span class="admin-ico">${adminIcon('cart')}</span><span>Заказы</span></a>
+          <a class="admin-nav-item ${isActive('/admin/chats')}" href="/admin/chats"><span class="admin-ico">${adminIcon('chat')}</span><span>Чаты</span></a>
+        </nav>
+
+        <div class="admin-nav-group">Импорт и инструменты</div>
+        <nav class="admin-nav">
+          <a class="admin-nav-item ${isActive('/admin/invoice-import')}" href="/admin/invoice-import"><span class="admin-ico">${adminIcon('upload')}</span><span>Импорт инвойса</span></a>
+          <a class="admin-nav-item ${isActive('/admin/sync-siam-pdf')}" href="/admin/sync-siam-pdf"><span class="admin-ico">${adminIcon('wrench')}</span><span>Siam из PDF</span></a>
+          <a class="admin-nav-item ${isActive('/admin/sync-siam-json')}" href="/admin/sync-siam-json"><span class="admin-ico">${adminIcon('wrench')}</span><span>Siam из JSON</span></a>
+          <a class="admin-nav-item ${isActive('/admin/audio')}" href="/admin/audio"><span class="admin-ico">${adminIcon('wrench')}</span><span>Аудио</span></a>
+        </nav>
+
+        <div class="admin-nav-group">Сессия</div>
+        <nav class="admin-nav">
+          <a class="admin-nav-item" href="/admin/logout"><span class="admin-ico">${adminIcon('logout')}</span><span>Выйти</span></a>
+        </nav>
+      </aside>
+
+      <div class="admin-main">
+        <header class="admin-topbar">
+          <h1>${title}</h1>
+          <div class="admin-build">${buildMarker ? ('build: ' + buildMarker) : ''}</div>
+        </header>
+        <main class="admin-content">
+  `;
+}
+
+function renderAdminShellEnd(): string {
+  return `
+        </main>
+      </div>
+    </div>
+  `;
+}
 
 // Configure multer for file uploads
 const upload = multer({
@@ -219,6 +414,7 @@ router.get('/', requireAdmin, async (req, res) => {
       users: await prisma.user.count(),
       totalBalance: totalBalance,
     };
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
 
     // Helper function for detailed users section
     async function getDetailedUsersSection() {
@@ -573,7 +769,7 @@ router.get('/', requireAdmin, async (req, res) => {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }
           .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px; }
           .header { text-align: center; margin-bottom: 30px; }
           .tabs { display: flex; border-bottom: 2px solid #e9ecef; margin-bottom: 30px; }
@@ -882,6 +1078,7 @@ router.get('/', requireAdmin, async (req, res) => {
         </style>
       </head>
       <body>
+        ${renderAdminShellStart({ title: 'Dashboard', activePath: '/admin', buildMarker })}
         <div class="container">
           <div class="header">
             <h1>🚀 Админ-панель Vital Bot v2.0</h1>
@@ -2332,6 +2529,7 @@ router.get('/', requireAdmin, async (req, res) => {
             closeInstruction();
           };
         </script>
+        ${renderAdminShellEnd()}
       </body>
       </html>
     `);
@@ -4429,6 +4627,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
     const categories = await prisma.category.findMany({
       orderBy: { createdAt: 'desc' }
     });
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
 
     let html = `
       <!DOCTYPE html>
@@ -4437,10 +4636,11 @@ router.get('/categories', requireAdmin, async (req, res) => {
         <title>Управление категориями</title>
         <meta charset="utf-8">
         <style>
-          body { font-family: Arial, sans-serif; max-width: 1000px; margin: 20px auto; padding: 20px; }
+          ${ADMIN_UI_CSS}
+          body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--admin-bg); }
           .btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; margin: 5px; }
           .btn:hover { background: #0056b3; }
-          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; background: var(--admin-surface); border: 1px solid var(--admin-border); border-radius: 14px; overflow: hidden; }
           th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
           th { background-color: #f2f2f2; }
           .status-btn { transition: all 0.2s ease; }
@@ -4450,8 +4650,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
         </style>
       </head>
       <body>
-        <h2>📁 Управление категориями</h2>
-        <a href="/admin" class="btn">← Назад</a>
+        ${renderAdminShellStart({ title: 'Категории', activePath: '/admin/categories', buildMarker })}
         <table>
           <tr><th>ID</th><th>Название</th><th>Слаг</th><th>Статус</th><th>Создана</th></tr>
     `;
@@ -4476,6 +4675,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
 
     html += `
         </table>
+        ${renderAdminShellEnd()}
       </body>
       </html>
     `;
@@ -4656,6 +4856,7 @@ router.get('/partners', requireAdmin, async (req, res) => {
 
     html += `
         </table>
+        ${renderAdminShellEnd()}
       </body>
       </html>
     `;
@@ -5245,7 +5446,8 @@ router.get('/products', requireAdmin, async (req, res) => {
         <title>Управление товарами</title>
         <meta charset="utf-8">
         <style>
-          body { font-family: Arial, sans-serif; max-width: 1200px; margin: 20px auto; padding: 20px; background: #f5f5f5; }
+          ${ADMIN_UI_CSS}
+          body { margin: 0; padding: 0; background: var(--admin-bg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
           a.btn, button.btn { 
             display: inline-block; 
             padding: 10px 20px; 
@@ -5344,6 +5546,9 @@ router.get('/products', requireAdmin, async (req, res) => {
           }
           .file-label-btn{ user-select:none; }
           .file-label-btn input{ display:none; }
+
+          .admin-page-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin: 0 0 18px 0; }
+          .admin-page-row .btn { min-width: 200px; justify-content: center; }
           
           /* Modal styles - Modern Design */
           .modal-overlay { 
@@ -6638,12 +6843,10 @@ router.get('/products', requireAdmin, async (req, res) => {
         </script>
       </head>
       <body>
-        <h2>🛍 Управление товарами</h2>
-        <div style="margin:-10px 0 14px 0; color:#6b7280; font-size:12px;">build: ${buildMarker}</div>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
-          <a href="/admin" class="btn">← Назад</a>
-          <button onclick="scrapeAllImages()" class="btn" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">📸 Собрать ВСЕ фото с сайта</button>
-          <button onclick="moveAllToCosmetics()" class="btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🔄 Собрать в категорию &quot;Косметика&quot;</button>
+        ${renderAdminShellStart({ title: 'Товары', activePath: '/admin/products', buildMarker })}
+        <div class="admin-page-row">
+          <button type="button" class="btn" onclick="scrapeAllImages()">Собрать фото</button>
+          <button type="button" class="btn" onclick="moveAllToCosmetics()">Переместить в «Косметика»</button>
         </div>
         
         ${req.query.success === 'image_updated' ? '<div class="alert alert-success">✅ Фото успешно обновлено!</div>' : ''}
@@ -7834,6 +8037,7 @@ router.get('/products', requireAdmin, async (req, res) => {
             }
           })();
         </script>
+        ${renderAdminShellEnd()}
       </body>
       </html>
     `;
@@ -9655,6 +9859,7 @@ router.get('/reviews', requireAdmin, async (req, res) => {
     const reviews = await prisma.review.findMany({
       orderBy: { createdAt: 'desc' }
     });
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
 
     // Helper functions for escaping
     const escapeAttr = (str: string | null | undefined): string => {
@@ -9708,7 +9913,8 @@ router.get('/reviews', requireAdmin, async (req, res) => {
         <title>Управление отзывами</title>
         <meta charset="utf-8">
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+          ${ADMIN_UI_CSS}
+          body { margin: 0; padding: 0; background: var(--admin-bg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
           .btn { display: inline-block; padding: 12px 24px; background: #007bff; color: white; text-decoration: none; border-radius: 6px; margin-bottom: 20px; }
           .btn:hover { background: #0056b3; }
           .review-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; margin-top: 20px; }
@@ -9756,8 +9962,7 @@ router.get('/reviews', requireAdmin, async (req, res) => {
         </style>
       </head>
       <body>
-        <h2>⭐ Управление отзывами</h2>
-        <a href="/admin" class="btn">← Назад</a>
+        ${renderAdminShellStart({ title: 'Отзывы', activePath: '/admin/reviews', buildMarker })}
         
         ${req.query.success === 'image_updated' ? '<div class="alert alert-success">✅ Фото успешно обновлено!</div>' : ''}
         ${req.query.error === 'no_image' ? '<div class="alert alert-error">❌ Файл не выбран</div>' : ''}
@@ -9818,6 +10023,7 @@ router.get('/reviews', requireAdmin, async (req, res) => {
 
     html += `
         </div>
+        ${renderAdminShellEnd()}
       </body>
       </html>
     `;
@@ -9840,6 +10046,7 @@ router.get('/orders', requireAdmin, async (req, res) => {
       },
       orderBy: { createdAt: 'desc' }
     });
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
 
     let html = `
       <!DOCTYPE html>
@@ -9848,7 +10055,8 @@ router.get('/orders', requireAdmin, async (req, res) => {
         <title>Управление заказами</title>
         <meta charset="utf-8">
         <style>
-          body { font-family: Arial, sans-serif; max-width: 1000px; margin: 20px auto; padding: 20px; }
+          ${ADMIN_UI_CSS}
+          body { margin: 0; padding: 0; background: var(--admin-bg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
           .btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; margin: 5px; }
           .btn:hover { background: #0056b3; }
           table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -9857,9 +10065,7 @@ router.get('/orders', requireAdmin, async (req, res) => {
         </style>
       </head>
       <body>
-        <h2>📦 Управление заказами v2.0</h2>
-        <p style="color: #666; font-size: 12px; margin: 5px 0;">Версия: 2.0 | ${new Date().toLocaleString()}</p>
-        <a href="/admin" class="btn">← Назад</a>
+        ${renderAdminShellStart({ title: 'Заказы', activePath: '/admin/orders', buildMarker })}
         
         ${req.query.success === 'order_updated' ? '<div class="alert alert-success">✅ Статус заказа обновлен</div>' : ''}
         ${req.query.error === 'order_update' ? '<div class="alert alert-error">❌ Ошибка при обновлении статуса заказа</div>' : ''}
@@ -9995,6 +10201,7 @@ router.get('/chats', requireAdmin, async (req, res) => {
     }
 
     const chats = Array.from(map.values()).sort((a, b) => b.lastAt.getTime() - a.lastAt.getTime());
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
 
     let html = `
       <!DOCTYPE html>
@@ -10004,7 +10211,8 @@ router.get('/chats', requireAdmin, async (req, res) => {
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Чаты поддержки</title>
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 1100px; margin: 20px auto; padding: 20px; background: #f5f5f5; }
+          ${ADMIN_UI_CSS}
+          body { margin: 0; padding: 0; background: var(--admin-bg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
           .btn { display: inline-block; padding: 10px 16px; background: #111827; color: white; text-decoration: none; border-radius: 10px; margin-bottom: 14px; }
           .card { background: white; border-radius: 14px; box-shadow: 0 8px 22px rgba(0,0,0,0.08); overflow: hidden; }
           table { width: 100%; border-collapse: collapse; }
@@ -10019,8 +10227,8 @@ router.get('/chats', requireAdmin, async (req, res) => {
         </style>
       </head>
       <body>
-        <a class="btn" href="/admin">← Назад</a>
-        <h2 style="margin: 0 0 10px 0;">💬 Чаты поддержки (WebApp)</h2>
+        ${renderAdminShellStart({ title: 'Чаты', activePath: '/admin/chats', buildMarker })}
+        <h2 style="margin: 0 0 10px 0;">Чаты поддержки</h2>
         <p class="muted" style="margin: 0 0 16px 0;">Диалоги собираются из событий <code>support:webapp</code> в истории пользователя.</p>
 
         <div class="card">
@@ -10067,6 +10275,7 @@ router.get('/chats', requireAdmin, async (req, res) => {
             </tbody>
           </table>
         </div>
+        ${renderAdminShellEnd()}
       </body>
       </html>
     `;
@@ -10103,6 +10312,7 @@ router.get('/chats/:telegramId', requireAdmin, async (req, res) => {
       orderBy: { createdAt: 'asc' },
       take: 2000
     });
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
 
     let html = `
       <!DOCTYPE html>
@@ -10112,7 +10322,8 @@ router.get('/chats/:telegramId', requireAdmin, async (req, res) => {
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Чат: ${escapeHtml(user.firstName || '')}</title>
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 20px auto; padding: 20px; background: #f5f5f5; }
+          ${ADMIN_UI_CSS}
+          body { margin: 0; padding: 0; background: var(--admin-bg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
           .top { display:flex; justify-content: space-between; align-items:center; gap: 12px; margin-bottom: 12px; }
           .btn { display: inline-block; padding: 10px 16px; background: #111827; color: white; text-decoration: none; border-radius: 10px; }
           .card { background: white; border-radius: 14px; box-shadow: 0 8px 22px rgba(0,0,0,0.08); overflow: hidden; }
@@ -10134,8 +10345,9 @@ router.get('/chats/:telegramId', requireAdmin, async (req, res) => {
         </style>
       </head>
       <body>
+        ${renderAdminShellStart({ title: 'Чат', activePath: '/admin/chats', buildMarker })}
         <div class="top">
-          <a class="btn" href="/admin/chats">← Все чаты</a>
+          <a class="btn" href="/admin/chats">Все чаты</a>
           <div class="muted">Telegram ID: <code>${escapeHtml(telegramId)}</code></div>
         </div>
 
@@ -10183,6 +10395,7 @@ router.get('/chats/:telegramId', requireAdmin, async (req, res) => {
             if (el) el.scrollTop = el.scrollHeight;
           } catch (e) {}
         </script>
+        ${renderAdminShellEnd()}
       </body>
       </html>
     `;
