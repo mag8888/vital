@@ -1129,7 +1129,17 @@ router.get('/', requireAdmin, async (req, res) => {
           .close:hover { color: #000; }
           .form-group { margin-bottom: 15px; }
           .form-group label { display: block; margin-bottom: 5px; font-weight: 600; }
-          .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px; }
+          /* Inputs: don't apply full-width/padding styles to checkboxes/radios (they become huge "switches" in some browsers) */
+          .form-group input[type="text"],
+          .form-group input[type="password"],
+          .form-group input[type="number"],
+          .form-group input[type="search"],
+          .form-group input[type="email"],
+          .form-group input[type="url"],
+          .form-group textarea,
+          .form-group select { width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px; }
+          .form-group input[type="checkbox"],
+          .form-group input[type="radio"] { width: auto; padding: 0; border: 0; box-shadow: none; }
           .form-group textarea { height: 100px; resize: vertical; }
           .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
           
