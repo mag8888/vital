@@ -1288,14 +1288,15 @@ async function loadSpecialistDetailContent() {
 
         let services = [];
         if (Array.isArray(sp.services)) services = sp.services;
+        const boxStyle = 'background:#ffffff; border:1px solid rgba(17,24,39,0.18); border-radius:16px; padding:14px 14px 12px;';
         const servicesHtml = services.length ? `
-          <div class="content-card" style="margin-top: 12px;">
-            <div style="font-weight:800; margin-bottom: 10px;">Услуги</div>
-            <div style="display:grid; gap:8px;">
-              ${services.map(s => `
-                <div style="display:flex; justify-content:space-between; gap:10px;">
-                  <div style="color:var(--text-primary);">${escapeHtml(String(s.title || ''))}</div>
-                  <div style="font-weight:700;">${Number(s.priceRub || 0).toFixed(0)} ₽</div>
+          <div style="${boxStyle} margin-top: 12px;">
+            <div style="font-weight:800; color:var(--text-primary); margin-bottom: 10px;">Услуги</div>
+            <div style="display:grid;">
+              ${services.map((s, idx) => `
+                <div style="display:flex; justify-content:space-between; gap:12px; padding: 10px 0; ${idx ? 'border-top:1px solid rgba(17,24,39,0.10);' : ''}">
+                  <div style="color:var(--text-primary); line-height:1.35;">${escapeHtml(String(s.title || ''))}</div>
+                  <div style="font-weight:700; color:var(--text-primary); white-space:nowrap;">${Number(s.priceRub || 0).toFixed(0)} ₽</div>
                 </div>
               `).join('')}
             </div>
@@ -1303,7 +1304,12 @@ async function loadSpecialistDetailContent() {
         ` : '';
 
         const photo = sp.photoUrl ? `<img src="${escapeHtml(sp.photoUrl)}" alt="" style="width:100%; max-height: 280px; object-fit:cover; border-radius: 18px;">` : '';
-        const about = sp.about ? `<div class="content-card" style="margin-top: 12px;"><div style="white-space:pre-wrap; color:var(--text-primary); line-height:1.5;">${escapeHtml(sp.about)}</div></div>` : '';
+        const about = sp.about ? `
+          <div style="${boxStyle} margin-top: 12px;">
+            <div style="font-weight:800; color:var(--text-primary); margin-bottom: 10px;">О специалисте</div>
+            <div style="white-space:pre-wrap; color:var(--text-primary); line-height:1.55;">${escapeHtml(sp.about)}</div>
+          </div>
+        ` : '';
         const btn = sp.messengerUrl ? `
           <button class="btn" style="width:100%; margin-top: 12px;" onclick="openSpecialistMessenger('${escapeHtml(sp.messengerUrl)}')">Записаться</button>
         ` : '';
