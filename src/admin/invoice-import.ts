@@ -397,7 +397,7 @@ router.get('/api/test-price-calculation', requireAdmin, async (req, res) => {
     }
     
     const settings = await getImportSettings();
-    // Формула: цена_закупки * 8 * 2.45 = цена в рублях, затем / 100 для PZ
+    // Формула: цена_закупки * exchangeRate * priceMultiplier = цена в ₽, затем / 100 для PZ
     const purchasePriceBAT = parseFloat(purchasePrice as string);
     const priceInRubles = purchasePriceBAT * settings.exchangeRate * settings.priceMultiplier;
     const roundedPriceRub = Math.round(priceInRubles / 10) * 10;

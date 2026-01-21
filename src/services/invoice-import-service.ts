@@ -64,7 +64,8 @@ export function parseInvoiceFromDelimitedText(text: string): InvoiceItem[] {
  * Получает настройки импорта (курс валюты и мультипликатор)
  */
 export async function getImportSettings(): Promise<{ exchangeRate: number; priceMultiplier: number }> {
-  const defaultExchangeRate = 2.45;
+  // По умолчанию: формула из ТЗ — THB × 2.7 × (2 × 4) = THB × 2.7 × 8
+  const defaultExchangeRate = 2.7;
   const defaultMultiplier = 8;
   
   try {
@@ -121,12 +122,12 @@ export async function saveImportSettings(exchangeRate: number, priceMultiplier: 
 
 /**
  * Рассчитывает продажную цену из закупочной
- * Формула: Цена закупки * 2.45 * 8 = цена в рублях
+ * Формула: Цена закупки * exchangeRate * multiplier = цена в рублях
  * Округляем до ближайшего десятка (10, 20, 30, ...)
  * Затем конвертируем в PZ: цена в рублях / 100
  */
 export function calculateSellingPrice(purchasePriceBAT: number, exchangeRate: number, multiplier: number): number {
-  // Формула: цена_закупки * 2.45 * 8 = цена в рублях
+  // Формула: цена_закупки * exchangeRate * multiplier = цена в рублях
   const priceInRubles = purchasePriceBAT * exchangeRate * multiplier;
   // Округляем до ближайшего десятка
   const roundedRubles = Math.round(priceInRubles / 10) * 10;
