@@ -159,6 +159,10 @@ model SpecialistService {
   specialist   Specialist @relation(fields: [specialistId], references: [id], onDelete: Cascade)
   specialistId String   @db.ObjectId
   title        String
+  description  String?
+  format       String?  // "офлайн", "онлайн", "офлайн/онлайн" и т.п.
+  durationMin  Int?     // длительность в минутах
+  detailsUrl   String?  // опционально: ссылка "Подробнее"
   priceRub     Int
   sortOrder    Int      @default(0)
   isActive     Boolean  @default(true)

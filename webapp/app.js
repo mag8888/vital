@@ -1297,16 +1297,42 @@ async function loadSpecialistDetailContent() {
         let services = [];
         if (Array.isArray(sp.services)) services = sp.services;
         const boxStyle = 'background:#ffffff; border:1px solid rgba(17,24,39,0.18); border-radius:16px; padding:14px 14px 12px;';
+        function fmtDuration(min) {
+            const m = Number(min || 0);
+            if (!m) return '';
+            const h = Math.floor(m / 60);
+            const mm = m % 60;
+            if (h && mm) return `${h} ч ${mm} мин`;
+            if (h) return `${h} ч`;
+            return `${mm} мин`;
+        }
+
         const servicesHtml = services.length ? `
           <div style="${boxStyle} margin-top: 12px;">
             <div style="font-weight:800; color:var(--text-primary); margin-bottom: 10px;">Услуги</div>
             <div style="display:grid;">
-              ${services.map((s, idx) => `
-                <div style="display:flex; justify-content:space-between; gap:12px; padding: 10px 0; ${idx ? 'border-top:1px solid rgba(17,24,39,0.10);' : ''}">
-                  <div style="color:var(--text-primary); line-height:1.35;">${escapeHtml(String(s.title || ''))}</div>
-                  <div style="font-weight:700; color:var(--text-primary); white-space:nowrap;">${Number(s.priceRub || 0).toFixed(0)} ₽</div>
-                </div>
-              `).join('')}
+              ${services.map((s, idx) => {
+                const desc = String(s.description || '').trim();
+                const format = String(s.format || '').trim();
+                const dur = fmtDuration(s.durationMin);
+                const detailsUrl = String(s.detailsUrl || '').trim();
+                return `
+                  <div style="padding: 12px 0; ${idx ? 'border-top:1px solid rgba(17,24,39,0.10);' : ''}">
+                    <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
+                      <div style="font-weight:800; color:var(--text-primary); font-size:18px; line-height:1.25;">${escapeHtml(String(s.title || ''))}</div>
+                      <div style="font-weight:800; color:var(--text-primary); white-space:nowrap; font-size:18px;">${Number(s.priceRub || 0).toFixed(0)} ₽</div>
+                    </div>
+                    ${desc ? `<div style="margin-top:8px; color:#374151; line-height:1.55;">${escapeHtml(desc)}</div>` : ''}
+                    ${(format || dur) ? `
+                      <div style="margin-top:12px; display:grid; gap:6px;">
+                        ${format ? `<div><span style="font-weight:800;">Формат:</span> <span style="color:#374151;">${escapeHtml(format)}</span></div>` : ''}
+                        ${dur ? `<div><span style="font-weight:800;">Длительность:</span> <span style="color:#374151;">${escapeHtml(dur)}</span></div>` : ''}
+                      </div>
+                    ` : ''}
+                    ${detailsUrl ? `<div style="margin-top:14px;"><a href="#" onclick="openSpecialistServiceLink('${escapeHtml(detailsUrl)}'); return false;" style="font-weight:800; color:var(--text-primary); text-decoration:none;">Подробнее →</a></div>` : ''}
+                  </div>
+                `;
+              }).join('')}
             </div>
           </div>
         ` : '';
@@ -1343,6 +1369,13 @@ async function loadSpecialistDetailContent() {
 }
 
 function openSpecialistMessenger(url) {
+    const link = String(url || '').trim();
+    if (!link) return;
+    if (tg && tg.openLink) tg.openLink(link);
+    else window.open(link, '_blank');
+}
+
+function openSpecialistServiceLink(url) {
     const link = String(url || '').trim();
     if (!link) return;
     if (tg && tg.openLink) tg.openLink(link);

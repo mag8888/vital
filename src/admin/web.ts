@@ -16712,9 +16712,21 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
           const out = [];
           rows.forEach((row, idx) => {
             const title = row.querySelector('[data-service-title]')?.value?.trim() || '';
+            const desc = row.querySelector('[data-service-desc]')?.value?.trim() || '';
+            const format = row.querySelector('[data-service-format]')?.value?.trim() || '';
+            const durationMin = Number(row.querySelector('[data-service-duration]')?.value || 0);
+            const detailsUrl = row.querySelector('[data-service-details]')?.value?.trim() || '';
             const price = Number(row.querySelector('[data-service-price]')?.value || 0);
             if (!title) return;
-            out.push({ title, priceRub: Math.round(price), sortOrder: idx });
+            out.push({
+              title,
+              description: desc || null,
+              format: format || null,
+              durationMin: durationMin > 0 ? Math.round(durationMin) : null,
+              detailsUrl: detailsUrl || null,
+              priceRub: Math.round(price),
+              sortOrder: idx
+            });
           });
           return out;
         }
@@ -16801,13 +16813,26 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
           row.className = 'row';
           row.style.alignItems = 'stretch';
           row.innerHTML =
-            '<div style="flex:1;">' +
+            '<div style="flex:1; min-width: 260px;">' +
               '<div class="muted">Название услуги</div>' +
-              '<input data-service-title placeholder="Например: Консультация">' +
+              '<input data-service-title placeholder="Например: Определение типажа и цветотипирование">' +
+              '<div class="muted" style="margin-top:10px;">Описание</div>' +
+              '<textarea data-service-desc placeholder="Коротко о том, что входит в услугу" style="min-height: 84px;"></textarea>' +
             '</div>' +
-            '<div style="width: 180px;">' +
-              '<div class="muted">Цена (₽)</div>' +
+            '<div style="width: 220px;">' +
+              '<div class="muted">Формат</div>' +
+              '<select data-service-format>' +
+                '<option value=""></option>' +
+                '<option value="офлайн/онлайн">офлайн/онлайн</option>' +
+                '<option value="офлайн">офлайн</option>' +
+                '<option value="онлайн">онлайн</option>' +
+              '</select>' +
+              '<div class="muted" style="margin-top:10px;">Стоимость (₽)</div>' +
               '<input data-service-price type="number" min="0" step="1" value="0">' +
+              '<div class="muted" style="margin-top:10px;">Длительность (мин)</div>' +
+              '<input data-service-duration type="number" min="0" step="5" value="0">' +
+              '<div class="muted" style="margin-top:10px;">Ссылка “Подробнее” (опционально)</div>' +
+              '<input data-service-details placeholder="https://..." />' +
             '</div>' +
             '<div style="width: 120px; display:flex; align-items:flex-end;">' +
               '<button type="button" class="btn danger" onclick="this.closest(\\'[data-service-row=\"1\"]\\').remove()">Удалить</button>' +
@@ -16815,8 +16840,16 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
           try {
             const titleEl = row.querySelector('[data-service-title]');
             const priceEl = row.querySelector('[data-service-price]');
+            const descEl = row.querySelector('[data-service-desc]');
+            const formatEl = row.querySelector('[data-service-format]');
+            const durEl = row.querySelector('[data-service-duration]');
+            const detailsEl = row.querySelector('[data-service-details]');
             if (titleEl) titleEl.value = String(svc?.title || '');
             if (priceEl) priceEl.value = String(Number(svc?.priceRub || 0));
+            if (descEl) descEl.value = String(svc?.description || '');
+            if (formatEl) formatEl.value = String(svc?.format || '');
+            if (durEl) durEl.value = String(Number(svc?.durationMin || 0));
+            if (detailsEl) detailsEl.value = String(svc?.detailsUrl || '');
           } catch (_) {}
           list.appendChild(row);
         }
@@ -17038,6 +17071,10 @@ router.post('/api/specialists', requireAdmin, async (req, res) => {
         data: {
           specialistId: created.id,
           title,
+          description: s?.description ? String(s.description) : null,
+          format: s?.format ? String(s.format) : null,
+          durationMin: s?.durationMin != null ? Number(s.durationMin) : null,
+          detailsUrl: s?.detailsUrl ? String(s.detailsUrl) : null,
           priceRub: Math.max(0, Math.round(priceRub)),
           sortOrder: Number(s?.sortOrder ?? idx) || idx,
           isActive: true
@@ -17089,6 +17126,10 @@ router.put('/api/specialists/:id', requireAdmin, async (req, res) => {
         data: {
           specialistId: updated.id,
           title,
+          description: s?.description ? String(s.description) : null,
+          format: s?.format ? String(s.format) : null,
+          durationMin: s?.durationMin != null ? Number(s.durationMin) : null,
+          detailsUrl: s?.detailsUrl ? String(s.detailsUrl) : null,
           priceRub: Math.max(0, Math.round(priceRub)),
           sortOrder: Number(s?.sortOrder ?? idx) || idx,
           isActive: true
