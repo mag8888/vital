@@ -407,6 +407,7 @@ function renderAdminShellStart(opts: { title: string; activePath: string; buildM
           <a class="admin-nav-item ${isActive('/admin/categories')}" href="/admin/categories"><span class="admin-ico">${adminIcon('tag')}</span><span>Категории</span></a>
           <a class="admin-nav-item ${isActive('/admin/reviews')}" href="/admin/reviews"><span class="admin-ico">${adminIcon('star')}</span><span>Отзывы</span></a>
           <a class="admin-nav-item ${isActive('/admin/orders')}" href="/admin/orders"><span class="admin-ico">${adminIcon('cart')}</span><span>Заказы</span></a>
+          <a class="admin-nav-item ${isActive('/admin/specialists')}" href="/admin/specialists"><span class="admin-ico">${adminIcon('users')}</span><span>Специалисты</span></a>
           <a class="admin-nav-item ${isActive('/admin/chats')}" href="/admin/chats"><span class="admin-ico">${adminIcon('chat')}</span><span>Чаты</span></a>
         </nav>
 
@@ -16197,6 +16198,24 @@ router.get('/invoice-import', requireAdmin, async (req, res) => {
               <p><small>Формула расчета цены: Цена в БАТ × ${settings.exchangeRate} × ${settings.priceMultiplier} = цена в рублях → округление до 10 → ÷ 100 = Цена в PZ</small></p>
               <p><small>Пример: 100 БАТ × ${settings.exchangeRate} × ${settings.priceMultiplier} = ${(100 * settings.exchangeRate * settings.priceMultiplier).toFixed(2)} руб. → округлено до ${(Math.round((100 * settings.exchangeRate * settings.priceMultiplier) / 10) * 10)} руб. = ${((Math.round((100 * settings.exchangeRate * settings.priceMultiplier) / 10) * 10) / 100).toFixed(2)} PZ</small></p>
             </div>
+
+            <div class="settings-info">
+              <h4>✅ Рекомендуемый способ (CSV):</h4>
+              <ol style="margin-left: 18px; color:#333;">
+                <li>Скачайте шаблон CSV</li>
+                <li>Заполните по инвойсу колонки <code>invoiceRateTHB</code> и <code>invoiceQty</code> (только для нужных строк)</li>
+                <li>Сначала нажмите “Проверить CSV” (dry-run), затем “Применить CSV”</li>
+              </ol>
+              <div style="margin-top: 12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <a class="btn" href="/admin/api/invoice-csv-template" target="_blank">⬇️ Скачать CSV шаблон</a>
+                <input type="file" id="csvFile" accept=".csv,text/csv" />
+                <button type="button" class="btn" id="csvDryRunBtn">🔎 Проверить CSV</button>
+                <button type="button" class="btn btn-success" id="csvApplyBtn">✅ Применить CSV</button>
+              </div>
+              <div class="form-help" style="margin-top:8px;">
+                Импорт CSV работает строго: если найдена любая ошибка — ничего не обновится.
+              </div>
+            </div>
             
             <div id="alertContainer"></div>
             
@@ -16236,6 +16255,9 @@ FS0001-24|Natural Balance Face Serum 24 G -COSMOS Natural|6|348.72|2092.32
           const loadingIndicator = document.getElementById('loadingIndicator');
           const asyncImportBtn = document.getElementById('asyncImportBtn');
           const clearBtn = document.getElementById('clearBtn');
+          const csvFileInput = document.getElementById('csvFile');
+          const csvDryRunBtn = document.getElementById('csvDryRunBtn');
+          const csvApplyBtn = document.getElementById('csvApplyBtn');
           
           function showAlert(message, type = 'success') {
             alertContainer.innerHTML = '<div class="alert alert-' + type + '">' + message + '</div>';
@@ -16283,6 +16305,58 @@ FS0001-24|Natural Balance Face Serum 24 G -COSMOS Natural|6|348.72|2092.32
             
             resultContainer.innerHTML = html;
           }
+
+          function showCsvResult(payload) {
+            let html = '<h3>Результаты CSV:</h3>';
+            html += '<p><strong>Режим:</strong> ' + (payload.applied ? 'ПРИМЕНЕНО' : 'ПРОВЕРКА (dry-run)') + '</p>';
+            html += '<p><strong>Строк в файле:</strong> ' + (payload.summary?.rowsTotal ?? '-') + '</p>';
+            html += '<p><strong>К обновлению:</strong> ' + (payload.summary?.rowsToUpdate ?? '-') + '</p>';
+            if (Array.isArray(payload.updates) && payload.updates.length) {
+              html += '<div class="result-item success"><strong>Первые изменения:</strong><ul>';
+              payload.updates.slice(0, 10).forEach(u => {
+                const oldRub = Math.round((u.oldPricePz || 0) * 100);
+                const newRub = Math.round((u.newPricePz || 0) * 100);
+                html += '<li>' + (u.sku || '') + ' — ' + (u.title || '') +
+                  ' | цена: ' + oldRub + '→' + newRub + ' ₽' +
+                  ' | остаток: ' + (u.oldStock ?? '-') + '→' + (u.newStock ?? '-') + '</li>';
+              });
+              if (payload.updates.length > 10) html += '<li>... и еще ' + (payload.updates.length - 10) + '</li>';
+              html += '</ul></div>';
+            }
+            resultContainer.innerHTML = html;
+          }
+
+          async function runCsvImport(apply) {
+            const file = csvFileInput && csvFileInput.files ? csvFileInput.files[0] : null;
+            if (!file) {
+              showAlert('Выберите CSV файл', 'error');
+              return;
+            }
+            loadingIndicator.classList.add('active');
+            resultContainer.innerHTML = '';
+            try {
+              const fd = new FormData();
+              fd.append('file', file);
+              fd.append('apply', apply ? '1' : '0');
+              const resp = await fetch('/admin/api/import-invoice-csv-sync', { method: 'POST', body: fd });
+              const data = await resp.json().catch(() => ({}));
+              loadingIndicator.classList.remove('active');
+              if (!resp.ok || !data.success) {
+                const errs = Array.isArray(data.errors) ? data.errors.join('<br>') : (data.error || 'Неизвестная ошибка');
+                showAlert('❌ Ошибка CSV: ' + errs, 'error');
+                return;
+              }
+              showAlert(apply ? '✅ CSV применён!' : '✅ CSV проверен (dry-run)!', 'success');
+              showCsvResult(data);
+            } catch (e) {
+              loadingIndicator.classList.remove('active');
+              showAlert('❌ Ошибка при импорте CSV', 'error');
+              console.error(e);
+            }
+          }
+
+          csvDryRunBtn.addEventListener('click', () => runCsvImport(false));
+          csvApplyBtn.addEventListener('click', () => runCsvImport(true));
           
           form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -16360,6 +16434,331 @@ FS0001-24|Natural Balance Face Serum 24 G -COSMOS Natural|6|348.72|2092.32
   } catch (error: any) {
     console.error('Error loading invoice import page:', error);
     res.status(500).send('Ошибка загрузки страницы импорта');
+  }
+});
+
+// ========== Specialists (Admin) ==========
+router.get('/specialists', requireAdmin, async (_req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Специалисты - Админ панель</title>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        *{ box-sizing:border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#f5f5f5; padding: 20px; }
+        .container { max-width: 1100px; margin: 0 auto; background:#fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); overflow:hidden; }
+        .header { background: linear-gradient(135deg, #111827 0%, #374151 100%); color:#fff; padding: 26px; }
+        .header h1 { margin:0; font-size: 22px; }
+        .content { padding: 22px; }
+        .btn { background:#111827; color:#fff; padding: 10px 14px; border:none; border-radius: 10px; cursor:pointer; font-weight:700; text-decoration:none; display:inline-block; }
+        .btn.secondary { background:#6b7280; }
+        .btn.danger { background:#b91c1c; }
+        .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+        input, textarea, select { width: 100%; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 14px; }
+        textarea { min-height: 100px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; }
+        .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px; background:#fff; }
+        .table { width: 100%; border-collapse: collapse; }
+        .table th, .table td { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: left; font-size: 14px; vertical-align: top; }
+        .muted { color:#6b7280; font-size: 12px; }
+        .pill { display:inline-block; padding: 4px 10px; border-radius: 999px; background:#f3f4f6; font-size: 12px; }
+        .modal { position: fixed; inset: 0; display:none; }
+        .modal.open { display:block; }
+        .overlay { position:absolute; inset:0; background: rgba(0,0,0,0.35); }
+        .modal-body { position: relative; max-width: 920px; margin: 6vh auto; background:#fff; border-radius: 14px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>👩‍⚕️ Специалисты</h1>
+          <div class="muted" style="margin-top:6px;">Каталог специалистов для раздела WebApp “Специалисты”.</div>
+        </div>
+        <div class="content">
+          <div class="row" style="justify-content: space-between; margin-bottom: 14px;">
+            <a href="/admin" class="btn secondary">← Назад</a>
+            <button class="btn" onclick="openModal()">+ Добавить специалиста</button>
+          </div>
+
+          <div id="alert"></div>
+          <div class="card">
+            <table class="table" id="specTable">
+              <thead>
+                <tr>
+                  <th>Имя</th>
+                  <th>Специальность</th>
+                  <th>Активен</th>
+                  <th>Сортировка</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal" id="modal">
+        <div class="overlay" onclick="closeModal()"></div>
+        <div class="modal-body">
+          <div class="row" style="justify-content: space-between; margin-bottom: 10px;">
+            <div style="font-weight:900;">Редактор специалиста</div>
+            <button class="btn secondary" onclick="closeModal()">Закрыть</button>
+          </div>
+
+          <div class="grid">
+            <div>
+              <div class="muted">Имя *</div>
+              <input id="f_name" placeholder="Имя Фамилия" />
+            </div>
+            <div>
+              <div class="muted">Специальность *</div>
+              <input id="f_specialty" placeholder="Например: Нутрициолог" />
+            </div>
+            <div>
+              <div class="muted">Фото (URL)</div>
+              <input id="f_photoUrl" placeholder="https://..." />
+            </div>
+            <div>
+              <div class="muted">Профиль (коротко)</div>
+              <input id="f_profile" placeholder="Опыт, регалии, роль..." />
+            </div>
+          </div>
+
+          <div style="margin-top: 12px;">
+            <div class="muted">Услуги (JSON массив) — пример: [{"title":"Консультация","priceRub":3000}]</div>
+            <textarea id="f_servicesJson" placeholder='[{"title":"Консультация","priceRub":3000}]'></textarea>
+          </div>
+
+          <div style="margin-top: 12px;">
+            <div class="muted">Описание</div>
+            <textarea id="f_about" placeholder="Текст о специалисте"></textarea>
+          </div>
+
+          <div class="grid" style="margin-top: 12px;">
+            <div>
+              <div class="muted">Ссылка для записи (мессенджер)</div>
+              <input id="f_messengerUrl" placeholder="https://t.me/username или ссылка WhatsApp/Instagram" />
+            </div>
+            <div>
+              <div class="muted">Сортировка (sortOrder)</div>
+              <input id="f_sortOrder" type="number" value="0" />
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 12px; align-items:center;">
+            <label style="display:flex; gap:8px; align-items:center;">
+              <input type="checkbox" id="f_isActive" checked />
+              <span>Активен</span>
+            </label>
+          </div>
+
+          <div class="row" style="margin-top: 14px; justify-content: flex-end;">
+            <button class="btn danger" id="deleteBtn" style="display:none;" onclick="deleteSpec()">Удалить</button>
+            <button class="btn" onclick="saveSpec()">Сохранить</button>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        let currentId = null;
+
+        function showAlert(msg, type='ok') {
+          const el = document.getElementById('alert');
+          el.innerHTML = '<div class="card" style="border-color:' + (type==='err' ? '#fecaca' : '#d1fae5') + '; background:' + (type==='err' ? '#fef2f2' : '#ecfdf5') + '">' + msg + '</div>';
+          setTimeout(() => { el.innerHTML = ''; }, 4500);
+        }
+
+        function escapeHtml(str) {
+          return String(str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+        }
+
+        async function load() {
+          const resp = await fetch('/admin/api/specialists');
+          const data = await resp.json().catch(() => ({}));
+          const tbody = document.querySelector('#specTable tbody');
+          tbody.innerHTML = '';
+          (data.specialists || []).forEach(s => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = \`
+              <td><strong>\${escapeHtml(s.name || '')}</strong><div class="muted">\${escapeHtml(s.profile || '')}</div></td>
+              <td><span class="pill">\${escapeHtml(s.specialty || '')}</span></td>
+              <td>\${s.isActive ? '✅' : '—'}</td>
+              <td>\${Number(s.sortOrder || 0)}</td>
+              <td><button class="btn secondary" onclick="edit('\${s.id}')">Редактировать</button></td>
+            \`;
+            tbody.appendChild(tr);
+          });
+        }
+
+        function openModal() {
+          currentId = null;
+          document.getElementById('deleteBtn').style.display = 'none';
+          setForm({ name:'', specialty:'', photoUrl:'', profile:'', about:'', servicesJsonText:'[]', messengerUrl:'', isActive:true, sortOrder:0 });
+          document.getElementById('modal').classList.add('open');
+        }
+        function closeModal() {
+          document.getElementById('modal').classList.remove('open');
+        }
+
+        function setForm(s) {
+          document.getElementById('f_name').value = s.name || '';
+          document.getElementById('f_specialty').value = s.specialty || '';
+          document.getElementById('f_photoUrl').value = s.photoUrl || '';
+          document.getElementById('f_profile').value = s.profile || '';
+          document.getElementById('f_about').value = s.about || '';
+          document.getElementById('f_servicesJson').value = s.servicesJsonText || (Array.isArray(s.servicesJson) ? JSON.stringify(s.servicesJson, null, 2) : (s.servicesJson ? JSON.stringify(s.servicesJson, null, 2) : '[]'));
+          document.getElementById('f_messengerUrl').value = s.messengerUrl || '';
+          document.getElementById('f_isActive').checked = !!s.isActive;
+          document.getElementById('f_sortOrder').value = Number(s.sortOrder || 0);
+        }
+
+        async function edit(id) {
+          const resp = await fetch('/admin/api/specialists/' + encodeURIComponent(id));
+          const data = await resp.json().catch(() => ({}));
+          if (!data.success) return showAlert(data.error || 'Ошибка', 'err');
+          currentId = id;
+          document.getElementById('deleteBtn').style.display = 'inline-block';
+          setForm(data.specialist);
+          document.getElementById('modal').classList.add('open');
+        }
+
+        function getPayload() {
+          const name = document.getElementById('f_name').value.trim();
+          const specialty = document.getElementById('f_specialty').value.trim();
+          const photoUrl = document.getElementById('f_photoUrl').value.trim();
+          const profile = document.getElementById('f_profile').value.trim();
+          const about = document.getElementById('f_about').value.trim();
+          const messengerUrl = document.getElementById('f_messengerUrl').value.trim();
+          const isActive = document.getElementById('f_isActive').checked;
+          const sortOrder = Number(document.getElementById('f_sortOrder').value || 0);
+          const raw = document.getElementById('f_servicesJson').value.trim();
+          let servicesJson = null;
+          if (raw) {
+            servicesJson = JSON.parse(raw);
+            if (!Array.isArray(servicesJson)) throw new Error('servicesJson должен быть JSON массивом');
+          }
+          if (!name) throw new Error('Укажите имя');
+          if (!specialty) throw new Error('Укажите специальность');
+          return { name, specialty, photoUrl: photoUrl || null, profile: profile || null, about: about || null, servicesJson, messengerUrl: messengerUrl || null, isActive, sortOrder };
+        }
+
+        async function saveSpec() {
+          try {
+            const payload = getPayload();
+            const resp = await fetch(currentId ? ('/admin/api/specialists/' + encodeURIComponent(currentId)) : '/admin/api/specialists', {
+              method: currentId ? 'PUT' : 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || !data.success) return showAlert(data.error || 'Ошибка сохранения', 'err');
+            showAlert('✅ Сохранено');
+            closeModal();
+            await load();
+          } catch (e) {
+            showAlert('❌ ' + (e.message || e), 'err');
+          }
+        }
+
+        async function deleteSpec() {
+          if (!currentId) return;
+          if (!confirm('Удалить специалиста?')) return;
+          const resp = await fetch('/admin/api/specialists/' + encodeURIComponent(currentId), { method: 'DELETE' });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok || !data.success) return showAlert(data.error || 'Ошибка удаления', 'err');
+          showAlert('✅ Удалено');
+          closeModal();
+          await load();
+        }
+
+        load();
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+router.get('/api/specialists', requireAdmin, async (_req, res) => {
+  try {
+    const specialists = await prisma.specialist.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }] });
+    res.json({ success: true, specialists });
+  } catch (error: any) {
+    console.error('Admin specialists list error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка загрузки' });
+  }
+});
+
+router.get('/api/specialists/:id', requireAdmin, async (req, res) => {
+  try {
+    const specialist = await prisma.specialist.findUnique({ where: { id: req.params.id } });
+    if (!specialist) return res.status(404).json({ success: false, error: 'Не найден' });
+    res.json({ success: true, specialist });
+  } catch (error: any) {
+    console.error('Admin specialist get error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка загрузки' });
+  }
+});
+
+router.post('/api/specialists', requireAdmin, async (req, res) => {
+  try {
+    const { name, specialty, photoUrl, profile, about, servicesJson, messengerUrl, isActive, sortOrder } = req.body || {};
+    if (!name || !specialty) return res.status(400).json({ success: false, error: 'name и specialty обязательны' });
+    const created = await prisma.specialist.create({
+      data: {
+        name: String(name).trim(),
+        specialty: String(specialty).trim(),
+        photoUrl: photoUrl ? String(photoUrl).trim() : null,
+        profile: profile ? String(profile).trim() : null,
+        about: about ? String(about).trim() : null,
+        servicesJson: servicesJson ?? null,
+        messengerUrl: messengerUrl ? String(messengerUrl).trim() : null,
+        isActive: typeof isActive === 'boolean' ? isActive : true,
+        sortOrder: Number(sortOrder || 0)
+      }
+    });
+    res.json({ success: true, specialist: created });
+  } catch (error: any) {
+    console.error('Admin specialist create error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка создания' });
+  }
+});
+
+router.put('/api/specialists/:id', requireAdmin, async (req, res) => {
+  try {
+    const { name, specialty, photoUrl, profile, about, servicesJson, messengerUrl, isActive, sortOrder } = req.body || {};
+    const updated = await prisma.specialist.update({
+      where: { id: req.params.id },
+      data: {
+        ...(name != null ? { name: String(name).trim() } : {}),
+        ...(specialty != null ? { specialty: String(specialty).trim() } : {}),
+        ...(photoUrl !== undefined ? { photoUrl: photoUrl ? String(photoUrl).trim() : null } : {}),
+        ...(profile !== undefined ? { profile: profile ? String(profile).trim() : null } : {}),
+        ...(about !== undefined ? { about: about ? String(about).trim() : null } : {}),
+        ...(servicesJson !== undefined ? { servicesJson: servicesJson ?? null } : {}),
+        ...(messengerUrl !== undefined ? { messengerUrl: messengerUrl ? String(messengerUrl).trim() : null } : {}),
+        ...(isActive !== undefined ? { isActive: Boolean(isActive) } : {}),
+        ...(sortOrder !== undefined ? { sortOrder: Number(sortOrder || 0) } : {})
+      }
+    });
+    res.json({ success: true, specialist: updated });
+  } catch (error: any) {
+    console.error('Admin specialist update error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка обновления' });
+  }
+});
+
+router.delete('/api/specialists/:id', requireAdmin, async (req, res) => {
+  try {
+    // мягкое удаление
+    await prisma.specialist.update({ where: { id: req.params.id }, data: { isActive: false } });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Admin specialist delete error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка удаления' });
   }
 });
 

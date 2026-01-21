@@ -1154,6 +1154,54 @@ router.post('/api/orders/create', async (req, res) => {
   }
 });
 
+// (ЮKassa не используется — только доставка + заказ администратору)
+
+// Specialists
+router.get('/api/specialists', async (req, res) => {
+  try {
+    const specialty = String(req.query?.specialty || '').trim();
+    const { prisma } = await import('../lib/prisma.js');
+
+    const where: any = { isActive: true };
+    if (specialty) where.specialty = specialty;
+
+    const specialists = await prisma.specialist.findMany({
+      where,
+      orderBy: [{ sortOrder: 'asc' }, { specialty: 'asc' }, { createdAt: 'desc' }]
+    });
+
+    const specialties = await prisma.specialist.findMany({
+      where: { isActive: true },
+      select: { specialty: true },
+      distinct: ['specialty']
+    });
+
+    res.json({
+      success: true,
+      specialties: specialties.map(s => s.specialty).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru')),
+      specialists
+    });
+  } catch (error: any) {
+    console.error('Specialists list error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка загрузки специалистов' });
+  }
+});
+
+router.get('/api/specialists/:id', async (req, res) => {
+  try {
+    const id = String(req.params?.id || '').trim();
+    const { prisma } = await import('../lib/prisma.js');
+    const specialist = await prisma.specialist.findUnique({ where: { id } });
+    if (!specialist || !specialist.isActive) {
+      return res.status(404).json({ success: false, error: 'Специалист не найден' });
+    }
+    res.json({ success: true, specialist });
+  } catch (error: any) {
+    console.error('Specialist get error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка загрузки специалиста' });
+  }
+});
+
 // Partner operations
 router.get('/api/partner/dashboard', async (req, res) => {
   try {
@@ -1503,6 +1551,26 @@ router.get('/api/video/url', async (req, res) => {
 // Health check
 router.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Delivery methods (stub for now; can be replaced with CDEK/Boxberry integration)
+router.get('/api/delivery/methods', async (req, res) => {
+  try {
+    const cityRaw = String((req.query?.city as string) || '').trim();
+    const city = cityRaw.replace(/\s+/g, ' ').trim();
+    if (!city) return res.json({ success: true, methods: [] });
+
+    // Based on your screenshots
+    const methods = [
+      { id: 'pickup', title: 'До пункта выдачи', priceRub: 620 },
+      { id: 'courier', title: 'Курьером до двери', priceRub: 875 }
+    ];
+
+    res.json({ success: true, city, methods });
+  } catch (error: any) {
+    console.error('Delivery methods error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка получения доставки' });
+  }
 });
 
 // Trigger product import (simple endpoint to fill catalog)

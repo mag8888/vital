@@ -102,6 +102,24 @@ model Product {
   @@index([stock])
 }
 
+model Specialist {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  specialty     String
+  photoUrl      String?
+  profile       String?  // коротко: роль/квалификация
+  about         String?  // подробное текстовое описание
+  servicesJson  Json?    // [{ title, priceRub }, ...]
+  messengerUrl  String?  // ссылка для записи (задается в админке)
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([isActive, specialty])
+  @@index([sortOrder, createdAt])
+}
+
 model CartItem {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

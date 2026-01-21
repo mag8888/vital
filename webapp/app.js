@@ -923,9 +923,9 @@ async function checkoutCart() {
             return;
         }
 
-        // Вычисляем общую сумму
-        const total = validItems.reduce((sum, item) => {
-            return sum + (item.product.price || 0) * (item.quantity || 1);
+        // Вычисляем общую сумму в ₽ (цена хранится в PZ; 1 PZ = 100 ₽)
+        const totalRub = validItems.reduce((sum, item) => {
+            return sum + (Number(item.product.price || 0) * 100) * (item.quantity || 1);
         }, 0);
 
         // Загружаем баланс пользователя
@@ -936,8 +936,8 @@ async function checkoutCart() {
             userBalance = userData.balance || 0;
         }
 
-        // Показываем форму для ввода телефона и адреса
-        showDeliveryForm(validItems, total, userBalance);
+        // Показываем форму оформления (в интерфейсе суммы показываем в ₽)
+        showDeliveryForm(validItems, totalRub, userBalance);
 
     } catch (error) {
         console.error('❌ Error checkout:', error);
@@ -1085,6 +1085,8 @@ function openSection(sectionName) {
         certificates: 'Сертификаты',
         promotions: 'Акции',
         contacts: 'Контакты',
+        specialists: 'Специалисты',
+        'specialist-detail': 'Специалист',
         'plazma-product-detail': 'Товар'
     };
 
@@ -1177,6 +1179,12 @@ async function loadSectionContent(sectionName, container) {
             case 'cart':
                 content = await loadCartContent();
                 break;
+            case 'specialists':
+                content = await loadSpecialistsContent();
+                break;
+            case 'specialist-detail':
+                content = await loadSpecialistDetailContent();
+                break;
             case 'partners':
                 await showPartners();
                 return; // showPartners already sets innerHTML
@@ -1194,6 +1202,132 @@ async function loadSectionContent(sectionName, container) {
         console.error('Error loading section:', error);
         container.innerHTML = '<div class="error-message"><h3>Ошибка загрузки</h3><p>Попробуйте позже</p></div>';
     }
+}
+
+let __specialistsState = { specialty: '' };
+let __selectedSpecialistId = null;
+
+function openSpecialistDetail(id) {
+    __selectedSpecialistId = String(id || '');
+    openSection('specialist-detail');
+}
+
+async function loadSpecialistsContent() {
+    try {
+        const qs = __specialistsState.specialty ? `?specialty=${encodeURIComponent(__specialistsState.specialty)}` : '';
+        const resp = await fetch(`${API_BASE}/specialists${qs}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        const specialties = Array.isArray(data?.specialties) ? data.specialties : [];
+        const specialists = Array.isArray(data?.specialists) ? data.specialists : [];
+
+        let html = `
+          <div style="display:flex; gap:10px; align-items:center; margin-bottom: 12px; flex-wrap: wrap;">
+            <label style="font-weight:600;">Специальность:</label>
+            <select id="specialtyFilter" class="delivery-input" style="max-width: 320px;">
+              <option value="">Все</option>
+              ${specialties.map(s => `<option value="${escapeHtml(s)}" ${s === __specialistsState.specialty ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}
+            </select>
+          </div>
+        `;
+
+        if (!specialists.length) {
+            html += `<div class="empty-state"><h3>Пока нет специалистов</h3><p>Попробуйте выбрать другую специальность.</p></div>`;
+            html += `<script>
+              document.getElementById('specialtyFilter')?.addEventListener('change', (e) => {
+                window.__specialistsState = window.__specialistsState || {};
+                window.__specialistsState.specialty = e.target.value || '';
+                openSection('specialists');
+              });
+            </script>`;
+            return html;
+        }
+
+        html += `<div style="display:grid; gap:12px;">` + specialists.map(sp => {
+            const photo = sp.photoUrl ? `<img src="${escapeHtml(sp.photoUrl)}" alt="" style="width:72px;height:72px;border-radius:16px;object-fit:cover;flex:0 0 auto;">` : `<div style="width:72px;height:72px;border-radius:16px;background:var(--bg-secondary);flex:0 0 auto;"></div>`;
+            return `
+              <div class="content-card" style="cursor:pointer;" onclick="openSpecialistDetail('${sp.id}')">
+                <div style="display:flex; gap:12px; align-items:center;">
+                  ${photo}
+                  <div style="min-width:0;">
+                    <div style="font-weight:800; font-size:16px; color:var(--text-primary);">${escapeHtml(sp.name || '')}</div>
+                    <div style="color:var(--text-secondary); font-size:13px; margin-top:4px;">${escapeHtml(sp.specialty || '')}${sp.profile ? ' • ' + escapeHtml(sp.profile) : ''}</div>
+                  </div>
+                </div>
+              </div>
+            `;
+        }).join('') + `</div>`;
+
+        html += `<script>
+          window.__specialistsState = window.__specialistsState || { specialty: '' };
+          document.getElementById('specialtyFilter')?.addEventListener('change', (e) => {
+            window.__specialistsState.specialty = e.target.value || '';
+            __specialistsState.specialty = window.__specialistsState.specialty;
+            openSection('specialists');
+          });
+        </script>`;
+
+        return html;
+    } catch (e) {
+        console.error('Specialists load error:', e);
+        return '<div class="error-message"><h3>Ошибка загрузки специалистов</h3><p>Попробуйте позже</p></div>';
+    }
+}
+
+async function loadSpecialistDetailContent() {
+    try {
+        const id = __selectedSpecialistId;
+        if (!id) return '<div class="error-message"><h3>Специалист не выбран</h3></div>';
+        const resp = await fetch(`${API_BASE}/specialists/${encodeURIComponent(id)}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        const sp = data?.specialist;
+        if (!sp) return '<div class="error-message"><h3>Специалист не найден</h3></div>';
+
+        let services = [];
+        if (Array.isArray(sp.servicesJson)) services = sp.servicesJson;
+        const servicesHtml = services.length ? `
+          <div class="content-card" style="margin-top: 12px;">
+            <div style="font-weight:800; margin-bottom: 10px;">Услуги</div>
+            <div style="display:grid; gap:8px;">
+              ${services.map(s => `
+                <div style="display:flex; justify-content:space-between; gap:10px;">
+                  <div style="color:var(--text-primary);">${escapeHtml(String(s.title || ''))}</div>
+                  <div style="font-weight:700;">${Number(s.priceRub || 0).toFixed(0)} ₽</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : '';
+
+        const photo = sp.photoUrl ? `<img src="${escapeHtml(sp.photoUrl)}" alt="" style="width:100%; max-height: 280px; object-fit:cover; border-radius: 18px;">` : '';
+        const about = sp.about ? `<div class="content-card" style="margin-top: 12px;"><div style="white-space:pre-wrap; color:var(--text-primary); line-height:1.5;">${escapeHtml(sp.about)}</div></div>` : '';
+        const btn = sp.messengerUrl ? `
+          <button class="btn" style="width:100%; margin-top: 12px;" onclick="openSpecialistMessenger('${escapeHtml(sp.messengerUrl)}')">Записаться</button>
+        ` : '';
+
+        return `
+          <button class="btn btn-secondary" onclick="openSection('specialists')" style="margin-bottom: 12px;">← Назад</button>
+          ${photo}
+          <div style="margin-top: 12px;">
+            <div style="font-weight:900; font-size: 20px; color:var(--text-primary);">${escapeHtml(sp.name || '')}</div>
+            <div style="color:var(--text-secondary); margin-top: 4px;">${escapeHtml(sp.specialty || '')}${sp.profile ? ' • ' + escapeHtml(sp.profile) : ''}</div>
+          </div>
+          ${servicesHtml}
+          ${about}
+          ${btn}
+        `;
+    } catch (e) {
+        console.error('Specialist detail error:', e);
+        return '<div class="error-message"><h3>Ошибка загрузки специалиста</h3><p>Попробуйте позже</p></div>';
+    }
+}
+
+function openSpecialistMessenger(url) {
+    const link = String(url || '').trim();
+    if (!link) return;
+    if (tg && tg.openLink) tg.openLink(link);
+    else window.open(link, '_blank');
 }
 
 // Load products on main page immediately
@@ -3255,11 +3389,12 @@ function openBotForBalance() {
 }
 
 // Показать форму доставки
-function showDeliveryForm(items, total, userBalance) {
+function showDeliveryForm(items, totalRub, userBalance) {
     // Загружаем данные пользователя для предзаполнения
     fetch(`${API_BASE}/user/profile`, { headers: getApiHeaders() })
         .then(response => response.ok ? response.json() : {})
         .then(userData => {
+            const userBalanceRub = Number(userBalance || 0) * 100;
             const dialog = document.createElement('div');
             dialog.className = 'delivery-form-modal';
             dialog.innerHTML = `
@@ -3273,12 +3408,25 @@ function showDeliveryForm(items, total, userBalance) {
                         <div style="margin-bottom: 20px; padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
                             <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                                 <span>💰 Ваш баланс:</span>
-                                <strong>${userBalance.toFixed(2)} PZ</strong>
+                                <strong>${userBalanceRub.toFixed(0)} ₽</strong>
                             </div>
                             <div style="display: flex; justify-content: space-between;">
                                 <span>📦 Сумма заказа:</span>
-                                <strong>${total.toFixed(2)} PZ</strong>
+                                <strong id="checkout-items-total">${Number(totalRub || 0).toFixed(0)} ₽</strong>
                             </div>
+                            <div style="display: flex; justify-content: space-between; margin-top: 6px;">
+                                <span>🚚 Доставка:</span>
+                                <strong id="checkout-delivery-total">0 ₽</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-top: 6px;">
+                                <span>Итого:</span>
+                                <strong id="checkout-grand-total">${Number(totalRub || 0).toFixed(0)} ₽</strong>
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--text-primary);">Город *</label>
+                            <input type="text" id="delivery-city" class="delivery-input" placeholder="Например: Санкт-Петербург" value="" required>
                         </div>
                         
                         <div style="margin-bottom: 16px;">
@@ -3291,19 +3439,26 @@ function showDeliveryForm(items, total, userBalance) {
                             <textarea id="delivery-address" class="delivery-textarea" placeholder="Город, улица, дом, квартира" rows="3" required>${userData.deliveryAddress || ''}</textarea>
                         </div>
                         
-                        ${userBalance >= total ? `
-                            <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; cursor: pointer;">
-                                <input type="checkbox" id="pay-from-balance" checked>
-                                <span>Оплатить с баланса (${total.toFixed(2)} PZ)</span>
-                            </label>
-                        ` : userBalance > 0 ? `
-                            <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; cursor: pointer;">
-                                <input type="checkbox" id="pay-from-balance-partial" checked>
-                                <span>Использовать баланс (${userBalance.toFixed(2)} PZ из ${total.toFixed(2)} PZ)</span>
-                            </label>
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 700; color: var(--text-primary);">Доставка</label>
+                            <div id="delivery-methods" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom: 10px;"></div>
+                            <div id="delivery-methods-empty" style="color: var(--text-secondary); font-size: 13px;">
+                                Введите город — и мы покажем доступные варианты доставки.
+                            </div>
+                            <div id="pickup-point-wrap" style="display:none; margin-top: 10px;">
+                                <label style="display:block; margin-bottom: 8px; font-weight: 600;">Пункт выдачи *</label>
+                                <input type="text" id="pickup-point-address" class="delivery-input" placeholder="Адрес пункта выдачи" value="">
+                            </div>
+                        </div>
+
+                        ${userBalanceRub >= Number(totalRub || 0) ? `
+                          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom: 16px;">
+                              <input type="checkbox" id="pay-from-balance">
+                              <span>Оплатить с баланса</span>
+                          </label>
                         ` : ''}
                         
-                        <button class="btn" onclick="submitDeliveryForm(${JSON.stringify(items).replace(/"/g, '&quot;')}, ${total}, ${userBalance})" style="width: 100%;">
+                        <button class="btn" onclick="submitDeliveryForm(${JSON.stringify(items).replace(/"/g, '&quot;')}, ${Number(totalRub || 0)}, ${Number(userBalance || 0)})" style="width: 100%;">
                             Оформить заказ
                         </button>
                         <button class="btn btn-secondary" onclick="closeDeliveryForm()" style="width: 100%; margin-top: 12px;">
@@ -3314,11 +3469,97 @@ function showDeliveryForm(items, total, userBalance) {
             `;
             document.body.appendChild(dialog);
             setTimeout(() => dialog.classList.add('open'), 10);
+
+            // Подгружаем методы доставки по городу
+            const cityInput = document.getElementById('delivery-city');
+            if (cityInput) {
+                cityInput.addEventListener('input', debounce(() => loadDeliveryMethodsAndRender(Number(totalRub || 0)), 350));
+            }
+            // Попробуем сразу показать методы, если город уже заполнен (или пользователь быстро введет)
+            loadDeliveryMethodsAndRender(Number(totalRub || 0));
         })
         .catch(error => {
             console.error('Error loading user data:', error);
             showError('Ошибка загрузки данных пользователя');
         });
+}
+
+function debounce(fn, wait) {
+    let t = null;
+    return function (...args) {
+        clearTimeout(t);
+        t = setTimeout(() => fn.apply(this, args), wait);
+    };
+}
+
+async function loadDeliveryMethodsAndRender(itemsTotalRub) {
+    const city = document.getElementById('delivery-city')?.value?.trim() || '';
+    const methodsWrap = document.getElementById('delivery-methods');
+    const emptyEl = document.getElementById('delivery-methods-empty');
+    const pickupWrap = document.getElementById('pickup-point-wrap');
+    if (!methodsWrap || !emptyEl) return;
+
+    if (!city) {
+        methodsWrap.innerHTML = '';
+        emptyEl.style.display = 'block';
+        if (pickupWrap) pickupWrap.style.display = 'none';
+        updateCheckoutTotals(itemsTotalRub, 0);
+        return;
+    }
+
+    try {
+        const resp = await fetch(`${API_BASE}/delivery/methods?city=${encodeURIComponent(city)}`, { headers: getApiHeaders() });
+        const data = await resp.json().catch(() => ({}));
+        const methods = Array.isArray(data?.methods) ? data.methods : [];
+        if (!methods.length) {
+            methodsWrap.innerHTML = '';
+            emptyEl.style.display = 'block';
+            if (pickupWrap) pickupWrap.style.display = 'none';
+            updateCheckoutTotals(itemsTotalRub, 0);
+            return;
+        }
+        emptyEl.style.display = 'none';
+        methodsWrap.innerHTML = methods.map(m => {
+            const price = Number(m.priceRub || 0);
+            return `
+              <button type="button" class="btn btn-secondary" data-delivery-id="${m.id}" data-delivery-price="${price}"
+                onclick="selectDeliveryMethod('${m.id}', ${price}, ${itemsTotalRub})"
+                style="flex:1; min-width: 220px;">
+                ${m.title}: ${price.toFixed(0)} ₽
+              </button>
+            `;
+        }).join('');
+        selectDeliveryMethod(String(methods[0].id), Number(methods[0].priceRub || 0), itemsTotalRub);
+    } catch (e) {
+        console.warn('Failed to load delivery methods:', e);
+        methodsWrap.innerHTML = '';
+        emptyEl.style.display = 'block';
+        if (pickupWrap) pickupWrap.style.display = 'none';
+        updateCheckoutTotals(itemsTotalRub, 0);
+    }
+}
+
+function selectDeliveryMethod(methodId, priceRub, itemsTotalRub) {
+    const methodsWrap = document.getElementById('delivery-methods');
+    const pickupWrap = document.getElementById('pickup-point-wrap');
+    if (methodsWrap) {
+        methodsWrap.querySelectorAll('button[data-delivery-id]').forEach(btn => {
+            const active = btn.getAttribute('data-delivery-id') === String(methodId);
+            btn.style.background = active ? 'var(--accent)' : '';
+            btn.style.color = active ? '#fff' : '';
+        });
+        methodsWrap.setAttribute('data-selected-id', String(methodId));
+        methodsWrap.setAttribute('data-selected-price', String(priceRub));
+    }
+    if (pickupWrap) pickupWrap.style.display = String(methodId) === 'pickup' ? 'block' : 'none';
+    updateCheckoutTotals(itemsTotalRub, priceRub);
+}
+
+function updateCheckoutTotals(itemsTotalRub, deliveryRub) {
+    const deliveryEl = document.getElementById('checkout-delivery-total');
+    const grandEl = document.getElementById('checkout-grand-total');
+    if (deliveryEl) deliveryEl.textContent = `${Number(deliveryRub || 0).toFixed(0)} ₽`;
+    if (grandEl) grandEl.textContent = `${(Number(itemsTotalRub || 0) + Number(deliveryRub || 0)).toFixed(0)} ₽`;
 }
 
 function closeDeliveryForm() {
@@ -3329,19 +3570,38 @@ function closeDeliveryForm() {
     }
 }
 
-async function submitDeliveryForm(items, total, userBalance) {
+async function submitDeliveryForm(items, totalRub, userBalance) {
     const phone = document.getElementById('delivery-phone')?.value?.trim();
+    const city = document.getElementById('delivery-city')?.value?.trim();
     const address = document.getElementById('delivery-address')?.value?.trim();
+    const methodsWrap = document.getElementById('delivery-methods');
+    const deliveryMethodId = methodsWrap?.getAttribute('data-selected-id') || '';
+    const deliveryPriceRub = Number(methodsWrap?.getAttribute('data-selected-price') || '0');
+    const pickupPointAddress = document.getElementById('pickup-point-address')?.value?.trim();
     const payFromBalance = document.getElementById('pay-from-balance')?.checked || false;
-    const payFromBalancePartial = document.getElementById('pay-from-balance-partial')?.checked || false;
 
     if (!phone) {
         showError('Укажите номер телефона');
         return;
     }
 
-    if (!address) {
+    if (!city) {
+        showError('Укажите город');
+        return;
+    }
+
+    if (!deliveryMethodId) {
+        showError('Выберите способ доставки');
+        return;
+    }
+
+    if (deliveryMethodId === 'courier' && !address) {
         showError('Укажите адрес доставки');
+        return;
+    }
+
+    if (deliveryMethodId === 'pickup' && !pickupPointAddress) {
+        showError('Укажите пункт выдачи');
         return;
     }
 
@@ -3356,17 +3616,29 @@ async function submitDeliveryForm(items, total, userBalance) {
         console.error('Error saving user data:', error);
     }
 
-    // Определяем способ оплаты
-    if (payFromBalance && userBalance >= total) {
-        // Полная оплата с баланса
-        await processOrderWithBalance(items, total, null, phone, address);
-    } else if (payFromBalancePartial && userBalance > 0) {
-        // Частичная оплата с баланса
-        await processOrderWithBalance(items, total, userBalance, phone, address);
-    } else {
-        // Обычная оплата
-        await processOrderNormal(items, phone, address);
+    const grandTotalRub = Number(totalRub || 0) + Number(deliveryPriceRub || 0);
+    const userBalanceRub = Number(userBalance || 0) * 100;
+
+    // Оплата с баланса (если выбрана)
+    if (payFromBalance) {
+        if (userBalanceRub < grandTotalRub) {
+            showError('Недостаточно средств на балансе');
+            return;
+        }
+        const totalPz = grandTotalRub / 100; // ₽→PZ
+        const deliveryLine = deliveryMethodId === 'pickup'
+            ? `Город: ${city}\nДоставка: ПВЗ (${deliveryPriceRub} ₽)\nПВЗ: ${pickupPointAddress}`
+            : `Город: ${city}\nДоставка: Курьер (${deliveryPriceRub} ₽)\nАдрес: ${address}`;
+        await processOrderWithBalance(items, totalPz, null, phone, deliveryLine);
+        closeDeliveryForm();
+        return;
     }
+
+    // Без онлайн-оплаты: просто создаем заказ администратору
+    const deliveryLine = deliveryMethodId === 'pickup'
+        ? `Город: ${city}\nДоставка: ПВЗ (${deliveryPriceRub} ₽)\nПВЗ: ${pickupPointAddress}`
+        : `Город: ${city}\nДоставка: Курьер (${deliveryPriceRub} ₽)\nАдрес: ${address}`;
+    await processOrderNormal(items, phone, deliveryLine);
 
     closeDeliveryForm();
 }

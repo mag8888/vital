@@ -88,3 +88,6 @@ scripts/set_railway_vars.sh
 # Playwright artifacts
 playwright-report/
 test-results/
+
+# Local/foreign project accidentally dropped into repo root
+solia/

@@ -12,6 +12,7 @@ import { ensureInitialData } from './lib/bootstrap.js';
 import { adminWebRouter } from './admin/web.js';
 import { webappRouter } from './webapp/webapp.js';
 import lavaWebhook from './webhooks/lava.js';
+// YooKassa intentionally not used (delivery flow работает без онлайн-оплаты)
 import { setBotInstance } from './lib/bot-instance.js';
 
 async function bootstrap() {
