@@ -16524,8 +16524,12 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
               <select id="f_categoryId"></select>
             </div>
             <div>
-              <div class="muted">Фото (URL)</div>
-              <input id="f_photoUrl" placeholder="https://..." />
+              <div class="muted">Фото</div>
+              <input id="f_photoFile" type="file" accept="image/*" />
+              <div class="muted" id="photoHelp" style="margin-top:6px;">Загрузите файл (ссылка не нужна).</div>
+              <div id="photoPreviewWrap" style="margin-top:10px; display:none;">
+                <img id="photoPreview" src="" alt="" style="width: 100%; max-height: 160px; object-fit: cover; border-radius: 12px; border:1px solid #e5e7eb;">
+              </div>
             </div>
             <div>
               <div class="muted">Профиль (коротко)</div>
@@ -16655,7 +16659,20 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
 
         function setForm(s) {
           document.getElementById('f_name').value = s.name || '';
-          document.getElementById('f_photoUrl').value = s.photoUrl || '';
+          // Reset file input and preview
+          const fileInput = document.getElementById('f_photoFile');
+          if (fileInput) fileInput.value = '';
+          const previewWrap = document.getElementById('photoPreviewWrap');
+          const preview = document.getElementById('photoPreview');
+          if (previewWrap && preview) {
+            if (s.photoUrl) {
+              preview.src = s.photoUrl;
+              previewWrap.style.display = 'block';
+            } else {
+              preview.src = '';
+              previewWrap.style.display = 'none';
+            }
+          }
           document.getElementById('f_profile').value = s.profile || '';
           document.getElementById('f_about').value = s.about || '';
           document.getElementById('f_messengerUrl').value = s.messengerUrl || '';
@@ -16706,7 +16723,6 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
           const name = document.getElementById('f_name').value.trim();
           const categoryId = document.getElementById('f_categoryId')?.value || '';
           const specialtyId = document.getElementById('f_specialtyId')?.value || '';
-          const photoUrl = document.getElementById('f_photoUrl').value.trim();
           const profile = document.getElementById('f_profile').value.trim();
           const about = document.getElementById('f_about').value.trim();
           const messengerUrl = document.getElementById('f_messengerUrl').value.trim();
@@ -16716,7 +16732,7 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
           if (!categoryId) throw new Error('Выберите категорию');
           if (!specialtyId) throw new Error('Выберите специальность');
           const services = getServicesFromUi();
-          return { name, categoryId, specialtyId, photoUrl: photoUrl || null, profile: profile || null, about: about || null, messengerUrl: messengerUrl || null, isActive, sortOrder, services };
+          return { name, categoryId, specialtyId, profile: profile || null, about: about || null, messengerUrl: messengerUrl || null, isActive, sortOrder, services };
         }
 
         async function saveSpec() {
@@ -16735,6 +16751,28 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
               const errMsg = (data && data.error) ? String(data.error) : (rawText || 'Ошибка сохранения');
               return showAlert('HTTP ' + resp.status + ': ' + errMsg, 'err');
             }
+            // Upload photo if provided
+            const savedId = (data && data.specialist && data.specialist.id) ? String(data.specialist.id) : (currentId ? String(currentId) : '');
+            const photoFile = document.getElementById('f_photoFile')?.files?.[0] || null;
+            if (photoFile && savedId) {
+              try {
+                showAlert('⏳ Загружаю фото...', 'ok');
+                const fd = new FormData();
+                fd.append('photo', photoFile);
+                const upResp = await fetch('/admin/api/specialists/' + encodeURIComponent(savedId) + '/upload-photo', { method: 'POST', body: fd });
+                const upText = await upResp.text().catch(() => '');
+                let upData = {};
+                try { upData = upText ? JSON.parse(upText) : {}; } catch (_) {}
+                if (!upResp.ok || !upData.success) {
+                  const msg = (upData && upData.error) ? String(upData.error) : (upText || 'Ошибка загрузки фото');
+                  return showAlert('HTTP ' + upResp.status + ': ' + msg, 'err');
+                }
+              } catch (e) {
+                console.error('Photo upload exception:', e);
+                return showAlert('❌ ' + (e.message || e), 'err');
+              }
+            }
+
             showAlert('✅ Сохранено');
             closeModal();
             await load();
@@ -16799,6 +16837,21 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
         }
 
         document.getElementById('f_categoryId')?.addEventListener('change', () => refreshSpecialtiesForSelectedCategory());
+        document.getElementById('f_photoFile')?.addEventListener('change', () => {
+          try {
+            const file = document.getElementById('f_photoFile')?.files?.[0];
+            const wrap = document.getElementById('photoPreviewWrap');
+            const img = document.getElementById('photoPreview');
+            if (!wrap || !img) return;
+            if (!file) {
+              img.src = '';
+              wrap.style.display = 'none';
+              return;
+            }
+            img.src = URL.createObjectURL(file);
+            wrap.style.display = 'block';
+          } catch (_) {}
+        });
         loadTaxonomy().then(load);
       </script>
     </body>
@@ -17047,6 +17100,41 @@ router.put('/api/specialists/:id', requireAdmin, async (req, res) => {
   } catch (error: any) {
     console.error('Admin specialist update error:', error);
     res.status(500).json({ success: false, error: error?.message || 'Ошибка обновления' });
+  }
+});
+
+// Upload specialist photo (file -> Cloudinary -> specialist.photoUrl)
+router.post('/api/specialists/:id/upload-photo', requireAdmin, upload.single('photo'), async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ success: false, error: 'id обязателен' });
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'Файл не передан (photo)' });
+    }
+
+    if (!isCloudinaryConfigured()) {
+      return res.status(503).json({ success: false, error: 'Cloudinary не настроен' });
+    }
+
+    const exists = await prisma.specialist.findUnique({ where: { id } });
+    if (!exists) return res.status(404).json({ success: false, error: 'Специалист не найден' });
+
+    const result = await uploadImage(req.file.buffer, {
+      folder: 'vital/specialists',
+      publicId: `specialist-${id}`,
+      resourceType: 'image'
+    });
+
+    const updated = await prisma.specialist.update({
+      where: { id },
+      data: { photoUrl: result.secureUrl }
+    });
+
+    res.json({ success: true, photoUrl: result.secureUrl, specialist: updated });
+  } catch (error: any) {
+    console.error('Admin specialist photo upload error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка загрузки фото' });
   }
 });
 

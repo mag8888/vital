@@ -1243,12 +1243,12 @@ async function loadSpecialistsContent() {
             return html;
         }
 
-        html += `<div style="display:grid; gap:12px;">` + specialists.map(sp => {
+        html += `<div style="display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); max-width: 1200px; margin: 0 auto;">` + specialists.map(sp => {
             const photo = sp.photoUrl ? `<img src="${escapeHtml(sp.photoUrl)}" alt="" style="width:72px;height:72px;border-radius:16px;object-fit:cover;flex:0 0 auto;">` : `<div style="width:72px;height:72px;border-radius:16px;background:var(--bg-secondary);flex:0 0 auto;"></div>`;
             const spName = sp.specialtyRef?.name || sp.specialty || '';
             const catName = sp.category?.name || '';
             return `
-              <div class="content-card" style="cursor:pointer;" onclick="openSpecialistDetail('${sp.id}')">
+              <div class="content-card" style="cursor:pointer; height: 100%;" onclick="openSpecialistDetail('${sp.id}')">
                 <div style="display:flex; gap:12px; align-items:center;">
                   ${photo}
                   <div style="min-width:0;">
