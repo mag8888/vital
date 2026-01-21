@@ -1570,6 +1570,7 @@ router.get('/api/delivery/methods', async (req, res) => {
     const cityRaw = String((req.query?.city as string) || '').trim();
     const city = cityRaw.replace(/\s+/g, ' ').trim();
     if (!city) return res.json({ success: true, methods: [] });
+    if (city.length < 2) return res.json({ success: true, city, methods: [] });
 
     const { prisma } = await import('../lib/prisma.js');
 
@@ -1586,8 +1587,78 @@ router.get('/api/delivery/methods', async (req, res) => {
     const cdekClientId = String(await getSetting('delivery_cdek_client_id', '')).trim();
     const cdekClientSecret = String(await getSetting('delivery_cdek_client_secret', '')).trim();
     const yandexToken = String(await getSetting('delivery_yandex_token', '')).trim();
+    const originCity = String(await getSetting('delivery_origin_city', 'Москва')).trim() || 'Москва';
+    const defaultWeightGrams = Number(await getSetting('delivery_default_weight_g', '500')) || 500;
 
-    // Пока используем stub тарифы (фиксированные). Провайдеры cdek/yandex включим по ключам в админке.
+    // CDEK тарификация (если включено и настроено)
+    if (provider === 'cdek' && cdekClientId && cdekClientSecret) {
+      try {
+        const { getCdekQuote } = await import('../services/cdek-service.js');
+        const methods: Array<{ id: string; title: string; priceRub: number }> = [];
+        const warnings: string[] = [];
+
+        if (pickupEnabled) {
+          try {
+            const q = await getCdekQuote({
+              clientId: cdekClientId,
+              clientSecret: cdekClientSecret,
+              fromCity: originCity,
+              toCity: city,
+              method: 'pickup',
+              weightGrams: defaultWeightGrams
+            });
+            methods.push({ id: 'pickup', title: 'До пункта выдачи', priceRub: q.priceRub });
+          } catch (e: any) {
+            warnings.push('CDEK(PВЗ): ' + (e?.message || 'ошибка тарифа'));
+          }
+        }
+
+        if (courierEnabled) {
+          try {
+            const q = await getCdekQuote({
+              clientId: cdekClientId,
+              clientSecret: cdekClientSecret,
+              fromCity: originCity,
+              toCity: city,
+              method: 'courier',
+              weightGrams: defaultWeightGrams
+            });
+            methods.push({ id: 'courier', title: 'Курьером до двери', priceRub: q.priceRub });
+          } catch (e: any) {
+            warnings.push('CDEK(курьер): ' + (e?.message || 'ошибка тарифа'));
+          }
+        }
+
+        if (methods.length) {
+          return res.json({ success: true, city, provider, methods, warning: warnings.length ? warnings.join(' • ') : undefined });
+        }
+
+        // fall back to stub if CDEK failed to quote
+        return res.json({
+          success: true,
+          city,
+          provider,
+          methods: [
+            ...(pickupEnabled ? [{ id: 'pickup', title: 'До пункта выдачи', priceRub: pickupPriceRub }] : []),
+            ...(courierEnabled ? [{ id: 'courier', title: 'Курьером до двери', priceRub: courierPriceRub }] : [])
+          ],
+          warning: warnings.length ? ('CDEK не смог рассчитать тарифы: ' + warnings.join(' • ') + ' — использую фиксированные тарифы') : 'CDEK не смог рассчитать тарифы — использую фиксированные тарифы'
+        });
+      } catch (error: any) {
+        return res.json({
+          success: true,
+          city,
+          provider,
+          methods: [
+            ...(pickupEnabled ? [{ id: 'pickup', title: 'До пункта выдачи', priceRub: pickupPriceRub }] : []),
+            ...(courierEnabled ? [{ id: 'courier', title: 'Курьером до двери', priceRub: courierPriceRub }] : [])
+          ],
+          warning: 'CDEK ошибка интеграции — использую фиксированные тарифы'
+        });
+      }
+    }
+
+    // Stub тарифы (фиксированные)
     const methods: Array<{ id: string; title: string; priceRub: number }> = [];
     if (pickupEnabled) methods.push({ id: 'pickup', title: 'До пункта выдачи', priceRub: pickupPriceRub });
     if (courierEnabled) methods.push({ id: 'courier', title: 'Курьером до двери', priceRub: courierPriceRub });
@@ -1597,7 +1668,7 @@ router.get('/api/delivery/methods', async (req, res) => {
         ? 'CDEK не настроен (нужны client_id/client_secret) — использую фиксированные тарифы'
         : provider === 'yandex' && !yandexToken
           ? 'Yandex не настроен (нужен token) — использую фиксированные тарифы'
-          : (provider !== 'stub' ? 'API-тарифы пока не включены: использую фиксированные тарифы' : '');
+          : (provider !== 'stub' ? 'API-тарифы (Yandex) пока не включены: использую фиксированные тарифы' : '');
 
     res.json({ success: true, city, provider, methods, warning: warning || undefined });
   } catch (error: any) {
@@ -1624,17 +1695,37 @@ router.post('/api/delivery/quote', async (req, res) => {
     const provider = String(await getSetting('delivery_provider', 'stub')).trim();
     const pickupPriceRub = Number(await getSetting('delivery_pickup_price_rub', '620')) || 620;
     const courierPriceRub = Number(await getSetting('delivery_courier_price_rub', '875')) || 875;
+    const cdekClientId = String(await getSetting('delivery_cdek_client_id', '')).trim();
+    const cdekClientSecret = String(await getSetting('delivery_cdek_client_secret', '')).trim();
+    const originCity = String(await getSetting('delivery_origin_city', 'Москва')).trim() || 'Москва';
+    const defaultWeightGrams = Number(await getSetting('delivery_default_weight_g', '500')) || 500;
 
     if (provider === 'stub') {
       const priceRub = method === 'pickup' ? pickupPriceRub : courierPriceRub;
       return res.json({ success: true, city, method, provider, priceRub });
     }
 
-    // Provider selected, but full API integration requires credentials and a proper city/address mapping.
+    if (provider === 'cdek') {
+      if (!cdekClientId || !cdekClientSecret) {
+        return res.status(503).json({ success: false, provider, error: 'CDEK не настроен: заполните client_id/client_secret в админке' });
+      }
+      const { getCdekQuote } = await import('../services/cdek-service.js');
+      const q = await getCdekQuote({
+        clientId: cdekClientId,
+        clientSecret: cdekClientSecret,
+        fromCity: originCity,
+        toCity: city,
+        method: method === 'pickup' ? 'pickup' : 'courier',
+        weightGrams: defaultWeightGrams
+      });
+      return res.json({ success: true, city, method, provider, priceRub: q.priceRub, periodMin: q.periodMin, periodMax: q.periodMax });
+    }
+
+    // Yandex provider placeholder
     return res.status(501).json({
       success: false,
-      error: 'API расчёт доставки пока не реализован в этом деплое. В админке оставьте provider=stub или дайте данные/ключи для подключения.',
-      provider
+      provider,
+      error: 'Yandex тарифы пока не подключены. Используйте provider=stub или CDEK.'
     });
   } catch (error: any) {
     console.error('Delivery quote error:', error);
