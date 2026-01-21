@@ -15971,7 +15971,9 @@ router.post('/products/:productId/save-instruction', requireAdmin, async (req, r
 // ========== Invoice Import Routes ==========
 // Import invoice import routes from separate module
 import invoiceImportRouter from './invoice-import.js';
-router.use('/admin', invoiceImportRouter);
+// adminWebRouter already mounted at /admin in src/server.ts,
+// so we mount invoice routes at the root here to get /admin/api/...
+router.use('/', invoiceImportRouter);
 
 // GET: Settings page
 router.get('/invoice-settings', requireAdmin, async (req, res) => {
