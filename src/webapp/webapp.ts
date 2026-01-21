@@ -1548,6 +1548,93 @@ router.post('/api/user/address', async (req, res) => {
   }
 });
 
+// Create Lava invoice for balance top-up (simple webapp flow)
+router.post('/api/balance/topup', async (req, res) => {
+  try {
+    const telegramUser = getTelegramUser(req);
+    if (!telegramUser) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const amountRub = Number(req.body?.amountRub || 0);
+    if (!Number.isFinite(amountRub) || amountRub <= 0) {
+      return res.status(400).json({ success: false, error: 'Некорректная сумма' });
+    }
+    const rounded = Math.round(amountRub);
+    if (rounded < 10) {
+      return res.status(400).json({ success: false, error: 'Минимум 10 ₽' });
+    }
+
+    const { prisma } = await import('../lib/prisma.js');
+    const { lavaService } = await import('../services/lava-service.js');
+
+    if (!lavaService.isEnabled()) {
+      return res.status(503).json({ success: false, error: 'Сервис оплаты временно недоступен' });
+    }
+
+    // ensure user exists
+    let user = await prisma.user.findUnique({
+      where: { telegramId: telegramUser.id.toString() }
+    });
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          telegramId: telegramUser.id.toString(),
+          firstName: telegramUser.first_name,
+          lastName: telegramUser.last_name,
+          username: telegramUser.username,
+        }
+      });
+    }
+
+    const balanceOrderId = `BALANCE-${Date.now()}`;
+    const payment = await prisma.payment.create({
+      data: {
+        userId: user.id,
+        orderId: balanceOrderId,
+        amount: rounded,
+        currency: 'RUB',
+        status: 'PENDING',
+        invoiceId: 'temp-' + Date.now(),
+      }
+    });
+
+    const base = process.env.PUBLIC_BASE_URL || '';
+    const userEmail = (user as any).phone ? `${user.telegramId}@vital.temp` : `user_${user.telegramId}@vital.temp`;
+
+    const invoice = await lavaService.createInvoice({
+      email: userEmail,
+      sum: rounded,
+      orderId: payment.id,
+      currency: 'RUB',
+      buyerLanguage: 'RU',
+      hookUrl: base ? `${base}/webhook/lava` : undefined,
+      successUrl: base ? `${base}/payment/success` : undefined,
+      failUrl: base ? `${base}/payment/fail` : undefined,
+      customFields: {
+        userId: user.id,
+        telegramId: user.telegramId.toString(),
+        purpose: 'balance_topup',
+        balanceOrderId,
+      },
+      comment: `Пополнение баланса пользователя ${user.telegramId}`,
+    });
+
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        invoiceId: invoice.data.id,
+        paymentUrl: invoice.data.url,
+      }
+    });
+
+    res.json({ success: true, paymentId: payment.id, paymentUrl: invoice.data.url, amountRub: rounded });
+  } catch (error: any) {
+    console.error('Webapp topup error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка создания платежа' });
+  }
+});
+
 // Get video URL
 router.get('/api/video/url', async (req, res) => {
   try {

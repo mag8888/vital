@@ -3406,14 +3406,14 @@ function showBalanceTopUpDialog() {
                 <button class="balance-topup-close" onclick="closeBalanceTopUpDialog()">×</button>
             </div>
             <div class="balance-topup-body">
-                <p style="margin-bottom: 16px; color: var(--text-secondary);">Для пополнения баланса перейдите в бота и используйте команду:</p>
-                <div style="background: var(--bg-secondary); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
-                    <code style="font-size: 16px; font-weight: 600; color: var(--accent);">/add_balance</code>
-                </div>
-                <p style="margin-bottom: 16px; color: var(--text-secondary);">Или нажмите кнопку ниже для быстрого перехода:</p>
-                <button class="btn" onclick="openBotForBalance()" style="width: 100%; margin-bottom: 12px;">
-                    📱 Перейти в бота
+                <p style="margin-bottom: 12px; color: var(--text-secondary);">Введите сумму пополнения (₽):</p>
+                <input type="number" id="topup-amount" class="delivery-input" min="10" step="10" placeholder="Например: 1000" style="margin-bottom: 12px;">
+                <button class="btn" onclick="startBalanceTopUpFromWebapp()" style="width: 100%; margin-bottom: 12px;">
+                    💳 Оплатить картой
                 </button>
+                <div id="topup-hint" style="font-size: 12px; color: var(--text-secondary); line-height: 1.35; margin-bottom: 10px;">
+                  После оплаты баланс обновится автоматически.
+                </div>
                 <button class="btn btn-secondary" onclick="closeBalanceTopUpDialog()" style="width: 100%;">
                     Отмена
                 </button>
@@ -3446,6 +3446,43 @@ function openBotForBalance() {
     }
 
     closeBalanceTopUpDialog();
+}
+
+async function startBalanceTopUpFromWebapp() {
+    try {
+        const amountEl = document.getElementById('topup-amount');
+        const raw = amountEl ? amountEl.value : '';
+        const amount = Math.round(Number(raw || 0));
+        if (!Number.isFinite(amount) || amount <= 0) {
+            showError('Введите сумму пополнения');
+            return;
+        }
+        if (amount < 10) {
+            showError('Минимум 10 ₽');
+            return;
+        }
+
+        const resp = await fetch(`${API_BASE}/balance/topup`, {
+            method: 'POST',
+            headers: getApiHeaders(),
+            body: JSON.stringify({ amountRub: amount })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data?.success || !data?.paymentUrl) {
+            throw new Error(data?.error || 'Не удалось создать ссылку на оплату');
+        }
+
+        const url = String(data.paymentUrl);
+        if (window.Telegram?.WebApp?.openTelegramLink) {
+            window.Telegram.WebApp.openTelegramLink(url);
+        } else {
+            window.open(url, '_blank');
+        }
+        closeBalanceTopUpDialog();
+    } catch (e) {
+        console.error('Topup error:', e);
+        showError('Не удалось начать пополнение. Попробуйте позже.');
+    }
 }
 
 // ===== Delivery cities autocomplete (RU) =====
@@ -3498,8 +3535,6 @@ function renderCitySuggestions(inputEl) {
             inputEl.value = city;
             wrap.style.display = 'none';
             wrap.innerHTML = '';
-            // Trigger delivery methods refresh immediately
-            try { loadDeliveryMethodsAndRender(Number(document.getElementById('delivery-methods')?.getAttribute('data-items-total') || '0')); } catch (e) {}
         });
     });
 }
@@ -3568,10 +3603,6 @@ function showDeliveryForm(items, totalRub, userBalance) {
                                 <strong id="checkout-items-total">${Number(totalRub || 0).toFixed(0)} ₽</strong>
                             </div>
                             <div style="display: flex; justify-content: space-between; margin-top: 6px;">
-                                <span>🚚 Доставка:</span>
-                                <strong id="checkout-delivery-total">0 ₽</strong>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; margin-top: 6px;">
                                 <span>Итого:</span>
                                 <strong id="checkout-grand-total">${Number(totalRub || 0).toFixed(0)} ₽</strong>
                             </div>
@@ -3593,18 +3624,6 @@ function showDeliveryForm(items, totalRub, userBalance) {
                         <div style="margin-bottom: 20px;">
                             <label style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--text-primary);">Адрес доставки *</label>
                             <textarea id="delivery-address" class="delivery-textarea" placeholder="Город, улица, дом, квартира" rows="3" required>${userData.deliveryAddress || ''}</textarea>
-                        </div>
-                        
-                        <div style="margin-bottom: 16px;">
-                            <label style="display: block; margin-bottom: 8px; font-weight: 700; color: var(--text-primary);">Доставка</label>
-                            <div id="delivery-methods" data-items-total="${Number(totalRub || 0)}" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom: 10px;"></div>
-                            <div id="delivery-methods-empty" style="color: var(--text-secondary); font-size: 13px;">
-                                Введите город — и мы покажем доступные варианты доставки.
-                            </div>
-                            <div id="pickup-point-wrap" style="display:none; margin-top: 10px;">
-                                <label style="display:block; margin-bottom: 8px; font-weight: 600;">Пункт выдачи *</label>
-                                <input type="text" id="pickup-point-address" class="delivery-input" placeholder="Адрес пункта выдачи" value="">
-                            </div>
                         </div>
 
                         <div style="margin-bottom: 16px;">
@@ -3630,16 +3649,13 @@ function showDeliveryForm(items, totalRub, userBalance) {
             document.body.appendChild(dialog);
             setTimeout(() => dialog.classList.add('open'), 10);
 
-            // Подгружаем методы доставки по городу
+            // Город: подсказки по вводу
             const cityInput = document.getElementById('delivery-city');
             if (cityInput) {
                 cityInput.addEventListener('input', () => renderCitySuggestions(cityInput));
                 cityInput.addEventListener('blur', () => setTimeout(hideCitySuggestions, 150));
                 cityInput.addEventListener('focus', () => renderCitySuggestions(cityInput));
-                cityInput.addEventListener('input', debounce(() => loadDeliveryMethodsAndRender(Number(totalRub || 0)), 350));
             }
-            // Попробуем сразу показать методы, если город уже заполнен (или пользователь быстро введет)
-            loadDeliveryMethodsAndRender(Number(totalRub || 0));
             // Инициализируем доступность оплаты с баланса
             updateBalanceAffordability();
         })
@@ -3657,76 +3673,7 @@ function debounce(fn, wait) {
     };
 }
 
-async function loadDeliveryMethodsAndRender(itemsTotalRub) {
-    const city = document.getElementById('delivery-city')?.value?.trim() || '';
-    const methodsWrap = document.getElementById('delivery-methods');
-    const emptyEl = document.getElementById('delivery-methods-empty');
-    const pickupWrap = document.getElementById('pickup-point-wrap');
-    if (!methodsWrap || !emptyEl) return;
-
-    if (!city) {
-        methodsWrap.innerHTML = '';
-        emptyEl.style.display = 'block';
-        if (pickupWrap) pickupWrap.style.display = 'none';
-        updateCheckoutTotals(itemsTotalRub, 0);
-        return;
-    }
-
-    try {
-        const resp = await fetch(`${API_BASE}/delivery/methods?city=${encodeURIComponent(city)}`, { headers: getApiHeaders() });
-        const data = await resp.json().catch(() => ({}));
-        const methods = Array.isArray(data?.methods) ? data.methods : [];
-        if (!methods.length) {
-            methodsWrap.innerHTML = '';
-            emptyEl.style.display = 'block';
-            if (pickupWrap) pickupWrap.style.display = 'none';
-            updateCheckoutTotals(itemsTotalRub, 0);
-            return;
-        }
-        emptyEl.style.display = 'none';
-        methodsWrap.innerHTML = methods.map(m => {
-            const price = Number(m.priceRub || 0);
-            return `
-              <button type="button" class="btn btn-secondary" data-delivery-id="${m.id}" data-delivery-price="${price}"
-                onclick="selectDeliveryMethod('${m.id}', ${price}, ${itemsTotalRub})"
-                style="flex:1; min-width: 220px;">
-                ${m.title}: ${price.toFixed(0)} ₽
-              </button>
-            `;
-        }).join('');
-        selectDeliveryMethod(String(methods[0].id), Number(methods[0].priceRub || 0), itemsTotalRub);
-    } catch (e) {
-        console.warn('Failed to load delivery methods:', e);
-        methodsWrap.innerHTML = '';
-        emptyEl.style.display = 'block';
-        if (pickupWrap) pickupWrap.style.display = 'none';
-        updateCheckoutTotals(itemsTotalRub, 0);
-    }
-}
-
-function selectDeliveryMethod(methodId, priceRub, itemsTotalRub) {
-    const methodsWrap = document.getElementById('delivery-methods');
-    const pickupWrap = document.getElementById('pickup-point-wrap');
-    if (methodsWrap) {
-        methodsWrap.querySelectorAll('button[data-delivery-id]').forEach(btn => {
-            const active = btn.getAttribute('data-delivery-id') === String(methodId);
-            btn.style.background = active ? 'var(--accent)' : '';
-            btn.style.color = active ? '#fff' : '';
-        });
-        methodsWrap.setAttribute('data-selected-id', String(methodId));
-        methodsWrap.setAttribute('data-selected-price', String(priceRub));
-    }
-    if (pickupWrap) pickupWrap.style.display = String(methodId) === 'pickup' ? 'block' : 'none';
-    updateCheckoutTotals(itemsTotalRub, priceRub);
-}
-
-function updateCheckoutTotals(itemsTotalRub, deliveryRub) {
-    const deliveryEl = document.getElementById('checkout-delivery-total');
-    const grandEl = document.getElementById('checkout-grand-total');
-    if (deliveryEl) deliveryEl.textContent = `${Number(deliveryRub || 0).toFixed(0)} ₽`;
-    if (grandEl) grandEl.textContent = `${(Number(itemsTotalRub || 0) + Number(deliveryRub || 0)).toFixed(0)} ₽`;
-    updateBalanceAffordability();
-}
+// delivery totals removed (checkout is "fill address and order"; delivery method selection is not used in client)
 
 function closeDeliveryForm() {
     const dialog = document.querySelector('.delivery-form-modal');
@@ -3740,10 +3687,6 @@ async function submitDeliveryForm(items, totalRub, userBalance) {
     const phone = document.getElementById('delivery-phone')?.value?.trim();
     const city = document.getElementById('delivery-city')?.value?.trim();
     const address = document.getElementById('delivery-address')?.value?.trim();
-    const methodsWrap = document.getElementById('delivery-methods');
-    const deliveryMethodId = methodsWrap?.getAttribute('data-selected-id') || '';
-    const deliveryPriceRub = Number(methodsWrap?.getAttribute('data-selected-price') || '0');
-    const pickupPointAddress = document.getElementById('pickup-point-address')?.value?.trim();
     const payFromBalance = document.getElementById('pay-from-balance')?.checked || false;
 
     if (!phone) {
@@ -3756,18 +3699,8 @@ async function submitDeliveryForm(items, totalRub, userBalance) {
         return;
     }
 
-    if (!deliveryMethodId) {
-        showError('Выберите способ доставки');
-        return;
-    }
-
-    if (deliveryMethodId === 'courier' && !address) {
+    if (!address) {
         showError('Укажите адрес доставки');
-        return;
-    }
-
-    if (deliveryMethodId === 'pickup' && !pickupPointAddress) {
-        showError('Укажите пункт выдачи');
         return;
     }
 
@@ -3782,7 +3715,7 @@ async function submitDeliveryForm(items, totalRub, userBalance) {
         console.error('Error saving user data:', error);
     }
 
-    const grandTotalRub = Number(totalRub || 0) + Number(deliveryPriceRub || 0);
+    const grandTotalRub = Number(totalRub || 0);
     const userBalanceRub = Number(userBalance || 0) * 100;
 
     // Оплата с баланса (если выбрана)
@@ -3792,18 +3725,14 @@ async function submitDeliveryForm(items, totalRub, userBalance) {
             return;
         }
         const totalPz = grandTotalRub / 100; // ₽→PZ
-        const deliveryLine = deliveryMethodId === 'pickup'
-            ? `Город: ${city}\nДоставка: ПВЗ (${deliveryPriceRub} ₽)\nПВЗ: ${pickupPointAddress}`
-            : `Город: ${city}\nДоставка: Курьер (${deliveryPriceRub} ₽)\nАдрес: ${address}`;
+        const deliveryLine = `Город: ${city}\nАдрес: ${address}`;
         await processOrderWithBalance(items, totalPz, null, phone, deliveryLine);
         closeDeliveryForm();
         return;
     }
 
     // Без онлайн-оплаты: просто создаем заказ администратору
-    const deliveryLine = deliveryMethodId === 'pickup'
-        ? `Город: ${city}\nДоставка: ПВЗ (${deliveryPriceRub} ₽)\nПВЗ: ${pickupPointAddress}`
-        : `Город: ${city}\nДоставка: Курьер (${deliveryPriceRub} ₽)\nАдрес: ${address}`;
+    const deliveryLine = `Город: ${city}\nАдрес: ${address}`;
     await processOrderNormal(items, phone, deliveryLine);
 
     closeDeliveryForm();
