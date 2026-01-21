@@ -2037,6 +2037,14 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// Escape attribute values for safe interpolation into HTML attributes
+function escapeAttr(text) {
+    // escapeHtml covers &,<,>, but not quotes reliably for attribute context
+    return escapeHtml(String(text ?? ''))
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // Shop content - показываем все товары сразу
 async function loadShopContent() {
     try {
@@ -3440,6 +3448,99 @@ function openBotForBalance() {
     closeBalanceTopUpDialog();
 }
 
+// ===== Delivery cities autocomplete (RU) =====
+// Lightweight list for typeahead. Can be replaced later with DB-backed city directory.
+const RU_CITIES = [
+    'Москва', 'Санкт-Петербург', 'Новосибирск', 'Екатеринбург', 'Казань', 'Нижний Новгород', 'Челябинск', 'Самара', 'Омск', 'Ростов-на-Дону',
+    'Уфа', 'Красноярск', 'Воронеж', 'Пермь', 'Волгоград', 'Краснодар', 'Саратов', 'Тюмень', 'Тольятти', 'Ижевск',
+    'Барнаул', 'Ульяновск', 'Иркутск', 'Хабаровск', 'Ярославль', 'Владивосток', 'Махачкала', 'Томск', 'Оренбург', 'Кемерово',
+    'Новокузнецк', 'Рязань', 'Астрахань', 'Набережные Челны', 'Пенза', 'Киров', 'Липецк', 'Чебоксары', 'Тула', 'Калининград',
+    'Курск', 'Ставрополь', 'Севастополь', 'Сочи', 'Белгород', 'Улан-Удэ', 'Тверь', 'Магнитогорск', 'Иваново', 'Брянск',
+    'Сургут', 'Владимир', 'Нижний Тагил', 'Архангельск', 'Чита', 'Калуга', 'Смоленск', 'Волжский', 'Череповец', 'Орёл',
+    'Вологда', 'Саранск', 'Мурманск', 'Якутск', 'Тамбов', 'Стерлитамак', 'Грозный', 'Кострома', 'Новороссийск', 'Петрозаводск',
+    'Таганрог', 'Нальчик', 'Бийск', 'Комсомольск-на-Амуре', 'Нижневартовск', 'Сыктывкар', 'Шахты', 'Дзержинск', 'Орск', 'Ангарск'
+];
+
+function normalizeCityQuery(q) {
+    return String(q || '').trim().toLowerCase();
+}
+
+function pickCitySuggestions(q, limit = 8) {
+    const query = normalizeCityQuery(q);
+    if (!query) return [];
+    const starts = [];
+    const contains = [];
+    for (const c of RU_CITIES) {
+        const lc = c.toLowerCase();
+        if (lc.startsWith(query)) starts.push(c);
+        else if (lc.includes(query)) contains.push(c);
+        if (starts.length >= limit) break;
+    }
+    const out = starts.concat(contains).slice(0, limit);
+    return out;
+}
+
+function renderCitySuggestions(inputEl) {
+    const wrap = document.getElementById('delivery-city-suggest');
+    if (!wrap || !inputEl) return;
+    const q = inputEl.value || '';
+    const items = pickCitySuggestions(q, 8);
+    if (!items.length) {
+        wrap.style.display = 'none';
+        wrap.innerHTML = '';
+        return;
+    }
+    wrap.innerHTML = items.map(c => `<button type="button" class="city-suggest-item" data-city="${escapeAttr(c)}">${escapeHtml(c)}</button>`).join('');
+    wrap.style.display = 'block';
+    wrap.querySelectorAll('button.city-suggest-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const city = btn.getAttribute('data-city') || '';
+            inputEl.value = city;
+            wrap.style.display = 'none';
+            wrap.innerHTML = '';
+            // Trigger delivery methods refresh immediately
+            try { loadDeliveryMethodsAndRender(Number(document.getElementById('delivery-methods')?.getAttribute('data-items-total') || '0')); } catch (e) {}
+        });
+    });
+}
+
+function hideCitySuggestions() {
+    const wrap = document.getElementById('delivery-city-suggest');
+    if (!wrap) return;
+    wrap.style.display = 'none';
+    wrap.innerHTML = '';
+}
+
+function updateBalanceAffordability() {
+    const root = document.getElementById('delivery-form-root');
+    const cb = document.getElementById('pay-from-balance');
+    const note = document.getElementById('balance-topup-note');
+    const topupBtn = document.getElementById('topup-btn');
+    if (!root || !cb || !note) return;
+
+    const balanceRub = Number(root.getAttribute('data-balance-rub') || '0');
+    const grandText = document.getElementById('checkout-grand-total')?.textContent || '0';
+    const grandRub = Number(String(grandText).replace(/[^\d.,-]/g, '').replace(',', '.')) || 0;
+
+    const shortfall = grandRub - balanceRub;
+    if (shortfall > 0.5) {
+        cb.checked = false;
+        cb.disabled = true;
+        note.style.display = 'block';
+        note.innerHTML = `
+          <div style="margin-top:6px; font-size: 13px; color: var(--text-secondary);">
+            Недостаточно средств: не хватает <strong>${Math.ceil(shortfall)} ₽</strong>. Нужно пополнить счёт.
+          </div>
+        `;
+        if (topupBtn) topupBtn.style.display = 'block';
+    } else {
+        cb.disabled = false;
+        note.style.display = 'none';
+        note.innerHTML = '';
+        if (topupBtn) topupBtn.style.display = 'none';
+    }
+}
+
 // Показать форму доставки
 function showDeliveryForm(items, totalRub, userBalance) {
     // Загружаем данные пользователя для предзаполнения
@@ -3451,7 +3552,7 @@ function showDeliveryForm(items, totalRub, userBalance) {
             dialog.className = 'delivery-form-modal';
             dialog.innerHTML = `
                 <div class="delivery-form-overlay" onclick="closeDeliveryForm()"></div>
-                <div class="delivery-form-content">
+                <div class="delivery-form-content" id="delivery-form-root" data-balance-rub="${userBalanceRub}" data-items-rub="${Number(totalRub || 0)}">
                     <div class="delivery-form-header">
                         <h3>📦 Оформление заказа</h3>
                         <button class="delivery-form-close" onclick="closeDeliveryForm()">×</button>
@@ -3478,7 +3579,10 @@ function showDeliveryForm(items, totalRub, userBalance) {
 
                         <div style="margin-bottom: 16px;">
                             <label style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--text-primary);">Город *</label>
-                            <input type="text" id="delivery-city" class="delivery-input" placeholder="Например: Санкт-Петербург" value="" required>
+                            <div style="position: relative;">
+                              <input type="text" id="delivery-city" class="delivery-input" placeholder="Например: Санкт-Петербург" value="" autocomplete="off" required>
+                              <div id="delivery-city-suggest" class="city-suggest" style="display:none;"></div>
+                            </div>
                         </div>
                         
                         <div style="margin-bottom: 16px;">
@@ -3493,7 +3597,7 @@ function showDeliveryForm(items, totalRub, userBalance) {
                         
                         <div style="margin-bottom: 16px;">
                             <label style="display: block; margin-bottom: 8px; font-weight: 700; color: var(--text-primary);">Доставка</label>
-                            <div id="delivery-methods" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom: 10px;"></div>
+                            <div id="delivery-methods" data-items-total="${Number(totalRub || 0)}" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom: 10px;"></div>
                             <div id="delivery-methods-empty" style="color: var(--text-secondary); font-size: 13px;">
                                 Введите город — и мы покажем доступные варианты доставки.
                             </div>
@@ -3503,12 +3607,16 @@ function showDeliveryForm(items, totalRub, userBalance) {
                             </div>
                         </div>
 
-                        ${userBalanceRub >= Number(totalRub || 0) ? `
-                          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom: 16px;">
+                        <div style="margin-bottom: 16px;">
+                          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
                               <input type="checkbox" id="pay-from-balance">
                               <span>Оплатить с баланса</span>
                           </label>
-                        ` : ''}
+                          <div id="balance-topup-note" style="display:none;"></div>
+                          <button type="button" class="btn btn-outline" id="topup-btn" onclick="showBalanceTopUpDialog()" style="display:none; width:100%; margin-top: 10px;">
+                            Пополнить счёт
+                          </button>
+                        </div>
                         
                         <button class="btn" onclick="submitDeliveryForm(${JSON.stringify(items).replace(/"/g, '&quot;')}, ${Number(totalRub || 0)}, ${Number(userBalance || 0)})" style="width: 100%;">
                             Оформить заказ
@@ -3525,10 +3633,15 @@ function showDeliveryForm(items, totalRub, userBalance) {
             // Подгружаем методы доставки по городу
             const cityInput = document.getElementById('delivery-city');
             if (cityInput) {
+                cityInput.addEventListener('input', () => renderCitySuggestions(cityInput));
+                cityInput.addEventListener('blur', () => setTimeout(hideCitySuggestions, 150));
+                cityInput.addEventListener('focus', () => renderCitySuggestions(cityInput));
                 cityInput.addEventListener('input', debounce(() => loadDeliveryMethodsAndRender(Number(totalRub || 0)), 350));
             }
             // Попробуем сразу показать методы, если город уже заполнен (или пользователь быстро введет)
             loadDeliveryMethodsAndRender(Number(totalRub || 0));
+            // Инициализируем доступность оплаты с баланса
+            updateBalanceAffordability();
         })
         .catch(error => {
             console.error('Error loading user data:', error);
@@ -3612,6 +3725,7 @@ function updateCheckoutTotals(itemsTotalRub, deliveryRub) {
     const grandEl = document.getElementById('checkout-grand-total');
     if (deliveryEl) deliveryEl.textContent = `${Number(deliveryRub || 0).toFixed(0)} ₽`;
     if (grandEl) grandEl.textContent = `${(Number(itemsTotalRub || 0) + Number(deliveryRub || 0)).toFixed(0)} ₽`;
+    updateBalanceAffordability();
 }
 
 function closeDeliveryForm() {

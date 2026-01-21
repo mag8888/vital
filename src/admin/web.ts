@@ -414,6 +414,7 @@ function renderAdminShellStart(opts: { title: string; activePath: string; buildM
         <div class="admin-nav-group">Импорт и инструменты</div>
         <nav class="admin-nav">
           <a class="admin-nav-item ${isActive('/admin/invoice-import')}" href="/admin/invoice-import"><span class="admin-ico">${adminIcon('upload')}</span><span>Импорт инвойса</span></a>
+          <a class="admin-nav-item ${isActive('/admin/delivery-settings')}" href="/admin/delivery-settings"><span class="admin-ico">${adminIcon('wrench')}</span><span>Доставка</span></a>
           <a class="admin-nav-item ${isActive('/admin/sync-siam-pdf')}" href="/admin/sync-siam-pdf"><span class="admin-ico">${adminIcon('wrench')}</span><span>Siam из PDF</span></a>
           <a class="admin-nav-item ${isActive('/admin/sync-siam-json')}" href="/admin/sync-siam-json"><span class="admin-ico">${adminIcon('wrench')}</span><span>Siam из JSON</span></a>
           <a class="admin-nav-item ${isActive('/admin/audio')}" href="/admin/audio"><span class="admin-ico">${adminIcon('wrench')}</span><span>Аудио</span></a>
@@ -16129,6 +16130,239 @@ router.get('/invoice-settings', requireAdmin, async (req, res) => {
   } catch (error: any) {
     console.error('Error loading invoice settings page:', error);
     res.status(500).send('Ошибка загрузки страницы настроек');
+  }
+});
+
+// ========== Delivery Settings (Admin) ==========
+async function getSettingOrDefault(key: string, defaultValue: string): Promise<string> {
+  const s = await prisma.settings.findUnique({ where: { key } });
+  return s?.value ?? defaultValue;
+}
+
+async function upsertSetting(key: string, value: string, description: string) {
+  await prisma.settings.upsert({
+    where: { key },
+    update: { value, description },
+    create: { key, value, description }
+  });
+}
+
+router.get('/api/delivery-settings', requireAdmin, async (_req, res) => {
+  try {
+    const pickupEnabled = (await getSettingOrDefault('delivery_pickup_enabled', '1')) === '1';
+    const courierEnabled = (await getSettingOrDefault('delivery_courier_enabled', '1')) === '1';
+    const pickupPriceRub = Number(await getSettingOrDefault('delivery_pickup_price_rub', '620')) || 620;
+    const courierPriceRub = Number(await getSettingOrDefault('delivery_courier_price_rub', '875')) || 875;
+    const provider = await getSettingOrDefault('delivery_provider', 'stub'); // stub | cdek | yandex
+
+    const cdekClientId = await getSettingOrDefault('delivery_cdek_client_id', '');
+    const cdekClientSecret = await getSettingOrDefault('delivery_cdek_client_secret', '');
+    const yandexToken = await getSettingOrDefault('delivery_yandex_token', '');
+
+    const originCity = await getSettingOrDefault('delivery_origin_city', 'Москва');
+    const defaultWeightGrams = Number(await getSettingOrDefault('delivery_default_weight_g', '500')) || 500;
+
+    res.json({
+      success: true,
+      settings: {
+        pickupEnabled,
+        courierEnabled,
+        pickupPriceRub,
+        courierPriceRub,
+        provider,
+        cdekClientId,
+        cdekClientSecret,
+        yandexToken,
+        originCity,
+        defaultWeightGrams
+      }
+    });
+  } catch (error: any) {
+    console.error('Delivery settings get error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка получения настроек доставки' });
+  }
+});
+
+router.post('/api/delivery-settings', requireAdmin, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const pickupEnabled = body.pickupEnabled ? '1' : '0';
+    const courierEnabled = body.courierEnabled ? '1' : '0';
+    const pickupPriceRub = String(Math.max(0, Number(body.pickupPriceRub || 0) || 0));
+    const courierPriceRub = String(Math.max(0, Number(body.courierPriceRub || 0) || 0));
+    const provider = String(body.provider || 'stub').trim();
+
+    const cdekClientId = String(body.cdekClientId || '').trim();
+    const cdekClientSecret = String(body.cdekClientSecret || '').trim();
+    const yandexToken = String(body.yandexToken || '').trim();
+    const originCity = String(body.originCity || 'Москва').trim();
+    const defaultWeightGrams = String(Math.max(1, Number(body.defaultWeightGrams || 500) || 500));
+
+    await upsertSetting('delivery_pickup_enabled', pickupEnabled, 'Доставка: включить ПВЗ');
+    await upsertSetting('delivery_courier_enabled', courierEnabled, 'Доставка: включить курьера');
+    await upsertSetting('delivery_pickup_price_rub', pickupPriceRub, 'Доставка: базовая цена ПВЗ (₽) для режима stub');
+    await upsertSetting('delivery_courier_price_rub', courierPriceRub, 'Доставка: базовая цена курьер (₽) для режима stub');
+    await upsertSetting('delivery_provider', provider, 'Доставка: провайдер тарифов (stub/cdek/yandex)');
+
+    await upsertSetting('delivery_cdek_client_id', cdekClientId, 'CDEK: client_id (OAuth)');
+    await upsertSetting('delivery_cdek_client_secret', cdekClientSecret, 'CDEK: client_secret (OAuth)');
+    await upsertSetting('delivery_yandex_token', yandexToken, 'Yandex: API token');
+
+    await upsertSetting('delivery_origin_city', originCity, 'Доставка: город отправления (склад)');
+    await upsertSetting('delivery_default_weight_g', defaultWeightGrams, 'Доставка: вес посылки по умолчанию (г)');
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Delivery settings save error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка сохранения настроек доставки' });
+  }
+});
+
+router.get('/delivery-settings', requireAdmin, async (_req, res) => {
+  try {
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
+    res.send(`
+      ${renderAdminShellStart({ title: 'Доставка', activePath: '/admin/delivery-settings', buildMarker })}
+        <div class="card" style="padding:16px;">
+          <h2 style="margin:0 0 6px 0;">Настройки доставки</h2>
+          <div class="muted" style="margin-bottom: 14px;">
+            Сейчас доставка в webapp берётся из настроек ниже. Режим <b>stub</b> — фиксированные тарифы.
+            CDEK/Яндекс подключим через API по этим ключам (если ключи пустые — будет использоваться stub).
+          </div>
+
+          <div id="deliveryAlert" style="margin-bottom: 12px;"></div>
+
+          <form id="deliverySettingsForm" style="display:grid; gap: 12px; max-width: 720px;">
+            <div style="display:flex; gap: 16px; flex-wrap:wrap;">
+              <label style="display:flex; align-items:center; gap: 8px;">
+                <input type="checkbox" id="pickupEnabled" />
+                <span>ПВЗ доступен</span>
+              </label>
+              <label style="display:flex; align-items:center; gap: 8px;">
+                <input type="checkbox" id="courierEnabled" />
+                <span>Курьер доступен</span>
+              </label>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label class="muted">Цена ПВЗ (₽) — для режима stub</label>
+                <input class="input" type="number" id="pickupPriceRub" min="0" step="1" />
+              </div>
+              <div>
+                <label class="muted">Цена Курьер (₽) — для режима stub</label>
+                <input class="input" type="number" id="courierPriceRub" min="0" step="1" />
+              </div>
+            </div>
+
+            <div>
+              <label class="muted">Провайдер тарифов</label>
+              <select class="input" id="provider">
+                <option value="stub">stub (фиксированные тарифы)</option>
+                <option value="cdek">CDEK (API)</option>
+                <option value="yandex">Yandex Delivery (API)</option>
+              </select>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label class="muted">Город отправления (склад)</label>
+                <input class="input" type="text" id="originCity" />
+              </div>
+              <div>
+                <label class="muted">Вес по умолчанию (г)</label>
+                <input class="input" type="number" id="defaultWeightGrams" min="1" step="1" />
+              </div>
+            </div>
+
+            <details style="border:1px solid var(--admin-border); border-radius: 12px; padding: 10px;">
+              <summary style="cursor:pointer; font-weight:600;">Ключи API (опционально)</summary>
+              <div style="margin-top: 10px; display:grid; gap: 10px;">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                  <div>
+                    <label class="muted">CDEK client_id</label>
+                    <input class="input" type="text" id="cdekClientId" />
+                  </div>
+                  <div>
+                    <label class="muted">CDEK client_secret</label>
+                    <input class="input" type="password" id="cdekClientSecret" />
+                  </div>
+                </div>
+                <div>
+                  <label class="muted">Yandex token</label>
+                  <input class="input" type="password" id="yandexToken" />
+                </div>
+              </div>
+            </details>
+
+            <div style="display:flex; gap: 10px; justify-content:flex-end; margin-top: 6px;">
+              <button type="button" class="btn" onclick="window.location.href='/admin'">Назад</button>
+              <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+          </form>
+        </div>
+
+        <script>
+          const alertEl = document.getElementById('deliveryAlert');
+          function showAlert(msg, type) {
+            const bg = type === 'error' ? '#fef2f2' : '#ecfdf5';
+            const border = type === 'error' ? '#fecaca' : '#a7f3d0';
+            const color = type === 'error' ? '#991b1b' : '#065f46';
+            alertEl.innerHTML = '<div style="padding:10px 12px; border-radius: 10px; border:1px solid ' + border + '; background:' + bg + '; color:' + color + ';">' + msg + '</div>';
+          }
+
+          async function loadSettings() {
+            const resp = await fetch('/admin/api/delivery-settings');
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || !data.success) throw new Error(data.error || 'Не удалось загрузить настройки');
+            const s = data.settings || {};
+            document.getElementById('pickupEnabled').checked = !!s.pickupEnabled;
+            document.getElementById('courierEnabled').checked = !!s.courierEnabled;
+            document.getElementById('pickupPriceRub').value = String(s.pickupPriceRub ?? 0);
+            document.getElementById('courierPriceRub').value = String(s.courierPriceRub ?? 0);
+            document.getElementById('provider').value = String(s.provider || 'stub');
+            document.getElementById('cdekClientId').value = String(s.cdekClientId || '');
+            document.getElementById('cdekClientSecret').value = String(s.cdekClientSecret || '');
+            document.getElementById('yandexToken').value = String(s.yandexToken || '');
+            document.getElementById('originCity').value = String(s.originCity || 'Москва');
+            document.getElementById('defaultWeightGrams').value = String(s.defaultWeightGrams || 500);
+          }
+
+          document.getElementById('deliverySettingsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+              const payload = {
+                pickupEnabled: document.getElementById('pickupEnabled').checked,
+                courierEnabled: document.getElementById('courierEnabled').checked,
+                pickupPriceRub: Number(document.getElementById('pickupPriceRub').value || 0),
+                courierPriceRub: Number(document.getElementById('courierPriceRub').value || 0),
+                provider: document.getElementById('provider').value,
+                cdekClientId: document.getElementById('cdekClientId').value,
+                cdekClientSecret: document.getElementById('cdekClientSecret').value,
+                yandexToken: document.getElementById('yandexToken').value,
+                originCity: document.getElementById('originCity').value,
+                defaultWeightGrams: Number(document.getElementById('defaultWeightGrams').value || 500),
+              };
+              const resp = await fetch('/admin/api/delivery-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+              const data = await resp.json().catch(() => ({}));
+              if (!resp.ok || !data.success) throw new Error(data.error || 'Не удалось сохранить');
+              showAlert('✅ Сохранено', 'success');
+            } catch (err) {
+              showAlert('❌ ' + (err && err.message ? err.message : String(err)), 'error');
+            }
+          });
+
+          loadSettings().catch(err => showAlert('❌ ' + (err && err.message ? err.message : String(err)), 'error'));
+        </script>
+      ${renderAdminShellEnd()}
+    `);
+  } catch (error: any) {
+    console.error('Delivery settings page error:', error);
+    res.status(500).send('Ошибка страницы настроек доставки');
   }
 });
 

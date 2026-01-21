@@ -1564,23 +1564,81 @@ router.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Delivery methods (stub for now; can be replaced with CDEK/Boxberry integration)
+// Delivery methods
 router.get('/api/delivery/methods', async (req, res) => {
   try {
     const cityRaw = String((req.query?.city as string) || '').trim();
     const city = cityRaw.replace(/\s+/g, ' ').trim();
     if (!city) return res.json({ success: true, methods: [] });
 
-    // Based on your screenshots
-    const methods = [
-      { id: 'pickup', title: 'До пункта выдачи', priceRub: 620 },
-      { id: 'courier', title: 'Курьером до двери', priceRub: 875 }
-    ];
+    const { prisma } = await import('../lib/prisma.js');
 
-    res.json({ success: true, city, methods });
+    const getSetting = async (key: string, def: string) => {
+      const s = await prisma.settings.findUnique({ where: { key } }).catch(() => null);
+      return s?.value ?? def;
+    };
+
+    const pickupEnabled = (await getSetting('delivery_pickup_enabled', '1')) === '1';
+    const courierEnabled = (await getSetting('delivery_courier_enabled', '1')) === '1';
+    const pickupPriceRub = Number(await getSetting('delivery_pickup_price_rub', '620')) || 620;
+    const courierPriceRub = Number(await getSetting('delivery_courier_price_rub', '875')) || 875;
+    const provider = String(await getSetting('delivery_provider', 'stub')).trim();
+    const cdekClientId = String(await getSetting('delivery_cdek_client_id', '')).trim();
+    const cdekClientSecret = String(await getSetting('delivery_cdek_client_secret', '')).trim();
+    const yandexToken = String(await getSetting('delivery_yandex_token', '')).trim();
+
+    // Пока используем stub тарифы (фиксированные). Провайдеры cdek/yandex включим по ключам в админке.
+    const methods: Array<{ id: string; title: string; priceRub: number }> = [];
+    if (pickupEnabled) methods.push({ id: 'pickup', title: 'До пункта выдачи', priceRub: pickupPriceRub });
+    if (courierEnabled) methods.push({ id: 'courier', title: 'Курьером до двери', priceRub: courierPriceRub });
+
+    const warning =
+      provider === 'cdek' && (!cdekClientId || !cdekClientSecret)
+        ? 'CDEK не настроен (нужны client_id/client_secret) — использую фиксированные тарифы'
+        : provider === 'yandex' && !yandexToken
+          ? 'Yandex не настроен (нужен token) — использую фиксированные тарифы'
+          : (provider !== 'stub' ? 'API-тарифы пока не включены: использую фиксированные тарифы' : '');
+
+    res.json({ success: true, city, provider, methods, warning: warning || undefined });
   } catch (error: any) {
     console.error('Delivery methods error:', error);
     res.status(500).json({ success: false, error: error?.message || 'Ошибка получения доставки' });
+  }
+});
+
+// Delivery quote endpoint (future: CDEK / Yandex API calculation)
+router.post('/api/delivery/quote', async (req, res) => {
+  try {
+    const cityRaw = String(req.body?.city || '').trim();
+    const method = String(req.body?.method || '').trim(); // pickup | courier
+    const city = cityRaw.replace(/\s+/g, ' ').trim();
+    if (!city) return res.status(400).json({ success: false, error: 'city is required' });
+    if (!method) return res.status(400).json({ success: false, error: 'method is required' });
+
+    const { prisma } = await import('../lib/prisma.js');
+    const getSetting = async (key: string, def: string) => {
+      const s = await prisma.settings.findUnique({ where: { key } }).catch(() => null);
+      return s?.value ?? def;
+    };
+
+    const provider = String(await getSetting('delivery_provider', 'stub')).trim();
+    const pickupPriceRub = Number(await getSetting('delivery_pickup_price_rub', '620')) || 620;
+    const courierPriceRub = Number(await getSetting('delivery_courier_price_rub', '875')) || 875;
+
+    if (provider === 'stub') {
+      const priceRub = method === 'pickup' ? pickupPriceRub : courierPriceRub;
+      return res.json({ success: true, city, method, provider, priceRub });
+    }
+
+    // Provider selected, but full API integration requires credentials and a proper city/address mapping.
+    return res.status(501).json({
+      success: false,
+      error: 'API расчёт доставки пока не реализован в этом деплое. В админке оставьте provider=stub или дайте данные/ключи для подключения.',
+      provider
+    });
+  } catch (error: any) {
+    console.error('Delivery quote error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка расчёта доставки' });
   }
 });
 
