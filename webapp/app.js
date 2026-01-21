@@ -1288,6 +1288,12 @@ async function loadSpecialistDetailContent() {
         const sp = data?.specialist;
         if (!sp) return '<div class="error-message"><h3>Специалист не найден</h3></div>';
 
+        // Update overlay header title to specialist name
+        try {
+            const titleEl = document.getElementById('section-title');
+            if (titleEl) titleEl.textContent = String(sp.name || 'Специалист');
+        } catch (_) {}
+
         let services = [];
         if (Array.isArray(sp.services)) services = sp.services;
         const boxStyle = 'background:#ffffff; border:1px solid rgba(17,24,39,0.18); border-radius:16px; padding:14px 14px 12px;';
@@ -1305,7 +1311,7 @@ async function loadSpecialistDetailContent() {
           </div>
         ` : '';
 
-        const photo = sp.photoUrl ? `<img src="${escapeHtml(sp.photoUrl)}" alt="" style="width:100%; max-height: 280px; object-fit:cover; border-radius: 18px;">` : '';
+        const photo = sp.photoUrl ? `<img src="${escapeHtml(sp.photoUrl)}" alt="" class="specialist-detail-photo">` : '';
         const about = sp.about ? `
           <div style="${boxStyle} margin-top: 12px;">
             <div style="font-weight:800; color:var(--text-primary); margin-bottom: 10px;">О специалисте</div>
@@ -1317,15 +1323,18 @@ async function loadSpecialistDetailContent() {
         ` : '';
 
         return `
-          <button class="btn btn-secondary" onclick="openSection('specialists')" style="margin-bottom: 12px;">← Назад</button>
-          ${photo}
-          <div style="margin-top: 12px;">
-            <div style="font-weight:900; font-size: 20px; color:var(--text-primary);">${escapeHtml(sp.name || '')}</div>
-            <div style="color:var(--text-secondary); margin-top: 4px;">${escapeHtml((sp.category?.name ? (sp.category.name + ' — ') : '') + (sp.specialtyRef?.name || sp.specialty || ''))}${sp.profile ? ' • ' + escapeHtml(sp.profile) : ''}</div>
+          <div class="specialist-detail-layout">
+            <div class="specialist-detail-left">
+              ${photo}
+            </div>
+            <div class="specialist-detail-right">
+              <div class="specialist-detail-title">${escapeHtml(sp.name || '')}</div>
+              <div class="specialist-detail-subtitle">${escapeHtml((sp.category?.name ? (sp.category.name + ' — ') : '') + (sp.specialtyRef?.name || sp.specialty || ''))}${sp.profile ? ' • ' + escapeHtml(sp.profile) : ''}</div>
+              ${servicesHtml}
+              ${about}
+              ${btn}
+            </div>
           </div>
-          ${servicesHtml}
-          ${about}
-          ${btn}
         `;
     } catch (e) {
         console.error('Specialist detail error:', e);
