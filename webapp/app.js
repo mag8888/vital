@@ -1204,7 +1204,7 @@ async function loadSectionContent(sectionName, container) {
     }
 }
 
-let __specialistsState = { specialty: '' };
+let __specialistsState = { specialtyId: '' };
 let __selectedSpecialistId = null;
 
 function openSpecialistDetail(id) {
@@ -1214,7 +1214,7 @@ function openSpecialistDetail(id) {
 
 async function loadSpecialistsContent() {
     try {
-        const qs = __specialistsState.specialty ? `?specialty=${encodeURIComponent(__specialistsState.specialty)}` : '';
+        const qs = __specialistsState.specialtyId ? `?specialtyId=${encodeURIComponent(__specialistsState.specialtyId)}` : '';
         const resp = await fetch(`${API_BASE}/specialists${qs}`);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
@@ -1226,7 +1226,7 @@ async function loadSpecialistsContent() {
             <label style="font-weight:600;">Специальность:</label>
             <select id="specialtyFilter" class="delivery-input" style="max-width: 320px;">
               <option value="">Все</option>
-              ${specialties.map(s => `<option value="${escapeHtml(s)}" ${s === __specialistsState.specialty ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}
+              ${specialties.map(s => `<option value="${escapeHtml(s.id)}" ${s.id === __specialistsState.specialtyId ? 'selected' : ''}>${escapeHtml(s.categoryName ? (s.categoryName + ' — ' + s.name) : s.name)}</option>`).join('')}
             </select>
           </div>
         `;
@@ -1245,13 +1245,15 @@ async function loadSpecialistsContent() {
 
         html += `<div style="display:grid; gap:12px;">` + specialists.map(sp => {
             const photo = sp.photoUrl ? `<img src="${escapeHtml(sp.photoUrl)}" alt="" style="width:72px;height:72px;border-radius:16px;object-fit:cover;flex:0 0 auto;">` : `<div style="width:72px;height:72px;border-radius:16px;background:var(--bg-secondary);flex:0 0 auto;"></div>`;
+            const spName = sp.specialtyRef?.name || sp.specialty || '';
+            const catName = sp.category?.name || '';
             return `
               <div class="content-card" style="cursor:pointer;" onclick="openSpecialistDetail('${sp.id}')">
                 <div style="display:flex; gap:12px; align-items:center;">
                   ${photo}
                   <div style="min-width:0;">
                     <div style="font-weight:800; font-size:16px; color:var(--text-primary);">${escapeHtml(sp.name || '')}</div>
-                    <div style="color:var(--text-secondary); font-size:13px; margin-top:4px;">${escapeHtml(sp.specialty || '')}${sp.profile ? ' • ' + escapeHtml(sp.profile) : ''}</div>
+                    <div style="color:var(--text-secondary); font-size:13px; margin-top:4px;">${escapeHtml(catName ? (catName + ' — ' + spName) : spName)}${sp.profile ? ' • ' + escapeHtml(sp.profile) : ''}</div>
                   </div>
                 </div>
               </div>
@@ -1259,10 +1261,10 @@ async function loadSpecialistsContent() {
         }).join('') + `</div>`;
 
         html += `<script>
-          window.__specialistsState = window.__specialistsState || { specialty: '' };
+          window.__specialistsState = window.__specialistsState || { specialtyId: '' };
           document.getElementById('specialtyFilter')?.addEventListener('change', (e) => {
-            window.__specialistsState.specialty = e.target.value || '';
-            __specialistsState.specialty = window.__specialistsState.specialty;
+            window.__specialistsState.specialtyId = e.target.value || '';
+            __specialistsState.specialtyId = window.__specialistsState.specialtyId;
             openSection('specialists');
           });
         </script>`;
@@ -1285,7 +1287,7 @@ async function loadSpecialistDetailContent() {
         if (!sp) return '<div class="error-message"><h3>Специалист не найден</h3></div>';
 
         let services = [];
-        if (Array.isArray(sp.servicesJson)) services = sp.servicesJson;
+        if (Array.isArray(sp.services)) services = sp.services;
         const servicesHtml = services.length ? `
           <div class="content-card" style="margin-top: 12px;">
             <div style="font-weight:800; margin-bottom: 10px;">Услуги</div>
@@ -1311,7 +1313,7 @@ async function loadSpecialistDetailContent() {
           ${photo}
           <div style="margin-top: 12px;">
             <div style="font-weight:900; font-size: 20px; color:var(--text-primary);">${escapeHtml(sp.name || '')}</div>
-            <div style="color:var(--text-secondary); margin-top: 4px;">${escapeHtml(sp.specialty || '')}${sp.profile ? ' • ' + escapeHtml(sp.profile) : ''}</div>
+            <div style="color:var(--text-secondary); margin-top: 4px;">${escapeHtml((sp.category?.name ? (sp.category.name + ' — ') : '') + (sp.specialtyRef?.name || sp.specialty || ''))}${sp.profile ? ' • ' + escapeHtml(sp.profile) : ''}</div>
           </div>
           ${servicesHtml}
           ${about}

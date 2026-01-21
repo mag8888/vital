@@ -16480,7 +16480,11 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
         <div class="content">
           <div class="row" style="justify-content: space-between; margin-bottom: 14px;">
             <a href="/admin" class="btn secondary">← Назад</a>
-            <button class="btn" onclick="openModal()">+ Добавить специалиста</button>
+            <div class="row">
+              <button class="btn secondary" onclick="openTaxonomyModal('categories')">Категории</button>
+              <button class="btn secondary" onclick="openTaxonomyModal('specialties')">Специальности</button>
+              <button class="btn" onclick="openModal()">+ Добавить специалиста</button>
+            </div>
           </div>
 
           <div id="alert"></div>
@@ -16489,6 +16493,7 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
               <thead>
                 <tr>
                   <th>Имя</th>
+                  <th>Категория</th>
                   <th>Специальность</th>
                   <th>Активен</th>
                   <th>Сортировка</th>
@@ -16515,8 +16520,8 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
               <input id="f_name" placeholder="Имя Фамилия" />
             </div>
             <div>
-              <div class="muted">Специальность *</div>
-              <input id="f_specialty" placeholder="Например: Нутрициолог" />
+              <div class="muted">Категория *</div>
+              <select id="f_categoryId"></select>
             </div>
             <div>
               <div class="muted">Фото (URL)</div>
@@ -16529,8 +16534,16 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
           </div>
 
           <div style="margin-top: 12px;">
-            <div class="muted">Услуги (JSON массив) — пример: [{"title":"Консультация","priceRub":3000}]</div>
-            <textarea id="f_servicesJson" placeholder='[{"title":"Консультация","priceRub":3000}]'></textarea>
+            <div class="grid">
+              <div>
+                <div class="muted">Специальность *</div>
+                <select id="f_specialtyId"></select>
+              </div>
+              <div>
+                <div class="muted">Ссылка для записи (мессенджер)</div>
+                <input id="f_messengerUrl" placeholder="https://t.me/username или ссылка WhatsApp/Instagram" />
+              </div>
+            </div>
           </div>
 
           <div style="margin-top: 12px;">
@@ -16538,15 +16551,21 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
             <textarea id="f_about" placeholder="Текст о специалисте"></textarea>
           </div>
 
-          <div class="grid" style="margin-top: 12px;">
-            <div>
-              <div class="muted">Ссылка для записи (мессенджер)</div>
-              <input id="f_messengerUrl" placeholder="https://t.me/username или ссылка WhatsApp/Instagram" />
+          <div class="card" style="margin-top: 12px;">
+            <div class="row" style="justify-content: space-between; margin-bottom: 10px;">
+              <div style="font-weight:900;">Услуги</div>
+              <button class="btn secondary" type="button" onclick="addServiceRow()">+ Добавить услугу</button>
             </div>
+            <div class="muted" style="margin-bottom: 10px;">Добавляй услуги кнопками (без JSON).</div>
+            <div id="servicesList" style="display:grid; gap:10px;"></div>
+          </div>
+
+          <div class="grid" style="margin-top: 12px;">
             <div>
               <div class="muted">Сортировка (sortOrder)</div>
               <input id="f_sortOrder" type="number" value="0" />
             </div>
+            <div></div>
           </div>
 
           <div class="row" style="margin-top: 12px; align-items:center;">
@@ -16576,6 +16595,33 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
           return String(str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
         }
 
+        let categories = [];
+        let specialtiesByCategory = new Map();
+        let taxonomyMode = null; // 'categories' | 'specialties'
+        let taxonomyEditing = null; // { type, id }
+
+        async function loadTaxonomy() {
+          const c = await fetch('/admin/api/specialist-categories').then(r => r.json()).catch(() => ({}));
+          categories = Array.isArray(c.categories) ? c.categories : [];
+          const select = document.getElementById('f_categoryId');
+          if (select) {
+            select.innerHTML = categories.filter(x => x.isActive !== false).map(cat => '<option value="' + cat.id + '">' + escapeHtml(cat.name) + '</option>').join('');
+          }
+          await refreshSpecialtiesForSelectedCategory();
+        }
+
+        async function refreshSpecialtiesForSelectedCategory() {
+          const catId = document.getElementById('f_categoryId')?.value || '';
+          if (!catId) return;
+          const s = await fetch('/admin/api/specialist-specialties?categoryId=' + encodeURIComponent(catId)).then(r => r.json()).catch(() => ({}));
+          const list = Array.isArray(s.specialties) ? s.specialties : [];
+          specialtiesByCategory.set(catId, list);
+          const select = document.getElementById('f_specialtyId');
+          if (select) {
+            select.innerHTML = list.filter(x => x.isActive !== false).map(sp => '<option value="' + sp.id + '">' + escapeHtml(sp.name) + '</option>').join('');
+          }
+        }
+
         async function load() {
           const resp = await fetch('/admin/api/specialists');
           const data = await resp.json().catch(() => ({}));
@@ -16583,9 +16629,12 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
           tbody.innerHTML = '';
           (data.specialists || []).forEach(s => {
             const tr = document.createElement('tr');
+            const cat = s.category?.name || '';
+            const spName = s.specialtyRef?.name || s.specialty || '';
             tr.innerHTML = \`
               <td><strong>\${escapeHtml(s.name || '')}</strong><div class="muted">\${escapeHtml(s.profile || '')}</div></td>
-              <td><span class="pill">\${escapeHtml(s.specialty || '')}</span></td>
+              <td><span class="pill">\${escapeHtml(cat)}</span></td>
+              <td><span class="pill">\${escapeHtml(spName)}</span></td>
               <td>\${s.isActive ? '✅' : '—'}</td>
               <td>\${Number(s.sortOrder || 0)}</td>
               <td><button class="btn secondary" onclick="edit('\${s.id}')">Редактировать</button></td>
@@ -16597,7 +16646,7 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
         function openModal() {
           currentId = null;
           document.getElementById('deleteBtn').style.display = 'none';
-          setForm({ name:'', specialty:'', photoUrl:'', profile:'', about:'', servicesJsonText:'[]', messengerUrl:'', isActive:true, sortOrder:0 });
+          setForm({ name:'', categoryId:'', specialtyId:'', photoUrl:'', profile:'', about:'', messengerUrl:'', isActive:true, sortOrder:0, services: [] });
           document.getElementById('modal').classList.add('open');
         }
         function closeModal() {
@@ -16606,14 +16655,29 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
 
         function setForm(s) {
           document.getElementById('f_name').value = s.name || '';
-          document.getElementById('f_specialty').value = s.specialty || '';
           document.getElementById('f_photoUrl').value = s.photoUrl || '';
           document.getElementById('f_profile').value = s.profile || '';
           document.getElementById('f_about').value = s.about || '';
-          document.getElementById('f_servicesJson').value = s.servicesJsonText || (Array.isArray(s.servicesJson) ? JSON.stringify(s.servicesJson, null, 2) : (s.servicesJson ? JSON.stringify(s.servicesJson, null, 2) : '[]'));
           document.getElementById('f_messengerUrl').value = s.messengerUrl || '';
           document.getElementById('f_isActive').checked = !!s.isActive;
           document.getElementById('f_sortOrder').value = Number(s.sortOrder || 0);
+
+          // Category & specialty
+          if (s.categoryId && document.getElementById('f_categoryId')) {
+            document.getElementById('f_categoryId').value = s.categoryId;
+          }
+          // rebuild specialties for category then set selected
+          refreshSpecialtiesForSelectedCategory().then(() => {
+            if (s.specialtyId && document.getElementById('f_specialtyId')) {
+              document.getElementById('f_specialtyId').value = s.specialtyId;
+            }
+          });
+
+          // Services UI
+          const list = document.getElementById('servicesList');
+          if (list) list.innerHTML = '';
+          const services = Array.isArray(s.services) ? s.services : [];
+          services.forEach(svc => addServiceRow(svc));
         }
 
         async function edit(id) {
@@ -16626,24 +16690,33 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
           document.getElementById('modal').classList.add('open');
         }
 
+        function getServicesFromUi() {
+          const rows = Array.from(document.querySelectorAll('[data-service-row="1"]'));
+          const out = [];
+          rows.forEach((row, idx) => {
+            const title = row.querySelector('[data-service-title]')?.value?.trim() || '';
+            const price = Number(row.querySelector('[data-service-price]')?.value || 0);
+            if (!title) return;
+            out.push({ title, priceRub: Math.round(price), sortOrder: idx });
+          });
+          return out;
+        }
+
         function getPayload() {
           const name = document.getElementById('f_name').value.trim();
-          const specialty = document.getElementById('f_specialty').value.trim();
+          const categoryId = document.getElementById('f_categoryId')?.value || '';
+          const specialtyId = document.getElementById('f_specialtyId')?.value || '';
           const photoUrl = document.getElementById('f_photoUrl').value.trim();
           const profile = document.getElementById('f_profile').value.trim();
           const about = document.getElementById('f_about').value.trim();
           const messengerUrl = document.getElementById('f_messengerUrl').value.trim();
           const isActive = document.getElementById('f_isActive').checked;
           const sortOrder = Number(document.getElementById('f_sortOrder').value || 0);
-          const raw = document.getElementById('f_servicesJson').value.trim();
-          let servicesJson = null;
-          if (raw) {
-            servicesJson = JSON.parse(raw);
-            if (!Array.isArray(servicesJson)) throw new Error('servicesJson должен быть JSON массивом');
-          }
           if (!name) throw new Error('Укажите имя');
-          if (!specialty) throw new Error('Укажите специальность');
-          return { name, specialty, photoUrl: photoUrl || null, profile: profile || null, about: about || null, servicesJson, messengerUrl: messengerUrl || null, isActive, sortOrder };
+          if (!categoryId) throw new Error('Выберите категорию');
+          if (!specialtyId) throw new Error('Выберите специальность');
+          const services = getServicesFromUi();
+          return { name, categoryId, specialtyId, photoUrl: photoUrl || null, profile: profile || null, about: about || null, messengerUrl: messengerUrl || null, isActive, sortOrder, services };
         }
 
         async function saveSpec() {
@@ -16654,12 +16727,19 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload)
             });
-            const data = await resp.json().catch(() => ({}));
-            if (!resp.ok || !data.success) return showAlert(data.error || 'Ошибка сохранения', 'err');
+            const rawText = await resp.text().catch(() => '');
+            let data = {};
+            try { data = rawText ? JSON.parse(rawText) : {}; } catch (_) {}
+            if (!resp.ok || !data.success) {
+              console.error('Specialist save failed:', { status: resp.status, rawText, data });
+              const errMsg = (data && data.error) ? String(data.error) : (rawText || 'Ошибка сохранения');
+              return showAlert('HTTP ' + resp.status + ': ' + errMsg, 'err');
+            }
             showAlert('✅ Сохранено');
             closeModal();
             await load();
           } catch (e) {
+            console.error('Specialist save exception:', e);
             showAlert('❌ ' + (e.message || e), 'err');
           }
         }
@@ -16675,16 +16755,181 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
           await load();
         }
 
-        load();
+        function addServiceRow(svc) {
+          const list = document.getElementById('servicesList');
+          if (!list) return;
+          const row = document.createElement('div');
+          row.setAttribute('data-service-row', '1');
+          row.className = 'row';
+          row.style.alignItems = 'stretch';
+          row.innerHTML =
+            '<div style="flex:1;">' +
+              '<div class="muted">Название услуги</div>' +
+              '<input data-service-title placeholder="Например: Консультация">' +
+            '</div>' +
+            '<div style="width: 180px;">' +
+              '<div class="muted">Цена (₽)</div>' +
+              '<input data-service-price type="number" min="0" step="1" value="0">' +
+            '</div>' +
+            '<div style="width: 120px; display:flex; align-items:flex-end;">' +
+              '<button type="button" class="btn danger" onclick="this.closest(\\'[data-service-row=\"1\"]\\').remove()">Удалить</button>' +
+            '</div>';
+          try {
+            const titleEl = row.querySelector('[data-service-title]');
+            const priceEl = row.querySelector('[data-service-price]');
+            if (titleEl) titleEl.value = String(svc?.title || '');
+            if (priceEl) priceEl.value = String(Number(svc?.priceRub || 0));
+          } catch (_) {}
+          list.appendChild(row);
+        }
+
+        // taxonomy modals (simple prompt-based edit for speed)
+        async function openTaxonomyModal(mode) {
+          taxonomyMode = mode;
+          if (mode === 'categories') {
+            const data = await fetch('/admin/api/specialist-categories').then(r=>r.json()).catch(()=>({}));
+            const names = (data.categories||[]).map(c => (String(c.id) + ' | ' + (c.isActive ? 'ON' : 'OFF') + ' | ' + (c.sortOrder||0) + ' | ' + String(c.name||''))).join('\\n');
+            alert('Категории (id | status | sort | name)\\n\\n' + (names || '(пусто)') + '\\n\\nДобавление/редактирование сделаю отдельным окном следующим патчем — сейчас важнее стабилизировать специалистов.');
+          } else {
+            const catId = prompt('Введите categoryId чтобы показать специальности этой категории (или оставьте пусто):', '');
+            const data = await fetch('/admin/api/specialist-specialties' + (catId ? ('?categoryId=' + encodeURIComponent(catId)) : '')).then(r=>r.json()).catch(()=>({}));
+            const names = (data.specialties||[]).map(s => (String(s.id) + ' | ' + (s.isActive ? 'ON' : 'OFF') + ' | ' + (s.sortOrder||0) + ' | ' + String(s.name||'') + ' | cat:' + String(s.categoryId||''))).join('\\n');
+            alert('Специальности (id | status | sort | name | categoryId)\\n\\n' + (names || '(пусто)') + '\\n\\nUI управления добавлю в следующем шаге.');
+          }
+        }
+
+        document.getElementById('f_categoryId')?.addEventListener('change', () => refreshSpecialtiesForSelectedCategory());
+        loadTaxonomy().then(load);
       </script>
     </body>
     </html>
   `);
 });
 
+router.get('/api/specialist-categories', requireAdmin, async (_req, res) => {
+  try {
+    const categories = await prisma.specialistCategory.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
+    res.json({ success: true, categories });
+  } catch (error: any) {
+    console.error('Admin specialist categories list error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка загрузки категорий' });
+  }
+});
+
+router.post('/api/specialist-categories', requireAdmin, async (req, res) => {
+  try {
+    const { name, sortOrder, isActive } = req.body || {};
+    if (!name) return res.status(400).json({ success: false, error: 'name обязателен' });
+    const created = await prisma.specialistCategory.create({
+      data: {
+        name: String(name).trim(),
+        sortOrder: Number(sortOrder || 0),
+        isActive: typeof isActive === 'boolean' ? isActive : true
+      }
+    });
+    res.json({ success: true, category: created });
+  } catch (error: any) {
+    console.error('Admin specialist category create error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка создания категории' });
+  }
+});
+
+router.put('/api/specialist-categories/:id', requireAdmin, async (req, res) => {
+  try {
+    const { name, sortOrder, isActive } = req.body || {};
+    const updated = await prisma.specialistCategory.update({
+      where: { id: req.params.id },
+      data: {
+        ...(name != null ? { name: String(name).trim() } : {}),
+        ...(sortOrder != null ? { sortOrder: Number(sortOrder || 0) } : {}),
+        ...(isActive != null ? { isActive: Boolean(isActive) } : {})
+      }
+    });
+    res.json({ success: true, category: updated });
+  } catch (error: any) {
+    console.error('Admin specialist category update error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка обновления категории' });
+  }
+});
+
+router.delete('/api/specialist-categories/:id', requireAdmin, async (req, res) => {
+  try {
+    await prisma.specialistCategory.update({ where: { id: req.params.id }, data: { isActive: false } });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Admin specialist category delete error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка удаления категории' });
+  }
+});
+
+router.get('/api/specialist-specialties', requireAdmin, async (req, res) => {
+  try {
+    const categoryId = String(req.query?.categoryId || '').trim();
+    const where: any = {};
+    if (categoryId) where.categoryId = categoryId;
+    const specialties = await prisma.specialistSpecialty.findMany({ where, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
+    res.json({ success: true, specialties });
+  } catch (error: any) {
+    console.error('Admin specialist specialties list error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка загрузки специальностей' });
+  }
+});
+
+router.post('/api/specialist-specialties', requireAdmin, async (req, res) => {
+  try {
+    const { categoryId, name, sortOrder, isActive } = req.body || {};
+    if (!categoryId) return res.status(400).json({ success: false, error: 'categoryId обязателен' });
+    if (!name) return res.status(400).json({ success: false, error: 'name обязателен' });
+    const created = await prisma.specialistSpecialty.create({
+      data: {
+        categoryId: String(categoryId),
+        name: String(name).trim(),
+        sortOrder: Number(sortOrder || 0),
+        isActive: typeof isActive === 'boolean' ? isActive : true
+      }
+    });
+    res.json({ success: true, specialty: created });
+  } catch (error: any) {
+    console.error('Admin specialist specialty create error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка создания специальности' });
+  }
+});
+
+router.put('/api/specialist-specialties/:id', requireAdmin, async (req, res) => {
+  try {
+    const { categoryId, name, sortOrder, isActive } = req.body || {};
+    const updated = await prisma.specialistSpecialty.update({
+      where: { id: req.params.id },
+      data: {
+        ...(categoryId != null ? { categoryId: String(categoryId) } : {}),
+        ...(name != null ? { name: String(name).trim() } : {}),
+        ...(sortOrder != null ? { sortOrder: Number(sortOrder || 0) } : {}),
+        ...(isActive != null ? { isActive: Boolean(isActive) } : {})
+      }
+    });
+    res.json({ success: true, specialty: updated });
+  } catch (error: any) {
+    console.error('Admin specialist specialty update error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка обновления специальности' });
+  }
+});
+
+router.delete('/api/specialist-specialties/:id', requireAdmin, async (req, res) => {
+  try {
+    await prisma.specialistSpecialty.update({ where: { id: req.params.id }, data: { isActive: false } });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Admin specialist specialty delete error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка удаления специальности' });
+  }
+});
+
 router.get('/api/specialists', requireAdmin, async (_req, res) => {
   try {
-    const specialists = await prisma.specialist.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }] });
+    const specialists = await prisma.specialist.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+      include: { category: true, specialtyRef: true }
+    });
     res.json({ success: true, specialists });
   } catch (error: any) {
     console.error('Admin specialists list error:', error);
@@ -16694,7 +16939,10 @@ router.get('/api/specialists', requireAdmin, async (_req, res) => {
 
 router.get('/api/specialists/:id', requireAdmin, async (req, res) => {
   try {
-    const specialist = await prisma.specialist.findUnique({ where: { id: req.params.id } });
+    const specialist = await prisma.specialist.findUnique({
+      where: { id: req.params.id },
+      include: { services: { where: { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] } }
+    });
     if (!specialist) return res.status(404).json({ success: false, error: 'Не найден' });
     res.json({ success: true, specialist });
   } catch (error: any) {
@@ -16705,45 +16953,96 @@ router.get('/api/specialists/:id', requireAdmin, async (req, res) => {
 
 router.post('/api/specialists', requireAdmin, async (req, res) => {
   try {
-    const { name, specialty, photoUrl, profile, about, servicesJson, messengerUrl, isActive, sortOrder } = req.body || {};
-    if (!name || !specialty) return res.status(400).json({ success: false, error: 'name и specialty обязательны' });
+    const { name, categoryId, specialtyId, photoUrl, profile, about, messengerUrl, isActive, sortOrder, services } = req.body || {};
+    if (!name) return res.status(400).json({ success: false, error: 'name обязателен' });
+    if (!categoryId) return res.status(400).json({ success: false, error: 'categoryId обязателен' });
+    if (!specialtyId) return res.status(400).json({ success: false, error: 'specialtyId обязателен' });
+
+    const specialty = await prisma.specialistSpecialty.findUnique({ where: { id: String(specialtyId) } });
+    if (!specialty) return res.status(400).json({ success: false, error: 'Специальность не найдена' });
+
     const created = await prisma.specialist.create({
       data: {
         name: String(name).trim(),
-        specialty: String(specialty).trim(),
+        specialty: String(specialty.name).trim(), // legacy mirror
+        categoryId: String(categoryId),
+        specialtyId: String(specialtyId),
         photoUrl: photoUrl ? String(photoUrl).trim() : null,
         profile: profile ? String(profile).trim() : null,
         about: about ? String(about).trim() : null,
-        servicesJson: servicesJson ?? null,
         messengerUrl: messengerUrl ? String(messengerUrl).trim() : null,
         isActive: typeof isActive === 'boolean' ? isActive : true,
         sortOrder: Number(sortOrder || 0)
       }
     });
+
+    const svc = Array.isArray(services) ? services : [];
+    for (const [idx, s] of svc.entries()) {
+      const title = String(s?.title || '').trim();
+      const priceRub = Number(s?.priceRub || 0);
+      if (!title) continue;
+      await prisma.specialistService.create({
+        data: {
+          specialistId: created.id,
+          title,
+          priceRub: Math.max(0, Math.round(priceRub)),
+          sortOrder: Number(s?.sortOrder ?? idx) || idx,
+          isActive: true
+        }
+      });
+    }
+
     res.json({ success: true, specialist: created });
   } catch (error: any) {
     console.error('Admin specialist create error:', error);
-    res.status(500).json({ success: false, error: error?.message || 'Ошибка создания' });
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка создания', details: error?.code || error?.name });
   }
 });
 
 router.put('/api/specialists/:id', requireAdmin, async (req, res) => {
   try {
-    const { name, specialty, photoUrl, profile, about, servicesJson, messengerUrl, isActive, sortOrder } = req.body || {};
+    const { name, categoryId, specialtyId, photoUrl, profile, about, messengerUrl, isActive, sortOrder, services } = req.body || {};
+
+    let legacySpecialty = undefined as any;
+    if (specialtyId) {
+      const sp = await prisma.specialistSpecialty.findUnique({ where: { id: String(specialtyId) } });
+      legacySpecialty = sp ? String(sp.name).trim() : undefined;
+    }
+
     const updated = await prisma.specialist.update({
       where: { id: req.params.id },
       data: {
         ...(name != null ? { name: String(name).trim() } : {}),
-        ...(specialty != null ? { specialty: String(specialty).trim() } : {}),
+        ...(categoryId != null ? { categoryId: String(categoryId) } : {}),
+        ...(specialtyId != null ? { specialtyId: String(specialtyId) } : {}),
+        ...(legacySpecialty ? { specialty: legacySpecialty } : {}),
         ...(photoUrl !== undefined ? { photoUrl: photoUrl ? String(photoUrl).trim() : null } : {}),
         ...(profile !== undefined ? { profile: profile ? String(profile).trim() : null } : {}),
         ...(about !== undefined ? { about: about ? String(about).trim() : null } : {}),
-        ...(servicesJson !== undefined ? { servicesJson: servicesJson ?? null } : {}),
         ...(messengerUrl !== undefined ? { messengerUrl: messengerUrl ? String(messengerUrl).trim() : null } : {}),
         ...(isActive !== undefined ? { isActive: Boolean(isActive) } : {}),
         ...(sortOrder !== undefined ? { sortOrder: Number(sortOrder || 0) } : {})
       }
     });
+
+    // replace services (non-transactional)
+    await prisma.specialistService.deleteMany({ where: { specialistId: updated.id } });
+    const svc = Array.isArray(services) ? services : [];
+    for (const [idx, s] of svc.entries()) {
+      const title = String(s?.title || '').trim();
+      const priceRub = Number(s?.priceRub || 0);
+      if (!title) continue;
+      await prisma.specialistService.create({
+        data: {
+          specialistId: updated.id,
+          title,
+          priceRub: Math.max(0, Math.round(priceRub)),
+          sortOrder: Number(s?.sortOrder ?? idx) || idx,
+          isActive: true
+        }
+      });
+    }
+
     res.json({ success: true, specialist: updated });
   } catch (error: any) {
     console.error('Admin specialist update error:', error);
@@ -16753,7 +17052,6 @@ router.put('/api/specialists/:id', requireAdmin, async (req, res) => {
 
 router.delete('/api/specialists/:id', requireAdmin, async (req, res) => {
   try {
-    // мягкое удаление
     await prisma.specialist.update({ where: { id: req.params.id }, data: { isActive: false } });
     res.json({ success: true });
   } catch (error: any) {

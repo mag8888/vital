@@ -57,6 +57,41 @@ export async function ensureInitialData() {
         // Silent fail - импорт может не запуститься по разным причинам
       });
     }
+
+    // Seed specialists taxonomy (categories + specialties) if empty
+    try {
+      const catCount = await prisma.specialistCategory.count();
+      if (catCount === 0) {
+        const seed = [
+          { name: 'Косметология', specialties: ['Косметолог-эстетист', 'Врач-косметолог', 'Дерматолог', 'Инъекционист'] },
+          { name: 'Эстетика лица', specialties: ['Бровист', 'Лэшмейкер (ресницы)', 'Визажист', 'Косметолог по уходу'] },
+          { name: 'Ногтевой сервис', specialties: ['Мастер маникюра', 'Мастер педикюра', 'Подолог'] },
+          { name: 'Волосы', specialties: ['Парикмахер-стилист', 'Колорист', 'Трихолог', 'Барбер'] },
+          { name: 'Массаж и тело', specialties: ['Массажист', 'Мануальный терапевт', 'Остеопат', 'Кинезиолог'] },
+          { name: 'SPA и велнес', specialties: ['СПА-специалист', 'Терма/банные практики', 'Телесный терапевт'] },
+          { name: 'Здоровье и питание', specialties: ['Нутрициолог', 'Диетолог', 'Врач превентивной медицины'] },
+          { name: 'Психология и коучинг', specialties: ['Психолог', 'Психотерапевт', 'Коуч'] },
+          { name: 'Фитнес и движение', specialties: ['Фитнес-тренер', 'Йога-инструктор', 'Пилатес-инструктор', 'Реабилитолог'] }
+        ];
+
+        let order = 0;
+        for (const c of seed) {
+          const category = await prisma.specialistCategory.create({
+            data: { name: c.name, isActive: true, sortOrder: order++ }
+          });
+          let spOrder = 0;
+          for (const s of c.specialties) {
+            await prisma.specialistSpecialty.create({
+              data: { name: s, categoryId: category.id, isActive: true, sortOrder: spOrder++ }
+            });
+          }
+        }
+        console.log('✅ Seeded specialists taxonomy');
+      }
+    } catch (error: any) {
+      // do not block startup on seed failures
+      console.warn('⚠️  Failed to seed specialists taxonomy:', error?.message || error);
+    }
     
     console.log('✅ Initial data ensured');
   } catch (error: any) {

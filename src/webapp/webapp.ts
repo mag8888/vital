@@ -1159,26 +1159,30 @@ router.post('/api/orders/create', async (req, res) => {
 // Specialists
 router.get('/api/specialists', async (req, res) => {
   try {
-    const specialty = String(req.query?.specialty || '').trim();
+    const specialtyId = String(req.query?.specialtyId || '').trim();
     const { prisma } = await import('../lib/prisma.js');
 
     const where: any = { isActive: true };
-    if (specialty) where.specialty = specialty;
+    if (specialtyId) where.specialtyId = specialtyId;
 
     const specialists = await prisma.specialist.findMany({
       where,
-      orderBy: [{ sortOrder: 'asc' }, { specialty: 'asc' }, { createdAt: 'desc' }]
+      include: {
+        category: true,
+        specialtyRef: true
+      },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }]
     });
 
-    const specialties = await prisma.specialist.findMany({
+    const specialties = await prisma.specialistSpecialty.findMany({
       where: { isActive: true },
-      select: { specialty: true },
-      distinct: ['specialty']
+      include: { category: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }]
     });
 
     res.json({
       success: true,
-      specialties: specialties.map(s => s.specialty).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru')),
+      specialties: specialties.map(s => ({ id: s.id, name: s.name, categoryName: s.category?.name || '' })),
       specialists
     });
   } catch (error: any) {
@@ -1191,7 +1195,14 @@ router.get('/api/specialists/:id', async (req, res) => {
   try {
     const id = String(req.params?.id || '').trim();
     const { prisma } = await import('../lib/prisma.js');
-    const specialist = await prisma.specialist.findUnique({ where: { id } });
+    const specialist = await prisma.specialist.findUnique({
+      where: { id },
+      include: {
+        category: true,
+        specialtyRef: true,
+        services: { where: { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }
+      }
+    });
     if (!specialist || !specialist.isActive) {
       return res.status(404).json({ success: false, error: 'Специалист не найден' });
     }

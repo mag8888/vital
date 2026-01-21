@@ -105,11 +105,16 @@ model Product {
 model Specialist {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
   name          String
+  // Legacy (string) field kept for compatibility; new flow uses category/specialty relations
   specialty     String
+  categoryId    String?  @db.ObjectId
+  specialtyId   String?  @db.ObjectId
+  category      SpecialistCategory? @relation(fields: [categoryId], references: [id])
+  specialtyRef  SpecialistSpecialty? @relation(fields: [specialtyId], references: [id])
   photoUrl      String?
   profile       String?  // коротко: роль/квалификация
   about         String?  // подробное текстовое описание
-  servicesJson  Json?    // [{ title, priceRub }, ...]
+  services      SpecialistService[]
   messengerUrl  String?  // ссылка для записи (задается в админке)
   isActive      Boolean  @default(true)
   sortOrder     Int      @default(0)
@@ -118,6 +123,49 @@ model Specialist {
 
   @@index([isActive, specialty])
   @@index([sortOrder, createdAt])
+  @@index([categoryId, specialtyId])
+}
+
+model SpecialistCategory {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  specialties SpecialistSpecialty[]
+  specialists Specialist[]
+
+  @@index([isActive, sortOrder])
+}
+
+model SpecialistSpecialty {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  category    SpecialistCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId  String   @db.ObjectId
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  specialists Specialist[]
+
+  @@unique([categoryId, name])
+  @@index([isActive, categoryId, sortOrder])
+}
+
+model SpecialistService {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  specialist   Specialist @relation(fields: [specialistId], references: [id], onDelete: Cascade)
+  specialistId String   @db.ObjectId
+  title        String
+  priceRub     Int
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([specialistId, isActive, sortOrder])
 }
 
 model CartItem {
