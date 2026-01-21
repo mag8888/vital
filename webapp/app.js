@@ -1236,29 +1236,31 @@ async function loadSpecialistsContent() {
             html += `<script>
               document.getElementById('specialtyFilter')?.addEventListener('change', (e) => {
                 window.__specialistsState = window.__specialistsState || {};
-                window.__specialistsState.specialty = e.target.value || '';
+                window.__specialistsState.specialtyId = e.target.value || '';
                 openSection('specialists');
               });
             </script>`;
             return html;
         }
 
-        html += `<div style="display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); max-width: 1200px; margin: 0 auto;">` + specialists.map(sp => {
-            const photo = sp.photoUrl ? `<img src="${escapeHtml(sp.photoUrl)}" alt="" style="width:72px;height:72px;border-radius:16px;object-fit:cover;flex:0 0 auto;">` : `<div style="width:72px;height:72px;border-radius:16px;background:var(--bg-secondary);flex:0 0 auto;"></div>`;
+        html += `<div class="specialists-grid-wrap"><div class="specialists-grid">` + specialists.map(sp => {
+            const photo = sp.photoUrl
+              ? `<img src="${escapeHtml(sp.photoUrl)}" alt="" class="specialist-photo-img">`
+              : '';
             const spName = sp.specialtyRef?.name || sp.specialty || '';
             const catName = sp.category?.name || '';
             return `
-              <div class="content-card" style="cursor:pointer; height: 100%;" onclick="openSpecialistDetail('${sp.id}')">
-                <div style="display:flex; gap:12px; align-items:center;">
+              <div class="specialist-card" onclick="openSpecialistDetail('${sp.id}')">
+                <div class="specialist-photo">
                   ${photo}
-                  <div style="min-width:0;">
-                    <div style="font-weight:800; font-size:16px; color:var(--text-primary);">${escapeHtml(sp.name || '')}</div>
-                    <div style="color:var(--text-secondary); font-size:13px; margin-top:4px;">${escapeHtml(catName ? (catName + ' — ' + spName) : spName)}${sp.profile ? ' • ' + escapeHtml(sp.profile) : ''}</div>
-                  </div>
+                </div>
+                <div class="specialist-text">
+                  <div class="specialist-name">${escapeHtml(sp.name || '')}</div>
+                  <div class="specialist-meta">${escapeHtml(catName ? (catName + ' — ' + spName) : spName)}${sp.profile ? ' • ' + escapeHtml(sp.profile) : ''}</div>
                 </div>
               </div>
             `;
-        }).join('') + `</div>`;
+        }).join('') + `</div></div>`;
 
         html += `<script>
           window.__specialistsState = window.__specialistsState || { specialtyId: '' };
