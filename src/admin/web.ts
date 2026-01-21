@@ -16449,6 +16449,7 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
       <style>
         *{ box-sizing:border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#f5f5f5; padding: 20px; }
+        body.modal-open { overflow: hidden; }
         .container { max-width: 1100px; margin: 0 auto; background:#fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); overflow:hidden; }
         .header { background: linear-gradient(135deg, #111827 0%, #374151 100%); color:#fff; padding: 26px; }
         .header h1 { margin:0; font-size: 22px; }
@@ -16465,10 +16466,16 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
         .table th, .table td { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: left; font-size: 14px; vertical-align: top; }
         .muted { color:#6b7280; font-size: 12px; }
         .pill { display:inline-block; padding: 4px 10px; border-radius: 999px; background:#f3f4f6; font-size: 12px; }
-        .modal { position: fixed; inset: 0; display:none; }
+        .modal { position: fixed; inset: 0; display:none; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 6vh 16px; }
         .modal.open { display:block; }
-        .overlay { position:absolute; inset:0; background: rgba(0,0,0,0.35); }
-        .modal-body { position: relative; max-width: 920px; margin: 6vh auto; background:#fff; border-radius: 14px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
+        .overlay { position: fixed; inset:0; background: rgba(0,0,0,0.35); }
+        .modal-body { position: relative; z-index: 1; max-width: 920px; margin: 0 auto; background:#fff; border-radius: 14px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
+        @media (max-width: 640px) {
+          body { padding: 12px; }
+          .container { border-radius: 12px; }
+          .modal { padding: 12px; }
+          .modal-body { padding: 14px; border-radius: 12px; }
+        }
       </style>
     </head>
     <body>
@@ -16652,9 +16659,11 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
           document.getElementById('deleteBtn').style.display = 'none';
           setForm({ name:'', categoryId:'', specialtyId:'', photoUrl:'', profile:'', about:'', messengerUrl:'', isActive:true, sortOrder:0, services: [] });
           document.getElementById('modal').classList.add('open');
+          try { document.body.classList.add('modal-open'); } catch (_) {}
         }
         function closeModal() {
           document.getElementById('modal').classList.remove('open');
+          try { document.body.classList.remove('modal-open'); } catch (_) {}
         }
 
         function setForm(s) {
@@ -16705,6 +16714,7 @@ router.get('/specialists', requireAdmin, async (_req, res) => {
           document.getElementById('deleteBtn').style.display = 'inline-block';
           setForm(data.specialist);
           document.getElementById('modal').classList.add('open');
+          try { document.body.classList.add('modal-open'); } catch (_) {}
         }
 
         function getServicesFromUi() {
