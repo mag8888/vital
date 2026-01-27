@@ -626,6 +626,7 @@ async function loadProfileContent() {
                     <div class="balance-display">
                         <span class="balance-value">${(user.balance || 0).toFixed(2)} PZ</span>
                     </div>
+                    <button class="btn" onclick="openSection('balance')" style="margin-top: 12px; width: 100%;">Пополнить баланс</button>
                 </div>
             </div>
         `;
@@ -1104,6 +1105,7 @@ function openSection(sectionName) {
         certificates: 'Сертификаты',
         promotions: 'Акции',
         contacts: 'Контакты',
+        balance: 'Баланс',
         specialists: 'Специалисты',
         'specialist-detail': 'Специалист',
         'plazma-product-detail': 'Товар'
@@ -1203,6 +1205,9 @@ async function loadSectionContent(sectionName, container) {
                 break;
             case 'specialist-detail':
                 content = await loadSpecialistDetailContent();
+                break;
+            case 'balance':
+                content = await loadBalanceContent();
                 break;
             case 'partners':
                 await showPartners();
@@ -3415,6 +3420,87 @@ function loadContactsContent() {
     `;
 }
 
+async function loadBalanceContent() {
+    try {
+        const [profileResp, topupResp] = await Promise.all([
+            fetch(`${API_BASE}/user/profile`, { headers: getApiHeaders() }),
+            fetch(`${API_BASE}/balance/topup-info`, { headers: getApiHeaders() })
+        ]);
+        const profile = await profileResp.json().catch(() => ({}));
+        const topup = await topupResp.json().catch(() => ({}));
+        const balance = Number(profile?.balance || 0) || 0;
+        const text = String(topup?.text || '').trim();
+        const safeText = text ? escapeHtml(text).replace(/\n/g, '<br>') : 'Реквизиты пополнения появятся позже.';
+
+        return `
+            <div class="content-section">
+                <h3>💰 Баланс</h3>
+                <div class="balance-display" style="margin-bottom: 16px;">
+                    <span class="balance-label">Ваш баланс:</span>
+                    <span class="balance-value">${balance.toFixed(2)} PZ</span>
+                </div>
+                <div class="content-card" style="margin-bottom: 16px;">
+                    <div style="font-weight: 800; margin-bottom: 8px;">Реквизиты пополнения</div>
+                    <div style="color: #4b5563; font-size: 14px; line-height: 1.5;">${safeText}</div>
+                </div>
+                <div class="content-card">
+                    <div style="font-weight: 800; margin-bottom: 10px;">Загрузите чек</div>
+                    <div class="form-group" style="margin-bottom: 10px;">
+                        <label for="balance-topup-amount">Сумма пополнения (₽)</label>
+                        <input id="balance-topup-amount" type="number" min="10" step="1" class="delivery-input" placeholder="Например: 1000">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 10px;">
+                        <input id="balance-topup-receipt" type="file" accept="image/*" class="delivery-input">
+                    </div>
+                    <button class="btn" onclick="submitBalanceTopupReceipt()" style="width: 100%;">Отправить</button>
+                    <div id="balance-topup-status" style="margin-top: 10px; font-size: 12px; color: var(--text-secondary);"></div>
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        console.error('Error loading balance content:', error);
+        return '<div class="error-message"><h3>Ошибка</h3><p>Не удалось загрузить баланс</p></div>';
+    }
+}
+
+async function submitBalanceTopupReceipt() {
+    try {
+        const amountEl = document.getElementById('balance-topup-amount');
+        const fileEl = document.getElementById('balance-topup-receipt');
+        const statusEl = document.getElementById('balance-topup-status');
+        const amount = Math.round(Number(amountEl?.value || 0));
+        if (!Number.isFinite(amount) || amount <= 0) {
+            showError('Введите сумму пополнения');
+            return;
+        }
+        if (!fileEl || !fileEl.files || !fileEl.files[0]) {
+            showError('Загрузите чек');
+            return;
+        }
+
+        if (statusEl) statusEl.textContent = 'Отправляем чек...';
+        const form = new FormData();
+        form.append('amountRub', String(amount));
+        form.append('receipt', fileEl.files[0]);
+
+        const resp = await fetch(`${API_BASE}/balance/topup-receipt`, {
+            method: 'POST',
+            headers: { 'X-Telegram-User': JSON.stringify(getTelegramUserData()) },
+            body: form
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data?.success) {
+            throw new Error(data?.error || 'Ошибка отправки чека');
+        }
+        if (statusEl) statusEl.textContent = 'Чек отправлен. Мы проверим оплату и пополним баланс.';
+        showSuccess('Чек отправлен');
+        if (fileEl) fileEl.value = '';
+    } catch (e) {
+        console.error('Receipt submit error:', e);
+        showError('Не удалось отправить чек');
+    }
+}
+
 // Balance top-up dialog
 function showBalanceTopUpDialog() {
     const dialog = document.createElement('div');
@@ -3653,7 +3739,7 @@ function showDeliveryForm(items, totalRub, userBalance) {
                               <span>Оплатить с баланса</span>
                           </label>
                           <div id="balance-topup-note" style="display:none;"></div>
-                          <button type="button" class="btn btn-outline" id="topup-btn" onclick="showBalanceTopUpDialog()" style="display:none; width:100%; margin-top: 10px;">
+                          <button type="button" class="btn btn-outline" id="topup-btn" onclick="openSection('balance')" style="display:none; width:100%; margin-top: 10px;">
                             Пополнить счёт
                           </button>
                         </div>

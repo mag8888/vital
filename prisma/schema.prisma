@@ -47,10 +47,26 @@ model User {
   giftCertificates GiftCertificate[]
   referrals       PartnerReferral[] @relation("UserReferrals") // Рефералы этого пользователя
   payments        Payment[]
+  balanceTopups   BalanceTopUpRequest[]
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
   @@index([createdAt])
+}
+
+model BalanceTopUpRequest {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String   @db.ObjectId
+  amountRub  Float?
+  receiptUrl String
+  status     String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  adminNote  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId, status, createdAt])
+  @@index([status, createdAt])
 }
 
 model UserHistory {

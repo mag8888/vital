@@ -2,6 +2,8 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Context } from '../bot/context.js';
+import multer from 'multer';
+import { uploadImage } from '../services/cloudinary-service.js';
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -17,6 +19,7 @@ import { PartnerProgramType } from '@prisma/client';
 import { env } from '../config/env.js';
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
 
 // Serve static files
 // - `/webapp/<file>`  (common for SPA builds that reference `/assets/...`)
@@ -1724,6 +1727,72 @@ router.post('/api/user/address', async (req, res) => {
   } catch (error) {
     console.error('Error saving address:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get balance top-up info text (admin-managed)
+router.get('/api/balance/topup-info', async (_req, res) => {
+  try {
+    const { prisma } = await import('../lib/prisma.js');
+    const s = await prisma.settings.findUnique({ where: { key: 'balance_topup_text' } });
+    res.json({ success: true, text: s?.value || '' });
+  } catch (error) {
+    console.error('Balance topup info error:', error);
+    res.status(500).json({ success: false, error: 'Ошибка загрузки реквизитов' });
+  }
+});
+
+// Submit balance top-up receipt (manual verification)
+router.post('/api/balance/topup-receipt', upload.single('receipt'), async (req, res) => {
+  try {
+    const telegramUser = getTelegramUser(req);
+    if (!telegramUser) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const amountRub = Number(req.body?.amountRub || 0);
+    if (!Number.isFinite(amountRub) || amountRub <= 0) {
+      return res.status(400).json({ success: false, error: 'Некорректная сумма' });
+    }
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ success: false, error: 'Чек не загружен' });
+    }
+
+    const { prisma } = await import('../lib/prisma.js');
+    let user = await prisma.user.findUnique({
+      where: { telegramId: telegramUser.id.toString() }
+    });
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          telegramId: telegramUser.id.toString(),
+          firstName: telegramUser.first_name,
+          lastName: telegramUser.last_name,
+          username: telegramUser.username,
+        }
+      });
+    }
+
+    const up = await uploadImage(req.file.buffer, { folder: 'balance-receipts' });
+    const receiptUrl = up?.secureUrl || up?.url || '';
+    if (!receiptUrl) {
+      return res.status(500).json({ success: false, error: 'Не удалось сохранить чек' });
+    }
+
+    await (prisma as any).balanceTopUpRequest.create({
+      data: {
+        userId: user.id,
+        amountRub: Math.round(amountRub),
+        receiptUrl,
+        status: 'PENDING'
+      }
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Balance receipt error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка отправки чека' });
   }
 });
 

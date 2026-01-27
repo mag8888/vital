@@ -426,6 +426,7 @@ function renderAdminShellStart(opts: { title: string; activePath: string; buildM
         <div class="admin-nav-group">Импорт и инструменты</div>
         <nav class="admin-nav">
           <a class="admin-nav-item ${isActive('/admin/invoice-import')}" href="/admin/invoice-import"><span class="admin-ico">${adminIcon('upload')}</span><span>Импорт инвойса</span></a>
+          <a class="admin-nav-item ${isActive('/admin/balance-topups')}" href="/admin/balance-topups"><span class="admin-ico">${adminIcon('upload')}</span><span>Пополнения</span></a>
           <a class="admin-nav-item ${isActive('/admin/delivery-settings')}" href="/admin/delivery-settings"><span class="admin-ico">${adminIcon('wrench')}</span><span>Доставка</span></a>
           <a class="admin-nav-item ${isActive('/admin/sync-siam-pdf')}" href="/admin/sync-siam-pdf"><span class="admin-ico">${adminIcon('wrench')}</span><span>Siam из PDF</span></a>
           <a class="admin-nav-item ${isActive('/admin/sync-siam-json')}" href="/admin/sync-siam-json"><span class="admin-ico">${adminIcon('wrench')}</span><span>Siam из JSON</span></a>
@@ -4293,7 +4294,7 @@ router.post('/api/categories', requireAdmin, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Название категории обязательно' });
     }
 
-    const category = await prisma.category.create({
+    const category = await (prisma as any).category.create({
       data: {
         name: name.trim(),
         slug: name.trim().toLowerCase().replace(/\s+/g, '-'),
@@ -4335,7 +4336,7 @@ router.post('/api/categories/:id/update', requireAdmin, async (req, res) => {
     if (typeof isActive === 'boolean') data.isActive = isActive;
     if (isActive === 'true' || isActive === 'false') data.isActive = (isActive === 'true');
 
-    const updated = await prisma.category.update({
+    const updated = await (prisma as any).category.update({
       where: { id },
       data
     });
@@ -4353,7 +4354,7 @@ router.post('/api/categories/:id/update', requireAdmin, async (req, res) => {
 // API: Auto-assign category covers from first product image
 router.post('/api/categories/auto-covers', requireAdmin, async (req, res) => {
   try {
-    const categories = await prisma.category.findMany({
+    const categories = await (prisma as any).category.findMany({
       where: {
         OR: [
           { imageUrl: null },
@@ -4369,7 +4370,7 @@ router.post('/api/categories/auto-covers', requireAdmin, async (req, res) => {
       });
       const url = product?.imageUrl ? String(product.imageUrl).trim() : '';
       if (!url) continue;
-      await prisma.category.update({
+      await (prisma as any).category.update({
         where: { id: cat.id },
         data: { imageUrl: url }
       });
@@ -5059,7 +5060,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
             ${cat.description ? `<div class="muted">${escapeHtml(cat.description)}</div>` : ''}
           </td>
           <td>
-            ${cat.imageUrl ? `<img src="${escapeAttr(cat.imageUrl)}" alt="" style="width:46px;height:46px;border-radius:10px;object-fit:cover;border:1px solid rgba(17,24,39,0.12);" />` : '<span class="muted">—</span>'}
+            ${(cat as any).imageUrl ? `<img src="${escapeAttr((cat as any).imageUrl)}" alt="" style="width:46px;height:46px;border-radius:10px;object-fit:cover;border:1px solid rgba(17,24,39,0.12);" />` : '<span class="muted">—</span>'}
           </td>
           <td style="color:#6b7280;">${escapeHtml(cat.slug)}</td>
           <td><span class="pill">${Number((cat as any).productsCount || 0)}</span></td>
@@ -16778,6 +16779,195 @@ router.get('/delivery-settings', requireAdmin, async (_req, res) => {
   } catch (error: any) {
     console.error('Delivery settings page error:', error);
     res.status(500).send('Ошибка страницы настроек доставки');
+  }
+});
+
+// ========== Balance Top-ups (Admin) ==========
+router.post('/api/balance-topup-text', requireAdmin, async (req, res) => {
+  try {
+    const text = String(req.body?.text || '').trim();
+    await upsertSetting('balance_topup_text', text, 'Текст реквизитов пополнения (webapp)');
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Balance topup text save error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка сохранения текста' });
+  }
+});
+
+router.post('/api/balance-topups/:id/approve', requireAdmin, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const amountRub = Math.round(Number(req.body?.amountRub || 0));
+    if (!id) return res.status(400).json({ success: false, error: 'id_required' });
+    if (!Number.isFinite(amountRub) || amountRub <= 0) {
+      return res.status(400).json({ success: false, error: 'Некорректная сумма' });
+    }
+
+    const request = await (prisma as any).balanceTopUpRequest.findUnique({ where: { id } });
+    if (!request) return res.status(404).json({ success: false, error: 'Запрос не найден' });
+    if (String(request.status) !== 'PENDING') {
+      return res.status(400).json({ success: false, error: 'Запрос уже обработан' });
+    }
+
+    await (prisma as any).balanceTopUpRequest.update({
+      where: { id },
+      data: { status: 'APPROVED', amountRub }
+    });
+
+    await prisma.user.update({
+      where: { id: request.userId },
+      data: { balance: { increment: amountRub } }
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Approve topup error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка подтверждения' });
+  }
+});
+
+router.post('/api/balance-topups/:id/reject', requireAdmin, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ success: false, error: 'id_required' });
+    const request = await (prisma as any).balanceTopUpRequest.findUnique({ where: { id } });
+    if (!request) return res.status(404).json({ success: false, error: 'Запрос не найден' });
+    if (String(request.status) !== 'PENDING') {
+      return res.status(400).json({ success: false, error: 'Запрос уже обработан' });
+    }
+    await (prisma as any).balanceTopUpRequest.update({
+      where: { id },
+      data: { status: 'REJECTED' }
+    });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Reject topup error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка отклонения' });
+  }
+});
+
+router.get('/balance-topups', requireAdmin, async (_req, res) => {
+  try {
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
+    const text = await getSettingOrDefault('balance_topup_text', '');
+    const requests = await (prisma as any).balanceTopUpRequest.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { user: true }
+    });
+    const escapeHtml = (str: any) => String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+    const escapeAttr = (str: any) => escapeHtml(str).replace(/'/g, '&#39;');
+
+    res.send(`
+      ${renderAdminShellStart({ title: 'Пополнения баланса', activePath: '/admin/balance-topups', buildMarker })}
+        <div class="card" style="padding:16px; margin-bottom: 16px;">
+          <h2 style="margin:0 0 8px 0;">Текст страницы пополнения</h2>
+          <div class="muted" style="margin-bottom: 10px;">Этот текст виден на странице баланса в клиенте.</div>
+          <form id="topupTextForm" style="display:grid; gap: 10px; max-width: 720px;">
+            <textarea id="topupText" rows="6" style="width:100%; padding:10px; border:1px solid var(--admin-border); border-radius:12px;">${escapeHtml(text)}</textarea>
+            <button class="btn" type="submit" style="width: 200px;">Сохранить</button>
+          </form>
+          <div id="topupTextAlert" style="margin-top: 10px;"></div>
+        </div>
+
+        <div class="card" style="padding:16px;">
+          <h2 style="margin:0 0 10px 0;">Чеки на пополнение</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Пользователь</th>
+                <th>Сумма (₽)</th>
+                <th>Чек</th>
+                <th>Статус</th>
+                <th>Дата</th>
+                <th style="text-align:right;">Действия</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${requests.map((r: any) => `
+                <tr>
+                  <td>${escapeHtml(r.user?.firstName || '')} ${escapeHtml(r.user?.lastName || '')}<div class="muted">${escapeHtml(r.user?.telegramId || '')}</div></td>
+                  <td>
+                    <input type="number" min="1" step="1" class="topup-amount" data-id="${escapeAttr(r.id)}" value="${Number(r.amountRub || 0)}" style="width:120px; padding:6px 8px; border:1px solid var(--admin-border); border-radius:10px;">
+                  </td>
+                  <td>${r.receiptUrl ? `<a href="${escapeAttr(r.receiptUrl)}" target="_blank">Открыть</a>` : '—'}</td>
+                  <td>${escapeHtml(r.status)}</td>
+                  <td>${new Date(r.createdAt).toLocaleString('ru-RU')}</td>
+                  <td style="text-align:right;">
+                    ${String(r.status) === 'PENDING' ? `
+                      <button class="btn-mini approve-topup" data-id="${escapeAttr(r.id)}">Подтвердить</button>
+                      <button class="btn-mini danger reject-topup" data-id="${escapeAttr(r.id)}">Отклонить</button>
+                    ` : '—'}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <script>
+          const alertBox = (msg, ok) => {
+            const el = document.getElementById('topupTextAlert');
+            if (!el) return;
+            el.innerHTML = '<div class="alert ' + (ok ? 'alert-success' : 'alert-error') + '">' + msg + '</div>';
+          };
+          document.getElementById('topupTextForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = document.getElementById('topupText').value || '';
+            const resp = await fetch('/admin/api/balance-topup-text', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ text })
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok) return alertBox('Ошибка: ' + (data.error || 'HTTP ' + resp.status), false);
+            alertBox('Сохранено', true);
+          });
+
+          document.addEventListener('click', async (e) => {
+            const t = e.target;
+            const el = (t && t.nodeType === 1) ? t : (t && t.parentElement ? t.parentElement : null);
+            if (!el) return;
+            const approve = el.closest('.approve-topup');
+            const reject = el.closest('.reject-topup');
+            if (approve) {
+              const id = approve.getAttribute('data-id');
+              const amountInput = document.querySelector('.topup-amount[data-id="' + id + '"]');
+              const amountRub = amountInput ? Number(amountInput.value || 0) : 0;
+              const resp = await fetch('/admin/api/balance-topups/' + encodeURIComponent(id) + '/approve', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ amountRub })
+              });
+              const data = await resp.json().catch(() => ({}));
+              if (!resp.ok) return alert('Ошибка: ' + (data.error || 'HTTP ' + resp.status));
+              window.location.reload();
+              return;
+            }
+            if (reject) {
+              const id = reject.getAttribute('data-id');
+              const resp = await fetch('/admin/api/balance-topups/' + encodeURIComponent(id) + '/reject', {
+                method: 'POST',
+                credentials: 'include'
+              });
+              const data = await resp.json().catch(() => ({}));
+              if (!resp.ok) return alert('Ошибка: ' + (data.error || 'HTTP ' + resp.status));
+              window.location.reload();
+              return;
+            }
+          }, true);
+        </script>
+
+      ${renderAdminShellEnd()}
+    `);
+  } catch (error: any) {
+    console.error('Balance topups page error:', error);
+    res.status(500).send('Ошибка загрузки страницы пополнений');
   }
 });
 
