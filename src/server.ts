@@ -207,6 +207,26 @@ async function bootstrap() {
       }
     }
 
+    // Set single blue menu button to open WebApp
+    try {
+      const baseUrl = env.webappUrl || env.publicBaseUrl || 'https://vital-production-82b0.up.railway.app';
+      const webappUrl = baseUrl.includes('/webapp') ? baseUrl : `${baseUrl.replace(/\/$/, '')}/webapp`;
+      await bot.telegram.setChatMenuButton({
+        menu_button: {
+          type: 'web_app',
+          text: 'Каталог',
+          web_app: { url: webappUrl }
+        }
+      });
+      console.log('Bot menu button set to WebApp');
+    } catch (error: any) {
+      if (error.code === 'ETIMEDOUT' || error.errno === 'ETIMEDOUT') {
+        console.warn('⚠️  Telegram API timeout when setting menu button');
+      } else {
+        console.warn('Failed to set menu button:', error?.message || error);
+      }
+    }
+
     console.log('Starting bot in long polling mode...');
     
     // Clear any existing webhook first

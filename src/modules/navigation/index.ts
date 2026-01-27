@@ -257,8 +257,7 @@ async function sendWelcomeVideo(ctx: Context) {
 }
 
 async function sendClassicHome(ctx: Context) {
-  const webappUrl = getWebappUrl();
-  await ctx.reply(greeting, mainKeyboard(webappUrl));
+  await ctx.reply(greeting, Markup.removeKeyboard());
 }
 
 async function sendAppHome(
@@ -267,11 +266,10 @@ async function sendAppHome(
 ) {
   const { introText, includeGreeting = true } = options;
 
-  const webappUrl = getWebappUrl();
   let text = greeting;
   if (introText) text = introText;
   else if (!includeGreeting) text = 'Каталог';
-  await ctx.reply(text, mainKeyboard(webappUrl));
+  await ctx.reply(text, Markup.removeKeyboard());
 }
 
 async function renderHome(ctx: Context) {
@@ -429,10 +427,7 @@ export const navigationModule: BotModule = {
     bot.command('app', async (ctx) => {
       await logUserAction(ctx, 'command:app');
 
-      const webappUrl = getWebappUrl();
-      console.log('🌐 WebApp URL:', webappUrl);
-      
-      await ctx.reply('Каталог', mainKeyboard(webappUrl));
+      await ctx.reply('Каталог', Markup.removeKeyboard());
     });
 
     bot.start(async (ctx) => {
@@ -793,8 +788,7 @@ export const navigationModule: BotModule = {
     // Обработчики для кнопок классического меню
     bot.hears('Каталог', async (ctx) => {
       await logUserAction(ctx, 'menu:catalog');
-      const webappUrl = getWebappUrl();
-      await ctx.reply('Каталог', mainKeyboard(webappUrl));
+      await ctx.reply('Каталог', Markup.removeKeyboard());
     });
 
     bot.hears('🛒 Магазин', async (ctx) => {
