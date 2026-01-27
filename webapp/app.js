@@ -4039,13 +4039,16 @@ function showError(message) {
 }
 
 // Search functionality
-document.querySelector('.search-input').addEventListener('input', function (e) {
-    const query = e.target.value.toLowerCase();
-    if (query.length > 2) {
-        // Implement search logic here
-        console.log('Searching for:', query);
-    }
-});
+const searchInput = document.querySelector('.search-input');
+if (searchInput) {
+    searchInput.addEventListener('input', function (e) {
+        const query = e.target.value.toLowerCase();
+        if (query.length > 2) {
+            // Implement search logic here
+            console.log('Searching for:', query);
+        }
+    });
+}
 
 // Keyboard navigation
 document.addEventListener('keydown', function (e) {
