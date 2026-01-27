@@ -1187,6 +1187,93 @@ h4 {
     width: max-content;
 }
 
+/* Category covers on home (FORMA-like) */
+.category-covers{
+    margin: 6px 0 18px;
+}
+.category-covers-header{
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 10px;
+    padding: 0 2px;
+}
+.category-covers-scroll{
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 2px 2px 10px;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+}
+.category-cover-card{
+    position: relative;
+    flex: 0 0 auto;
+    width: 260px;
+    height: 150px;
+    border-radius: 18px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #e5e7eb, #f3f4f6);
+    background-size: cover;
+    background-position: center;
+    border: 1px solid rgba(0,0,0,0.06);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    cursor: pointer;
+    scroll-snap-align: start;
+}
+.category-cover-overlay{
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,0.00) 30%, rgba(0,0,0,0.65) 100%);
+}
+.category-cover-title{
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    bottom: 12px;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.2;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.55);
+}
+
+/* Catalog tabs (chips) */
+.shop-catalog{
+    width: 100%;
+}
+.category-tabs{
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 2px 2px 10px;
+    -webkit-overflow-scrolling: touch;
+    position: sticky;
+    top: 0;
+    background: var(--tg-bg-color);
+    z-index: 5;
+}
+.category-tab{
+    flex: 0 0 auto;
+    border: 1px solid rgba(0,0,0,0.08);
+    background: rgba(0,0,0,0.04);
+    color: #111827;
+    border-radius: 999px;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s ease, transform 0.12s ease, border-color 0.12s ease;
+}
+.category-tab:hover{ background: rgba(0,0,0,0.06); }
+.category-tab:active{ transform: scale(0.98); }
+.category-tab.active{
+    background: #111827;
+    color: #ffffff;
+    border-color: #111827;
+}
+
 .product-card-forma-horizontal {
     flex: 0 0 auto;
     width: 160px;
@@ -1431,6 +1518,13 @@ h4 {
     transform: scale(1.05);
 }
 
+/* FORMA-like product images: edge-to-edge, cover */
+.product-card-forma .product-card-image img,
+.product-card-forma-horizontal .product-card-image img {
+    object-fit: cover;
+    padding: 0;
+}
+
 .product-card-image.no-image {
     display: flex;
     align-items: center;
@@ -1526,6 +1620,66 @@ h4 {
 
 .product-card-btn:active {
     transform: scale(0.98);
+}
+
+/* Catalog add button: circle with plus (like screenshot) */
+.product-card-add{
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    background: rgba(0, 0, 0, 0.06);
+    color: #111827;
+    display: grid;
+    place-items: center;
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    flex: 0 0 auto;
+    transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: none;
+}
+.product-card-add:hover{
+    background: rgba(0, 0, 0, 0.10);
+    transform: translateY(-1px);
+    box-shadow: none;
+}
+.product-card-add:active{
+    transform: scale(0.96);
+}
+
+/* Quantity selector on product detail page */
+.qty-control{
+    width: 100%;
+    display: grid;
+    grid-template-columns: 44px 1fr 44px;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    background: var(--bg-primary);
+}
+.qty-btn{
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    border: 1px solid rgba(0,0,0,0.14);
+    background: rgba(0,0,0,0.04);
+    color: #111827;
+    font-size: 22px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.12s ease;
+}
+.qty-btn:active{ transform: scale(0.96); }
+.qty-btn:hover{ background: rgba(0,0,0,0.08); }
+.qty-value{
+    text-align: center;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
 }
 
 /* Favorites: button under price, centered */

@@ -19,11 +19,15 @@ import { env } from '../config/env.js';
 const router = express.Router();
 
 // Serve static files
-router.use('/static', express.static(path.join(__dirname, '../../webapp')));
+// - `/webapp/<file>`  (common for SPA builds that reference `/assets/...`)
+// - `/webapp/static/<file>` (backward-compatible with existing `index.html`)
+const webappDir = path.join(__dirname, '../../webapp');
+router.use(express.static(webappDir));
+router.use('/static', express.static(webappDir));
 
 // Main webapp route
 router.get('/', (req, res) => {
-  const indexPath = path.join(__dirname, '../../webapp/index.html');
+  const indexPath = path.join(webappDir, 'index.html');
   console.log('📱 Serving webapp from:', indexPath);
   res.sendFile(indexPath, (err) => {
     if (err) {
@@ -977,7 +981,7 @@ router.post('/api/orders/create', async (req, res) => {
 
     console.log('✅ Telegram user found:', telegramUser.id);
 
-    const { items, message = '', phone, deliveryAddress } = req.body;
+    const { items, message = '', phone, deliveryAddress, certificateCode } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) {
       console.log('❌ Invalid items:', items);
       return res.status(400).json({ error: 'Items are required' });
@@ -1031,6 +1035,49 @@ router.post('/api/orders/create', async (req, res) => {
 
     console.log('✅ User found:', user.id);
 
+    // Calculate order total in PZ (client prices are in PZ)
+    const orderItemsForTotal = Array.isArray(items) ? items : [];
+    const totalPz = orderItemsForTotal.reduce((sum: number, it: any) => {
+      const price = Number(it?.price || 0);
+      const qty = Number(it?.quantity || 1);
+      return sum + (price * qty);
+    }, 0);
+
+    // Apply gift certificate (optional)
+    let certAppliedPz = 0;
+    let certRemainingPz: number | null = null;
+    let certCodeUsed: string | null = null;
+    if (certificateCode && String(certificateCode).trim()) {
+      const code = String(certificateCode).trim().toUpperCase();
+      const cert = await prisma.giftCertificate.findUnique({ where: { code } }).catch(() => null as any);
+      if (!cert) {
+        return res.status(400).json({ error: 'Сертификат не найден' });
+      }
+      if (cert.status !== 'ACTIVE' || Number(cert.remainingPz || 0) <= 0) {
+        return res.status(400).json({ error: 'Сертификат недействителен или уже использован' });
+      }
+      if (cert.userId && String(cert.userId) !== String(user.id)) {
+        return res.status(403).json({ error: 'Этот сертификат привязан к другому пользователю' });
+      }
+
+      const remaining = Number(cert.remainingPz || 0);
+      const applied = Math.min(Math.max(0, totalPz), Math.max(0, remaining));
+      const nextRemaining = Math.max(0, remaining - applied);
+
+      const updated = await prisma.giftCertificate.update({
+        where: { id: cert.id },
+        data: {
+          userId: cert.userId ? undefined : user.id, // bind on first use
+          remainingPz: nextRemaining,
+          status: nextRemaining <= 0 ? 'USED' : 'ACTIVE'
+        }
+      });
+
+      certAppliedPz = applied;
+      certRemainingPz = Number(updated.remainingPz || 0);
+      certCodeUsed = code;
+    }
+
     // Build contact string
     let contact = `@${telegramUser.username || 'user'}` || `ID: ${telegramUser.id}`;
     if (phone) {
@@ -1040,11 +1087,24 @@ router.post('/api/orders/create', async (req, res) => {
       contact += `\n📍 Адрес: ${deliveryAddress}`;
     }
 
+    let fullMessage = message || '';
+    if (certCodeUsed) {
+      const due = Math.max(0, totalPz - certAppliedPz);
+      const appliedRub = Math.round(certAppliedPz * 100);
+      const dueRub = Math.round(due * 100);
+      const remRub = certRemainingPz === null ? null : Math.round(Number(certRemainingPz) * 100);
+      fullMessage += (fullMessage ? '\n\n' : '') +
+        `🎟 Сертификат: ${certCodeUsed}\n` +
+        `Списано: ${certAppliedPz.toFixed(2)} PZ (${appliedRub} ₽)\n` +
+        (remRub !== null ? `Остаток: ${(Number(certRemainingPz) || 0).toFixed(2)} PZ (${remRub} ₽)\n` : '') +
+        `К оплате: ${due.toFixed(2)} PZ (${dueRub} ₽)`;
+    }
+
     // Create order
     const order = await prisma.orderRequest.create({
       data: {
         userId: user.id,
-        message,
+        message: fullMessage,
         itemsJson: items,
         status: 'NEW',
         contact: contact
@@ -1138,7 +1198,14 @@ router.post('/api/orders/create', async (req, res) => {
       // Don't fail the order creation if notification fails
     }
 
-    res.json({ success: true, orderId: order.id });
+    res.json({ 
+      success: true, 
+      orderId: order.id,
+      totalPz,
+      certificateAppliedPz: certAppliedPz,
+      certificateRemainingPz: certRemainingPz,
+      payablePz: Math.max(0, totalPz - certAppliedPz)
+    });
   } catch (error: any) {
     console.error('❌ Error creating order:', error);
     console.error('❌ Error details:', {
@@ -1151,6 +1218,118 @@ router.post('/api/orders/create', async (req, res) => {
       error: error?.message || 'Internal server error',
       details: process.env.NODE_ENV === 'development' ? error?.stack : undefined
     });
+  }
+});
+
+// Gift certificates
+router.get('/api/certificates/types', async (_req, res) => {
+  try {
+    const { prisma } = await import('../lib/prisma.js');
+    const types = await prisma.certificateType.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }]
+    });
+    res.json({ success: true, types });
+  } catch (error: any) {
+    console.error('Certificates types error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка загрузки сертификатов' });
+  }
+});
+
+router.get('/api/certificates/my', async (req, res) => {
+  try {
+    const user = await getOrCreateWebappUser(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    const { prisma } = await import('../lib/prisma.js');
+    const certs = await prisma.giftCertificate.findMany({
+      where: { userId: user.id, status: 'ACTIVE', remainingPz: { gt: 0 } as any },
+      orderBy: [{ createdAt: 'desc' }]
+    });
+    res.json({ success: true, certificates: certs });
+  } catch (error: any) {
+    console.error('My certificates error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка загрузки сертификатов' });
+  }
+});
+
+function generateCertificateCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const part = (n: number) => Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+  return `VTL-${part(4)}-${part(4)}`;
+}
+
+router.post('/api/certificates/buy', async (req, res) => {
+  try {
+    const user = await getOrCreateWebappUser(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    const { typeId, quantity = 1 } = req.body || {};
+    const qty = Math.max(1, Math.min(20, Number(quantity) || 1));
+    const id = String(typeId || '').trim();
+    if (!id) return res.status(400).json({ error: 'typeId is required' });
+
+    const { prisma } = await import('../lib/prisma.js');
+    const type = await prisma.certificateType.findUnique({ where: { id } });
+    if (!type || !type.isActive) return res.status(404).json({ error: 'Сертификат не найден' });
+
+    const pricePz = (Number(type.priceRub || 0) || 0) / 100;
+    const valuePz = (Number(type.valueRub || 0) || 0) / 100;
+    if (pricePz <= 0 || valuePz <= 0) return res.status(400).json({ error: 'Некорректные параметры сертификата' });
+
+    const totalCostPz = pricePz * qty;
+    const currentBalance = Number((user as any).balance || 0) || 0;
+    if (currentBalance < totalCostPz) {
+      return res.status(400).json({ 
+        error: 'Недостаточно средств на балансе', 
+        requiredPz: totalCostPz, 
+        currentBalance 
+      });
+    }
+
+    // Deduct balance and issue certificates
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: { balance: { decrement: totalCostPz } },
+      select: { id: true, balance: true }
+    });
+
+    const created = [];
+    for (let i = 0; i < qty; i++) {
+      // ensure uniqueness by retrying a few times
+      let cert = null as any;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const code = generateCertificateCode();
+        try {
+          cert = await prisma.giftCertificate.create({
+            data: {
+              code,
+              typeId: type.id,
+              userId: user.id,
+              initialPz: valuePz,
+              remainingPz: valuePz,
+              status: 'ACTIVE'
+            }
+          });
+          break;
+        } catch (e: any) {
+          if (e?.code === 'P2002') continue; // collision
+          throw e;
+        }
+      }
+      if (cert) created.push(cert);
+    }
+
+    res.json({ 
+      success: true, 
+      deductedPz: totalCostPz, 
+      newBalance: Number(updatedUser.balance || 0), 
+      certificates: created.map((c: any) => ({ id: c.id, code: c.code, remainingPz: c.remainingPz }))
+    });
+  } catch (error: any) {
+    console.error('Certificates buy error:', error);
+    if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
+      return res.status(503).json({ error: 'Database temporarily unavailable. Please try again later.' });
+    }
+    res.status(500).json({ error: error?.message || 'Internal server error' });
   }
 });
 
@@ -2179,6 +2358,16 @@ router.post('/api/plazma/orders', async (req, res) => {
       error: error?.message || 'Internal server error' 
     });
   }
+});
+
+// SPA fallback: allow deep links like `/webapp/products/123` to load the app shell.
+// Keep `/api/*` as real API endpoints (so unknown API routes become 404, not HTML).
+router.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api')) return next();
+  const indexPath = path.join(webappDir, 'index.html');
+  res.sendFile(indexPath, (err) => {
+    if (err) next(err);
+  });
 });
 
 export { router as webappRouter };

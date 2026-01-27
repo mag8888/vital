@@ -38,6 +38,14 @@ let favoritesSet = new Set();
 // API Base URL - adjust based on your backend
 const API_BASE = '/webapp/api';
 
+// Shop/catalog UI state (tabs)
+let SHOP_ACTIVE_CATEGORY_ID = 'all'; // 'all' | categoryId
+let SHOP_CATEGORIES_CACHE = null;
+let SHOP_PRODUCTS_CACHE = null;
+
+// Certificates (types)
+let CERT_TYPES_CACHE = null;
+
 // Optional client-side catalog structure (categories -> subcategories -> SKU mapping)
 let CATALOG_STRUCTURE = null;
 
@@ -453,27 +461,14 @@ async function showStructuredSubcategory(groupId, subId) {
 
 function showCategoryProducts(categoryId) {
     closeSearch();
-    openSection('shop');
-    loadProductsByCategory(categoryId);
+    openShopCategory(categoryId);
 }
 
 async function loadProductsByCategory(categoryId) {
     const container = document.getElementById('section-body');
     try {
-        const response = await fetch(`${API_BASE}/categories/${categoryId}/products`);
-        if (!response.ok) throw new Error('Failed to fetch products');
-
-        const products = await response.json();
-        if (products && products.length > 0) {
-            let html = '<div class="products-grid">';
-            products.forEach(product => {
-                html += renderProductCard(product);
-            });
-            html += '</div>';
-            container.innerHTML = html;
-        } else {
-            container.innerHTML = '<div class="empty-state"><p>Товары в этой категории не найдены</p></div>';
-        }
+        // Backward compatible wrapper - now uses tabbed catalog
+        await openShopCategory(categoryId);
     } catch (error) {
         console.error('Error loading products:', error);
         container.innerHTML = '<div class="error-message"><p>Ошибка загрузки товаров</p></div>';
@@ -951,7 +946,7 @@ async function checkoutCart() {
 }
 
 // Обработка заказа с оплатой с баланса
-async function processOrderWithBalance(items, total, partialAmount = null, phone = null, address = null) {
+async function processOrderWithBalance(items, total, partialAmount = null, phone = null, address = null, certificateCode = null) {
     try {
         const orderItems = items.map(item => ({
             productId: item.product.id,
@@ -976,22 +971,31 @@ async function processOrderWithBalance(items, total, partialAmount = null, phone
                 message: message,
                 paidFromBalance: amountToPay,
                 phone: phone,
-                deliveryAddress: address
+                deliveryAddress: address,
+                certificateCode: certificateCode || undefined
             })
         });
 
         if (orderResponse.ok) {
-            // Списываем с баланса
-            const balanceResponse = await fetch(`${API_BASE}/user/deduct-balance`, {
-                method: 'POST',
-                headers: getApiHeaders(),
-                body: JSON.stringify({ amount: amountToPay })
-            });
+            const orderData = await orderResponse.json().catch(() => ({}));
+            const payablePz = Number(orderData?.payablePz);
+            const certAppliedPz = Number(orderData?.certificateAppliedPz || 0) || 0;
+            const toDeduct = Number.isFinite(payablePz) ? payablePz : amountToPay;
 
-            if (balanceResponse.ok) {
-                showSuccess(`Заказ оформлен! С баланса списано ${amountToPay.toFixed(2)} PZ.`);
+            // Списываем с баланса
+            if (toDeduct > 0.0001) {
+                const balanceResponse = await fetch(`${API_BASE}/user/deduct-balance`, {
+                    method: 'POST',
+                    headers: getApiHeaders(),
+                    body: JSON.stringify({ amount: toDeduct })
+                });
+                if (balanceResponse.ok) {
+                    showSuccess(`Заказ оформлен! Сертификат: −${certAppliedPz.toFixed(2)} PZ. С баланса списано ${toDeduct.toFixed(2)} PZ.`);
+                } else {
+                    showSuccess('Заказ оформлен! Ожидайте подтверждения.');
+                }
             } else {
-                showSuccess('Заказ оформлен! Ожидайте подтверждения.');
+                showSuccess(`Заказ оформлен! Сертификат покрыл оплату: −${certAppliedPz.toFixed(2)} PZ.`);
             }
 
             closeSection();
@@ -1008,7 +1012,7 @@ async function processOrderWithBalance(items, total, partialAmount = null, phone
 }
 
 // Обычное оформление заказа
-async function processOrderNormal(items, phone = null, address = null) {
+async function processOrderNormal(items, phone = null, address = null, certificateCode = null) {
     try {
         const orderItems = items.map(item => ({
             productId: item.product.id,
@@ -1029,7 +1033,8 @@ async function processOrderNormal(items, phone = null, address = null) {
                 items: orderItems,
                 message: message,
                 phone: phone,
-                deliveryAddress: address
+                deliveryAddress: address,
+                certificateCode: certificateCode || undefined
             })
         });
 
@@ -1072,7 +1077,7 @@ function openSection(sectionName) {
 
     // Set section title
     const titles = {
-        shop: 'Магазин',
+        shop: 'Каталог',
         partner: 'Партнёрка',
         audio: 'Звуковые матрицы',
         reviews: 'Отзывы',
@@ -1168,7 +1173,7 @@ async function loadSectionContent(sectionName, container) {
                 content = await loadFavoritesContent();
                 break;
             case 'certificates':
-                content = loadCertificatesContent();
+                content = await loadCertificatesContent();
                 break;
             case 'promotions':
                 content = loadPromotionsContent();
@@ -1383,139 +1388,280 @@ function openSpecialistServiceLink(url) {
 }
 
 // Load products on main page immediately
+function isSubcategoryName(name) {
+    return String(name || '').includes(' > ');
+}
+
+function getTopLevelCategories(categories) {
+    return (categories || []).filter(c => c && c.id && c.name && !isSubcategoryName(c.name));
+}
+
+function findCoverImageForCategory(category, products, categories) {
+    const name = String(category?.name || '');
+    // Special case: cosmetics includes subcategories
+    if (name === 'Косметика') {
+        const p = (products || []).find(x => x?.imageUrl && (x?.category?.name === 'Косметика' || String(x?.category?.name || '').startsWith('Косметика >')));
+        return p?.imageUrl || '';
+    }
+    // Regular: first product in this category with image
+    const p = (products || []).find(x => x?.imageUrl && String(x?.category?.id || '') === String(category?.id || ''));
+    return p?.imageUrl || '';
+}
+
+function renderCategoryCovers(categories, products) {
+    const top = getTopLevelCategories(categories);
+    if (!top.length) return '';
+
+    let html = `
+      <div class="category-covers">
+        <div class="category-covers-header">Категории</div>
+        <div class="category-covers-scroll">
+    `;
+    top.forEach(cat => {
+        const cover = findCoverImageForCategory(cat, products, categories);
+        const bg = cover ? `style="background-image:url('${escapeAttr(cover)}')"` : '';
+        html += `
+          <div class="category-cover-card" ${bg} onclick="openShopCategory('${escapeAttr(cat.id)}')">
+            <div class="category-cover-overlay"></div>
+            <div class="category-cover-title">${escapeHtml(cat.name)}</div>
+          </div>
+        `;
+    });
+    html += `</div></div>`;
+    return html;
+}
+
+function setShopActiveCategory(categoryId) {
+    SHOP_ACTIVE_CATEGORY_ID = categoryId || 'all';
+}
+
+async function ensureShopDataLoaded() {
+    if (SHOP_CATEGORIES_CACHE && SHOP_PRODUCTS_CACHE) return;
+    try {
+        const [categoriesResponse, productsResponse] = await Promise.all([
+            fetch(`${API_BASE}/categories`),
+            fetch(`${API_BASE}/products`)
+        ]);
+        if (!categoriesResponse.ok) throw new Error('Failed to fetch categories');
+        if (!productsResponse.ok) throw new Error('Failed to fetch products');
+        let categories = await categoriesResponse.json();
+        const products = await productsResponse.json();
+        SHOP_CATEGORIES_CACHE = Array.isArray(categories) ? categories : [];
+        SHOP_PRODUCTS_CACHE = Array.isArray(products) ? products : [];
+    } catch (e) {
+        throw e;
+    }
+}
+
+function getProductsForShopSelection(categoryId, categories, products) {
+    const sel = String(categoryId || 'all');
+    if (sel === 'all') return products || [];
+    const cat = (categories || []).find(c => String(c?.id || '') === sel);
+    if (!cat) return [];
+    if (String(cat.name || '') === 'Косметика') {
+        return (products || []).filter(p => p && (p?.category?.name === 'Косметика' || String(p?.category?.name || '').startsWith('Косметика >')));
+    }
+    return (products || []).filter(p => String(p?.category?.id || '') === sel);
+}
+
+function renderShopTabs(categories, activeId) {
+    const top = getTopLevelCategories(categories);
+    const active = String(activeId || 'all');
+    let html = `<div class="category-tabs" role="tablist" aria-label="Категории">`;
+    html += `<button class="category-tab ${active === 'all' ? 'active' : ''}" type="button" onclick="openShopCategory('all')">Все товары</button>`;
+    top.forEach(cat => {
+        html += `<button class="category-tab ${active === String(cat.id) ? 'active' : ''}" type="button" onclick="openShopCategory('${escapeAttr(cat.id)}')">${escapeHtml(cat.name)}</button>`;
+    });
+    html += `<button class="category-tab ${active === 'certificates' ? 'active' : ''}" type="button" onclick="openSection('certificates')">Сертификаты</button>`;
+    html += `</div>`;
+    return html;
+}
+
+async function openShopCategory(categoryId) {
+    setShopActiveCategory(categoryId);
+    if (currentSection !== 'shop') {
+        openSection('shop');
+        return;
+    }
+    // Rerender in-place
+    const container = document.getElementById('section-body');
+    if (container) {
+        container.innerHTML = '<div class="loading"><div class="loading-spinner"></div></div>';
+        container.innerHTML = await loadShopContent();
+    }
+}
+
+async function ensureCertificateTypesLoaded() {
+    if (CERT_TYPES_CACHE) return;
+    try {
+        const res = await fetch(`${API_BASE}/certificates/types`, { headers: getApiHeaders() });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data && data.success && Array.isArray(data.types)) {
+            CERT_TYPES_CACHE = data.types;
+            return;
+        }
+        throw new Error(data?.error || 'Failed to load certificates');
+    } catch (e) {
+        CERT_TYPES_CACHE = [];
+    }
+}
+
+function renderCertificateCard(t) {
+    const priceRub = Number(t?.priceRub || 0) || 0;
+    const title = escapeHtml(String(t?.title || 'Сертификат'));
+    const cover = String(t?.imageUrl || '').trim();
+    const img = cover
+        ? `<div class="product-card-image"><img src="${escapeAttr(cover)}" alt="${title}" onerror="this.style.display='none'; this.parentElement.classList.add('no-image');"></div>`
+        : `<div class="product-card-image no-image"><div class="product-image-placeholder-icon">🎁</div></div>`;
+    return `
+      <div class="product-card-forma" onclick="showCertificateDetails('${escapeAttr(t.id)}')" style="position: relative;">
+        ${img}
+        <div class="product-card-content">
+          <h3 class="product-card-title">${title}</h3>
+          <div class="product-card-footer">
+            <div class="product-card-price">
+              <span class="price-value">${priceRub.toFixed(0)} ₽</span>
+            </div>
+            <button class="product-card-add" type="button" aria-label="Открыть сертификат" onclick="event.stopPropagation(); showCertificateDetails('${escapeAttr(t.id)}')">+</button>
+          </div>
+        </div>
+      </div>
+    `;
+}
+
+async function showCertificateDetails(typeId) {
+    await ensureCertificateTypesLoaded();
+    const list = Array.isArray(CERT_TYPES_CACHE) ? CERT_TYPES_CACHE : [];
+    const t = list.find(x => String(x?.id || '') === String(typeId || '')) || null;
+    if (!t) {
+        showError('Сертификат не найден');
+        return;
+    }
+    openSection('certificates');
+    document.getElementById('section-title').textContent = 'Сертификат';
+
+    const priceRub = Number(t.priceRub || 0) || 0;
+    const valueRub = Number(t.valueRub || 0) || 0;
+    const cover = String(t.imageUrl || '').trim();
+    const title = escapeHtml(String(t.title || 'Подарочный сертификат'));
+    const desc = t.description ? `<div class="content-section" style="margin-top:12px;"><p>${escapeHtml(String(t.description))}</p></div>` : '';
+
+    // reuse qty control state from product detail
+    resetProductDetailQty(String(t.id));
+
+    const content = `
+      <div class="content-section">
+        ${cover ? `<div class="product-details-image"><img src="${escapeAttr(cover)}" alt="${title}" style="width:100%; border-radius: 14px;" onerror="this.style.display='none'"></div>` : ''}
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-top: 12px;">
+          <h3 style="margin:0;">${title}</h3>
+        </div>
+        <div style="margin-top:10px; display:flex; justify-content:space-between; gap:12px; align-items:center;">
+          <div style="font-size:16px; font-weight:800;">${priceRub.toFixed(0)} ₽</div>
+          <div style="font-size:13px; color:#6b7280;">Номинал: ${valueRub.toFixed(0)} ₽</div>
+        </div>
+
+        <div style="margin-top:12px;">
+          <div class="qty-control" aria-label="Количество">
+            <button class="qty-btn" type="button" aria-label="Уменьшить" onclick="changeProductDetailQty(-1)">−</button>
+            <div class="qty-value" id="product-detail-qty">1</div>
+            <button class="qty-btn" type="button" aria-label="Увеличить" onclick="changeProductDetailQty(1)">+</button>
+          </div>
+        </div>
+
+        <button class="btn" style="margin-top:12px; width:100%;" onclick="buyCertificateType('${escapeAttr(t.id)}', getProductDetailQty())">
+          Купить сертификат
+        </button>
+        <div style="margin-top:10px; font-size:12px; color:#6b7280; line-height:1.35;">
+          Покупка списывается с баланса. После покупки вы получите код сертификата и сможете применить его при оформлении заказа.
+        </div>
+      </div>
+      ${desc}
+    `;
+
+    showProductsSection(content);
+}
+
+async function buyCertificateType(typeId, quantity) {
+    const qty = Math.max(1, Math.min(20, Number(quantity) || 1));
+    try {
+        const res = await fetch(`${API_BASE}/certificates/buy`, {
+            method: 'POST',
+            headers: getApiHeaders(),
+            body: JSON.stringify({ typeId, quantity: qty })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.success) {
+            showError(data?.error || 'Ошибка покупки сертификата');
+            return;
+        }
+        const codes = Array.isArray(data?.certificates) ? data.certificates.map(c => c.code).filter(Boolean) : [];
+        const msg = codes.length
+            ? `Сертификат куплен!\n\nКоды:\n${codes.join('\n')}\n\nСкопируй код и применяй при оформлении заказа.`
+            : 'Сертификат куплен!';
+        showSuccess(msg);
+    } catch (e) {
+        console.error('buyCertificateType error:', e);
+        showError('Ошибка покупки сертификата');
+    }
+}
+
+async function loadCertificatesContent() {
+    await ensureShopDataLoaded().catch(() => {});
+    await ensureCertificateTypesLoaded();
+    const categories = Array.isArray(SHOP_CATEGORIES_CACHE) ? SHOP_CATEGORIES_CACHE : [];
+    const types = Array.isArray(CERT_TYPES_CACHE) ? CERT_TYPES_CACHE : [];
+
+    let html = `<div class="shop-catalog">`;
+    html += renderShopTabs(categories, 'certificates');
+    html += `<div class="products-grid" style="margin-top: 12px;">`;
+    if (types.length) {
+        types.sort((a, b) => (Number(a.sortOrder || 0) - Number(b.sortOrder || 0)));
+        types.forEach(t => { html += renderCertificateCard(t); });
+    } else {
+        html += `<div class="empty-state"><p>Сертификаты скоро будут доступны</p></div>`;
+    }
+    html += `</div></div>`;
+    return html;
+}
+
 async function loadProductsOnMainPage() {
     const container = document.getElementById('products-container');
     if (!container) return; // Container might not exist in overlay mode
 
     try {
         console.log('🛒 Loading products on main page...');
-        const response = await fetch(`${API_BASE}/products`);
+        const [productsRes, categoriesRes] = await Promise.all([
+            fetch(`${API_BASE}/products`),
+            fetch(`${API_BASE}/categories`).catch(() => ({ ok: false }))
+        ]);
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+        if (!productsRes.ok) {
+            throw new Error(`HTTP error! status: ${productsRes.status}`);
         }
 
-        const products = await response.json();
+        const products = await productsRes.json();
+        const allCategories = (categoriesRes && categoriesRes.ok) ? await categoriesRes.json().catch(() => []) : [];
         console.log(`✅ Loaded ${products?.length || 0} products`);
 
         if (products && Array.isArray(products) && products.length > 0) {
-            // Группируем товары по категориям
-            const productsByCategory = {};
-            products.forEach(product => {
-                const categoryName = product.category?.name || 'Без категории';
-                const categoryId = product.category?.id || 'uncategorized';
-
-                if (!productsByCategory[categoryId]) {
-                    productsByCategory[categoryId] = {
-                        name: categoryName,
-                        products: []
-                    };
-                }
-                productsByCategory[categoryId].products.push(product);
-            });
-            // Получаем все категории для определения подкатегорий Косметики
-            let cosmeticsSubcategories = [];
-            let cosmeticsCategoryId = null;
-            let cosmeticsProducts = [];
-
-            try {
-                const categoriesResponse = await fetch(`${API_BASE}/categories`);
-                if (categoriesResponse.ok) {
-                    const allCategories = await categoriesResponse.json();
-                    cosmeticsSubcategories = allCategories.filter(cat =>
-                        cat.name && cat.name.startsWith('Косметика >') && cat.name !== 'Косметика'
-                    );
-
-                    cosmeticsSubcategories = dedupeCategoriesPreferMoreProducts(cosmeticsSubcategories, productsByCategory);
-
-                    // Находим категорию "Косметика"
-                    const cosmeticsCategory = allCategories.find(cat => cat.name === 'Косметика');
-                    if (cosmeticsCategory) {
-                        cosmeticsCategoryId = cosmeticsCategory.id;
-
-                        // Собираем товары из самой категории "Косметика"
-                        cosmeticsProducts = productsByCategory[cosmeticsCategoryId]?.products || [];
-
-                        // Добавляем товары из всех подкатегорий "Косметика"
-                        cosmeticsSubcategories.forEach(subcat => {
-                            const subcatProducts = productsByCategory[subcat.id]?.products || [];
-                            cosmeticsProducts = cosmeticsProducts.concat(subcatProducts);
-                        });
-                        cosmeticsProducts = dedupeProductsById(cosmeticsProducts);
-                    }
-                }
-            } catch (error) {
-                console.error('Error fetching categories for cosmetics:', error);
-            }
-
-            // Если не нашли через API, ищем в productsByCategory
-            if (!cosmeticsCategoryId) {
-                for (const [catId, cat] of Object.entries(productsByCategory)) {
-                    if (cat.name === 'Косметика') {
-                        cosmeticsCategoryId = catId;
-                        cosmeticsProducts = cat.products;
-                        break;
-                    }
-                }
-
-                // Также ищем товары в подкатегориях
-                if (cosmeticsCategoryId) {
-                    for (const [catId, cat] of Object.entries(productsByCategory)) {
-                        if (cat.name && cat.name.startsWith('Косметика >')) {
-                            cosmeticsProducts = cosmeticsProducts.concat(cat.products);
-                        }
-                    }
-                }
-            }
-
             let html = '';
-
-            // 1. Отображаем категорию "Косметика" специальным блоком
-            if (cosmeticsCategoryId && cosmeticsProducts.length > 0) {
-                html += renderCosmeticsCategory(cosmeticsCategoryId, cosmeticsProducts, cosmeticsSubcategories);
+            // 1) Categories with covers
+            if (Array.isArray(allCategories) && allCategories.length) {
+                html += renderCategoryCovers(allCategories, products);
             }
-
-            // 2. Отображаем остальные категории
-            const categoryOrder = ['Живая вода', 'Практики'];
-            const sortedCategories = Object.keys(productsByCategory).sort((a, b) => {
-                const nameA = productsByCategory[a].name;
-                const nameB = productsByCategory[b].name;
-                const indexA = categoryOrder.indexOf(nameA);
-                const indexB = categoryOrder.indexOf(nameB);
-
-                if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-                if (indexA !== -1) return -1;
-                if (indexB !== -1) return 1;
-                return nameA.localeCompare(nameB);
-            });
-
-            sortedCategories.forEach(categoryId => {
-                const category = productsByCategory[categoryId];
-
-                // Пропускаем Косметику и подкатегории (они уже обработаны)
-                if (category.name === 'Косметика' || (category.name && category.name.startsWith('Косметика >'))) {
-                    return;
-                }
-
-                html += `
-                    <div class="products-scroll-container">
-                        <div class="section-header-inline">
-                            <h2 class="section-title-inline">${escapeHtml(category.name)}</h2>
-                        </div>
-                        <div class="products-scroll-wrapper">
-                            <div class="products-horizontal">
-                `;
-
-                category.products.forEach(product => {
-                    html += renderProductCardHorizontal(product);
-                });
-
-                html += `
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
+            // 2) All products grid
+            html += `
+              <div class="products-scroll-container">
+                <div class="section-header-inline">
+                  <h2 class="section-title-inline">Каталог</h2>
+                </div>
+                <div class="products-grid">
+            `;
+            products.forEach(p => { html += renderProductCard(p); });
+            html += `
+                </div>
+              </div>
+            `;
             container.innerHTML = html;
         } else {
             container.innerHTML = `
@@ -1883,8 +2029,8 @@ function renderProductCardHorizontal(product) {
                     <div class="product-card-price">
                         <span class="price-value">${priceRub} ₽</span>
                     </div>
-                    <button class="product-card-btn" onclick="event.stopPropagation(); addToCart('${product.id}')">
-                        В корзину
+                    <button class="product-card-add" type="button" aria-label="Открыть товар" onclick="event.stopPropagation(); showProductDetails('${product.id}')">
+                        +
                     </button>
                 </div>
             </div>
@@ -1911,8 +2057,8 @@ function renderProductCard(product) {
                     <div class="product-card-price">
                         <span class="price-value">${priceRub} ₽</span>
                     </div>
-                    <button class="product-card-btn" onclick="event.stopPropagation(); addToCart('${product.id}')">
-                        В корзину
+                    <button class="product-card-add" type="button" aria-label="Открыть товар" onclick="event.stopPropagation(); showProductDetails('${product.id}')">
+                        +
                     </button>
                 </div>
             </div>
@@ -1938,8 +2084,8 @@ function renderPlazmaProductCard(product) {
                     <div class="product-card-price">
                         <span class="price-value">${priceRub} ₽</span>
                     </div>
-                    <button class="product-card-btn" onclick="event.stopPropagation(); addPlazmaProductToCart('${product.id}', '${escapeHtml(title)}', ${product.price || 0})">
-                        В корзину
+                    <button class="product-card-add" type="button" aria-label="Открыть товар" onclick="event.stopPropagation(); showPlazmaProductDetails('${product.id}')">
+                        +
                     </button>
                 </div>
             </div>
@@ -2045,146 +2191,28 @@ function escapeAttr(text) {
         .replace(/'/g, '&#39;');
 }
 
-// Shop content - показываем все товары сразу
+// Shop content - каталог с табами категорий + сетка товаров
 async function loadShopContent() {
     try {
-        console.log('🛒 Loading shop content...');
-        // Загружаем категории и товары
-        const [categoriesResponse, productsResponse] = await Promise.all([
-            fetch(`${API_BASE}/categories`),
-            fetch(`${API_BASE}/products`)
-        ]);
+        console.log('🛒 Loading shop catalog...');
+        await ensureShopDataLoaded();
+        const categories = Array.isArray(SHOP_CATEGORIES_CACHE) ? SHOP_CATEGORIES_CACHE : [];
+        const products = Array.isArray(SHOP_PRODUCTS_CACHE) ? SHOP_PRODUCTS_CACHE : [];
 
-        if (!categoriesResponse.ok) throw new Error('Failed to fetch categories');
-        if (!productsResponse.ok) throw new Error('Failed to fetch products');
+        const activeId = String(SHOP_ACTIVE_CATEGORY_ID || 'all');
+        const filtered = getProductsForShopSelection(activeId, categories, products);
 
-        let categories = await categoriesResponse.json();
-        const products = await productsResponse.json();
+        let content = `<div class="shop-catalog">`;
+        content += renderShopTabs(categories, activeId);
+        content += `<div class="products-grid" style="margin-top: 12px;">`;
 
-        console.log(`✅ Loaded ${categories?.length || 0} categories and ${products?.length || 0} products`);
-
-        // Группируем товары по категориям
-        const productsByCategory = {};
-        products.forEach(product => {
-            const categoryId = product.category?.id || 'uncategorized';
-            if (!productsByCategory[categoryId]) {
-                productsByCategory[categoryId] = [];
-            }
-            productsByCategory[categoryId].push(product);
-        });
-
-        // Дедуп категорий (в БД могут появляться дубли по названию)
-        categories = dedupeCategoriesPreferMoreProducts(categories, productsByCategory);
-
-        // Группируем подкатегории по родительским категориям
-        const categoriesByParent = {};
-        const mainCategories = [];
-
-        categories.forEach(cat => {
-            if (cat.name && cat.name.includes(' > ')) {
-                // Это подкатегория
-                const parentName = cat.name.split(' > ')[0];
-                if (!categoriesByParent[parentName]) {
-                    categoriesByParent[parentName] = [];
-                }
-                categoriesByParent[parentName].push(cat);
-            } else {
-                // Это основная категория
-                mainCategories.push(cat);
-            }
-        });
-
-        let content = '<div class="products-main-container">';
-
-        // Отображаем каждую подкатегорию как горизонтальную линию
-        Object.keys(categoriesByParent).forEach(parentName => {
-            const subcategories = dedupeCategoriesPreferMoreProducts(categoriesByParent[parentName], productsByCategory);
-
-            subcategories.forEach(subcat => {
-                const subcatProducts = productsByCategory[subcat.id] || [];
-                if (subcatProducts.length === 0) return;
-
-                // Ограничиваем до 9 товаров
-                const displayProducts = subcatProducts.slice(0, 9);
-
-                content += `
-                    <div class="products-scroll-container">
-                        <div class="section-header-inline">
-                            <h2 class="section-title-inline" onclick="showCategoryProducts('${subcat.id}')" style="cursor: pointer;">${escapeHtml(subcat.name)}</h2>
-                        </div>
-                        <div class="products-scroll-wrapper">
-                            <div class="products-horizontal">
-                `;
-
-                displayProducts.forEach(product => {
-                    content += renderProductCardHorizontal(product);
-                });
-
-                // Кнопка "Больше" если товаров больше 9
-                if (subcatProducts.length > 9) {
-                    content += `
-                        <div class="product-card-more" onclick="showCategoryProducts('${subcat.id}')">
-                            <div class="more-icon">➕</div>
-                            <div class="more-text">Больше</div>
-                        </div>
-                    `;
-                }
-
-                content += `
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-        });
-
-        // Отображаем основные категории без подкатегорий
-        mainCategories.forEach(cat => {
-            if (categoriesByParent[cat.name]) return; // Пропускаем, если есть подкатегории
-
-            const catProducts = productsByCategory[cat.id] || [];
-            if (catProducts.length === 0) return;
-
-            const displayProducts = catProducts.slice(0, 9);
-
-            content += `
-                <div class="products-scroll-container">
-                    <div class="section-header-inline">
-                        <h2 class="section-title-inline" onclick="showCategoryProducts('${cat.id}')" style="cursor: pointer;">${escapeHtml(cat.name)}</h2>
-                    </div>
-                    <div class="products-scroll-wrapper">
-                        <div class="products-horizontal">
-            `;
-
-            displayProducts.forEach(product => {
-                content += renderProductCardHorizontal(product);
-            });
-
-            if (catProducts.length > 9) {
-                content += `
-                    <div class="product-card-more" onclick="showCategoryProducts('${cat.id}')">
-                        <div class="more-icon">➕</div>
-                        <div class="more-text">Больше</div>
-                    </div>
-                `;
-            }
-
-            content += `
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-
-        if (Object.keys(categoriesByParent).length === 0 && mainCategories.length === 0) {
-            content += `
-                <div class="empty-state" style="padding: 40px 20px; text-align: center;">
-                    <p style="font-size: 18px; margin-bottom: 20px;">📦 Каталог пока пуст</p>
-                </div>
-            `;
+        if (filtered && filtered.length) {
+            filtered.forEach(p => { content += renderProductCard(p); });
+        } else {
+            content += `<div class="empty-state"><p>Товары не найдены</p></div>`;
         }
 
-        content += '</div>';
+        content += `</div></div>`;
         return content;
     } catch (error) {
         console.error('❌ Error loading shop content:', error);
@@ -2192,7 +2220,7 @@ async function loadShopContent() {
             <div class="error-message">
                 <h3>Ошибка загрузки каталога</h3>
                 <p>${error?.message || 'Попробуйте позже'}</p>
-                <button class="btn" onclick="loadShopContent()" style="margin-top: 20px;">
+                <button class="btn" onclick="openShopCategory('all')" style="margin-top: 20px;">
                     🔄 Попробовать снова
                 </button>
             </div>
@@ -2444,7 +2472,7 @@ async function loadFavoritesContent() {
 
 // Action functions
 
-async function addToCart(productId) {
+async function addToCart(productId, quantity = 1) {
     if (!productId) {
         console.error('❌ No productId provided');
         showError('Ошибка: не указан товар');
@@ -2457,7 +2485,7 @@ async function addToCart(productId) {
         const response = await fetch(`${API_BASE}/cart/add`, {
             method: 'POST',
             headers: getApiHeaders(),
-            body: JSON.stringify({ productId })
+            body: JSON.stringify({ productId, quantity: Number(quantity) || 1 })
         });
 
         if (response.ok) {
@@ -2467,8 +2495,8 @@ async function addToCart(productId) {
             // Анимация корзины
             animateCartIcon();
 
-            // Сразу увеличиваем счетчик на 1 (оптимистичное обновление)
-            incrementCartBadge();
+            // Оптимистичное обновление счетчика
+            incrementCartBadge(Number(quantity) || 1);
 
             // Загружаем обновленную корзину (счетчик обновится с точными данными)
             await loadCartItems();
@@ -2536,13 +2564,13 @@ function animateCartIcon() {
     }
 }
 
-async function buyProduct(productId) {
+async function buyProduct(productId, quantity = 1) {
     try {
         const response = await fetch(`${API_BASE}/orders/create`, {
             method: 'POST',
             headers: getApiHeaders(),
             body: JSON.stringify({
-                items: [{ productId, quantity: 1 }],
+                items: [{ productId, quantity: Number(quantity) || 1 }],
                 message: 'Покупка через веб-приложение'
             })
         });
@@ -3328,13 +3356,8 @@ async function confirmAddress(address) {
 // NOTE: changeAddress is defined above; duplicate removed.
 
 // New section content loaders
-function loadCertificatesContent() {
-    return `
-        <div class="content-section">
-            <h3>🎁 Подарочные сертификаты</h3>
-            <p>Скоро здесь будут доступны подарочные сертификаты!</p>
-        </div>
-    `;
+function _deprecated_loadCertificatesContent() {
+    return '';
 }
 
 function loadPromotionsContent() {
@@ -3618,6 +3641,14 @@ function showDeliveryForm(items, totalRub, userBalance) {
                             Пополнить счёт
                           </button>
                         </div>
+
+                        <div style="margin-bottom: 16px;">
+                          <label style="display:block; margin-bottom: 8px; font-weight: 600; color: var(--text-primary);">Сертификат (код)</label>
+                          <input type="text" id="certificate-code" class="delivery-input" placeholder="Например: VTL-ABCD-1234" value="" autocomplete="off">
+                          <div style="margin-top:6px; font-size:12px; color: var(--text-secondary); line-height:1.35;">
+                            Если у вас есть подарочный сертификат — введите код, он уменьшит сумму к оплате.
+                          </div>
+                        </div>
                         
                         <button class="btn" onclick="submitDeliveryForm(${JSON.stringify(items).replace(/"/g, '&quot;')}, ${Number(totalRub || 0)}, ${Number(userBalance || 0)})" style="width: 100%;">
                             Оформить заказ
@@ -3670,6 +3701,7 @@ async function submitDeliveryForm(items, totalRub, userBalance) {
     const city = document.getElementById('delivery-city')?.value?.trim();
     const address = document.getElementById('delivery-address')?.value?.trim();
     const payFromBalance = document.getElementById('pay-from-balance')?.checked || false;
+    const certificateCode = document.getElementById('certificate-code')?.value?.trim();
 
     if (!phone) {
         showError('Укажите номер телефона');
@@ -3708,14 +3740,14 @@ async function submitDeliveryForm(items, totalRub, userBalance) {
         }
         const totalPz = grandTotalRub / 100; // ₽→PZ
         const deliveryLine = `Город: ${city}\nАдрес: ${address}`;
-        await processOrderWithBalance(items, totalPz, null, phone, deliveryLine);
+        await processOrderWithBalance(items, totalPz, null, phone, deliveryLine, certificateCode);
         closeDeliveryForm();
         return;
     }
 
     // Без онлайн-оплаты: просто создаем заказ администратору
     const deliveryLine = `Город: ${city}\nАдрес: ${address}`;
-    await processOrderNormal(items, phone, deliveryLine);
+    await processOrderNormal(items, phone, deliveryLine, certificateCode);
 
     closeDeliveryForm();
 }
@@ -3851,12 +3883,12 @@ async function refreshCartBadge() {
 }
 
 // Оптимистичное увеличение счетчика корзины (до загрузки данных)
-function incrementCartBadge() {
+function incrementCartBadge(delta = 1) {
     try {
         const cartBadge = document.querySelector('.cart-badge');
         if (cartBadge) {
             const currentCount = parseInt(cartBadge.textContent) || 0;
-            const newCount = currentCount + 1;
+            const newCount = currentCount + (Number(delta) || 1);
             cartBadge.textContent = newCount.toString();
             cartBadge.style.display = 'grid';
             cartBadge.classList.add('animate');
@@ -3928,16 +3960,43 @@ window.addEventListener('popstate', function (e) {
 });
 
 // Show product details function
+let _productDetailQty = 1;
+let _productDetailId = null;
+
+function getProductDetailQty() {
+    return Number(_productDetailQty) || 1;
+}
+
+function setProductDetailQty(nextQty) {
+    const q = Math.max(1, Math.min(99, Number(nextQty) || 1));
+    _productDetailQty = q;
+    const el = document.getElementById('product-detail-qty');
+    if (el) el.textContent = String(q);
+}
+
+function changeProductDetailQty(delta) {
+    setProductDetailQty(getProductDetailQty() + (Number(delta) || 0));
+}
+
+function resetProductDetailQty(productId) {
+    _productDetailId = productId;
+    setProductDetailQty(1);
+}
+
 async function showProductDetails(productId) {
     try {
         console.log('📖 Showing product details for:', productId);
 
+        let product = null;
         const response = await fetch(`${API_BASE}/products/${productId}`);
         if (!response.ok) {
             throw new Error('Failed to fetch product details');
         }
-
-        const product = await response.json();
+        product = await response.json();
+        if (!product) {
+            throw new Error('Product not found');
+        }
+        resetProductDetailQty(product.id);
 
         // Create detailed product view
         let content = `
@@ -3966,10 +4025,15 @@ async function showProductDetails(productId) {
                     </div>
                     
                     <div class="product-details-actions">
-                        <button class="btn-add-to-cart" onclick="addToCart('${product.id}')">
+                        <div class="qty-control" aria-label="Количество">
+                            <button class="qty-btn" type="button" aria-label="Уменьшить" onclick="changeProductDetailQty(-1)">−</button>
+                            <div class="qty-value" id="product-detail-qty">1</div>
+                            <button class="qty-btn" type="button" aria-label="Увеличить" onclick="changeProductDetailQty(1)">+</button>
+                        </div>
+                        <button class="btn-add-to-cart" onclick="addToCart('${product.id}', getProductDetailQty())">
                             🛒 В корзину
                         </button>
-                        <button class="btn-buy" onclick="buyProduct('${product.id}')">
+                        <button class="btn-buy" onclick="buyProduct('${product.id}', getProductDetailQty())">
                             🛍 Купить
                         </button>
                         ${product.instruction ? `<button class="btn-instruction" onclick="showInstruction('${product.id}', \`${product.instruction.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)">📋 Инструкция</button>` : ''}

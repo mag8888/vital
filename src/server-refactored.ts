@@ -16,6 +16,7 @@ import { prisma } from './lib/prisma.js';
 import { ensureInitialData } from './lib/bootstrap.js';
 import { adminRouter } from './admin/web-refactored.js';
 import { webappRouter } from './webapp/webapp.js';
+import { webappV2Router } from './webapp/webapp-v2.js';
 import { setBotInstance } from './lib/bot-instance.js';
 
 async function bootstrap() {
@@ -65,6 +66,7 @@ async function bootstrap() {
     // Маршруты
     app.use('/admin', adminRouter);
     app.use('/webapp', webappRouter);
+    app.use('/webapp-v2', webappV2Router);
 
     // API для бота
     app.get('/api/health', (req, res) => {

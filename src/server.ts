@@ -11,6 +11,7 @@ import { prisma } from './lib/prisma.js';
 import { ensureInitialData } from './lib/bootstrap.js';
 import { adminWebRouter } from './admin/web.js';
 import { webappRouter } from './webapp/webapp.js';
+import { webappV2Router } from './webapp/webapp-v2.js';
 import lavaWebhook from './webhooks/lava.js';
 // YooKassa intentionally not used (delivery flow работает без онлайн-оплаты)
 import { setBotInstance } from './lib/bot-instance.js';
@@ -125,6 +126,8 @@ async function bootstrap() {
     
     // Webapp routes
     app.use('/webapp', webappRouter);
+    // Webapp v2 (separate build) routes
+    app.use('/webapp-v2', webappV2Router);
     
     // Log route registration
     console.log('✅ Routes registered:');

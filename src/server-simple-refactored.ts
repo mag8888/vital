@@ -16,6 +16,7 @@ import { prisma } from './lib/prisma.js';
 import { ensureInitialData } from './lib/bootstrap.js';
 import { adminRefactoredRouter } from './admin/web-simple-refactored.js';
 import { webappRouter } from './webapp/webapp.js';
+import { webappV2Router } from './webapp/webapp-v2.js';
 import { setBotInstance } from './lib/bot-instance.js';
 
 async function bootstrap() {
@@ -65,6 +66,7 @@ async function bootstrap() {
     // Маршруты
     app.use('/admin', adminRefactoredRouter);
     app.use('/webapp', webappRouter);
+    app.use('/webapp-v2', webappV2Router);
 
     // API для проверки здоровья
     app.get('/api/health', (req, res) => {

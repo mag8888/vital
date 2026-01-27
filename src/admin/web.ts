@@ -8,6 +8,17 @@ import { uploadImage, isCloudinaryConfigured } from '../services/cloudinary-serv
 
 const router = express.Router();
 
+// Basic HTML escaping helper (server-side templates)
+function escapeHtml(input: any): string {
+  const s = String(input ?? '');
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // Shared UI styles for the web admin (keep inline to avoid relying on static assets).
 // Goal: consistent buttons/inputs/focus states across all admin pages.
 const ADMIN_UI_CSS = `
@@ -407,6 +418,7 @@ function renderAdminShellStart(opts: { title: string; activePath: string; buildM
           <a class="admin-nav-item ${isActive('/admin/categories')}" href="/admin/categories"><span class="admin-ico">${adminIcon('tag')}</span><span>Категории</span></a>
           <a class="admin-nav-item ${isActive('/admin/reviews')}" href="/admin/reviews"><span class="admin-ico">${adminIcon('star')}</span><span>Отзывы</span></a>
           <a class="admin-nav-item ${isActive('/admin/orders')}" href="/admin/orders"><span class="admin-ico">${adminIcon('cart')}</span><span>Заказы</span></a>
+          <a class="admin-nav-item ${isActive('/admin/certificates')}" href="/admin/certificates"><span class="admin-ico">${adminIcon('tag')}</span><span>Сертификаты</span></a>
           <a class="admin-nav-item ${isActive('/admin/specialists')}" href="/admin/specialists"><span class="admin-ico">${adminIcon('users')}</span><span>Специалисты</span></a>
           <a class="admin-nav-item ${isActive('/admin/chats')}" href="/admin/chats"><span class="admin-ico">${adminIcon('chat')}</span><span>Чаты</span></a>
         </nav>
@@ -11046,6 +11058,328 @@ router.get('/orders', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Orders page error:', error);
     res.status(500).send('Ошибка загрузки заказов');
+  }
+});
+
+// Certificates admin (types + issue codes)
+router.get('/certificates', requireAdmin, async (req, res) => {
+  try {
+    const buildMarker = (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.BUILD_MARKER || '').toString().slice(0, 7);
+    const p: any = prisma as any;
+    const types = await p.certificateType.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }] });
+    const issued = await p.giftCertificate.findMany({ orderBy: [{ createdAt: 'desc' }], take: 50 });
+
+    res.send(`
+      <!doctype html>
+      <html lang="ru">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Сертификаты</title>
+        <style>${ADMIN_UI_CSS}</style>
+      </head>
+      <body>
+        ${renderAdminShellStart({ title: 'Сертификаты', activePath: '/admin/certificates', buildMarker })}
+          <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px;">
+              <div style="font-weight:800; font-size:18px;">Типы сертификатов</div>
+              <button class="btn btn-success" onclick="openTypeModal()">+ Добавить тип</button>
+            </div>
+            <div style="overflow:auto;">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Название</th>
+                    <th>Цена (₽)</th>
+                    <th>Номинал (₽)</th>
+                    <th>Активен</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${types.map((t: any) => `
+                    <tr>
+                      <td>${escapeHtml(t.title)}</td>
+                      <td>${Number(t.priceRub || 0)}</td>
+                      <td>${Number(t.valueRub || 0)}</td>
+                      <td>${t.isActive ? 'Да' : 'Нет'}</td>
+                      <td style="text-align:right; white-space:nowrap;">
+                        <button class="action-btn" onclick='editType(${JSON.stringify(t).replace(/</g,'\\u003c')})'>Редактировать</button>
+                        <button class="action-btn" onclick='toggleType("${t.id}", ${t.isActive ? 'false' : 'true'})'>${t.isActive ? 'Выключить' : 'Включить'}</button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px;">
+              <div style="font-weight:800; font-size:18px;">Выданные коды (последние 50)</div>
+              <button class="btn" onclick="openIssueModal()">+ Выдать код</button>
+            </div>
+            <div style="overflow:auto;">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Код</th>
+                    <th>Остаток (PZ)</th>
+                    <th>Статус</th>
+                    <th>Пользователь</th>
+                    <th>Дата</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${issued.map((c: any) => `
+                    <tr>
+                      <td style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace;">${escapeHtml(c.code)}</td>
+                      <td>${Number(c.remainingPz || 0).toFixed(2)}</td>
+                      <td>${escapeHtml(c.status)}</td>
+                      <td>${c.userId ? escapeHtml(String(c.userId)) : '<span class="muted">—</span>'}</td>
+                      <td>${new Date(c.createdAt).toLocaleString('ru-RU')}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            <div class="muted" style="margin-top:8px;">Для применения в клиенте вводится код в форме оформления заказа.</div>
+          </div>
+
+          <div class="modal" id="typeModal" style="display:none;">
+            <div class="modal-card" style="max-width:720px;">
+              <div class="row" style="justify-content:space-between; align-items:center;">
+                <div style="font-weight:900; font-size:18px;">Тип сертификата</div>
+                <button class="action-btn" onclick="closeTypeModal()">×</button>
+              </div>
+              <div class="grid" style="margin-top:12px;">
+                <div>
+                  <div class="muted">Название *</div>
+                  <input id="ct_title" placeholder="Подарочный сертификат" />
+                </div>
+                <div>
+                  <div class="muted">Цена (₽) *</div>
+                  <input id="ct_priceRub" type="number" min="0" step="1" placeholder="1000" />
+                </div>
+                <div>
+                  <div class="muted">Номинал (₽) *</div>
+                  <input id="ct_valueRub" type="number" min="0" step="1" placeholder="1000" />
+                </div>
+                <div>
+                  <div class="muted">Сортировка</div>
+                  <input id="ct_sortOrder" type="number" step="1" value="0" />
+                </div>
+              </div>
+              <div style="margin-top:12px;">
+                <div class="muted">Описание</div>
+                <textarea id="ct_description" rows="3" placeholder="Короткое описание"></textarea>
+              </div>
+              <div style="margin-top:12px;">
+                <div class="muted">Обложка (файл)</div>
+                <input id="ct_image" type="file" accept="image/*" />
+                <div class="muted" style="margin-top:6px;">Если Cloudinary не настроен — можно оставить пустым.</div>
+              </div>
+              <div style="margin-top:12px;">
+                <label style="display:flex; gap:8px; align-items:center;">
+                  <input id="ct_isActive" type="checkbox" checked />
+                  <span>Активен</span>
+                </label>
+              </div>
+              <div id="ct_error" class="muted" style="margin-top:10px; color: var(--admin-danger); display:none;"></div>
+              <div class="row" style="justify-content:flex-end; gap:10px; margin-top:14px;">
+                <button class="btn btn-secondary" onclick="closeTypeModal()">Отмена</button>
+                <button class="btn btn-success" onclick="saveType()">Сохранить</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal" id="issueModal" style="display:none;">
+            <div class="modal-card" style="max-width:640px;">
+              <div class="row" style="justify-content:space-between; align-items:center;">
+                <div style="font-weight:900; font-size:18px;">Выдать код сертификата</div>
+                <button class="action-btn" onclick="closeIssueModal()">×</button>
+              </div>
+              <div class="grid" style="margin-top:12px;">
+                <div>
+                  <div class="muted">Номинал (₽) *</div>
+                  <input id="ci_valueRub" type="number" min="0" step="1" placeholder="1000" />
+                </div>
+                <div>
+                  <div class="muted">Telegram ID пользователя (опционально)</div>
+                  <input id="ci_telegramId" type="text" placeholder="123456789" />
+                </div>
+              </div>
+              <div class="muted" style="margin-top:8px;">Если Telegram ID не указан — код будет “непривязан”, привяжется при первом использовании.</div>
+              <div id="ci_error" class="muted" style="margin-top:10px; color: var(--admin-danger); display:none;"></div>
+              <div class="row" style="justify-content:flex-end; gap:10px; margin-top:14px;">
+                <button class="btn btn-secondary" onclick="closeIssueModal()">Отмена</button>
+                <button class="btn" onclick="issueCode()">Выдать</button>
+              </div>
+            </div>
+          </div>
+
+          <script>
+            function qs(id){ return document.getElementById(id); }
+            function showErr(id, msg){ const el = qs(id); if(!el) return; el.style.display = msg ? 'block' : 'none'; el.textContent = msg || ''; }
+
+            let editingTypeId = null;
+            function openTypeModal(){ editingTypeId = null; fillTypeForm({title:'', priceRub: '', valueRub:'', sortOrder:0, description:'', isActive:true}); qs('typeModal').style.display='flex'; document.body.classList.add('modal-open'); }
+            function closeTypeModal(){ qs('typeModal').style.display='none'; document.body.classList.remove('modal-open'); showErr('ct_error',''); if(qs('ct_image')) qs('ct_image').value=''; }
+            function fillTypeForm(t){
+              qs('ct_title').value = t.title || '';
+              qs('ct_priceRub').value = (t.priceRub ?? '');
+              qs('ct_valueRub').value = (t.valueRub ?? '');
+              qs('ct_sortOrder').value = (t.sortOrder ?? 0);
+              qs('ct_description').value = t.description || '';
+              qs('ct_isActive').checked = !!t.isActive;
+            }
+            function editType(t){ editingTypeId = t.id; fillTypeForm(t); qs('typeModal').style.display='flex'; document.body.classList.add('modal-open'); }
+            async function toggleType(id, next){
+              const res = await fetch('/admin/api/certificate-types/' + id, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ isActive: !!next }) });
+              if(!res.ok){ alert('Ошибка'); return; }
+              location.reload();
+            }
+            async function saveType(){
+              showErr('ct_error','');
+              const fd = new FormData();
+              fd.set('title', qs('ct_title').value.trim());
+              fd.set('priceRub', qs('ct_priceRub').value);
+              fd.set('valueRub', qs('ct_valueRub').value);
+              fd.set('sortOrder', qs('ct_sortOrder').value || '0');
+              fd.set('description', qs('ct_description').value || '');
+              fd.set('isActive', qs('ct_isActive').checked ? '1' : '0');
+              const f = qs('ct_image').files && qs('ct_image').files[0];
+              if (f) fd.set('image', f);
+              const url = editingTypeId ? ('/admin/api/certificate-types/' + editingTypeId) : '/admin/api/certificate-types';
+              const method = editingTypeId ? 'PUT' : 'POST';
+              const res = await fetch(url, { method, body: fd });
+              const data = await res.json().catch(()=>({}));
+              if(!res.ok){ showErr('ct_error', (data && (data.error || data.message)) ? (data.error || data.message) : ('HTTP ' + res.status)); return; }
+              location.reload();
+            }
+
+            function openIssueModal(){ qs('issueModal').style.display='flex'; document.body.classList.add('modal-open'); showErr('ci_error',''); qs('ci_valueRub').value=''; qs('ci_telegramId').value=''; }
+            function closeIssueModal(){ qs('issueModal').style.display='none'; document.body.classList.remove('modal-open'); showErr('ci_error',''); }
+            async function issueCode(){
+              showErr('ci_error','');
+              const valueRub = Number(qs('ci_valueRub').value || 0);
+              if(!valueRub){ showErr('ci_error','Укажите номинал'); return; }
+              const telegramId = qs('ci_telegramId').value.trim();
+              const res = await fetch('/admin/api/certificates/issue', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ valueRub, telegramId: telegramId || null }) });
+              const data = await res.json().catch(()=>({}));
+              if(!res.ok){ showErr('ci_error', data.error || ('HTTP ' + res.status)); return; }
+              alert('Код: ' + data.code);
+              location.reload();
+            }
+          </script>
+
+        ${renderAdminShellEnd()}
+      </body>
+      </html>
+    `);
+  } catch (e: any) {
+    console.error('Certificates admin page error:', e);
+    res.status(500).send('Ошибка загрузки страницы сертификатов');
+  }
+});
+
+router.post('/api/certificate-types', requireAdmin, upload.single('image'), async (req, res) => {
+  try {
+    const title = String(req.body?.title || '').trim();
+    const priceRub = Number(req.body?.priceRub || 0) || 0;
+    const valueRub = Number(req.body?.valueRub || 0) || 0;
+    const sortOrder = Number(req.body?.sortOrder || 0) || 0;
+    const description = String(req.body?.description || '').trim() || null;
+    const isActive = String(req.body?.isActive || '1') === '1';
+    if (!title) return res.status(400).json({ error: 'Название обязательно' });
+    if (priceRub <= 0 || valueRub <= 0) return res.status(400).json({ error: 'Цена и номинал должны быть больше 0' });
+
+    let imageUrl: string | null = null;
+    if (req.file) {
+      if (!isCloudinaryConfigured()) {
+        return res.status(400).json({ error: 'Cloudinary не настроен — загрузка обложки недоступна' });
+      }
+      const up = await uploadImage(req.file.buffer, { folder: 'certificates' });
+      imageUrl = up.secureUrl;
+    }
+
+    const created = await (prisma as any).certificateType.create({
+      data: { title, priceRub, valueRub, sortOrder, description, isActive, imageUrl }
+    });
+    res.json({ success: true, type: created });
+  } catch (e: any) {
+    console.error('Create certificate type error:', e);
+    res.status(500).json({ error: e?.message || 'Ошибка создания' });
+  }
+});
+
+router.put('/api/certificate-types/:id', requireAdmin, upload.single('image'), async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'id is required' });
+
+    const data: any = {};
+    if (req.body?.title !== undefined) data.title = String(req.body.title || '').trim();
+    if (req.body?.priceRub !== undefined) data.priceRub = Number(req.body.priceRub || 0) || 0;
+    if (req.body?.valueRub !== undefined) data.valueRub = Number(req.body.valueRub || 0) || 0;
+    if (req.body?.sortOrder !== undefined) data.sortOrder = Number(req.body.sortOrder || 0) || 0;
+    if (req.body?.description !== undefined) data.description = String(req.body.description || '').trim() || null;
+    if (req.body?.isActive !== undefined) data.isActive = String(req.body.isActive) === '1' || String(req.body.isActive) === 'true';
+
+    if (req.file) {
+      if (!isCloudinaryConfigured()) {
+        return res.status(400).json({ error: 'Cloudinary не настроен — загрузка обложки недоступна' });
+      }
+      const up = await uploadImage(req.file.buffer, { folder: 'certificates' });
+      data.imageUrl = up.secureUrl;
+    }
+
+    const updated = await (prisma as any).certificateType.update({ where: { id }, data });
+    res.json({ success: true, type: updated });
+  } catch (e: any) {
+    console.error('Update certificate type error:', e);
+    res.status(500).json({ error: e?.message || 'Ошибка обновления' });
+  }
+});
+
+function genCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const part = (n: number) => Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+  return `VTL-${part(4)}-${part(4)}`;
+}
+
+router.post('/api/certificates/issue', requireAdmin, async (req, res) => {
+  try {
+    const valueRub = Number(req.body?.valueRub || 0) || 0;
+    const telegramId = String(req.body?.telegramId || '').trim();
+    if (valueRub <= 0) return res.status(400).json({ error: 'Номинал должен быть больше 0' });
+
+    let userId: string | null = null;
+    if (telegramId) {
+      const u = await prisma.user.findUnique({ where: { telegramId } });
+      if (!u) return res.status(404).json({ error: 'Пользователь с таким Telegram ID не найден' });
+      userId = u.id;
+    }
+
+    const valuePz = valueRub / 100;
+    let created: any = null;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const code = genCode();
+      try {
+        created = await (prisma as any).giftCertificate.create({
+          data: { code, userId: userId || null, initialPz: valuePz, remainingPz: valuePz, status: 'ACTIVE' }
+        });
+        break;
+      } catch (e: any) {
+        if (e?.code === 'P2002') continue;
+        throw e;
+      }
+    }
+    if (!created) return res.status(500).json({ error: 'Не удалось сгенерировать код' });
+    res.json({ success: true, code: created.code, id: created.id });
+  } catch (e: any) {
+    console.error('Issue certificate error:', e);
+    res.status(500).json({ error: e?.message || 'Ошибка выдачи' });
   }
 });
 

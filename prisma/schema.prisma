@@ -44,6 +44,7 @@ model User {
   histories       UserHistory[]
   partner         PartnerProfile?
   orders          OrderRequest[]
+  giftCertificates GiftCertificate[]
   referrals       PartnerReferral[] @relation("UserReferrals") // Рефералы этого пользователя
   payments        Payment[]
   createdAt       DateTime          @default(now())
@@ -100,6 +101,41 @@ model Product {
   @@index([createdAt])
   @@index([sku])
   @@index([stock])
+}
+
+// Gift certificates (types + issued codes)
+model CertificateType {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String   // e.g. "Подарочный сертификат 1000 ₽"
+  description String?
+  imageUrl    String?
+  valueRub    Int      // nominal value in ₽ (for applying to purchase)
+  priceRub    Int      // selling price in ₽ (usually equals valueRub)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  certificates GiftCertificate[]
+
+  @@index([isActive, sortOrder])
+}
+
+model GiftCertificate {
+  id           String           @id @default(auto()) @map("_id") @db.ObjectId
+  code         String           @unique
+  type         CertificateType? @relation(fields: [typeId], references: [id])
+  typeId       String?          @db.ObjectId
+  user         User?            @relation(fields: [userId], references: [id])
+  userId       String?          @db.ObjectId
+  initialPz    Float
+  remainingPz  Float
+  status       String           @default("ACTIVE") // ACTIVE | USED | VOID
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([userId, status])
+  @@index([status, createdAt])
 }
 
 model Specialist {
