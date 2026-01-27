@@ -259,7 +259,6 @@ async function sendWelcomeVideo(ctx: Context) {
 async function sendClassicHome(ctx: Context) {
   const webappUrl = getWebappUrl();
   await ctx.reply(greeting, mainKeyboard(webappUrl));
-  await sendWelcomeVideo(ctx);
 }
 
 async function sendAppHome(
@@ -268,26 +267,11 @@ async function sendAppHome(
 ) {
   const { introText, includeGreeting = true } = options;
 
-  let text = 'Нажмите кнопку, чтобы открыть приложение:';
-  if (introText) {
-    text = `${introText}\n\n${text}`;
-  } else if (includeGreeting) {
-    text = `${greeting}\n\n${text}`;
-  }
-
   const webappUrl = getWebappUrl();
-  await ctx.reply(text, {
-    reply_markup: {
-      inline_keyboard: [
-        [
-          {
-            text: '🚀 Открыть приложение',
-            web_app: { url: webappUrl },
-          },
-        ],
-      ],
-    },
-  });
+  let text = greeting;
+  if (introText) text = introText;
+  else if (!includeGreeting) text = 'Каталог';
+  await ctx.reply(text, mainKeyboard(webappUrl));
 }
 
 async function renderHome(ctx: Context) {
@@ -448,22 +432,7 @@ export const navigationModule: BotModule = {
       const webappUrl = getWebappUrl();
       console.log('🌐 WebApp URL:', webappUrl);
       
-      await ctx.reply(
-        '🌐 <b>Открываю веб-приложение Vital...</b>',
-        {
-          parse_mode: 'HTML',
-          reply_markup: {
-            inline_keyboard: [
-              [
-                {
-                  text: '🚀 Открыть приложение',
-                  web_app: { url: webappUrl }
-                }
-              ]
-            ]
-          }
-        }
-      );
+      await ctx.reply('Каталог', mainKeyboard(webappUrl));
     });
 
     bot.start(async (ctx) => {
@@ -825,22 +794,7 @@ export const navigationModule: BotModule = {
     bot.hears('Каталог', async (ctx) => {
       await logUserAction(ctx, 'menu:catalog');
       const webappUrl = getWebappUrl();
-      await ctx.reply(
-        '🛒 <b>Открываю каталог...</b>',
-        {
-          parse_mode: 'HTML',
-          reply_markup: {
-            inline_keyboard: [
-              [
-                {
-                  text: '🚀 Открыть каталог',
-                  web_app: { url: webappUrl }
-                }
-              ]
-            ]
-          }
-        }
-      );
+      await ctx.reply('Каталог', mainKeyboard(webappUrl));
     });
 
     bot.hears('🛒 Магазин', async (ctx) => {
