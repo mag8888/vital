@@ -257,7 +257,8 @@ async function sendWelcomeVideo(ctx: Context) {
 }
 
 async function sendClassicHome(ctx: Context) {
-  await ctx.reply(greeting, mainKeyboard());
+  const webappUrl = getWebappUrl();
+  await ctx.reply(greeting, mainKeyboard(webappUrl));
   await sendWelcomeVideo(ctx);
 }
 
@@ -267,14 +268,15 @@ async function sendAppHome(
 ) {
   const { introText, includeGreeting = true } = options;
 
+  let text = 'Нажмите кнопку, чтобы открыть приложение:';
   if (introText) {
-    await ctx.reply(introText, Markup.removeKeyboard());
+    text = `${introText}\n\n${text}`;
   } else if (includeGreeting) {
-    await ctx.reply(greeting, Markup.removeKeyboard());
+    text = `${greeting}\n\n${text}`;
   }
 
   const webappUrl = getWebappUrl();
-  await ctx.reply('Нажмите кнопку, чтобы открыть приложение:', {
+  await ctx.reply(text, {
     reply_markup: {
       inline_keyboard: [
         [
@@ -405,10 +407,9 @@ async function sendNavigationMenu(ctx: Context) {
   });
 }
 
-export function mainKeyboard() {
+export function mainKeyboard(webappUrl: string) {
   return Markup.keyboard([
-    ['🛒 Магазин', '🤝 Партнёрка'],
-    ['⭐ Отзывы', 'ℹ️ О нас'],
+    [Markup.button.webApp('Каталог', webappUrl)],
   ]).resize();
 }
 
@@ -821,6 +822,27 @@ export const navigationModule: BotModule = {
     });
 
     // Обработчики для кнопок классического меню
+    bot.hears('Каталог', async (ctx) => {
+      await logUserAction(ctx, 'menu:catalog');
+      const webappUrl = getWebappUrl();
+      await ctx.reply(
+        '🛒 <b>Открываю каталог...</b>',
+        {
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: '🚀 Открыть каталог',
+                  web_app: { url: webappUrl }
+                }
+              ]
+            ]
+          }
+        }
+      );
+    });
+
     bot.hears('🛒 Магазин', async (ctx) => {
       await logUserAction(ctx, 'menu:shop');
       const webappUrl = getWebappUrl();
