@@ -70,6 +70,8 @@ model Category {
   name        String
   slug        String    @unique
   description String?
+  imageUrl    String?
+  isVisibleInWebapp Boolean @default(true)
   isActive    Boolean   @default(true)
   products    Product[]
   createdAt   DateTime  @default(now())

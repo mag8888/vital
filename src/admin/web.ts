@@ -4287,7 +4287,7 @@ router.get('/test-dual-system', requireAdmin, async (req, res) => {
 // API: Create category
 router.post('/api/categories', requireAdmin, async (req, res) => {
   try {
-    const { name, description, icon } = req.body;
+    const { name, description, imageUrl, isVisibleInWebapp } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, error: 'Название категории обязательно' });
@@ -4298,6 +4298,8 @@ router.post('/api/categories', requireAdmin, async (req, res) => {
         name: name.trim(),
         slug: name.trim().toLowerCase().replace(/\s+/g, '-'),
         description: description?.trim() || '',
+        imageUrl: String(imageUrl || '').trim() || null,
+        isVisibleInWebapp: String(isVisibleInWebapp || '').trim() === 'false' ? false : true,
         isActive: true
       }
     });
@@ -4318,6 +4320,8 @@ router.post('/api/categories/:id/update', requireAdmin, async (req, res) => {
     const id = String(req.params.id || '').trim();
     const name = String((req.body && req.body.name) || '').trim();
     const description = String((req.body && req.body.description) || '').trim();
+    const imageUrl = String((req.body && req.body.imageUrl) || '').trim();
+    const isVisibleRaw = (req.body && req.body.isVisibleInWebapp);
     const isActiveRaw = (req.body && req.body.isActive);
     const isActive = typeof isActiveRaw === 'boolean' ? isActiveRaw : String(isActiveRaw || '').trim();
 
@@ -4325,7 +4329,9 @@ router.post('/api/categories/:id/update', requireAdmin, async (req, res) => {
     if (!name) return res.status(400).json({ success: false, error: 'Название категории обязательно' });
 
     const slug = name.toLowerCase().replace(/\s+/g, '-');
-    const data: any = { name, slug, description };
+    const data: any = { name, slug, description, imageUrl: imageUrl || null };
+    if (typeof isVisibleRaw === 'boolean') data.isVisibleInWebapp = isVisibleRaw;
+    if (String(isVisibleRaw) === 'true' || String(isVisibleRaw) === 'false') data.isVisibleInWebapp = (String(isVisibleRaw) === 'true');
     if (typeof isActive === 'boolean') data.isActive = isActive;
     if (isActive === 'true' || isActive === 'false') data.isActive = (isActive === 'true');
 
@@ -4341,6 +4347,38 @@ router.post('/api/categories/:id/update', requireAdmin, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Категория с таким названием/slug уже существует' });
     }
     return res.status(500).json({ success: false, error: 'Ошибка обновления категории' });
+  }
+});
+
+// API: Auto-assign category covers from first product image
+router.post('/api/categories/auto-covers', requireAdmin, async (req, res) => {
+  try {
+    const categories = await prisma.category.findMany({
+      where: {
+        OR: [
+          { imageUrl: null },
+          { imageUrl: '' }
+        ]
+      }
+    });
+    let updated = 0;
+    for (const cat of categories) {
+      const product = await prisma.product.findFirst({
+        where: { categoryId: cat.id, imageUrl: { not: null } },
+        orderBy: { createdAt: 'desc' }
+      });
+      const url = product?.imageUrl ? String(product.imageUrl).trim() : '';
+      if (!url) continue;
+      await prisma.category.update({
+        where: { id: cat.id },
+        data: { imageUrl: url }
+      });
+      updated += 1;
+    }
+    return res.json({ success: true, updated });
+  } catch (error: any) {
+    console.error('Auto covers error:', error);
+    return res.status(500).json({ success: false, error: 'Ошибка автообложек' });
   }
 });
 
@@ -4983,6 +5021,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
         ${renderAdminShellStart({ title: 'Категории', activePath: '/admin/categories', buildMarker })}
         <div class="page-actions">
           <button type="button" class="btn" onclick="window.openCategoryModal()">Добавить категорию</button>
+          <button type="button" class="btn btn-secondary" onclick="window.autoAssignCategoryCovers()">Автообложки из товаров</button>
         </div>
 
         ${req.query.success ? '<div class="alert alert-success">Изменения сохранены</div>' : ''}
@@ -4992,9 +5031,11 @@ router.get('/categories', requireAdmin, async (req, res) => {
           <thead>
             <tr>
               <th>Название</th>
+              <th>Обложка</th>
               <th>Slug</th>
               <th>Товары</th>
               <th>Статус</th>
+              <th>Видима</th>
               <th>Создана</th>
               <th style="text-align:right;">Действия</th>
             </tr>
@@ -5017,6 +5058,9 @@ router.get('/categories', requireAdmin, async (req, res) => {
             <div style="font-weight: 900;">${escapeHtml(cat.name)}</div>
             ${cat.description ? `<div class="muted">${escapeHtml(cat.description)}</div>` : ''}
           </td>
+          <td>
+            ${cat.imageUrl ? `<img src="${escapeAttr(cat.imageUrl)}" alt="" style="width:46px;height:46px;border-radius:10px;object-fit:cover;border:1px solid rgba(17,24,39,0.12);" />` : '<span class="muted">—</span>'}
+          </td>
           <td style="color:#6b7280;">${escapeHtml(cat.slug)}</td>
           <td><span class="pill">${Number((cat as any).productsCount || 0)}</span></td>
           <td>
@@ -5024,6 +5068,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
               <button type="submit" class="btn-mini" title="Переключить статус">${cat.isActive ? 'Активна' : 'Отключена'}</button>
             </form>
           </td>
+          <td>${(cat as any).isVisibleInWebapp === false ? 'Нет' : 'Да'}</td>
           <td>${new Date(cat.createdAt).toLocaleDateString('ru-RU')}</td>
           <td style="text-align:right;">
             <div class="actions">
@@ -5031,6 +5076,8 @@ router.get('/categories', requireAdmin, async (req, res) => {
                 data-id="${escapeAttr(cat.id)}"
                 data-name="${escapeAttr(cat.name)}"
                 data-description="${escapeAttr(cat.description || '')}"
+                data-image-url="${escapeAttr((cat as any).imageUrl || '')}"
+                data-visible="${(cat as any).isVisibleInWebapp === false ? 'false' : 'true'}"
                 data-active="${cat.isActive ? 'true' : 'false'}">Редактировать</button>
               <button type="button" class="btn-mini danger cat-delete"
                 data-id="${escapeAttr(cat.id)}"
@@ -5064,9 +5111,20 @@ router.get('/categories', requireAdmin, async (req, res) => {
                 <textarea id="categoryDescInput" rows="4" placeholder="Описание категории (опционально)"></textarea>
               </div>
               <div class="form-group">
+                <label for="categoryImageInput">Обложка (URL)</label>
+                <input id="categoryImageInput" type="text" placeholder="https://...">
+                <div class="muted" style="margin-top:6px;">Если оставить пустым — в клиенте будет первая картинка товара.</div>
+              </div>
+              <div class="form-group">
                 <label style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--admin-border-strong); border-radius:12px; background:#fff;">
                   <input id="categoryActiveInput" type="checkbox" checked>
                   <span style="font-weight:800;">Активна</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--admin-border-strong); border-radius:12px; background:#fff;">
+                  <input id="categoryVisibleInput" type="checkbox" checked>
+                  <span style="font-weight:800;">Видима в клиенте</span>
                 </label>
               </div>
               <div class="form-actions">
@@ -5104,15 +5162,19 @@ router.get('/categories', requireAdmin, async (req, res) => {
             const idEl = document.getElementById('categoryId');
             const nameEl = document.getElementById('categoryNameInput');
             const descEl = document.getElementById('categoryDescInput');
+            const imageEl = document.getElementById('categoryImageInput');
             const activeEl = document.getElementById('categoryActiveInput');
-            if (!modal || !title || !idEl || !nameEl || !descEl || !activeEl) return;
+            const visibleEl = document.getElementById('categoryVisibleInput');
+            if (!modal || !title || !idEl || !nameEl || !descEl || !imageEl || !activeEl || !visibleEl) return;
 
             const isEdit = !!(cat && cat.id);
             title.textContent = isEdit ? 'Редактировать категорию' : 'Добавить категорию';
             idEl.value = isEdit ? String(cat.id) : '';
             nameEl.value = isEdit ? String(cat.name || '') : '';
             descEl.value = isEdit ? String(cat.description || '') : '';
+            imageEl.value = isEdit ? String(cat.imageUrl || '') : '';
             activeEl.checked = isEdit ? (String(cat.isActive) === 'true') : true;
+            visibleEl.checked = isEdit ? (String(cat.isVisibleInWebapp) !== 'false') : true;
             modal.style.display = 'flex';
             modal.onclick = function(e){ if (e && e.target === modal) window.closeCategoryModal(); };
             setTimeout(() => { try { nameEl.focus(); } catch(_){} }, 30);
@@ -5160,6 +5222,8 @@ router.get('/categories', requireAdmin, async (req, res) => {
                 id: edit.getAttribute('data-id'),
                 name: edit.getAttribute('data-name'),
                 description: edit.getAttribute('data-description'),
+                imageUrl: edit.getAttribute('data-image-url'),
+                isVisibleInWebapp: edit.getAttribute('data-visible'),
                 isActive: edit.getAttribute('data-active')
               });
               return;
@@ -5181,14 +5245,16 @@ router.get('/categories', requireAdmin, async (req, res) => {
             const id = document.getElementById('categoryId').value.trim();
             const name = document.getElementById('categoryNameInput').value.trim();
             const description = document.getElementById('categoryDescInput').value.trim();
+            const imageUrl = document.getElementById('categoryImageInput').value.trim();
             const isActive = document.getElementById('categoryActiveInput').checked ? 'true' : 'false';
+            const isVisibleInWebapp = document.getElementById('categoryVisibleInput').checked ? 'true' : 'false';
             if (!name) { alert('Введите название'); return; }
 
             const btn = document.getElementById('categorySaveBtn');
             const old = btn ? btn.textContent : '';
             if (btn){ btn.disabled = true; btn.textContent = 'Сохранение...'; }
             try{
-              const payload = { name, description, isActive };
+              const payload = { name, description, imageUrl, isActive, isVisibleInWebapp };
               const url = id ? ('/admin/api/categories/' + encodeURIComponent(id) + '/update') : '/admin/api/categories';
               const resp = await fetch(url, {
                 method: 'POST',
@@ -5209,6 +5275,21 @@ router.get('/categories', requireAdmin, async (req, res) => {
               if (btn){ btn.disabled = false; btn.textContent = old || 'Сохранить'; }
             }
           });
+
+          window.autoAssignCategoryCovers = async function(){
+            if (!confirm('Заполнить обложки из первых картинок товаров?')) return;
+            const resp = await fetch('/admin/api/categories/auto-covers', {
+              method: 'POST',
+              credentials: 'include'
+            });
+            const result = await resp.json().catch(() => ({}));
+            if (!resp.ok) {
+              alert(result.error || 'Ошибка автообложек');
+              return;
+            }
+            alert('Готово: обновлено ' + (result.updated || 0) + ' категорий');
+            window.location.reload();
+          };
 
           document.getElementById('deleteCategoryConfirmBtn').addEventListener('click', async function(){
             const id = window.__categoryDeleteId;

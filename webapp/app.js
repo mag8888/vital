@@ -213,6 +213,20 @@ document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('.btn, .control-btn, .back-btn, .content-card, .nav-item').forEach(addHapticFeedback);
 });
 
+// Ensure product cards open details on click (even if markup changes)
+document.addEventListener('click', function (e) {
+    const target = e.target;
+    if (!target || typeof target.closest !== 'function') return;
+    if (target.closest('button, a, input, label, .favorite-btn')) return;
+    const card = target.closest('.product-card-forma, .product-card-forma-horizontal');
+    if (!card) return;
+    const id = card.getAttribute('data-product-id');
+    if (!id) return;
+    const type = card.getAttribute('data-product-type');
+    if (type === 'plazma') showPlazmaProductDetails(id);
+    else showProductDetails(id);
+});
+
 // Favorites (webapp)
 async function loadFavorites() {
     try {
@@ -1397,6 +1411,8 @@ function getTopLevelCategories(categories) {
 }
 
 function findCoverImageForCategory(category, products, categories) {
+    const explicit = String(category?.imageUrl || '').trim();
+    if (explicit) return explicit;
     const name = String(category?.name || '');
     // Special case: cosmetics includes subcategories
     if (name === 'Косметика') {
@@ -2020,7 +2036,7 @@ function renderProductCardHorizontal(product) {
     const summary = escapeHtml(cleanSummary.substring(0, 80));
     const priceRub = product.price ? (product.price * 100).toFixed(0) : '0';
     return `
-        <div class="product-card-forma-horizontal" onclick="showProductDetails('${product.id}')" style="position: relative;">
+        <div class="product-card-forma-horizontal" data-product-id="${escapeAttr(product.id)}" data-product-type="product" onclick="showProductDetails('${product.id}')" style="position: relative;">
             ${renderFavoriteButton(product.id)}
             ${imageHtml}
             <div class="product-card-content">
@@ -2048,7 +2064,7 @@ function renderProductCard(product) {
     const summary = escapeHtml(cleanSummary.substring(0, 100));
     const priceRub = product.price ? (product.price * 100).toFixed(0) : '0';
     return `
-        <div class="product-card-forma" onclick="showProductDetails('${product.id}')" style="position: relative;">
+        <div class="product-card-forma" data-product-id="${escapeAttr(product.id)}" data-product-type="product" onclick="showProductDetails('${product.id}')" style="position: relative;">
             ${renderFavoriteButton(product.id)}
             ${imageHtml}
             <div class="product-card-content">
@@ -2076,7 +2092,7 @@ function renderPlazmaProductCard(product) {
     const summary = escapeHtml(cleanSummary.substring(0, 80));
     const priceRub = product.priceRub || (product.price ? (product.price * 100).toFixed(0) : '0');
     return `
-        <div class="product-card-forma-horizontal" onclick="showPlazmaProductDetails('${product.id}')">
+        <div class="product-card-forma-horizontal" data-product-id="${escapeAttr(product.id)}" data-product-type="plazma" onclick="showPlazmaProductDetails('${product.id}')">
             ${imageHtml}
             <div class="product-card-content">
                 <h3 class="product-card-title">${title}</h3>

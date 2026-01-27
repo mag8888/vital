@@ -1147,6 +1147,23 @@ h4 {
     width: 100%;
 }
 
+/* Responsive columns: keep card size, add columns on wide screens */
+@media (min-width: 900px) {
+    .products-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+@media (min-width: 1200px) {
+    .products-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+@media (min-width: 1500px) {
+    .products-grid {
+        grid-template-columns: repeat(5, 1fr);
+    }
+}
+
 /* Horizontal scrolling products container */
 .products-scroll-container {
     margin-bottom: 32px;

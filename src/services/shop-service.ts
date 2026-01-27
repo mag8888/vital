@@ -1,10 +1,12 @@
 import { prisma } from '../lib/prisma.js';
 
 export async function getActiveCategories() {
-  return prisma.category.findMany({
+  const categories = await prisma.category.findMany({
     where: { isActive: true },
     orderBy: { name: 'asc' },
   });
+  // Treat missing flag as visible (backward compatible)
+  return categories.filter((c: any) => c?.isVisibleInWebapp !== false);
 }
 
 export async function getCategoryById(id: string) {
