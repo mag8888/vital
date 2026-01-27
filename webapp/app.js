@@ -181,6 +181,14 @@ function getApiHeaders() {
     };
 }
 
+function pzToRub(pz) {
+    return Math.round(Number(pz || 0) * 100);
+}
+
+function formatRubFromPz(pz) {
+    return `${pzToRub(pz)} ₽`;
+}
+
 // Initialize app
 document.addEventListener('DOMContentLoaded', function () {
     loadUserData();
@@ -590,11 +598,11 @@ async function loadProfileContent() {
                     <div class="stats-grid">
                         <div class="stat-item">
                             <span class="stat-label">Баланс</span>
-                            <span class="stat-value">${(partner.balance || 0).toFixed(2)} PZ</span>
+                            <span class="stat-value">${formatRubFromPz(partner.balance || 0)}</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-label">Бонусы</span>
-                            <span class="stat-value">${(partner.bonus || 0).toFixed(2)} PZ</span>
+                            <span class="stat-value">${formatRubFromPz(partner.bonus || 0)}</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-label">Партнеры</span>
@@ -624,7 +632,7 @@ async function loadProfileContent() {
                 <div class="profile-section">
                     <h4>Баланс</h4>
                     <div class="balance-display">
-                        <span class="balance-value">${(user.balance || 0).toFixed(2)} PZ</span>
+                        <span class="balance-value">${formatRubFromPz(user.balance || 0)}</span>
                     </div>
                     <button class="btn" onclick="openSection('balance')" style="margin-top: 12px; width: 100%;">Пополнить баланс</button>
                 </div>
@@ -809,13 +817,13 @@ async function loadCartContent() {
                     </div>
                     <div class="cart-item-info">
                         <h4>${escapeHtml(product.title || 'Без названия')}</h4>
-                        <p class="cart-item-price">${(product.price || 0).toFixed(2)} PZ</p>
+                        <p class="cart-item-price">${pzToRub(product.price || 0)} ₽</p>
                         <div class="cart-item-quantity-controls">
                             <button class="btn-quantity" onclick="updateCartQuantity('${item.id}', ${(item.quantity || 1) - 1})" ${(item.quantity || 1) <= 1 ? 'disabled' : ''}>−</button>
                             <span class="cart-item-quantity">${item.quantity || 1}</span>
                             <button class="btn-quantity" onclick="updateCartQuantity('${item.id}', ${(item.quantity || 1) + 1})">+</button>
                         </div>
-                        <p class="cart-item-total">${itemTotal.toFixed(2)} PZ</p>
+                        <p class="cart-item-total">${pzToRub(itemTotal)} ₽</p>
                     </div>
                 </div>
             `;
@@ -826,16 +834,16 @@ async function loadCartContent() {
             <div class="cart-summary">
                 <div class="balance-display">
                     <span class="balance-label">Ваш баланс:</span>
-                    <span class="balance-value">${userBalance.toFixed(2)} PZ</span>
+                    <span class="balance-value">${formatRubFromPz(userBalance)}</span>
                 </div>
                 <div class="cart-total">
                     <div class="cart-total-row">
                         <span>Итого:</span>
-                        <strong>${total.toFixed(2)} PZ</strong>
+                        <strong>${pzToRub(total)} ₽</strong>
                     </div>
                 </div>
                 <button class="btn btn-primary checkout-btn" onclick="checkoutCart()" style="width: 100%; margin-top: 16px;">
-                    Оформить заказ (${total.toFixed(2)} PZ)
+                    Оформить заказ (${pzToRub(total)} ₽)
                 </button>
             </div>
         `;
@@ -975,8 +983,8 @@ async function processOrderWithBalance(items, total, partialAmount = null, phone
             ? `Телефон: ${phone}\nАдрес: ${address}`
             : '';
         const message = (partialAmount
-            ? `Заказ из корзины. Оплачено с баланса: ${amountToPay.toFixed(2)} PZ из ${total.toFixed(2)} PZ`
-            : `Заказ из корзины. Оплачено с баланса: ${total.toFixed(2)} PZ`) + (contactInfo ? `\n\n${contactInfo}` : '');
+            ? `Заказ из корзины. Оплачено с баланса: ${pzToRub(amountToPay)} ₽ из ${pzToRub(total)} ₽`
+            : `Заказ из корзины. Оплачено с баланса: ${pzToRub(total)} ₽`) + (contactInfo ? `\n\n${contactInfo}` : '');
 
         const orderResponse = await fetch(`${API_BASE}/orders/create`, {
             method: 'POST',
@@ -1005,12 +1013,12 @@ async function processOrderWithBalance(items, total, partialAmount = null, phone
                     body: JSON.stringify({ amount: toDeduct })
                 });
                 if (balanceResponse.ok) {
-                    showSuccess(`Заказ оформлен! Сертификат: −${certAppliedPz.toFixed(2)} PZ. С баланса списано ${toDeduct.toFixed(2)} PZ.`);
+                    showSuccess(`Заказ оформлен! Сертификат: −${pzToRub(certAppliedPz)} ₽. С баланса списано ${pzToRub(toDeduct)} ₽.`);
                 } else {
                     showSuccess('Заказ оформлен! Ожидайте подтверждения.');
                 }
             } else {
-                showSuccess(`Заказ оформлен! Сертификат покрыл оплату: −${certAppliedPz.toFixed(2)} PZ.`);
+                showSuccess(`Заказ оформлен! Сертификат покрыл оплату: −${pzToRub(certAppliedPz)} ₽.`);
             }
 
             closeSection();
@@ -2497,7 +2505,7 @@ async function addToCart(productId, quantity = 1) {
     if (!productId) {
         console.error('❌ No productId provided');
         showError('Ошибка: не указан товар');
-        return;
+        return false;
     }
 
     try {
@@ -2523,6 +2531,7 @@ async function addToCart(productId, quantity = 1) {
             await loadCartItems();
 
             showSuccess('Товар добавлен в корзину!');
+            return true;
         } else {
             // Получаем детали ошибки
             let errorMessage = 'Ошибка добавления в корзину';
@@ -2554,10 +2563,26 @@ async function addToCart(productId, quantity = 1) {
             } else {
                 showError(errorMessage || 'Ошибка добавления в корзину');
             }
+            return false;
         }
     } catch (error) {
         console.error('❌ Error adding to cart:', error);
         showError('Ошибка добавления в корзину. Проверьте подключение к интернету.');
+        return false;
+    }
+}
+
+async function addToCartAndOpenCart(productId, quantity = 1) {
+    const ok = await addToCart(productId, quantity);
+    if (ok) {
+        openCart();
+    }
+}
+
+async function buyNowFromProduct(productId, quantity = 1) {
+    const ok = await addToCart(productId, quantity);
+    if (ok) {
+        await checkoutCart();
     }
 }
 
@@ -2633,7 +2658,7 @@ async function activatePartnerProgram(type) {
 
 💡 Условия бонуса:
 • Ваш бонус 10%
-• Бонус 15%+5%+5% начнет действовать при Вашей активности 120PZ в месяц
+• Бонус 15%+5%+5% начнет действовать при Вашей активности 12000 ₽ в месяц
 
 📲 Выбирайте удобный формат и начинайте зарабатывать уже сегодня!`;
 
@@ -2699,9 +2724,9 @@ async function showPartnerDashboard() {
                             padding: 20px; 
                             margin-bottom: 20px;">
                     <h4 style="color: #000000; margin-bottom: 16px;">📊 Статистика</h4>
-                    <p style="color: #333333; margin-bottom: 8px;">💰 Баланс: ${dashboard.balance || 0} PZ</p>
+                    <p style="color: #333333; margin-bottom: 8px;">💰 Баланс: ${formatRubFromPz(dashboard.balance || 0)}</p>
                     <p style="color: #333333; margin-bottom: 8px;">👥 Партнёры: ${dashboard.partners || 0}</p>
-                    <p style="color: #333333; margin-bottom: 8px;">🎁 Всего бонусов: ${dashboard.bonus || 0} PZ</p>
+                    <p style="color: #333333; margin-bottom: 8px;">🎁 Всего бонусов: ${formatRubFromPz(dashboard.bonus || 0)}</p>
                 </div>
                 
                 <div style="margin: 20px 0;">
@@ -3437,13 +3462,13 @@ async function loadBalanceContent() {
                 <h3>💰 Баланс</h3>
                 <div class="balance-display" style="margin-bottom: 16px;">
                     <span class="balance-label">Ваш баланс:</span>
-                    <span class="balance-value">${balance.toFixed(2)} PZ</span>
+                    <span class="balance-value">${formatRubFromPz(balance)}</span>
                 </div>
-                <div class="content-card" style="margin-bottom: 16px;">
+                <div style="margin-bottom: 16px; padding: 14px; border: 1px solid var(--border-color); border-radius: 12px; background: #ffffff;">
                     <div style="font-weight: 800; margin-bottom: 8px;">Реквизиты пополнения</div>
                     <div style="color: #4b5563; font-size: 14px; line-height: 1.5;">${safeText}</div>
                 </div>
-                <div class="content-card">
+                <div style="padding: 14px; border: 1px solid var(--border-color); border-radius: 12px; background: #ffffff;">
                     <div style="font-weight: 800; margin-bottom: 10px;">Загрузите чек</div>
                     <div class="form-group" style="margin-bottom: 10px;">
                         <label for="balance-topup-amount">Сумма пополнения (₽)</label>
@@ -4118,7 +4143,7 @@ async function showProductDetails(productId) {
                     
                     <div class="product-details-info">
                         <div class="product-header-row">
-                            <div class="product-price">💰 Цена: ${(product.price * 100).toFixed(2)} ₽ / ${product.price} PZ</div>
+                            <div class="product-price">💰 Цена: ${pzToRub(product.price)} ₽</div>
                             ${extractProductWeight(product.summary).weight ? `<div class="product-weight-badge-large">${extractProductWeight(product.summary).weight}</div>` : ''}
                         </div>
                         
@@ -4135,10 +4160,10 @@ async function showProductDetails(productId) {
                             <div class="qty-value" id="product-detail-qty">1</div>
                             <button class="qty-btn" type="button" aria-label="Увеличить" onclick="changeProductDetailQty(1)">+</button>
                         </div>
-                        <button class="btn-add-to-cart" onclick="addToCart('${product.id}', getProductDetailQty())">
+                        <button class="btn-add-to-cart" onclick="addToCartAndOpenCart('${product.id}', getProductDetailQty())">
                             🛒 В корзину
                         </button>
-                        <button class="btn-buy" onclick="buyProduct('${product.id}', getProductDetailQty())">
+                        <button class="btn-buy" onclick="buyNowFromProduct('${product.id}', getProductDetailQty())">
                             🛍 Купить
                         </button>
                         ${product.instruction ? `<button class="btn-instruction" onclick="showInstruction('${product.id}', \`${product.instruction.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)">📋 Инструкция</button>` : ''}
