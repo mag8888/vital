@@ -3764,7 +3764,7 @@ function showDeliveryForm(items, totalRub, userBalance) {
                               <span>Оплатить с баланса</span>
                           </label>
                           <div id="balance-topup-note" style="display:none;"></div>
-                          <button type="button" class="btn btn-outline" id="topup-btn" onclick="openSection('balance')" style="display:none; width:100%; margin-top: 10px;">
+                          <button type="button" class="btn btn-outline" id="topup-btn" onclick="openBalanceFromCheckout()" style="display:none; width:100%; margin-top: 10px;">
                             Пополнить счёт
                           </button>
                         </div>
@@ -3821,6 +3821,11 @@ function closeDeliveryForm() {
         dialog.classList.remove('open');
         setTimeout(() => dialog.remove(), 300);
     }
+}
+
+function openBalanceFromCheckout() {
+    closeDeliveryForm();
+    setTimeout(() => openSection('balance'), 220);
 }
 
 async function submitDeliveryForm(items, totalRub, userBalance) {
@@ -4160,10 +4165,7 @@ async function showProductDetails(productId) {
                             <div class="qty-value" id="product-detail-qty">1</div>
                             <button class="qty-btn" type="button" aria-label="Увеличить" onclick="changeProductDetailQty(1)">+</button>
                         </div>
-                        <button class="btn-add-to-cart" onclick="addToCartAndOpenCart('${product.id}', getProductDetailQty())">
-                            🛒 В корзину
-                        </button>
-                        <button class="btn-buy" onclick="buyNowFromProduct('${product.id}', getProductDetailQty())">
+                        <button class="btn-buy" onclick="addToCartAndOpenCart('${product.id}', getProductDetailQty())">
                             🛍 Купить
                         </button>
                         ${product.instruction ? `<button class="btn-instruction" onclick="showInstruction('${product.id}', \`${product.instruction.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)">📋 Инструкция</button>` : ''}

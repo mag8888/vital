@@ -51,7 +51,7 @@ type NavigationItem = {
 
 const NAVIGATION_ACTION_PREFIX = 'nav:menu:';
 const SWITCH_TO_CLASSIC_ACTION = 'nav:mode:classic';
-const DEFAULT_UI_MODE: UiMode = 'classic';
+const DEFAULT_UI_MODE: UiMode = 'app';
 const WELCOME_VIDEO_URL = 'https://res.cloudinary.com/dt4r1tigf/video/upload/v1759337188/%D0%9F%D0%9E%D0%A7%D0%95%D0%9C%D0%A3_%D0%91%D0%90%D0%94%D0%AB_%D0%BD%D0%B5_%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%B0%D1%8E%D1%82_%D0%95%D1%81%D1%82%D1%8C_%D1%80%D0%B5%D1%88%D0%B5%D0%BD%D0%B8%D0%B5_gz54oh.mp4';
 const DEFAULT_WEBAPP_SUFFIX = '/webapp';
 
@@ -273,8 +273,19 @@ async function sendAppHome(
     await ctx.reply(greeting, Markup.removeKeyboard());
   }
 
-  await sendNavigationMenu(ctx);
-  await sendWelcomeVideo(ctx);
+  const webappUrl = getWebappUrl();
+  await ctx.reply('Нажмите кнопку, чтобы открыть приложение:', {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: '🚀 Открыть приложение',
+            web_app: { url: webappUrl },
+          },
+        ],
+      ],
+    },
+  });
 }
 
 async function renderHome(ctx: Context) {
@@ -787,9 +798,8 @@ export const navigationModule: BotModule = {
           });
           console.log('🔗 Referral: User action logged');
           
-          // For referral users, send navigation menu without greeting
-          await sendNavigationMenu(ctx);
-          await sendWelcomeVideo(ctx);
+          // For referral users, show app launch button
+          await sendAppHome(ctx, { includeGreeting: false });
           return; // Don't call renderHome to avoid duplicate greeting
         } else {
           console.log('🔗 Referral: Partner profile not found for code:', referralCode);
