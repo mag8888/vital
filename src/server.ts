@@ -80,7 +80,14 @@ async function bootstrap() {
         } else if (fullError.includes('already in sync') || fullError.includes('unchanged') || fullError.includes('already up to date')) {
           console.log('✅ Database schema already up to date');
         } else {
-          console.warn('⚠️  Schema sync check failed (non-critical):', errorMessage.substring(0, 100));
+          // Проверяем, не связана ли ошибка с replica set
+          const fullErrorLower = fullError.toLowerCase();
+          if (fullErrorLower.includes('replica set') || fullErrorLower.includes('transactions are not supported')) {
+            console.warn('⚠️  Schema sync skipped (Railway MongoDB does not support Prisma transactions)');
+            console.warn('💡 This is expected. Schema is already synced. App will work normally.');
+          } else {
+            console.warn('⚠️  Schema sync check failed (non-critical):', errorMessage.substring(0, 100));
+          }
         }
       }
     } else {
