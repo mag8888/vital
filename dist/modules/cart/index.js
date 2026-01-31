@@ -410,13 +410,38 @@ export function registerCartActions(bot) {
         }
         const userId = user.id;
         try {
-            await decreaseProductQuantity(userId, productId);
-            await ctx.reply('✅ Количество уменьшено!');
-            // Refresh cart display
-            await showCart(ctx);
+            const result = await decreaseProductQuantity(userId, productId);
+            // Проверяем результат операции
+            if (result === null) {
+                // Товар был удален (количество было 1 или меньше)
+                await ctx.reply('✅ Товар удален из корзины (количество было 1).');
+            }
+            else {
+                await ctx.reply('✅ Количество уменьшено!');
+            }
+            // Проверяем, есть ли еще товары в корзине перед обновлением
+            const cartItems = await getCartItems(userId);
+            if (cartItems.length > 0) {
+                await showCart(ctx);
+            }
+            else {
+                await ctx.reply('🛍️ Корзина пуста.');
+            }
         }
         catch (error) {
-            console.error('Error decreasing quantity:', error);
+            console.error('❌ Error decreasing quantity:', error);
+            // Обрабатываем специфичные ошибки Prisma
+            if (error?.code === 'P2025') {
+                // Товар уже удален - просто обновляем корзину
+                const cartItems = await getCartItems(userId);
+                if (cartItems.length > 0) {
+                    await showCart(ctx);
+                }
+                else {
+                    await ctx.reply('🛍️ Корзина пуста.');
+                }
+                return;
+            }
             await ctx.reply('❌ Ошибка изменения количества. Попробуйте позже.');
         }
     });
@@ -433,13 +458,39 @@ export function registerCartActions(bot) {
         }
         const userId = user.id;
         try {
-            await removeProductFromCart(userId, productId);
-            await ctx.reply('✅ Товар удален из корзины!');
-            // Refresh cart display
-            await showCart(ctx);
+            const result = await removeProductFromCart(userId, productId);
+            // Проверяем результат операции
+            if (result === null) {
+                // Товар уже был удален или не существует
+                console.warn(`⚠️ Cart: Attempted to remove non-existent item (userId: ${userId}, productId: ${productId})`);
+                // Все равно обновляем корзину, чтобы показать актуальное состояние
+            }
+            else {
+                await ctx.reply('✅ Товар удален из корзины!');
+            }
+            // Проверяем, есть ли еще товары в корзине перед обновлением
+            const cartItems = await getCartItems(userId);
+            if (cartItems.length > 0) {
+                await showCart(ctx);
+            }
+            else {
+                await ctx.reply('🛍️ Корзина пуста.');
+            }
         }
         catch (error) {
-            console.error('Error removing product:', error);
+            console.error('❌ Error removing product:', error);
+            // Обрабатываем специфичные ошибки Prisma
+            if (error?.code === 'P2025') {
+                // Товар уже удален - просто обновляем корзину
+                const cartItems = await getCartItems(userId);
+                if (cartItems.length > 0) {
+                    await showCart(ctx);
+                }
+                else {
+                    await ctx.reply('🛍️ Корзина пуста.');
+                }
+                return;
+            }
             await ctx.reply('❌ Ошибка удаления товара. Попробуйте позже.');
         }
     });

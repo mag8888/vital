@@ -10,7 +10,6 @@ import { ensureInitialData } from './lib/bootstrap.js';
 import { adminWebRouter } from './admin/web.js';
 import { webappRouter } from './webapp/webapp.js';
 import { externalApiRouter } from './api/external.js';
-import lavaWebhook from './webhooks/lava.js';
 import { setBotInstance } from './lib/bot-instance.js';
 // @ts-ignore - типы node-cron могут быть неполными
 import cron from 'node-cron';
@@ -137,8 +136,6 @@ async function bootstrap() {
         app.use('/webapp', webappRouter);
         // External API for friendly services
         app.use('/api/external', externalApiRouter);
-        // Lava webhook routes
-        app.use('/webhook', lavaWebhook);
         const port = Number(process.env.PORT ?? 3000);
         // Listen on 0.0.0.0 to accept connections from Railway
         app.listen(port, '0.0.0.0', () => {
@@ -167,7 +164,7 @@ async function bootstrap() {
                 { command: 'audio', description: 'Звуковые матрицы' },
                 { command: 'reviews', description: 'Отзывы клиентов' },
                 { command: 'about', description: 'О PLASMA Water' },
-                { command: 'add_balance', description: 'Пополнить баланс через Lava' },
+                { command: 'add_balance', description: 'Пополнить баланс' },
                 { command: 'support', description: 'Поддержка 24/7' },
                 { command: 'app', description: 'Открыть веб-приложение' }
             ]);

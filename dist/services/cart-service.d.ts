@@ -50,7 +50,7 @@ export declare function removeProductFromCart(userId: string, productId: string)
     userId: string;
     productId: string;
     quantity: number;
-}>;
+} | null>;
 /**
  * Calculate price with partner discount (10% if partner program is active)
  */
