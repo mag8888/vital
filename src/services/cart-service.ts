@@ -84,6 +84,74 @@ export async function increaseProductQuantity(userId: string, productId: string)
 }
 
 export async function decreaseProductQuantity(userId: string, productId: string) {
+  try {
+    const item = await prisma.cartItem.findUnique({
+      where: {
+        userId_productId: {
+          userId,
+          productId,
+        },
+      },
+    });
+
+    if (!item) {
+      // Товар не найден в корзине
+      return null;
+    }
+
+    if (item.quantity <= 1) {
+      // Remove item if quantity becomes 0 or less
+      try {
+        await prisma.cartItem.delete({
+          where: {
+            userId_productId: {
+              userId,
+              productId,
+            },
+          },
+        });
+        return null;
+      } catch (error: any) {
+        // Обрабатываем ошибку P2025 (Record to delete does not exist)
+        if (error?.code === 'P2025') {
+          console.warn(`⚠️ Cart: Item already deleted during decrease (userId: ${userId}, productId: ${productId})`);
+          return null;
+        }
+        throw error;
+      }
+    }
+
+    try {
+      return await prisma.cartItem.update({
+        where: {
+          userId_productId: {
+            userId,
+            productId,
+          },
+        },
+        data: {
+          quantity: {
+            decrement: 1,
+          },
+        },
+      });
+    } catch (error: any) {
+      // Обрабатываем ошибку P2025 (Record to update does not exist)
+      if (error?.code === 'P2025') {
+        console.warn(`⚠️ Cart: Item not found during update (userId: ${userId}, productId: ${productId})`);
+        return null;
+      }
+      throw error;
+    }
+  } catch (error: any) {
+    // Логируем неожиданные ошибки
+    console.error('❌ Cart: Unexpected error in decreaseProductQuantity:', error);
+    throw error;
+  }
+}
+
+export async function removeProductFromCart(userId: string, productId: string) {
+  // Проверяем существование товара перед удалением
   const item = await prisma.cartItem.findUnique({
     where: {
       userId_productId: {
@@ -94,12 +162,12 @@ export async function decreaseProductQuantity(userId: string, productId: string)
   });
 
   if (!item) {
+    // Товар уже удален или не существует - возвращаем null вместо ошибки
     return null;
   }
 
-  if (item.quantity <= 1) {
-    // Remove item if quantity becomes 0 or less
-    await prisma.cartItem.delete({
+  try {
+    return await prisma.cartItem.delete({
       where: {
         userId_productId: {
           userId,
@@ -107,33 +175,14 @@ export async function decreaseProductQuantity(userId: string, productId: string)
         },
       },
     });
-    return null;
+  } catch (error: any) {
+    // Обрабатываем ошибку P2025 (Record to delete does not exist)
+    if (error?.code === 'P2025') {
+      console.warn(`⚠️ Cart: Item already deleted (userId: ${userId}, productId: ${productId})`);
+      return null;
+    }
+    throw error;
   }
-
-  return prisma.cartItem.update({
-    where: {
-      userId_productId: {
-        userId,
-        productId,
-      },
-    },
-    data: {
-      quantity: {
-        decrement: 1,
-      },
-    },
-  });
-}
-
-export async function removeProductFromCart(userId: string, productId: string) {
-  return prisma.cartItem.delete({
-    where: {
-      userId_productId: {
-        userId,
-        productId,
-      },
-    },
-  });
 }
 
 /**
