@@ -729,7 +729,26 @@ export const shopModule = {
             try {
                 const match = ctx.match;
                 const productId = match[1];
-                await handleAddToCart(ctx, productId);
+                try {
+                    await handleAddToCart(ctx, productId);
+                }
+                catch (error) {
+                    console.error('❌ Error in add to cart handler:', error);
+                    const errorMessage = error.message || '';
+                    // Более информативное сообщение в зависимости от типа ошибки
+                    if (errorMessage.includes('replica set') || errorMessage.includes('replica set')) {
+                        await ctx.answerCbQuery('⚠️ Ошибка базы данных. Обратитесь к администратору.');
+                        await ctx.reply('⚠️ Ошибка добавления в корзину. База данных требует настройки.\n\nПожалуйста, попробуйте позже или обратитесь к поддержке.');
+                    }
+                    else if (errorMessage.includes('недоступна') || errorMessage.includes('временно')) {
+                        await ctx.answerCbQuery('⚠️ База данных временно недоступна');
+                        await ctx.reply('⚠️ База данных временно недоступна. Попробуйте позже.');
+                    }
+                    else {
+                        await ctx.answerCbQuery('❌ Ошибка добавления в корзину');
+                        await ctx.reply('❌ Ошибка добавления в корзину. Попробуйте позже.');
+                    }
+                }
             }
             catch (error) {
                 console.error('Error in add to cart handler:', error);

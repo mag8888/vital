@@ -12,36 +12,68 @@ export async function getCartItems(userId: string) {
 }
 
 export async function addProductToCart(userId: string, productId: string) {
-  // Используем findUnique + create/update вместо upsert для избежания транзакций
-  const existingItem = await prisma.cartItem.findUnique({
-    where: {
-      userId_productId: {
-        userId,
-        productId,
-      },
-    },
-  });
-
-  if (existingItem) {
-    return prisma.cartItem.update({
+  try {
+    // Используем findUnique + create/update вместо upsert для избежания транзакций
+    const existingItem = await prisma.cartItem.findUnique({
       where: {
         userId_productId: {
           userId,
           productId,
         },
       },
-      data: {
-        quantity: { increment: 1 },
-      },
     });
-  } else {
-    return prisma.cartItem.create({
-      data: {
-        userId,
-        productId,
-        quantity: 1,
-      },
-    });
+
+    if (existingItem) {
+      return await prisma.cartItem.update({
+        where: {
+          userId_productId: {
+            userId,
+            productId,
+          },
+        },
+        data: {
+          quantity: { increment: 1 },
+        },
+      });
+    } else {
+      return await prisma.cartItem.create({
+        data: {
+          userId,
+          productId,
+          quantity: 1,
+        },
+      });
+    }
+  } catch (error: any) {
+    const errorMessage = error.message || error.meta?.message || '';
+    const errorName = error.name || '';
+    const errorCode = error.code || '';
+    
+    // Проверяем, является ли это ошибкой replica set
+    const isReplicaSetError = 
+      errorMessage.includes('replica set') || 
+      errorMessage.includes('Transactions are not supported') ||
+      errorName === 'PrismaClientUnknownRequestError';
+    
+    // Проверяем, является ли это ошибкой подключения
+    const isConnectionError = 
+      errorCode === 'P2010' || errorCode === 'P1001' || errorCode === 'P1002' || errorCode === 'P1013' ||
+      errorName === 'ConnectorError' ||
+      errorMessage.includes('ConnectorError') ||
+      errorMessage.includes('Authentication failed') ||
+      errorMessage.includes('SCRAM failure');
+    
+    if (isReplicaSetError) {
+      console.error('❌ Cart: Replica set error (MongoDB requires replica set for Prisma):', errorMessage.substring(0, 100));
+      console.error('💡 To fix: Use MongoDB Atlas (supports replica set) - see MONGODB_ATLAS_REQUIRED.md');
+      throw new Error('База данных требует настройки replica set. Пожалуйста, обратитесь к администратору.');
+    } else if (isConnectionError) {
+      console.error('❌ Cart: Database connection error:', errorMessage.substring(0, 100));
+      throw new Error('База данных временно недоступна. Попробуйте позже.');
+    } else {
+      console.error('❌ Cart: Unexpected error adding to cart:', error);
+      throw error;
+    }
   }
 }
 
