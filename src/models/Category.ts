@@ -37,10 +37,10 @@ const CategorySchema = new Schema<ICategory>(
       transform: function(doc: any, ret: any) {
         if (ret._id) {
           ret.id = ret._id.toString();
-          delete ret._id;
+          ret._id = undefined;
         }
         if (ret.__v !== undefined) {
-          delete ret.__v;
+          ret.__v = undefined;
         }
         return ret;
       }
@@ -50,10 +50,10 @@ const CategorySchema = new Schema<ICategory>(
       transform: function(doc: any, ret: any) {
         if (ret._id) {
           ret.id = ret._id.toString();
-          delete ret._id;
+          ret._id = undefined;
         }
         if (ret.__v !== undefined) {
-          delete ret.__v;
+          ret.__v = undefined;
         }
         return ret;
       }
@@ -61,8 +61,8 @@ const CategorySchema = new Schema<ICategory>(
   }
 );
 
-CategorySchema.virtual('id').get(function() {
-  return this._id.toString();
+CategorySchema.virtual('id').get(function(this: any) {
+  return this._id?.toString() || '';
 });
 
 export const Category = mongoose.model<ICategory>('Category', CategorySchema);

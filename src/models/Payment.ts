@@ -26,7 +26,7 @@ const PaymentSchema = new Schema<IPayment>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-    },
+    } as any,
     orderId: {
       type: String,
       required: true,

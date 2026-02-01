@@ -1,7 +1,7 @@
-import { Category, Product } from '../models/index.js';
+import { Category, Product, ICategory, IProduct } from '../models/index.js';
 import mongoose from 'mongoose';
 
-export async function getActiveCategories() {
+export async function getActiveCategories(): Promise<any[]> {
   try {
     return await Category.find({ isActive: true })
       .sort({ name: 1 })
@@ -12,7 +12,7 @@ export async function getActiveCategories() {
   }
 }
 
-export async function getCategoryById(id: string) {
+export async function getCategoryById(id: string): Promise<any> {
   try {
     return await Category.findById(id).lean();
   } catch (error: any) {
@@ -21,7 +21,7 @@ export async function getCategoryById(id: string) {
   }
 }
 
-export async function getProductsByCategory(categoryId: string) {
+export async function getProductsByCategory(categoryId: string): Promise<any[]> {
   try {
     return await Product.find({
       categoryId: categoryId,
@@ -35,7 +35,7 @@ export async function getProductsByCategory(categoryId: string) {
   }
 }
 
-export async function getProductById(productId: string) {
+export async function getProductById(productId: string): Promise<any> {
   try {
     return await Product.findById(productId).lean();
   } catch (error: any) {

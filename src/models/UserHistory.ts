@@ -14,7 +14,7 @@ const UserHistorySchema = new Schema<IUserHistory>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-    },
+    } as any,
     action: {
       type: String,
       required: true,

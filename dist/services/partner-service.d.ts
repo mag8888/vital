@@ -24,27 +24,8 @@ export declare function checkPartnerActivation(userId: string): Promise<boolean>
  */
 export declare function checkAndDeactivateExpiredProfiles(userId: string): Promise<boolean>;
 export declare function buildReferralLink(code: string, programType: 'DIRECT' | 'MULTI_LEVEL'): string;
-export declare function getPartnerDashboard(userId: string): Promise<{
-    profile: mongoose.FlattenMaps<import("../models/PartnerProfile.js").IPartnerProfile> & Required<{
-        _id: mongoose.Types.ObjectId;
-    }> & {
-        __v: number;
-    };
-    stats: {
-        partners: number;
-        directPartners: number;
-        multiPartners: number;
-    };
-    transactions: (mongoose.FlattenMaps<import("../models/PartnerTransaction.js").IPartnerTransaction> & Required<{
-        _id: mongoose.Types.ObjectId;
-    }> & {
-        __v: number;
-    })[];
-} | null>;
-export declare function getPartnerList(userId: string): Promise<{
-    directPartners: any[];
-    multiPartners: any[];
-} | null>;
+export declare function getPartnerDashboard(userId: string): Promise<any>;
+export declare function getPartnerList(userId: string): Promise<any>;
 export declare function recordPartnerTransaction(profileId: string, amount: number, description: string, type?: TransactionType): Promise<mongoose.Document<unknown, {}, import("../models/PartnerTransaction.js").IPartnerTransaction, {}, {}> & import("../models/PartnerTransaction.js").IPartnerTransaction & Required<{
     _id: mongoose.Types.ObjectId;
 }> & {

@@ -14,12 +14,12 @@ const CartItemSchema = new Schema<ICartItem>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-    },
+    } as any,
     productId: {
       type: Schema.Types.ObjectId,
       ref: 'Product',
       required: true,
-    },
+    } as any,
     quantity: {
       type: Number,
       default: 1,

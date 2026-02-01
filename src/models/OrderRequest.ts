@@ -15,7 +15,7 @@ const OrderRequestSchema = new Schema<IOrderRequest>(
     userId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-    },
+    } as any,
     contact: String,
     message: {
       type: String,

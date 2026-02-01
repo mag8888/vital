@@ -17,11 +17,11 @@ const PartnerReferralSchema = new Schema<IPartnerReferral>(
       type: Schema.Types.ObjectId,
       ref: 'PartnerProfile',
       required: true,
-    },
+    } as any,
     referredId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-    },
+    } as any,
     contact: String,
     level: {
       type: Number,

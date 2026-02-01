@@ -119,7 +119,12 @@ async function showDashboard(ctx: Context) {
     return;
   }
 
-  const dashboard = await getPartnerDashboard(user._id.toString());
+  const userId = user._id?.toString() || '';
+  if (!userId) {
+    await ctx.reply('Вы ещё не активировали программу.');
+    return;
+  }
+  const dashboard = await getPartnerDashboard(userId);
   if (!dashboard) {
     await ctx.reply('Вы ещё не активировали партнёрскую программу. Выберите формат участия.');
     return;
@@ -129,7 +134,12 @@ async function showDashboard(ctx: Context) {
   
   // Получаем последние 3 транзакции
   const { PartnerTransaction } = await import('../../models/index.js');
-  const recentTransactions = await PartnerTransaction.find({ profileId: profile._id })
+  const profileId = (profile as any)._id?.toString() || (profile as any).id || '';
+  if (!profileId) {
+    await ctx.reply('Ошибка загрузки данных профиля.');
+    return;
+  }
+  const recentTransactions = await PartnerTransaction.find({ profileId: profileId })
     .sort({ createdAt: -1 })
     .limit(3)
     .lean();
@@ -248,7 +258,12 @@ async function handlePlanSelection(
   }
 
   console.log('💰 Partner: User ensured, creating profile');
-  const profile = await getOrCreatePartnerProfile(user._id.toString(), programType);
+  const userId = user._id?.toString() || '';
+  if (!userId) {
+    await ctx.reply('Не удалось активировать программу. Попробуйте позже.');
+    return false;
+  }
+  const profile = await getOrCreatePartnerProfile(userId, programType);
   console.log('💰 Partner: Profile created:', profile.referralCode);
   
   await logUserAction(ctx, 'partner:select-program', { programType });
@@ -275,14 +290,19 @@ async function showPartners(ctx: Context) {
     return;
   }
 
-  const dashboard = await getPartnerDashboard(user._id.toString());
+  const userId = user._id?.toString() || '';
+  if (!userId) {
+    await ctx.reply('Вы ещё не активировали программу.');
+    return;
+  }
+  const dashboard = await getPartnerDashboard(userId);
   if (!dashboard) {
     await ctx.reply('Вы ещё не активировали программу.');
     return;
   }
 
   const { stats } = dashboard;
-  const partnerList = await getPartnerList(user._id.toString());
+  const partnerList = await getPartnerList(userId);
   
   await ctx.answerCbQuery();
   
@@ -292,7 +312,7 @@ async function showPartners(ctx: Context) {
     // Show direct partners
     if (partnerList.directPartners.length > 0) {
       message += `🎯 Прямые партнёры (1-й уровень):\n`;
-      partnerList.directPartners.forEach((partner, index) => {
+      partnerList.directPartners.forEach((partner: any, index: number) => {
         const displayName = partner.username ? `@${partner.username}` : partner.firstName || `ID:${partner.telegramId}`;
         message += `${index + 1}. ${displayName}\n`;
       });
@@ -302,7 +322,7 @@ async function showPartners(ctx: Context) {
     // Show multi-level partners
     if (partnerList.multiPartners.length > 0) {
       message += `🌳 Многоуровневые партнёры:\n`;
-      partnerList.multiPartners.forEach((partner, index) => {
+      partnerList.multiPartners.forEach((partner: any, index: number) => {
         const displayName = partner.username ? `@${partner.username}` : partner.firstName || `ID:${partner.telegramId}`;
         message += `${index + 1}. ${displayName} (${partner.level}-й уровень)\n`;
       });
@@ -323,7 +343,12 @@ async function showPartnersByLevel(ctx: Context, level: number) {
     return;
   }
 
-  const dashboard = await getPartnerDashboard(user._id.toString());
+  const userId = user._id?.toString() || '';
+  if (!userId) {
+    await ctx.reply('Вы ещё не активировали программу.');
+    return;
+  }
+  const dashboard = await getPartnerDashboard(userId);
   if (!dashboard) {
     await ctx.reply('Вы ещё не активировали программу.');
     return;
@@ -331,7 +356,8 @@ async function showPartnersByLevel(ctx: Context, level: number) {
 
   await ctx.answerCbQuery();
   
-  console.log(`🔍 Partner: Looking for level ${level} partners for user ${user._id.toString()}, profile ${dashboard.profile._id.toString()}`);
+  const profileId = (dashboard.profile as any)._id?.toString() || (dashboard.profile as any).id || '';
+  console.log(`🔍 Partner: Looking for level ${level} partners for user ${userId}, profile ${profileId}`);
   
   // Получаем список партнеров конкретного уровня
   let partnerReferrals: PartnerReferralWithUser[] = [];
@@ -340,7 +366,7 @@ async function showPartnersByLevel(ctx: Context, level: number) {
     // Прямые партнеры - те, кто пришел по нашей ссылке
     const { PartnerReferral } = await import('../../models/index.js');
     const referrals = await PartnerReferral.find({ 
-      profileId: dashboard.profile._id.toString(),
+      profileId: profileId,
       level: 1 
     })
       .populate('profileId')
@@ -381,7 +407,7 @@ async function showPartnersByLevel(ctx: Context, level: number) {
       _id: { $in: referredUserIds }
     }).select('_id username firstName telegramId').lean() : [];
     
-    const userMap = new Map(referredUsers.map((user: any) => [user._id.toString(), user]));
+    const userMap = new Map(referredUsers.map((user: any) => [(user._id?.toString() || user.id || ''), user]));
     
     partnerReferrals.forEach((referral: any, index: number) => {
       if (referral.referredId) {
@@ -406,7 +432,12 @@ async function showInvite(ctx: Context) {
     return;
   }
 
-  const dashboard = await getPartnerDashboard(user._id.toString());
+  const userId = user._id?.toString() || '';
+  if (!userId) {
+    await ctx.reply('Вы ещё не активировали программу.');
+    return;
+  }
+  const dashboard = await getPartnerDashboard(userId);
   if (!dashboard) {
     await ctx.reply('Активируйте один из тарифов, чтобы получить ссылку.');
     return;
@@ -425,7 +456,12 @@ async function showDirectInvite(ctx: Context) {
     return;
   }
 
-  const dashboard = await getPartnerDashboard(user._id.toString());
+  const userId = user._id?.toString() || '';
+  if (!userId) {
+    await ctx.reply('Вы ещё не активировали программу.');
+    return;
+  }
+  const dashboard = await getPartnerDashboard(userId);
   if (!dashboard) {
     await ctx.reply('Активируйте один из тарифов, чтобы получить ссылку.');
     return;
@@ -444,7 +480,12 @@ async function showMultiInvite(ctx: Context) {
     return;
   }
 
-  const dashboard = await getPartnerDashboard(user._id.toString());
+  const userId = user._id?.toString() || '';
+  if (!userId) {
+    await ctx.reply('Вы ещё не активировали программу.');
+    return;
+  }
+  const dashboard = await getPartnerDashboard(userId);
   if (!dashboard) {
     await ctx.reply('Активируйте один из тарифов, чтобы получить ссылку.');
     return;
@@ -575,7 +616,12 @@ export async function showPartnerIntro(ctx: Context) {
     }
 
     // Проверяем статус партнерской программы
-    const dashboard = await getPartnerDashboard(user._id.toString());
+    const userId = user._id?.toString() || '';
+  if (!userId) {
+    await ctx.reply('Вы ещё не активировали программу.');
+    return;
+  }
+  const dashboard = await getPartnerDashboard(userId);
     let activationInfo = '';
     
     if (dashboard && dashboard.profile) {

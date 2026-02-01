@@ -1,6 +1,6 @@
 import { Review } from '../models/index.js';
 
-export async function getActiveReviews(limit = 5) {
+export async function getActiveReviews(limit = 5): Promise<any[]> {
   try {
     const reviews = await Review.find({ isActive: true })
       .sort({ isPinned: -1, createdAt: -1 })

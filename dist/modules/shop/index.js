@@ -77,8 +77,9 @@ export async function showCategories(ctx, region) {
             // Check partner program status with timeout
             let hasPartnerDiscount = false;
             try {
+                const userId = user._id?.toString() || '';
                 hasPartnerDiscount = await Promise.race([
-                    checkPartnerActivation(user._id.toString()),
+                    checkPartnerActivation(userId),
                     new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 3000))
                 ]);
             }
@@ -115,8 +116,9 @@ export async function showCategories(ctx, region) {
         let cartItemsCount = 0;
         if (user) {
             try {
+                const userId = user._id?.toString() || '';
                 const cartItems = await Promise.race([
-                    getCartItems(user._id.toString()),
+                    getCartItems(userId),
                     new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 3000))
                 ]);
                 cartItemsCount = cartItems.reduce((sum, item) => sum + (item.quantity ?? 0), 0);
@@ -325,7 +327,13 @@ async function handleAddToCart(ctx, productId) {
             return;
         }
         try {
-            await addProductToCart(user._id.toString(), product._id?.toString() || product.id || '');
+            const userId = user._id?.toString() || '';
+            const productId = product._id?.toString() || product.id || '';
+            if (!userId || !productId) {
+                await ctx.reply('❌ Ошибка добавления в корзину.');
+                return;
+            }
+            await addProductToCart(userId, productId);
         }
         catch (cartError) {
             // Ошибка уже обработана в addProductToCart с информативным сообщением
@@ -431,7 +439,12 @@ async function handleBuy(ctx, productId) {
         console.warn('Failed to check partner activation (non-critical):', error);
         // Продолжаем с false
     }
-    const cartItems = await getCartItems(user._id.toString());
+    const userId = user._id?.toString() || '';
+    if (!userId) {
+        await ctx.reply('❌ Ошибка определения пользователя.');
+        return;
+    }
+    const cartItems = await getCartItems(userId);
     // Create full items list including main product
     const allItems = [...cartItems];
     allItems.push({
@@ -441,7 +454,7 @@ async function handleBuy(ctx, productId) {
         },
         quantity: 1
     });
-    const summaryText = await cartItemsToText(allItems, user._id.toString());
+    const summaryText = await cartItemsToText(allItems, userId);
     const lines = [
         '🛒 Запрос на покупку',
         `Пользователь: ${user.firstName ?? ''} ${user.lastName ?? ''}`.trim(),
@@ -455,7 +468,7 @@ async function handleBuy(ctx, productId) {
     const message = lines.join('\n');
     // Create items payload with discounted prices
     const itemsPayload = await Promise.all(cartItems.map(async (item) => {
-        const priceInfo = await calculatePriceWithDiscount(user._id.toString(), item.product.price);
+        const priceInfo = await calculatePriceWithDiscount(userId, item.product.price);
         return {
             productId: item.productId?.toString() || item.product?._id?.toString() || '',
             title: item.product.title,
@@ -467,7 +480,7 @@ async function handleBuy(ctx, productId) {
         };
     }));
     // Add main product with discount
-    const productPriceInfo = await calculatePriceWithDiscount(user._id.toString(), Number(product.price));
+    const productPriceInfo = await calculatePriceWithDiscount(userId, Number(product.price));
     itemsPayload.push({
         productId: product._id?.toString() || product.id || '',
         title: product.title,
@@ -481,9 +494,9 @@ async function handleBuy(ctx, productId) {
     if (hasPartnerDiscount) {
         orderMessage += '\n🎁 Применена скидка партнера 10%';
     }
-    console.log('🛒 SHOP: About to create order request for user:', user._id.toString(), user.firstName, user.username);
+    console.log('🛒 SHOP: About to create order request for user:', userId, user.firstName, user.username);
     await createOrderRequest({
-        userId: user._id.toString(),
+        userId: userId,
         message: orderMessage,
         items: itemsPayload,
     });

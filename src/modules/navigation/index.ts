@@ -636,7 +636,14 @@ export const navigationModule: BotModule = {
             
             // Use upsert to create or get existing referral record
             const referralLevel = programType === 'DIRECT' ? 1 : 1; // Both start at level 1
-            const referral = await upsertPartnerReferral((partnerProfile as any)._id.toString(), referralLevel, user._id.toString(), undefined, programType as PartnerProgramType);
+            const partnerProfileId = (partnerProfile as any)._id?.toString() || (partnerProfile as any).id || '';
+            const userId = user._id?.toString() || '';
+            if (!partnerProfileId || !userId) {
+              console.log('🔗 Referral: Missing IDs, cannot create referral');
+              await ctx.reply('❌ Ошибка при обработке реферальной ссылки.');
+              return;
+            }
+            const referral = await upsertPartnerReferral(partnerProfileId, referralLevel, userId, undefined, programType as PartnerProgramType);
             
             // Award bonus only if this is a new user and new referral record
             const isNewReferral = new Date(referral.createdAt).getTime() > Date.now() - 5000; // Created within last 5 seconds
@@ -644,18 +651,20 @@ export const navigationModule: BotModule = {
             
             if (shouldReward) {
               // Check if bonus was already awarded for this user
+              const partnerProfileId = (partnerProfile as any)._id?.toString() || (partnerProfile as any).id || '';
+              const userId = user._id?.toString() || '';
               const existingBonus = await PartnerTransaction.findOne({
-                profileId: (partnerProfile as any)._id.toString(),
-                description: `Бонус за приглашение друга (${user._id.toString()})`
+                profileId: partnerProfileId,
+                description: `Бонус за приглашение друга (${userId})`
               }).lean();
               
               if (!existingBonus) {
                 // Award 3PZ to the inviter only if not already awarded
                 console.log('🔗 Referral: Awarding 3PZ bonus to inviter for new user');
                 await recordPartnerTransaction(
-                  (partnerProfile as any)._id.toString(), 
+                  partnerProfileId, 
                   3, 
-                  `Бонус за приглашение друга (${user._id.toString()})`, 
+                  `Бонус за приглашение друга (${userId})`, 
                   TransactionType.CREDIT
                 );
                 console.log('🔗 Referral: Bonus awarded successfully');

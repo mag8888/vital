@@ -139,7 +139,7 @@ export function buildReferralLink(code: string, programType: 'DIRECT' | 'MULTI_L
   return `https://t.me/iplazmabot?start=${prefix}_${code}`;
 }
 
-export async function getPartnerDashboard(userId: string) {
+export async function getPartnerDashboard(userId: string): Promise<any> {
   const profile = await PartnerProfile.findOne({ userId: new mongoose.Types.ObjectId(userId) })
     .populate('userId')
     .lean();
@@ -164,7 +164,7 @@ export async function getPartnerDashboard(userId: string) {
   };
 }
 
-export async function getPartnerList(userId: string) {
+export async function getPartnerList(userId: string): Promise<any> {
   const profile = await PartnerProfile.findOne({ userId: new mongoose.Types.ObjectId(userId) });
   if (!profile) return null;
 

@@ -23,7 +23,7 @@ const PartnerTransactionSchema = new Schema<IPartnerTransaction>(
       type: Schema.Types.ObjectId,
       ref: 'PartnerProfile',
       required: true,
-    },
+    } as any,
     amount: {
       type: Number,
       required: true,

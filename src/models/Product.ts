@@ -55,7 +55,7 @@ const ProductSchema = new Schema<IProduct>(
       type: Schema.Types.ObjectId,
       ref: 'Category',
       required: true,
-    },
+    } as any,
   },
   {
     timestamps: true,
@@ -65,10 +65,10 @@ const ProductSchema = new Schema<IProduct>(
       transform: function(doc: any, ret: any) {
         if (ret._id) {
           ret.id = ret._id.toString();
-          delete ret._id;
+          ret._id = undefined;
         }
         if (ret.__v !== undefined) {
-          delete ret.__v;
+          ret.__v = undefined;
         }
         return ret;
       }
@@ -78,10 +78,10 @@ const ProductSchema = new Schema<IProduct>(
       transform: function(doc: any, ret: any) {
         if (ret._id) {
           ret.id = ret._id.toString();
-          delete ret._id;
+          ret._id = undefined;
         }
         if (ret.__v !== undefined) {
-          delete ret.__v;
+          ret.__v = undefined;
         }
         return ret;
       }
@@ -89,8 +89,8 @@ const ProductSchema = new Schema<IProduct>(
   }
 );
 
-ProductSchema.virtual('id').get(function() {
-  return this._id.toString();
+ProductSchema.virtual('id').get(function(this: any) {
+  return this._id?.toString() || '';
 });
 
 export const Product = mongoose.model<IProduct>('Product', ProductSchema);

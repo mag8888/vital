@@ -52,7 +52,11 @@ export async function showCart(ctx) {
             await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
             return;
         }
-        const userId = user._id.toString();
+        const userId = user._id?.toString() || '';
+        if (!userId) {
+            await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
+            return;
+        }
         console.log('🛍️ Cart: User ID:', userId);
         console.log('🛍️ Cart: Getting cart items for user:', userId);
         const cartItems = await getCartItems(userId);
@@ -215,7 +219,11 @@ export function registerCartActions(bot) {
             await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
             return;
         }
-        const userId = user._id.toString();
+        const userId = user._id?.toString() || '';
+        if (!userId) {
+            await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
+            return;
+        }
         await clearCart(userId);
         await ctx.reply('🗑️ Корзина очищена');
     });
@@ -228,7 +236,11 @@ export function registerCartActions(bot) {
             await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
             return;
         }
-        const userId = user._id.toString();
+        const userId = user._id?.toString() || '';
+        if (!userId) {
+            await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
+            return;
+        }
         try {
             console.log('🛒 CART CHECKOUT: Starting checkout for user:', userId, user.firstName, user.username);
             const cartItems = await getCartItems(userId);
@@ -383,7 +395,11 @@ export function registerCartActions(bot) {
             await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
             return;
         }
-        const userId = user._id.toString();
+        const userId = user._id?.toString() || '';
+        if (!userId) {
+            await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
+            return;
+        }
         try {
             await increaseProductQuantity(userId, productId);
             await ctx.reply('✅ Количество увеличено!');
@@ -406,7 +422,11 @@ export function registerCartActions(bot) {
             await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
             return;
         }
-        const userId = user._id.toString();
+        const userId = user._id?.toString() || '';
+        if (!userId) {
+            await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
+            return;
+        }
         try {
             const result = await decreaseProductQuantity(userId, productId);
             // Проверяем результат операции
@@ -454,7 +474,11 @@ export function registerCartActions(bot) {
             await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
             return;
         }
-        const userId = user._id.toString();
+        const userId = user._id?.toString() || '';
+        if (!userId) {
+            await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
+            return;
+        }
         try {
             const result = await removeProductFromCart(userId, productId);
             // Проверяем результат операции
@@ -703,7 +727,8 @@ export function registerCartActions(bot) {
             // Save phone number to user profile
             const { User } = await import('../../models/index.js');
             await User.findByIdAndUpdate(user._id, { phone: phoneNumber });
-            console.log(`📞 Contact received from user ${user._id.toString()}: ${phoneNumber}`);
+            const userId = user._id?.toString() || '';
+            console.log(`📞 Contact received from user ${userId}: ${phoneNumber}`);
             await ctx.reply('✅ Спасибо! Ваш номер телефона сохранен.');
             // Now ask for delivery address
             await ctx.reply('📍 Теперь укажите адрес доставки:', {

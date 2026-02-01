@@ -77,7 +77,12 @@ async function showDashboard(ctx) {
         await ctx.reply('Не удалось загрузить кабинет. Попробуйте позже.');
         return;
     }
-    const dashboard = await getPartnerDashboard(user._id.toString());
+    const userId = user._id?.toString() || '';
+    if (!userId) {
+        await ctx.reply('Вы ещё не активировали программу.');
+        return;
+    }
+    const dashboard = await getPartnerDashboard(userId);
     if (!dashboard) {
         await ctx.reply('Вы ещё не активировали партнёрскую программу. Выберите формат участия.');
         return;
@@ -85,7 +90,12 @@ async function showDashboard(ctx) {
     const { profile, stats } = dashboard;
     // Получаем последние 3 транзакции
     const { PartnerTransaction } = await import('../../models/index.js');
-    const recentTransactions = await PartnerTransaction.find({ profileId: profile._id })
+    const profileId = profile._id?.toString() || profile.id || '';
+    if (!profileId) {
+        await ctx.reply('Ошибка загрузки данных профиля.');
+        return;
+    }
+    const recentTransactions = await PartnerTransaction.find({ profileId: profileId })
         .sort({ createdAt: -1 })
         .limit(3)
         .lean();
@@ -187,7 +197,12 @@ async function handlePlanSelection(ctx, programType, message) {
             return false;
         }
         console.log('💰 Partner: User ensured, creating profile');
-        const profile = await getOrCreatePartnerProfile(user._id.toString(), programType);
+        const userId = user._id?.toString() || '';
+        if (!userId) {
+            await ctx.reply('Не удалось активировать программу. Попробуйте позже.');
+            return false;
+        }
+        const profile = await getOrCreatePartnerProfile(userId, programType);
         console.log('💰 Partner: Profile created:', profile.referralCode);
         await logUserAction(ctx, 'partner:select-program', { programType });
         const referralLink = buildReferralLink(profile.referralCode, programType);
@@ -207,13 +222,18 @@ async function showPartners(ctx) {
         await ctx.reply('Не удалось загрузить список партнёров.');
         return;
     }
-    const dashboard = await getPartnerDashboard(user._id.toString());
+    const userId = user._id?.toString() || '';
+    if (!userId) {
+        await ctx.reply('Вы ещё не активировали программу.');
+        return;
+    }
+    const dashboard = await getPartnerDashboard(userId);
     if (!dashboard) {
         await ctx.reply('Вы ещё не активировали программу.');
         return;
     }
     const { stats } = dashboard;
-    const partnerList = await getPartnerList(user._id.toString());
+    const partnerList = await getPartnerList(userId);
     await ctx.answerCbQuery();
     let message = `👥 Мои партнёры\n\n📊 Статистика:\nВсего: ${stats.partners}\nПрямых: ${stats.directPartners}\n\n`;
     if (partnerList) {
@@ -246,20 +266,26 @@ async function showPartnersByLevel(ctx, level) {
         await ctx.reply('Не удалось загрузить список партнёров.');
         return;
     }
-    const dashboard = await getPartnerDashboard(user._id.toString());
+    const userId = user._id?.toString() || '';
+    if (!userId) {
+        await ctx.reply('Вы ещё не активировали программу.');
+        return;
+    }
+    const dashboard = await getPartnerDashboard(userId);
     if (!dashboard) {
         await ctx.reply('Вы ещё не активировали программу.');
         return;
     }
     await ctx.answerCbQuery();
-    console.log(`🔍 Partner: Looking for level ${level} partners for user ${user._id.toString()}, profile ${dashboard.profile._id.toString()}`);
+    const profileId = dashboard.profile._id?.toString() || dashboard.profile.id || '';
+    console.log(`🔍 Partner: Looking for level ${level} partners for user ${userId}, profile ${profileId}`);
     // Получаем список партнеров конкретного уровня
     let partnerReferrals = [];
     if (level === 1) {
         // Прямые партнеры - те, кто пришел по нашей ссылке
         const { PartnerReferral } = await import('../../models/index.js');
         const referrals = await PartnerReferral.find({
-            profileId: dashboard.profile._id.toString(),
+            profileId: profileId,
             level: 1
         })
             .populate('profileId')
@@ -297,7 +323,7 @@ async function showPartnersByLevel(ctx, level) {
         const referredUsers = referredUserIds.length > 0 ? await User.find({
             _id: { $in: referredUserIds }
         }).select('_id username firstName telegramId').lean() : [];
-        const userMap = new Map(referredUsers.map((user) => [user._id.toString(), user]));
+        const userMap = new Map(referredUsers.map((user) => [(user._id?.toString() || user.id || ''), user]));
         partnerReferrals.forEach((referral, index) => {
             if (referral.referredId) {
                 const referredUser = userMap.get(referral.referredId.toString());
@@ -319,7 +345,12 @@ async function showInvite(ctx) {
         await ctx.reply('Не удалось получить ссылку.');
         return;
     }
-    const dashboard = await getPartnerDashboard(user._id.toString());
+    const userId = user._id?.toString() || '';
+    if (!userId) {
+        await ctx.reply('Вы ещё не активировали программу.');
+        return;
+    }
+    const dashboard = await getPartnerDashboard(userId);
     if (!dashboard) {
         await ctx.reply('Активируйте один из тарифов, чтобы получить ссылку.');
         return;
@@ -335,7 +366,12 @@ async function showDirectInvite(ctx) {
         await ctx.reply('Не удалось получить ссылку.');
         return;
     }
-    const dashboard = await getPartnerDashboard(user._id.toString());
+    const userId = user._id?.toString() || '';
+    if (!userId) {
+        await ctx.reply('Вы ещё не активировали программу.');
+        return;
+    }
+    const dashboard = await getPartnerDashboard(userId);
     if (!dashboard) {
         await ctx.reply('Активируйте один из тарифов, чтобы получить ссылку.');
         return;
@@ -351,7 +387,12 @@ async function showMultiInvite(ctx) {
         await ctx.reply('Не удалось получить ссылку.');
         return;
     }
-    const dashboard = await getPartnerDashboard(user._id.toString());
+    const userId = user._id?.toString() || '';
+    if (!userId) {
+        await ctx.reply('Вы ещё не активировали программу.');
+        return;
+    }
+    const dashboard = await getPartnerDashboard(userId);
     if (!dashboard) {
         await ctx.reply('Активируйте один из тарифов, чтобы получить ссылку.');
         return;
@@ -464,7 +505,12 @@ export async function showPartnerIntro(ctx) {
             return;
         }
         // Проверяем статус партнерской программы
-        const dashboard = await getPartnerDashboard(user._id.toString());
+        const userId = user._id?.toString() || '';
+        if (!userId) {
+            await ctx.reply('Вы ещё не активировали программу.');
+            return;
+        }
+        const dashboard = await getPartnerDashboard(userId);
         let activationInfo = '';
         if (dashboard && dashboard.profile) {
             const profile = dashboard.profile;

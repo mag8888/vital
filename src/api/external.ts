@@ -366,8 +366,12 @@ router.post('/orders', async (req: Request, res: Response) => {
         // Используем переданную цену или цену из БД
         const price = item.price !== undefined ? Number(item.price) : product.price;
 
+        const productId = (product as any)._id?.toString() || product.id || '';
+        if (!productId) {
+          throw new Error(`Товар с ID ${item.productId} не имеет валидного ID`);
+        }
         return {
-          productId: (product as any)._id?.toString() || product.id,
+          productId: productId,
           title: product.title,
           price: price,
           quantity: Number(item.quantity),

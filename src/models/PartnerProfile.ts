@@ -30,7 +30,7 @@ const PartnerProfileSchema = new Schema<IPartnerProfile>(
       ref: 'User',
       required: true,
       unique: true,
-    },
+    } as any,
     isActive: {
       type: Boolean,
       default: false,
