@@ -8,17 +8,9 @@ if (dbUrl) {
   // Проверяем, используется ли Railway MongoDB (Reference Variable)
   if (dbUrl.includes('${{') || dbUrl.includes('mongodb://mongo')) {
     console.log('✅ Railway MongoDB detected');
-    
-    // Проверяем, есть ли параметр replicaSet
-    if (!dbUrl.includes('replicaSet=')) {
-      console.warn('⚠️  Railway MongoDB detected but replicaSet parameter is missing');
-      console.warn('💡 To enable Prisma support, add replicaSet=rs0 to DATABASE_URL');
-      console.warn('💡 See QUICK_RAILWAY_MONGODB_SETUP.md for instructions');
-    } else {
-      console.log('✅ Replica set parameter found in connection string');
-    }
+    // Note: Mongoose doesn't require replica set, so we don't warn about it
   } else if (dbUrl.includes('mongodb+srv://') && dbUrl.includes('mongodb.net')) {
-    console.log('✅ MongoDB Atlas detected (supports replica set)');
+    console.log('✅ MongoDB Atlas detected');
   }
 } else {
   console.error('❌ DATABASE_URL or MONGO_URL not found in environment variables');
@@ -76,13 +68,7 @@ if (dbUrl) {
           console.log('✅ Added authSource=admin for Railway MongoDB');
         }
         
-        // Для Railway MongoDB проверяем наличие replicaSet
-        if (!urlObj.searchParams.has('replicaSet')) {
-          console.warn('⚠️  replicaSet parameter missing in Railway MongoDB connection string');
-          console.warn('💡 Prisma requires replica set for write operations');
-          console.warn('💡 Add replicaSet=rs0 to DATABASE_URL after initializing replica set');
-          console.warn('💡 See QUICK_RAILWAY_MONGODB_SETUP.md for instructions');
-        }
+        // Note: Mongoose doesn't require replica set, so we don't warn about it
         
       } catch (urlError) {
         // Если URL парсер не смог распарсить (возможно, из-за специальных символов в пароле),
