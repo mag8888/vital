@@ -14,25 +14,33 @@ if (dbUrl) {
   try {
     let url = dbUrl.trim();
     
+    // Удаляем неподдерживаемые опции из connection string (до парсинга URL)
+    url = url.replace(/[?&]buffermaxentries=\d+/gi, '');
+    url = url.replace(/[?&]bufferMaxEntries=\d+/gi, '');
+    
     // Для mongodb:// проверяем и исправляем формат
     if (url.startsWith('mongodb://') && !url.includes('mongodb+srv://')) {
       try {
         const urlObj = new URL(url);
         
+        // Удаляем неподдерживаемые опции из query параметров
+        urlObj.searchParams.delete('buffermaxentries');
+        urlObj.searchParams.delete('bufferMaxEntries');
+        
         // Если нет pathname (имени базы данных), добавляем по умолчанию
         if (!urlObj.pathname || urlObj.pathname === '/') {
           const defaultDb = process.env.MONGODB_DB_NAME || 'plazma_bot';
           urlObj.pathname = `/${defaultDb}`;
-          url = urlObj.toString();
           console.log(`✅ Added default database name: ${defaultDb}`);
         }
         
         // Для Railway MongoDB добавляем authSource=admin если его нет
         if (!urlObj.searchParams.has('authSource')) {
           urlObj.searchParams.set('authSource', 'admin');
-          url = urlObj.toString();
           console.log('✅ Added authSource=admin for Railway MongoDB');
         }
+        
+        url = urlObj.toString();
         
       } catch (urlError) {
         // Если URL парсер не смог распарсить, пробуем простую проверку
@@ -72,7 +80,6 @@ const mongooseOptions = {
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000,
   bufferCommands: false,
-  bufferMaxEntries: 0,
 };
 
 let isConnected = false;
