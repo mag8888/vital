@@ -6,22 +6,54 @@ export const reviewsModule = {
         // Handle reviews command
         bot.command('reviews', async (ctx) => {
             try {
-                await logUserAction(ctx, 'command:reviews');
+                // Логируем действие с обработкой ошибок
+                try {
+                    await logUserAction(ctx, 'command:reviews');
+                }
+                catch (logError) {
+                    // Игнорируем ошибки логирования, продолжаем работу
+                    console.warn('⭐ Reviews: Failed to log action (non-critical):', logError);
+                }
                 await showReviews(ctx);
             }
             catch (error) {
                 console.error('⭐ Reviews: Failed to process /reviews command', error);
-                await ctx.reply('❌ Не удалось загрузить отзывы. Попробуйте позже.');
+                const keyboard = Markup.inlineKeyboard([
+                    [Markup.button.url('💬 Оставить отзыв', 'https://iplazma.tilda.ws/comment')]
+                ]);
+                try {
+                    await ctx.reply('❌ Не удалось загрузить отзывы. Попробуйте позже.', keyboard);
+                }
+                catch (replyError) {
+                    // Игнорируем ошибки отправки сообщений
+                    console.error('⭐ Reviews: Failed to send error message:', replyError);
+                }
             }
         });
         bot.hears(['Отзывы', '⭐ Отзывы'], async (ctx) => {
             try {
-                await logUserAction(ctx, 'menu:reviews');
+                // Логируем действие с обработкой ошибок
+                try {
+                    await logUserAction(ctx, 'menu:reviews');
+                }
+                catch (logError) {
+                    // Игнорируем ошибки логирования, продолжаем работу
+                    console.warn('⭐ Reviews: Failed to log action (non-critical):', logError);
+                }
                 await showReviews(ctx);
             }
             catch (error) {
                 console.error('⭐ Reviews: Failed to process reviews menu', error);
-                await ctx.reply('❌ Не удалось загрузить отзывы. Попробуйте позже.');
+                const keyboard = Markup.inlineKeyboard([
+                    [Markup.button.url('💬 Оставить отзыв', 'https://iplazma.tilda.ws/comment')]
+                ]);
+                try {
+                    await ctx.reply('❌ Не удалось загрузить отзывы. Попробуйте позже.', keyboard);
+                }
+                catch (replyError) {
+                    // Игнорируем ошибки отправки сообщений
+                    console.error('⭐ Reviews: Failed to send error message:', replyError);
+                }
             }
         });
     },
@@ -37,12 +69,31 @@ export async function showReviews(ctx) {
             ]);
         }
         catch (dbError) {
-            console.error('⭐ Reviews: Error loading reviews from DB:', dbError.message?.substring(0, 100));
+            const errorMessage = dbError.message || dbError.meta?.message || '';
+            const errorKind = dbError.kind || '';
+            const errorName = dbError.name || '';
+            console.error('⭐ Reviews: Error loading reviews from DB:', {
+                message: errorMessage.substring(0, 100),
+                name: errorName,
+                kind: errorKind,
+                code: dbError.code
+            });
             // Показываем сообщение об ошибке и кнопку для отзыва
             const keyboard = Markup.inlineKeyboard([
                 [Markup.button.url('💬 Оставить отзыв', 'https://iplazma.tilda.ws/comment')]
             ]);
-            await ctx.reply('❌ Ошибка при загрузке отзывов. Попробуйте позже.', keyboard);
+            // Более информативное сообщение в зависимости от типа ошибки
+            let errorText = '❌ Ошибка при загрузке отзывов. Попробуйте позже.';
+            if (errorMessage.includes('Authentication failed') || errorMessage.includes('SCRAM failure') ||
+                errorName === 'ConnectorError' || errorKind.includes('AuthenticationFailed')) {
+                errorText = '❌ Ошибка при загрузке отзывов. База данных временно недоступна. Попробуйте позже.';
+            }
+            try {
+                await ctx.reply(errorText, keyboard);
+            }
+            catch (replyError) {
+                console.error('⭐ Reviews: Failed to send error message:', replyError);
+            }
             return;
         }
         if (reviews.length === 0) {
@@ -53,15 +104,29 @@ export async function showReviews(ctx) {
             return;
         }
         for (const review of reviews) {
-            const caption = [`⭐ ${review.name}`, review.content];
-            if (review.link) {
-                caption.push(`Подробнее: ${review.link}`);
+            try {
+                const caption = [`⭐ ${review.name}`, review.content];
+                if (review.link) {
+                    caption.push(`Подробнее: ${review.link}`);
+                }
+                if (review.photoUrl) {
+                    try {
+                        await ctx.replyWithPhoto(review.photoUrl, { caption: caption.join('\n\n') });
+                    }
+                    catch (photoError) {
+                        // Если не удалось отправить фото, отправляем текст
+                        console.warn('⭐ Reviews: Failed to send photo, sending text instead:', photoError);
+                        await ctx.reply(caption.join('\n\n'));
+                    }
+                }
+                else {
+                    await ctx.reply(caption.join('\n\n'));
+                }
             }
-            if (review.photoUrl) {
-                await ctx.replyWithPhoto(review.photoUrl, { caption: caption.join('\n\n') });
-            }
-            else {
-                await ctx.reply(caption.join('\n\n'));
+            catch (reviewError) {
+                // Пропускаем проблемный отзыв, продолжаем с остальными
+                console.warn('⭐ Reviews: Failed to send review:', reviewError);
+                continue;
             }
         }
         // Добавляем кнопку для оставления отзыва после всех отзывов
