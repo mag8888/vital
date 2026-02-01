@@ -68,16 +68,25 @@ function downloadFile(url, filepath) {
 
 /**
  * Получает список бэкапов из Cloudinary
+ * Используем admin.resources, т.к. search API может падать с 400 на некоторых версиях SDK
  */
 async function listBackups() {
   try {
-    const result = await cloudinary.search
-      .expression('folder:plazma-bot/backups AND resource_type:raw')
-      .sort_by([{ created_at: 'desc' }])
-      .max_results(10)
-      .execute();
-    
-    return result.resources || [];
+    const result = await cloudinary.api.resources({
+      type: 'upload',
+      resource_type: 'raw',
+      prefix: 'plazma-bot/backups',
+      max_results: 100,
+      direction: -1,
+      context: true,
+    });
+
+    // Сортируем по created_at по убыванию
+    const resources = (result.resources || []).sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+
+    return resources;
   } catch (error) {
     console.error('❌ Ошибка получения списка бэкапов:', error);
     return [];

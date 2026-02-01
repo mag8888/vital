@@ -1,23 +1,44 @@
-import { prisma } from '../lib/prisma.js';
+import { Category, Product } from '../models/index.js';
 export async function getActiveCategories() {
-    return prisma.category.findMany({
-        where: { isActive: true },
-        orderBy: { name: 'asc' },
-    });
+    try {
+        return await Category.find({ isActive: true })
+            .sort({ name: 1 })
+            .lean();
+    }
+    catch (error) {
+        console.error('❌ Shop: Error fetching categories:', error.message?.substring(0, 100));
+        throw error;
+    }
 }
 export async function getCategoryById(id) {
-    return prisma.category.findUnique({
-        where: { id },
-    });
+    try {
+        return await Category.findById(id).lean();
+    }
+    catch (error) {
+        console.error('❌ Shop: Error fetching category:', error.message?.substring(0, 100));
+        throw error;
+    }
 }
 export async function getProductsByCategory(categoryId) {
-    return prisma.product.findMany({
-        where: { categoryId, isActive: true },
-        orderBy: { title: 'asc' },
-    });
+    try {
+        return await Product.find({
+            categoryId: categoryId,
+            isActive: true,
+        })
+            .sort({ title: 1 })
+            .lean();
+    }
+    catch (error) {
+        console.error('❌ Shop: Error fetching products:', error.message?.substring(0, 100));
+        throw error;
+    }
 }
 export async function getProductById(productId) {
-    return prisma.product.findUnique({
-        where: { id: productId },
-    });
+    try {
+        return await Product.findById(productId).lean();
+    }
+    catch (error) {
+        console.error('❌ Shop: Error fetching product:', error.message?.substring(0, 100));
+        throw error;
+    }
 }

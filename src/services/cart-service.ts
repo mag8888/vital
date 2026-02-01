@@ -1,73 +1,59 @@
-import { prisma } from '../lib/prisma.js';
+import { CartItem, Product, ICartItem } from '../models/index.js';
 import { checkPartnerActivation } from './partner-service.js';
+import mongoose from 'mongoose';
 
 export async function getCartItems(userId: string) {
-  return prisma.cartItem.findMany({
-    where: { userId },
-    include: {
-      product: true,
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  try {
+    const items = await CartItem.find({ userId: new mongoose.Types.ObjectId(userId) })
+      .populate('productId')
+      .sort({ createdAt: -1 })
+      .lean();
+    
+    return items.map(item => ({
+      ...item,
+      product: item.productId,
+    }));
+  } catch (error: any) {
+    console.error('❌ Cart: Error fetching cart items:', error.message?.substring(0, 100));
+    throw error;
+  }
 }
 
 export async function addProductToCart(userId: string, productId: string) {
   try {
-    // Используем findUnique + create/update вместо upsert для избежания транзакций
-    const existingItem = await prisma.cartItem.findUnique({
-      where: {
-        userId_productId: {
-          userId,
-          productId,
-        },
+    const userIdObj = new mongoose.Types.ObjectId(userId);
+    const productIdObj = new mongoose.Types.ObjectId(productId);
+    
+    // Используем findOneAndUpdate с upsert для Mongoose
+    const item = await CartItem.findOneAndUpdate(
+      {
+        userId: userIdObj,
+        productId: productIdObj,
       },
-    });
+      {
+        $inc: { quantity: 1 },
+      },
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+      }
+    );
 
-    if (existingItem) {
-      return await prisma.cartItem.update({
-        where: {
-          userId_productId: {
-            userId,
-            productId,
-          },
-        },
-        data: {
-          quantity: { increment: 1 },
-        },
-      });
-    } else {
-      return await prisma.cartItem.create({
-        data: {
-          userId,
-          productId,
-          quantity: 1,
-        },
-      });
-    }
+    return item;
   } catch (error: any) {
-    const errorMessage = error.message || error.meta?.message || '';
+    const errorMessage = error.message || '';
     const errorName = error.name || '';
-    const errorCode = error.code || '';
     
-    // Проверяем, является ли это ошибкой replica set
-    const isReplicaSetError = 
-      errorMessage.includes('replica set') || 
-      errorMessage.includes('Transactions are not supported') ||
-      errorName === 'PrismaClientUnknownRequestError';
-    
-    // Проверяем, является ли это ошибкой подключения
     const isConnectionError = 
-      errorCode === 'P2010' || errorCode === 'P1001' || errorCode === 'P1002' || errorCode === 'P1013' ||
-      errorName === 'ConnectorError' ||
-      errorMessage.includes('ConnectorError') ||
+      errorName === 'MongoServerError' ||
+      errorName === 'MongoNetworkError' ||
+      errorMessage.includes('connection') ||
+      errorMessage.includes('timeout') ||
       errorMessage.includes('Authentication failed') ||
       errorMessage.includes('SCRAM failure');
     
-    if (isReplicaSetError) {
-      console.error('❌ Cart: Replica set error (MongoDB requires replica set for Prisma):', errorMessage.substring(0, 100));
-      console.error('💡 To fix: Use MongoDB Atlas (supports replica set) - see MONGODB_ATLAS_REQUIRED.md');
-      throw new Error('База данных требует настройки replica set. Пожалуйста, обратитесь к администратору.');
-    } else if (isConnectionError) {
+    if (isConnectionError) {
       console.error('❌ Cart: Database connection error:', errorMessage.substring(0, 100));
       throw new Error('База данных временно недоступна. Попробуйте позже.');
     } else {
@@ -78,141 +64,87 @@ export async function addProductToCart(userId: string, productId: string) {
 }
 
 export async function clearCart(userId: string) {
-  await prisma.cartItem.deleteMany({ where: { userId } });
+  try {
+    await CartItem.deleteMany({ userId: new mongoose.Types.ObjectId(userId) });
+  } catch (error: any) {
+    console.error('❌ Cart: Error clearing cart:', error.message?.substring(0, 100));
+    throw error;
+  }
 }
 
 export async function increaseProductQuantity(userId: string, productId: string) {
-  // Используем findUnique + create/update вместо upsert для избежания транзакций
-  const existingItem = await prisma.cartItem.findUnique({
-    where: {
-      userId_productId: {
-        userId,
-        productId,
+  try {
+    const userIdObj = new mongoose.Types.ObjectId(userId);
+    const productIdObj = new mongoose.Types.ObjectId(productId);
+    
+    const item = await CartItem.findOneAndUpdate(
+      {
+        userId: userIdObj,
+        productId: productIdObj,
       },
-    },
-  });
+      {
+        $inc: { quantity: 1 },
+      },
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+      }
+    );
 
-  if (existingItem) {
-    return prisma.cartItem.update({
-      where: {
-        userId_productId: {
-          userId,
-          productId,
-        },
-      },
-      data: {
-        quantity: { increment: 1 },
-      },
-    });
-  } else {
-    return prisma.cartItem.create({
-      data: {
-        userId,
-        productId,
-        quantity: 1,
-      },
-    });
+    return item;
+  } catch (error: any) {
+    console.error('❌ Cart: Error increasing quantity:', error.message?.substring(0, 100));
+    throw error;
   }
 }
 
 export async function decreaseProductQuantity(userId: string, productId: string) {
   try {
-    const item = await prisma.cartItem.findUnique({
-      where: {
-        userId_productId: {
-          userId,
-          productId,
-        },
-      },
+    const userIdObj = new mongoose.Types.ObjectId(userId);
+    const productIdObj = new mongoose.Types.ObjectId(productId);
+    
+    const item = await CartItem.findOne({
+      userId: userIdObj,
+      productId: productIdObj,
     });
 
     if (!item) {
-      // Товар не найден в корзине
       return null;
     }
 
     if (item.quantity <= 1) {
-      // Remove item if quantity becomes 0 or less
-      try {
-        await prisma.cartItem.delete({
-          where: {
-            userId_productId: {
-              userId,
-              productId,
-            },
-          },
-        });
-        return null;
-      } catch (error: any) {
-        // Обрабатываем ошибку P2025 (Record to delete does not exist)
-        if (error?.code === 'P2025') {
-          console.warn(`⚠️ Cart: Item already deleted during decrease (userId: ${userId}, productId: ${productId})`);
-          return null;
-        }
-        throw error;
-      }
+      await CartItem.findByIdAndDelete(item._id);
+      return null;
     }
 
-    try {
-      return await prisma.cartItem.update({
-        where: {
-          userId_productId: {
-            userId,
-            productId,
-          },
-        },
-        data: {
-          quantity: {
-            decrement: 1,
-          },
-        },
-      });
-    } catch (error: any) {
-      // Обрабатываем ошибку P2025 (Record to update does not exist)
-      if (error?.code === 'P2025') {
-        console.warn(`⚠️ Cart: Item not found during update (userId: ${userId}, productId: ${productId})`);
-        return null;
-      }
-      throw error;
-    }
+    item.quantity -= 1;
+    await item.save();
+    return item;
   } catch (error: any) {
-    // Логируем неожиданные ошибки
-    console.error('❌ Cart: Unexpected error in decreaseProductQuantity:', error);
+    console.error('❌ Cart: Error decreasing quantity:', error.message?.substring(0, 100));
     throw error;
   }
 }
 
 export async function removeProductFromCart(userId: string, productId: string) {
-  // Проверяем существование товара перед удалением
-  const item = await prisma.cartItem.findUnique({
-    where: {
-      userId_productId: {
-        userId,
-        productId,
-      },
-    },
-  });
-
-  if (!item) {
-    // Товар уже удален или не существует - возвращаем null вместо ошибки
-    return null;
-  }
-
   try {
-    return await prisma.cartItem.delete({
-      where: {
-        userId_productId: {
-          userId,
-          productId,
-        },
-      },
+    const userIdObj = new mongoose.Types.ObjectId(userId);
+    const productIdObj = new mongoose.Types.ObjectId(productId);
+    
+    const item = await CartItem.findOne({
+      userId: userIdObj,
+      productId: productIdObj,
     });
-  } catch (error: any) {
-    // Обрабатываем ошибку P2025 (Record to delete does not exist)
-    if (error?.code === 'P2025') {
-      console.warn(`⚠️ Cart: Item already deleted (userId: ${userId}, productId: ${productId})`);
+    
+    if (!item) {
       return null;
     }
+
+    await CartItem.findByIdAndDelete(item._id);
+    return item;
+  } catch (error: any) {
+    console.error('❌ Cart: Error removing product:', error.message?.substring(0, 100));
     throw error;
   }
 }

@@ -1,50 +1,20 @@
-export declare function getActiveCategories(): Promise<{
-    id: string;
-    description: string | null;
-    name: string;
-    createdAt: Date;
-    updatedAt: Date;
-    isActive: boolean;
-    slug: string;
-}[]>;
-export declare function getCategoryById(id: string): Promise<{
-    id: string;
-    description: string | null;
-    name: string;
-    createdAt: Date;
-    updatedAt: Date;
-    isActive: boolean;
-    slug: string;
-} | null>;
-export declare function getProductsByCategory(categoryId: string): Promise<{
-    id: string;
-    title: string;
-    description: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-    price: number;
-    isActive: boolean;
-    summary: string;
-    instruction: string | null;
-    imageUrl: string | null;
-    stock: number;
-    availableInRussia: boolean;
-    availableInBali: boolean;
-    categoryId: string;
-}[]>;
-export declare function getProductById(productId: string): Promise<{
-    id: string;
-    title: string;
-    description: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-    price: number;
-    isActive: boolean;
-    summary: string;
-    instruction: string | null;
-    imageUrl: string | null;
-    stock: number;
-    availableInRussia: boolean;
-    availableInBali: boolean;
-    categoryId: string;
-} | null>;
+export declare function getActiveCategories(): Promise<(import("../models/Category.js").ICategory & Required<{
+    _id: string;
+}> & {
+    __v: number;
+})[]>;
+export declare function getCategoryById(id: string): Promise<(import("../models/Category.js").ICategory & Required<{
+    _id: string;
+}> & {
+    __v: number;
+}) | null>;
+export declare function getProductsByCategory(categoryId: string): Promise<(import("../models/Product.js").IProduct & Required<{
+    _id: string;
+}> & {
+    __v: number;
+})[]>;
+export declare function getProductById(productId: string): Promise<(import("../models/Product.js").IProduct & Required<{
+    _id: string;
+}> & {
+    __v: number;
+}) | null>;

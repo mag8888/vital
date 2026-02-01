@@ -1,0 +1,38 @@
+import mongoose, { Schema, Document } from 'mongoose';
+
+export interface ICartItem extends Document {
+  _id: string;
+  userId: string;
+  productId: string;
+  quantity: number;
+  createdAt: Date;
+}
+
+const CartItemSchema = new Schema<ICartItem>(
+  {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    productId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Product',
+      required: true,
+    },
+    quantity: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+  },
+  {
+    timestamps: { createdAt: true, updatedAt: false },
+    collection: 'cartItems',
+  }
+);
+
+// Compound unique index for userId and productId
+CartItemSchema.index({ userId: 1, productId: 1 }, { unique: true });
+
+export const CartItem = mongoose.model<ICartItem>('CartItem', CartItemSchema);

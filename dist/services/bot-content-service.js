@@ -1,19 +1,16 @@
-import { prisma } from '../lib/prisma.js';
+import { BotContent } from '../models/index.js';
 /**
  * Получить контент бота по ключу
  */
 export async function getBotContent(key, language = 'ru') {
     try {
-        const content = await prisma.botContent.findFirst({
-            where: {
-                key,
-                language,
-                isActive: true,
-            },
-            select: {
-                content: true,
-            },
-        });
+        const content = await BotContent.findOne({
+            key,
+            language,
+            isActive: true,
+        })
+            .select('content')
+            .lean();
         return content?.content || null;
     }
     catch (error) {
@@ -26,12 +23,9 @@ export async function getBotContent(key, language = 'ru') {
  */
 export async function getAllBotContents() {
     try {
-        const contents = await prisma.botContent.findMany({
-            orderBy: [
-                { category: 'asc' },
-                { key: 'asc' },
-            ],
-        });
+        const contents = await BotContent.find({})
+            .sort({ category: 1, key: 1 })
+            .lean();
         return contents;
     }
     catch (error) {
@@ -44,36 +38,28 @@ export async function getAllBotContents() {
  */
 export async function upsertBotContent(data) {
     try {
-        // Используем findUnique + create/update вместо upsert для избежания транзакций
-        const existing = await prisma.botContent.findUnique({
-            where: { key: data.key },
-        });
+        const existing = await BotContent.findOne({ key: data.key });
         if (existing) {
-            return prisma.botContent.update({
-                where: { key: data.key },
-                data: {
-                    title: data.title,
-                    content: data.content,
-                    description: data.description,
-                    category: data.category,
-                    language: data.language || 'ru',
-                    isActive: data.isActive !== undefined ? data.isActive : true,
-                    updatedAt: new Date(),
-                },
-            });
+            existing.title = data.title;
+            existing.content = data.content;
+            existing.description = data.description || undefined;
+            existing.category = data.category || undefined;
+            existing.language = data.language || 'ru';
+            existing.isActive = data.isActive !== undefined ? data.isActive : true;
+            await existing.save();
+            return existing.toObject();
         }
         else {
-            return prisma.botContent.create({
-                data: {
-                    key: data.key,
-                    title: data.title,
-                    content: data.content,
-                    description: data.description,
-                    category: data.category,
-                    language: data.language || 'ru',
-                    isActive: data.isActive !== undefined ? data.isActive : true,
-                },
+            const newContent = await BotContent.create({
+                key: data.key,
+                title: data.title,
+                content: data.content,
+                description: data.description || undefined,
+                category: data.category || undefined,
+                language: data.language || 'ru',
+                isActive: data.isActive !== undefined ? data.isActive : true,
             });
+            return newContent.toObject();
         }
     }
     catch (error) {
@@ -86,9 +72,7 @@ export async function upsertBotContent(data) {
  */
 export async function deleteBotContent(key) {
     try {
-        await prisma.botContent.delete({
-            where: { key },
-        });
+        await BotContent.findOneAndDelete({ key });
         return true;
     }
     catch (error) {

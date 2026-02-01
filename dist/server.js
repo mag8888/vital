@@ -5,7 +5,7 @@ import session from 'express-session';
 import { session as telegrafSession, Telegraf } from 'telegraf';
 import { env } from './config/env.js';
 import { applyBotModules } from './bot/setup-modules.js';
-import { prisma } from './lib/prisma.js';
+import { connectMongoose } from './lib/mongoose.js';
 import { ensureInitialData } from './lib/bootstrap.js';
 import { adminWebRouter } from './admin/web.js';
 import { webappRouter } from './webapp/webapp.js';
@@ -17,16 +17,14 @@ async function bootstrap() {
     try {
         // Try to connect to database first
         try {
-            await prisma.$connect();
+            await connectMongoose();
             console.log('✅ Database connected');
         }
         catch (connectError) {
-            const errorMessage = connectError.message || connectError.meta?.message || '';
-            const errorKind = connectError.kind || '';
+            const errorMessage = connectError.message || '';
             const errorName = connectError.name || '';
             if (errorMessage.includes('Authentication failed') ||
-                errorMessage.includes('SCRAM failure') ||
-                errorKind.includes('AuthenticationFailed')) {
+                errorMessage.includes('SCRAM failure')) {
                 console.error('❌ MongoDB Authentication Error:');
                 console.error('   The connection string contains invalid credentials.');
                 console.error('   Please check your MONGO_URL or DATABASE_URL in Railway Variables.');
@@ -40,76 +38,11 @@ async function bootstrap() {
                 console.warn('⚠️  Bot will continue with mock data until database is fixed.');
                 // Не пробрасываем ошибку, чтобы бот продолжал работать
             }
-            else if (errorMessage.includes('replica set') ||
-                errorMessage.includes('replica set') ||
-                errorName === 'PrismaClientUnknownRequestError') {
-                console.error('❌ MongoDB Replica Set Error:');
-                console.error('   Prisma requires replica set for write operations.');
-                console.error('   Railway MongoDB needs to be configured as replica set.');
-                console.error('');
-                console.error('   Quick fix:');
-                console.error('   1. Run: railway run mongosh');
-                console.error('   2. Execute: rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "localhost:27017" }] })');
-                console.error('   3. Add replicaSet=rs0 to DATABASE_URL');
-                console.error('');
-                console.error('   See QUICK_RAILWAY_MONGODB_SETUP.md for detailed instructions.');
-                console.error('   Or use MongoDB Atlas (supports replica set out of the box).');
-                console.error('');
-                console.warn('⚠️  Bot will continue with limited functionality until replica set is configured.');
+            else {
+                console.error('❌ MongoDB Connection Error:', errorMessage.substring(0, 100));
+                console.warn('⚠️  Bot will continue with limited functionality until database is available.');
                 // Не пробрасываем ошибку, чтобы бот продолжал работать
             }
-            else {
-                throw connectError; // Пробрасываем другие ошибки
-            }
-        }
-        // Try to apply migrations on startup if database is available
-        // This is a fallback if migrations weren't applied during build
-        // Skip if DATABASE_URL points to Atlas (likely unavailable)
-        const dbUrl = process.env.DATABASE_URL || process.env.MONGO_URL || '';
-        const isAtlasUrl = dbUrl.includes('mongodb+srv://') && dbUrl.includes('mongodb.net');
-        if (!isAtlasUrl) {
-            try {
-                const { execSync } = await import('child_process');
-                console.log('🔄 Checking database schema...');
-                execSync('npx prisma db push --skip-generate --accept-data-loss', {
-                    stdio: 'pipe',
-                    env: process.env,
-                    timeout: 15000, // 15 seconds timeout (shorter for faster startup)
-                });
-                console.log('✅ Database schema synchronized');
-            }
-            catch (migrationError) {
-                const errorMessage = migrationError.message || migrationError.toString() || '';
-                const errorOutput = (migrationError.stdout?.toString() || '') + (migrationError.stderr?.toString() || '');
-                const fullError = (errorMessage + ' ' + errorOutput).toLowerCase();
-                const isConnectionError = fullError.includes('server selection timeout') ||
-                    fullError.includes('no available servers') ||
-                    fullError.includes('i/o error: timed out') ||
-                    fullError.includes('etimedout') ||
-                    fullError.includes('can\'t reach database');
-                if (isConnectionError) {
-                    console.warn('⚠️  Database connection timeout during schema sync (non-critical)');
-                    console.warn('💡 Schema will be synced on next successful connection');
-                }
-                else if (fullError.includes('already in sync') || fullError.includes('unchanged') || fullError.includes('already up to date')) {
-                    console.log('✅ Database schema already up to date');
-                }
-                else {
-                    // Проверяем, не связана ли ошибка с replica set
-                    const fullErrorLower = fullError.toLowerCase();
-                    if (fullErrorLower.includes('replica set') || fullErrorLower.includes('transactions are not supported')) {
-                        console.warn('⚠️  Schema sync skipped (Railway MongoDB does not support Prisma transactions)');
-                        console.warn('💡 This is expected. Schema is already synced. App will work normally.');
-                    }
-                    else {
-                        console.warn('⚠️  Schema sync check failed (non-critical):', errorMessage.substring(0, 100));
-                    }
-                }
-            }
-        }
-        else {
-            console.warn('⚠️  MongoDB Atlas detected. Schema sync skipped (use Railway MongoDB for better reliability)');
-            console.warn('💡 To switch to Railway MongoDB, update DATABASE_URL to use ${{MongoDB.MONGO_URL}}');
         }
         await ensureInitialData();
         console.log('Initial data ensured');

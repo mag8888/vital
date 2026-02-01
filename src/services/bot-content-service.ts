@@ -1,4 +1,4 @@
-import { prisma } from '../lib/prisma.js';
+import { BotContent } from '../models/index.js';
 
 export interface BotContentData {
   key: string;
@@ -17,16 +17,13 @@ export interface BotContentData {
  */
 export async function getBotContent(key: string, language: string = 'ru'): Promise<string | null> {
   try {
-    const content = await prisma.botContent.findFirst({
-      where: {
-        key,
-        language,
-        isActive: true,
-      },
-      select: {
-        content: true,
-      },
-    });
+    const content = await BotContent.findOne({
+      key,
+      language,
+      isActive: true,
+    })
+      .select('content')
+      .lean();
 
     return content?.content || null;
   } catch (error) {
@@ -40,14 +37,11 @@ export async function getBotContent(key: string, language: string = 'ru'): Promi
  */
 export async function getAllBotContents(): Promise<BotContentData[]> {
   try {
-    const contents = await prisma.botContent.findMany({
-      orderBy: [
-        { category: 'asc' },
-        { key: 'asc' },
-      ],
-    });
+    const contents = await BotContent.find({})
+      .sort({ category: 1, key: 1 })
+      .lean();
 
-    return contents;
+    return contents as BotContentData[];
   } catch (error) {
     console.error('Error getting all bot contents:', error);
     return [];
@@ -59,36 +53,28 @@ export async function getAllBotContents(): Promise<BotContentData[]> {
  */
 export async function upsertBotContent(data: BotContentData): Promise<BotContentData | null> {
   try {
-    // Используем findUnique + create/update вместо upsert для избежания транзакций
-    const existing = await prisma.botContent.findUnique({
-      where: { key: data.key },
-    });
+    const existing = await BotContent.findOne({ key: data.key });
 
     if (existing) {
-      return prisma.botContent.update({
-        where: { key: data.key },
-        data: {
-          title: data.title,
-          content: data.content,
-          description: data.description,
-          category: data.category,
-          language: data.language || 'ru',
-          isActive: data.isActive !== undefined ? data.isActive : true,
-          updatedAt: new Date(),
-        },
-      });
+      existing.title = data.title;
+      existing.content = data.content;
+      existing.description = data.description || undefined;
+      existing.category = data.category || undefined;
+      existing.language = data.language || 'ru';
+      existing.isActive = data.isActive !== undefined ? data.isActive : true;
+      await existing.save();
+      return existing.toObject() as BotContentData;
     } else {
-      return prisma.botContent.create({
-        data: {
-          key: data.key,
-          title: data.title,
-          content: data.content,
-          description: data.description,
-          category: data.category,
-          language: data.language || 'ru',
-          isActive: data.isActive !== undefined ? data.isActive : true,
-        },
+      const newContent = await BotContent.create({
+        key: data.key,
+        title: data.title,
+        content: data.content,
+        description: data.description || undefined,
+        category: data.category || undefined,
+        language: data.language || 'ru',
+        isActive: data.isActive !== undefined ? data.isActive : true,
       });
+      return newContent.toObject() as BotContentData;
     }
   } catch (error) {
     console.error('Error upserting bot content:', error);
@@ -101,9 +87,7 @@ export async function upsertBotContent(data: BotContentData): Promise<BotContent
  */
 export async function deleteBotContent(key: string): Promise<boolean> {
   try {
-    await prisma.botContent.delete({
-      where: { key },
-    });
+    await BotContent.findOneAndDelete({ key });
     return true;
   } catch (error) {
     console.error('Error deleting bot content:', error);

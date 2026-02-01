@@ -1,7 +1,8 @@
-import { PartnerProgramType, TransactionType } from '@prisma/client';
+import { PartnerProgramType, TransactionType } from '../models/PartnerProfile.js';
+import { PartnerProfile, PartnerReferral, PartnerTransaction, User, UserHistory } from '../models/index.js';
 import { randomBytes } from 'crypto';
-import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
+import mongoose from 'mongoose';
 
 function generateReferralCode() {
   return `PW${randomBytes(3).toString('hex').toUpperCase()}`;
@@ -11,32 +12,30 @@ async function ensureReferralCode(): Promise<string> {
   // ensure uniqueness
   while (true) {
     const code = generateReferralCode();
-    const exists = await prisma.partnerProfile.findFirst({ where: { referralCode: code } });
+    const exists = await PartnerProfile.findOne({ referralCode: code });
     if (!exists) {
       return code;
     }
   }
 }
 
-export async function getOrCreatePartnerProfile(userId: string, programType: PartnerProgramType = 'DIRECT') {
-  const existing = await prisma.partnerProfile.findUnique({ where: { userId } });
+export async function getOrCreatePartnerProfile(userId: string, programType: PartnerProgramType = PartnerProgramType.DIRECT) {
+  const existing = await PartnerProfile.findOne({ userId: new mongoose.Types.ObjectId(userId) });
   if (existing) {
     return existing;
   }
 
   const referralCode = await ensureReferralCode();
-  return prisma.partnerProfile.create({
-    data: {
-      userId,
-      programType,
-      referralCode,
-      isActive: false, // По умолчанию неактивен
-    },
+  return PartnerProfile.create({
+    userId: new mongoose.Types.ObjectId(userId),
+    programType,
+    referralCode,
+    isActive: false, // По умолчанию неактивен
   });
 }
 
 export async function activatePartnerProfile(userId: string, activationType: 'PURCHASE' | 'ADMIN', months: number = 1, reason?: string, adminId?: string) {
-  const profile = await prisma.partnerProfile.findUnique({ where: { userId } });
+  const profile = await PartnerProfile.findOne({ userId: new mongoose.Types.ObjectId(userId) });
   if (!profile) {
     throw new Error('Partner profile not found');
   }
@@ -44,65 +43,41 @@ export async function activatePartnerProfile(userId: string, activationType: 'PU
   const now = new Date();
   const expiresAt = new Date(now.getTime() + months * 30 * 24 * 60 * 60 * 1000); // Добавляем месяцы
 
-  // Log activation history
-  await prisma.partnerActivationHistory.create({
-    data: {
-      profileId: profile.id,
-      action: 'ACTIVATED',
-      activationType,
-      reason: reason || (activationType === 'PURCHASE' ? 'Покупка на 120 PZ' : 'Активация администратором'),
-      expiresAt,
-      adminId,
-    },
-  });
+  // Note: PartnerActivationHistory model not created yet, skipping for now
+  // TODO: Create PartnerActivationHistory model if needed
 
-  return prisma.partnerProfile.update({
-    where: { userId },
-    data: {
-      isActive: true,
-      activatedAt: now,
-      expiresAt,
-      activationType,
-    },
-  });
+  profile.isActive = true;
+  profile.activatedAt = now;
+  profile.expiresAt = expiresAt;
+  profile.activationType = activationType;
+  await profile.save();
+
+  return profile;
 }
 
 export async function deactivatePartnerProfile(userId: string, reason?: string, adminId?: string) {
-  const profile = await prisma.partnerProfile.findUnique({ where: { userId } });
+  const profile = await PartnerProfile.findOne({ userId: new mongoose.Types.ObjectId(userId) });
   if (!profile) {
     throw new Error('Partner profile not found');
   }
 
-  // Log deactivation history
-  await prisma.partnerActivationHistory.create({
-    data: {
-      profileId: profile.id,
-      action: 'DEACTIVATED',
-      activationType: profile.activationType || null,
-      reason: reason || 'Деактивация',
-      expiresAt: profile.expiresAt,
-      adminId,
-    },
-  });
+  // Note: PartnerActivationHistory model not created yet, skipping for now
+  // TODO: Create PartnerActivationHistory model if needed
 
-  return prisma.partnerProfile.update({
-    where: { userId },
-    data: {
-      isActive: false,
-    },
-  });
+  profile.isActive = false;
+  await profile.save();
+
+  return profile;
 }
 
 export async function getPartnerActivationHistory(profileId: string) {
-  return prisma.partnerActivationHistory.findMany({
-    where: { profileId },
-    orderBy: { createdAt: 'desc' },
-  });
+  // TODO: Implement when PartnerActivationHistory model is created
+  return [];
 }
 
 export async function checkPartnerActivation(userId: string): Promise<boolean> {
   try {
-    const profile = await prisma.partnerProfile.findUnique({ where: { userId } });
+    const profile = await PartnerProfile.findOne({ userId: new mongoose.Types.ObjectId(userId) });
     if (!profile) return false;
 
     // Проверяем, активен ли профиль и не истек ли срок
@@ -116,18 +91,17 @@ export async function checkPartnerActivation(userId: string): Promise<boolean> {
 
     return true;
   } catch (error: any) {
-    // Обрабатываем ошибки БД (аутентификация, подключение и т.д.)
-    const errorCode = error.code;
-    const errorMessage = error.message || error.meta?.message || '';
-    const errorKind = (error as any).kind || '';
+    // Обрабатываем ошибки БД
+    const errorMessage = error.message || '';
     const errorName = error.name || '';
     
     const isDbError = 
-      errorCode === 'P2010' || errorCode === 'P1001' || errorCode === 'P1002' || errorCode === 'P1013' ||
-      errorName === 'ConnectorError' || errorName === 'PrismaClientUnknownRequestError' ||
-      errorMessage.includes('ConnectorError') || errorMessage.includes('Authentication failed') ||
-      errorMessage.includes('SCRAM failure') || errorMessage.includes('replica set') ||
-      errorKind.includes('AuthenticationFailed') || errorKind.includes('ConnectorError');
+      errorName === 'MongoServerError' ||
+      errorName === 'MongoNetworkError' ||
+      errorMessage.includes('connection') ||
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('Authentication failed') ||
+      errorMessage.includes('SCRAM failure');
     
     if (isDbError) {
       console.warn('Database unavailable for partner check (non-critical):', errorMessage.substring(0, 100));
@@ -144,7 +118,7 @@ export async function checkPartnerActivation(userId: string): Promise<boolean> {
  * Используется только в местах, где это уместно (например, при открытии дашборда партнера)
  */
 export async function checkAndDeactivateExpiredProfiles(userId: string): Promise<boolean> {
-  const profile = await prisma.partnerProfile.findUnique({ where: { userId } });
+  const profile = await PartnerProfile.findOne({ userId: new mongoose.Types.ObjectId(userId) });
   if (!profile) return false;
 
   if (!profile.isActive) return false;
@@ -165,108 +139,61 @@ export function buildReferralLink(code: string, programType: 'DIRECT' | 'MULTI_L
 }
 
 export async function getPartnerDashboard(userId: string) {
-  const profile = await prisma.partnerProfile.findUnique({
-    where: { userId },
-    include: {
-      transactions: {
-        orderBy: { createdAt: 'desc' },
-        take: 10,
-      },
-      referrals: true,
-    },
-  });
+  const profile = await PartnerProfile.findOne({ userId: new mongoose.Types.ObjectId(userId) })
+    .populate('userId')
+    .lean();
 
   if (!profile) return null;
 
-  const partners = await prisma.partnerReferral.count({ where: { profileId: profile.id } });
+  const transactions = await PartnerTransaction.find({ profileId: profile._id })
+    .sort({ createdAt: -1 })
+    .limit(10)
+    .lean();
+
+  const partners = await PartnerReferral.countDocuments({ profileId: profile._id });
 
   return {
     profile,
     stats: {
       partners,
-      directPartners: await prisma.partnerReferral.count({ where: { profileId: profile.id, level: 1 } }),
-      multiPartners: await prisma.partnerReferral.count({ where: { profileId: profile.id, level: 2 } }),
+      directPartners: await PartnerReferral.countDocuments({ profileId: profile._id, level: 1 }),
+      multiPartners: await PartnerReferral.countDocuments({ profileId: profile._id, level: { $gt: 1 } }),
     },
+    transactions,
   };
 }
 
 export async function getPartnerList(userId: string) {
-  const profile = await prisma.partnerProfile.findUnique({
-    where: { userId },
-  });
-
+  const profile = await PartnerProfile.findOne({ userId: new mongoose.Types.ObjectId(userId) });
   if (!profile) return null;
 
-  // Get direct partners (level 1) - users who were referred by this partner
-  const directReferrals = await prisma.partnerReferral.findMany({
-    where: { 
-      profileId: profile.id, 
-      level: 1 
-    },
-    include: {
-      profile: {
-        include: {
-          user: true
-        }
-      }
-    },
-    orderBy: { createdAt: 'desc' }
-  });
+  // Get direct partners (level 1)
+  const directReferrals = await PartnerReferral.find({ 
+    profileId: profile._id, 
+    level: 1 
+  })
+    .populate('referredId')
+    .sort({ createdAt: -1 })
+    .lean();
 
-  // Get multi-level partners (level 2 and 3) - users referred by direct partners
-  const multiReferrals = await prisma.partnerReferral.findMany({
-    where: { 
-      profileId: profile.id, 
-      level: { gt: 1 }
-    },
-    include: {
-      profile: {
-        include: {
-          user: true
-        }
-      }
-    },
-    orderBy: { createdAt: 'desc' }
-  });
+  // Get multi-level partners (level 2 and 3)
+  const multiReferrals = await PartnerReferral.find({ 
+    profileId: profile._id, 
+    level: { $gt: 1 }
+  })
+    .populate('referredId')
+    .sort({ createdAt: -1 })
+    .lean();
 
-  // Get actual users who were referred with their referral data
-  const directPartnerData = directReferrals
-    .filter(ref => ref.referredId)
-    .map(ref => ({
-      user: null as any, // Will be filled below
-      level: ref.level,
-      joinedAt: ref.createdAt
-    }));
-
-  const multiPartnerData = multiReferrals
-    .filter(ref => ref.referredId)
-    .map(ref => ({
-      user: null as any, // Will be filled below
-      level: ref.level,
-      joinedAt: ref.createdAt
-    }));
-
-  // Get users for direct partners
-  const directUserIds = directReferrals.map(ref => ref.referredId).filter(Boolean) as string[];
-  const directUsers = await prisma.user.findMany({
-    where: { id: { in: directUserIds } }
-  });
-
-  // Get users for multi-level partners
-  const multiUserIds = multiReferrals.map(ref => ref.referredId).filter(Boolean) as string[];
-  const multiUsers = await prisma.user.findMany({
-    where: { id: { in: multiUserIds } }
-  });
-
-  // Combine user data with referral data, removing duplicates
+  // Combine user data with referral data
   const directPartnersMap = new Map();
   directReferrals
     .filter(ref => ref.referredId)
     .forEach(ref => {
-      const user = directUsers.find(u => u.id === ref.referredId);
-      if (user && !directPartnersMap.has(user.id)) {
-        directPartnersMap.set(user.id, {
-          id: user.id,
+      const user = ref.referredId as any;
+      if (user && !directPartnersMap.has(user._id.toString())) {
+        directPartnersMap.set(user._id.toString(), {
+          id: user._id.toString(),
           firstName: user.firstName || 'Пользователь',
           username: user.username,
           telegramId: user.telegramId,
@@ -280,10 +207,10 @@ export async function getPartnerList(userId: string) {
   multiReferrals
     .filter(ref => ref.referredId)
     .forEach(ref => {
-      const user = multiUsers.find(u => u.id === ref.referredId);
-      if (user && !multiPartnersMap.has(user.id)) {
-        multiPartnersMap.set(user.id, {
-          id: user.id,
+      const user = ref.referredId as any;
+      if (user && !multiPartnersMap.has(user._id.toString())) {
+        multiPartnersMap.set(user._id.toString(), {
+          id: user._id.toString(),
           firstName: user.firstName || 'Пользователь',
           username: user.username,
           telegramId: user.telegramId,
@@ -302,15 +229,13 @@ export async function getPartnerList(userId: string) {
   };
 }
 
-export async function recordPartnerTransaction(profileId: string, amount: number, description: string, type: TransactionType = 'CREDIT') {
+export async function recordPartnerTransaction(profileId: string, amount: number, description: string, type: TransactionType = TransactionType.CREDIT) {
   // Create transaction
-  const transaction = await prisma.partnerTransaction.create({
-    data: {
-      profileId,
-      amount,
-      description,
-      type,
-    },
+  const transaction = await PartnerTransaction.create({
+    profileId: new mongoose.Types.ObjectId(profileId),
+    amount,
+    description,
+    type,
   });
 
   // Recalculate total bonus and balance from all transactions
@@ -322,14 +247,14 @@ export async function recordPartnerTransaction(profileId: string, amount: number
 export async function recalculatePartnerBonuses(profileId: string) {
   console.log(`🔄 Starting bonus recalculation for profile ${profileId}...`);
   
-  const allTransactions = await prisma.partnerTransaction.findMany({
-    where: { profileId }
-  });
+  const allTransactions = await PartnerTransaction.find({ 
+    profileId: new mongoose.Types.ObjectId(profileId) 
+  }).lean();
   
   console.log(`📊 Found ${allTransactions.length} transactions for profile ${profileId}`);
   
   const totalBonus = allTransactions.reduce((sum, tx) => {
-    const amount = tx.type === 'CREDIT' ? tx.amount : -tx.amount;
+    const amount = tx.type === TransactionType.CREDIT ? tx.amount : -tx.amount;
     console.log(`  - Transaction: ${tx.type} ${tx.amount} PZ (${tx.description})`);
     return sum + amount;
   }, 0);
@@ -337,19 +262,26 @@ export async function recalculatePartnerBonuses(profileId: string) {
   console.log(`💰 Total calculated bonus: ${totalBonus} PZ`);
 
   // Update both balance and bonus fields in PartnerProfile
-  const updatedProfile = await prisma.partnerProfile.update({
-    where: { id: profileId },
-    data: {
-      balance: totalBonus,  // Balance = total bonuses
-      bonus: totalBonus     // Bonus = total bonuses (for display)
-    }
-  });
+  const updatedProfile = await PartnerProfile.findByIdAndUpdate(
+    profileId,
+    {
+      $set: {
+        balance: totalBonus,  // Balance = total bonuses
+        bonus: totalBonus     // Bonus = total bonuses (for display)
+      }
+    },
+    { new: true }
+  );
+
+  if (!updatedProfile) {
+    throw new Error('Partner profile not found');
+  }
 
   // Also update user balance in User table
-  await prisma.user.update({
-    where: { id: updatedProfile.userId },
-    data: { balance: totalBonus }
-  });
+  await User.findByIdAndUpdate(
+    updatedProfile.userId,
+    { $set: { balance: totalBonus } }
+  );
 
   console.log(`✅ Updated profile ${profileId}: balance = ${updatedProfile.balance} PZ, bonus = ${updatedProfile.bonus} PZ`);
   console.log(`✅ Updated user ${updatedProfile.userId}: balance = ${totalBonus} PZ`);
@@ -359,16 +291,12 @@ export async function recalculatePartnerBonuses(profileId: string) {
 // Функция для поиска всей цепочки партнеров
 async function findAllPartnerChain(orderUserId: string) {
   const allReferrals = [];
+  const orderUserIdObj = new mongoose.Types.ObjectId(orderUserId);
   
   // Ищем прямых партнеров (уровень 1)
-  const level1Referrals = await prisma.partnerReferral.findMany({
-    where: { referredId: orderUserId },
-    include: {
-      profile: {
-        include: { user: true }
-      }
-    }
-  });
+  const level1Referrals = await PartnerReferral.find({ referredId: orderUserIdObj })
+    .populate('profileId')
+    .lean();
   
   for (const referral of level1Referrals) {
     allReferrals.push({
@@ -376,15 +304,13 @@ async function findAllPartnerChain(orderUserId: string) {
       level: 1
     });
     
+    const profile = referral.profileId as any;
+    if (!profile || !profile.userId) continue;
+    
     // Ищем партнеров 2-го уровня (партнеры партнера)
-    const level2Referrals = await prisma.partnerReferral.findMany({
-      where: { referredId: referral.profile.userId },
-      include: {
-        profile: {
-          include: { user: true }
-        }
-      }
-    });
+    const level2Referrals = await PartnerReferral.find({ referredId: profile.userId })
+      .populate('profileId')
+      .lean();
     
     for (const level2Referral of level2Referrals) {
       allReferrals.push({
@@ -392,15 +318,13 @@ async function findAllPartnerChain(orderUserId: string) {
         level: 2
       });
       
+      const level2Profile = level2Referral.profileId as any;
+      if (!level2Profile || !level2Profile.userId) continue;
+      
       // Ищем партнеров 3-го уровня (партнеры партнера партнера)
-      const level3Referrals = await prisma.partnerReferral.findMany({
-        where: { referredId: level2Referral.profile.userId },
-        include: {
-          profile: {
-            include: { user: true }
-          }
-        }
-      });
+      const level3Referrals = await PartnerReferral.find({ referredId: level2Profile.userId })
+        .populate('profileId')
+        .lean();
       
       for (const level3Referral of level3Referrals) {
         allReferrals.push({
@@ -420,13 +344,10 @@ export async function calculateDualSystemBonuses(orderUserId: string, orderAmoun
   
   // Проверяем, не были ли уже начислены бонусы за этот заказ
   if (orderId) {
-    // Ищем все записи о бонусах для этого пользователя
-    const existingBonuses = await prisma.userHistory.findMany({
-      where: {
-        userId: orderUserId,
-        action: 'REFERRAL_BONUS'
-      }
-    });
+    const existingBonuses = await UserHistory.find({
+      userId: new mongoose.Types.ObjectId(orderUserId),
+      action: 'REFERRAL_BONUS'
+    }).lean();
     
     // Проверяем, есть ли уже бонусы за этот заказ
     const hasExistingBonus = existingBonuses.some(bonus => {
@@ -457,10 +378,11 @@ export async function calculateDualSystemBonuses(orderUserId: string, orderAmoun
   const bonuses = [];
 
   for (const referral of allPartnerReferrals) {
-    const partnerProfile = referral.profile;
+    const partnerProfile = referral.profileId as any;
+    if (!partnerProfile) continue;
     
     // Проверяем, активен ли партнерский профиль
-    const isActive = await checkPartnerActivation(partnerProfile.userId);
+    const isActive = await checkPartnerActivation(partnerProfile.userId.toString());
     
     let bonusAmount = 0;
     let description = '';
@@ -473,7 +395,7 @@ export async function calculateDualSystemBonuses(orderUserId: string, orderAmoun
         description = `Базовый бонус за заказ прямого реферала (${orderAmount} PZ) - 10%`;
       } else {
         // Расширенные бонусы для активных партнеров
-        if (referral.referralType === 'DIRECT') {
+        if (referral.referralType === PartnerProgramType.DIRECT) {
           // Прямая система: 25%
           bonusAmount = orderAmount * 0.25;
           description = `Бонус за заказ прямого реферала (${orderAmount} PZ) - прямая система 25%`;
@@ -506,31 +428,29 @@ export async function calculateDualSystemBonuses(orderUserId: string, orderAmoun
     if (bonusAmount > 0) {
       // Добавляем бонус партнеру
       await recordPartnerTransaction(
-        partnerProfile.id,
+        partnerProfile._id.toString(),
         bonusAmount,
         description,
-        'CREDIT'
+        TransactionType.CREDIT
       );
 
       // Добавляем запись в историю пользователя
-      await prisma.userHistory.create({
-        data: {
-          userId: partnerProfile.userId,
-          action: 'REFERRAL_BONUS',
-          payload: {
-            amount: bonusAmount,
-            orderAmount,
-            level: referral.level,
-            referredUserId: orderUserId,
-            orderId: orderId || null,
-            type: 'DUAL_SYSTEM'
-          }
+      await UserHistory.create({
+        userId: partnerProfile.userId,
+        action: 'REFERRAL_BONUS',
+        payload: {
+          amount: bonusAmount,
+          orderAmount,
+          level: referral.level,
+          referredUserId: orderUserId,
+          orderId: orderId || null,
+          type: 'DUAL_SYSTEM'
         }
       });
 
       bonuses.push({
-        partnerId: partnerProfile.userId,
-        partnerName: partnerProfile.user.firstName || 'Партнер',
+        partnerId: partnerProfile.userId.toString(),
+        partnerName: 'Партнер', // Will be populated if needed
         level: referral.level,
         amount: bonusAmount,
         description
@@ -543,14 +463,17 @@ export async function calculateDualSystemBonuses(orderUserId: string, orderAmoun
         const { getBotInstance } = await import('../lib/bot-instance.js');
         const bot = await getBotInstance();
         
+        const user = await User.findById(partnerProfile.userId).lean();
+        if (!user) continue;
+        
         // Проверяем, активна ли партнерка
-        const isPartnerActive = await checkPartnerActivation(partnerProfile.userId);
+        const isPartnerActive = await checkPartnerActivation(partnerProfile.userId.toString());
         let notificationMessage = '';
         
         if (isPartnerActive) {
           // Если партнерка активна - показываем повышенный процент
           const percentage = referral.level === 1 ? 
-            (referral.referralType === 'DIRECT' ? '25%' : '15%') : 
+            (referral.referralType === PartnerProgramType.DIRECT ? '25%' : '15%') : 
             '5%';
           notificationMessage = `🎉 Ваш счет пополнен на сумму ${bonusAmount.toFixed(2)} PZ (${percentage}) от покупки вашего реферала!`;
         } else {
@@ -558,7 +481,7 @@ export async function calculateDualSystemBonuses(orderUserId: string, orderAmoun
           notificationMessage = `🎉 Ваш счет пополнен на сумму ${bonusAmount.toFixed(2)} PZ (10%) от покупки вашего реферала!\n\n💡 Если вы желаете получать повышенный % (25% или 15%+5%+5%), вам нужно активировать партнерку на 120 PZ товарооборота в месяц.`;
         }
         
-        await bot.telegram.sendMessage(partnerProfile.user.telegramId, notificationMessage);
+        await bot.telegram.sendMessage(user.telegramId, notificationMessage);
         console.log(`📱 Notification sent to partner ${partnerProfile.userId} about ${bonusAmount.toFixed(2)} PZ bonus`);
       } catch (error) {
         console.warn(`⚠️ Failed to send notification to partner ${partnerProfile.userId}:`, error);
@@ -570,26 +493,22 @@ export async function calculateDualSystemBonuses(orderUserId: string, orderAmoun
   return bonuses;
 }
 
-export async function createPartnerReferral(profileId: string, level: number, referredId?: string, contact?: string, referralType: 'DIRECT' | 'MULTI_LEVEL' = 'DIRECT') {
-  return prisma.partnerReferral.create({
-    data: {
-      profileId,
-      level,
-      referredId,
-      contact,
-      referralType,
-    },
+export async function createPartnerReferral(profileId: string, level: number, referredId?: string, contact?: string, referralType: PartnerProgramType = PartnerProgramType.DIRECT) {
+  return PartnerReferral.create({
+    profileId: profileId,
+    level,
+    referredId: referredId || undefined,
+    contact,
+    referralType,
   });
 }
 
-export async function upsertPartnerReferral(profileId: string, level: number, referredId?: string, contact?: string, referralType: 'DIRECT' | 'MULTI_LEVEL' = 'DIRECT') {
+export async function upsertPartnerReferral(profileId: string, level: number, referredId?: string, contact?: string, referralType: PartnerProgramType = PartnerProgramType.DIRECT) {
   // Check if referral already exists
-  const existingReferral = await prisma.partnerReferral.findFirst({
-    where: {
-      profileId,
-      referredId,
-      level
-    }
+  const existingReferral = await PartnerReferral.findOne({
+    profileId: profileId,
+    referredId: referredId || undefined,
+    level
   });
 
   if (existingReferral) {
@@ -598,13 +517,11 @@ export async function upsertPartnerReferral(profileId: string, level: number, re
   }
 
   // Create new referral if it doesn't exist
-  return prisma.partnerReferral.create({
-    data: {
-      profileId,
-      level,
-      referredId,
-      contact,
-      referralType,
-    },
+  return PartnerReferral.create({
+    profileId: profileId,
+    level,
+    referredId: referredId || undefined,
+    contact,
+    referralType,
   });
 }

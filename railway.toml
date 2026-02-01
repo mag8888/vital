@@ -4,7 +4,8 @@ installCommand = "npm install"
 buildCommand = "npm run prisma:generate && npm run migrate:deploy && npm run build"
 
 [deploy]
-startCommand = "npm start"
+# Явно запускаем через npm run, чтобы UI не перезаписывал команду
+startCommand = "npm run start"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
 

@@ -15,4 +15,4 @@ export declare const prisma: PrismaClient<{
         level: "error";
         emit: "event";
     })[];
-}, "info" | "warn" | "error", import("@prisma/client/runtime/library").DefaultArgs>;
+}, "error" | "info" | "warn", import("@prisma/client/runtime/library").DefaultArgs>;

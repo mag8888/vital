@@ -14,8 +14,8 @@ export declare function createAudioFile(data: AudioFileData): Promise<{
     description: string | null;
     createdAt: Date;
     updatedAt: Date;
-    category: string | null;
     isActive: boolean;
+    category: string | null;
     fileId: string;
     fileSize: number | null;
     mimeType: string | null;
@@ -27,8 +27,8 @@ export declare function getActiveAudioFiles(category?: string): Promise<{
     description: string | null;
     createdAt: Date;
     updatedAt: Date;
-    category: string | null;
     isActive: boolean;
+    category: string | null;
     fileId: string;
     fileSize: number | null;
     mimeType: string | null;
@@ -40,8 +40,8 @@ export declare function getAllAudioFiles(): Promise<{
     description: string | null;
     createdAt: Date;
     updatedAt: Date;
-    category: string | null;
     isActive: boolean;
+    category: string | null;
     fileId: string;
     fileSize: number | null;
     mimeType: string | null;
@@ -53,8 +53,8 @@ export declare function getAudioFileById(id: string): Promise<{
     description: string | null;
     createdAt: Date;
     updatedAt: Date;
-    category: string | null;
     isActive: boolean;
+    category: string | null;
     fileId: string;
     fileSize: number | null;
     mimeType: string | null;
@@ -68,8 +68,8 @@ export declare function updateAudioFile(id: string, data: Partial<AudioFileData 
     description: string | null;
     createdAt: Date;
     updatedAt: Date;
-    category: string | null;
     isActive: boolean;
+    category: string | null;
     fileId: string;
     fileSize: number | null;
     mimeType: string | null;
@@ -81,8 +81,8 @@ export declare function deleteAudioFile(id: string): Promise<{
     description: string | null;
     createdAt: Date;
     updatedAt: Date;
-    category: string | null;
     isActive: boolean;
+    category: string | null;
     fileId: string;
     fileSize: number | null;
     mimeType: string | null;
@@ -94,8 +94,8 @@ export declare function toggleAudioFileStatus(id: string): Promise<{
     description: string | null;
     createdAt: Date;
     updatedAt: Date;
-    category: string | null;
     isActive: boolean;
+    category: string | null;
     fileId: string;
     fileSize: number | null;
     mimeType: string | null;

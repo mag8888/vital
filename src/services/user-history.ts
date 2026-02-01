@@ -1,6 +1,7 @@
 import { Context } from '../bot/context.js';
-import { prisma } from '../lib/prisma.js';
+import { User, UserHistory, IUser } from '../models/index.js';
 import { Markup } from 'telegraf';
+import mongoose from 'mongoose';
 
 function generateObjectId(telegramId: number): string {
   // Convert Telegram ID to a valid MongoDB ObjectId (24 hex chars)
@@ -23,97 +24,71 @@ function isBotBlockedError(error: any): boolean {
 // Проверяет, является ли ошибка ошибкой подключения к БД
 function isDatabaseConnectionError(error: any): boolean {
   if (!error) return false;
-  const errorCode = error.code;
-  const errorMessage = error.message || error.meta?.message || '';
-  const errorKind = (error as any).kind || '';
+  const errorMessage = error.message || '';
   const errorName = error.name || '';
   
   return (
-    errorCode === 'P2010' || // Raw query failed
-    errorCode === 'P1001' || // Can't reach database server
-    errorCode === 'P1002' || // Connection timeout
-    errorCode === 'P1013' || // Invalid connection string
-    errorName === 'ConnectorError' || // Prisma connector errors
-    errorName === 'PrismaClientUnknownRequestError' || // Prisma unknown errors
-    errorMessage.includes('ConnectorError') ||
-    errorMessage.includes('Server selection timeout') ||
-    errorMessage.includes('No available servers') ||
-    errorMessage.includes('I/O error: timed out') ||
-    errorMessage.includes('Connection pool timeout') ||
-    errorMessage.includes('Transactions are not supported') || // MongoDB Atlas free tier
+    errorName === 'MongoServerError' ||
+    errorName === 'MongoNetworkError' ||
+    errorName === 'MongooseError' ||
+    errorMessage.includes('connection') ||
+    errorMessage.includes('timeout') ||
     errorMessage.includes('Authentication failed') ||
     errorMessage.includes('SCRAM failure') ||
-    errorMessage.includes('replica set') ||
-    errorKind.includes('AuthenticationFailed') ||
-    errorKind.includes('Authentication') ||
-    errorKind.includes('ConnectorError')
+    errorMessage.includes('Server selection timeout') ||
+    errorMessage.includes('No available servers')
   );
 }
 
-export async function ensureUser(ctx: Context) {
+export async function ensureUser(ctx: Context): Promise<IUser | null> {
   const from = ctx.from;
   if (!from) return null;
 
   const data = {
     telegramId: String(from.id),
-    firstName: from.first_name ?? null,
-    lastName: from.last_name ?? null,
-    username: from.username ?? null,
-    languageCode: from.language_code ?? null,
-  } as const;
+    firstName: from.first_name ?? undefined,
+    lastName: from.last_name ?? undefined,
+    username: from.username ?? undefined,
+    languageCode: from.language_code ?? undefined,
+  };
 
   try {
-    // Используем findUnique + create/update вместо upsert
-    // чтобы избежать транзакций (MongoDB Atlas free tier не поддерживает транзакции)
-    let user = await prisma.user.findUnique({
-      where: { telegramId: data.telegramId },
-    });
-
-    if (user) {
-      // Обновляем существующего пользователя
-      user = await prisma.user.update({
-        where: { telegramId: data.telegramId },
-        data: {
+    // Используем findOneAndUpdate с upsert для Mongoose
+    const user = await User.findOneAndUpdate(
+      { telegramId: data.telegramId },
+      {
+        $set: {
           firstName: data.firstName,
           lastName: data.lastName,
           username: data.username,
           languageCode: data.languageCode,
         },
-      });
-    } else {
-      // Создаем нового пользователя
-      user = await prisma.user.create({
-        data: {
-          ...data,
-          id: generateObjectId(from.id),
-        },
-      });
-    }
+      },
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+      }
+    );
 
     return user;
   } catch (error: any) {
-    // Проверяем, является ли это ошибкой подключения, транзакций или replica set
-    const errorMessage = error.message || error.meta?.message || '';
-    const isReplicaSetError = errorMessage.includes('replica set') || errorMessage.includes('replica set');
+    const errorMessage = error.message || '';
     
-    if (isDatabaseConnectionError(error) || isReplicaSetError) {
-      if (isReplicaSetError) {
-        console.warn('⚠️  Database requires replica set (Railway MongoDB limitation):', errorMessage.substring(0, 100));
-        console.warn('💡 To fix: Use MongoDB Atlas (supports replica set) or configure Railway MongoDB as replica set');
-        console.warn('💡 See MONGODB_ATLAS_REQUIRED.md for instructions');
-      } else {
-        console.warn('Database unavailable, using mock user:', errorMessage.substring(0, 100));
-      }
+    if (isDatabaseConnectionError(error)) {
+      console.warn('Database unavailable, using mock user:', errorMessage.substring(0, 100));
     } else {
       console.warn('Failed to ensure user:', errorMessage.substring(0, 100));
     }
+    
     // Return mock user object to continue without DB
     return {
-      id: generateObjectId(from.id),
+      _id: generateObjectId(from.id),
       ...data,
+      balance: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
-    };
+    } as IUser;
   }
 }
 
@@ -132,7 +107,7 @@ export async function checkUserContact(ctx: Context): Promise<boolean> {
   }
 
   // Если нет username, но есть phone - всё ок
-  if ((user as any).phone) {
+  if (user.phone) {
     return true;
   }
 
@@ -179,10 +154,7 @@ export async function handlePhoneNumber(ctx: Context): Promise<void> {
     if (!user) return;
 
     try {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { phone: phoneNumber } as any
-      });
+      await User.findByIdAndUpdate(user._id, { phone: phoneNumber });
     } catch (dbError) {
       // Если БД недоступна, просто логируем и продолжаем
       if (isDatabaseConnectionError(dbError)) {
@@ -250,12 +222,10 @@ export async function logUserAction(ctx: Context, action: string, payload?: any)
     const user = await ensureUser(ctx);
     if (!user) return;
 
-    await prisma.userHistory.create({
-      data: {
-        userId: user.id,
-        action,
-        payload: payload ?? undefined,
-      },
+    await UserHistory.create({
+      userId: user._id,
+      action,
+      payload: payload ?? undefined,
     });
   } catch (error: any) {
     // Проверяем, является ли это ошибкой подключения/аутентификации
