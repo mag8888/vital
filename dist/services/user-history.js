@@ -22,10 +22,14 @@ function isDatabaseConnectionError(error) {
     const errorCode = error.code;
     const errorMessage = error.message || error.meta?.message || '';
     const errorKind = error.kind || '';
+    const errorName = error.name || '';
     return (errorCode === 'P2010' || // Raw query failed
         errorCode === 'P1001' || // Can't reach database server
         errorCode === 'P1002' || // Connection timeout
         errorCode === 'P1013' || // Invalid connection string
+        errorName === 'ConnectorError' || // Prisma connector errors
+        errorName === 'PrismaClientUnknownRequestError' || // Prisma unknown errors
+        errorMessage.includes('ConnectorError') ||
         errorMessage.includes('Server selection timeout') ||
         errorMessage.includes('No available servers') ||
         errorMessage.includes('I/O error: timed out') ||
@@ -33,8 +37,10 @@ function isDatabaseConnectionError(error) {
         errorMessage.includes('Transactions are not supported') || // MongoDB Atlas free tier
         errorMessage.includes('Authentication failed') ||
         errorMessage.includes('SCRAM failure') ||
+        errorMessage.includes('replica set') ||
         errorKind.includes('AuthenticationFailed') ||
-        errorKind.includes('Authentication'));
+        errorKind.includes('Authentication') ||
+        errorKind.includes('ConnectorError'));
 }
 export async function ensureUser(ctx) {
     const from = ctx.from;

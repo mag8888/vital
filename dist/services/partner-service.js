@@ -86,18 +86,38 @@ export async function getPartnerActivationHistory(profileId) {
     });
 }
 export async function checkPartnerActivation(userId) {
-    const profile = await prisma.partnerProfile.findUnique({ where: { userId } });
-    if (!profile)
-        return false;
-    // Проверяем, активен ли профиль и не истек ли срок
-    if (!profile.isActive)
-        return false;
-    // Проверяем срок, но НЕ деактивируем автоматически
-    // Деактивация должна происходить явно в других местах (например, при открытии дашборда партнера)
-    if (profile.expiresAt && new Date() > profile.expiresAt) {
-        return false; // Срок истек, но не деактивируем здесь
+    try {
+        const profile = await prisma.partnerProfile.findUnique({ where: { userId } });
+        if (!profile)
+            return false;
+        // Проверяем, активен ли профиль и не истек ли срок
+        if (!profile.isActive)
+            return false;
+        // Проверяем срок, но НЕ деактивируем автоматически
+        // Деактивация должна происходить явно в других местах (например, при открытии дашборда партнера)
+        if (profile.expiresAt && new Date() > profile.expiresAt) {
+            return false; // Срок истек, но не деактивируем здесь
+        }
+        return true;
     }
-    return true;
+    catch (error) {
+        // Обрабатываем ошибки БД (аутентификация, подключение и т.д.)
+        const errorCode = error.code;
+        const errorMessage = error.message || error.meta?.message || '';
+        const errorKind = error.kind || '';
+        const errorName = error.name || '';
+        const isDbError = errorCode === 'P2010' || errorCode === 'P1001' || errorCode === 'P1002' || errorCode === 'P1013' ||
+            errorName === 'ConnectorError' || errorName === 'PrismaClientUnknownRequestError' ||
+            errorMessage.includes('ConnectorError') || errorMessage.includes('Authentication failed') ||
+            errorMessage.includes('SCRAM failure') || errorMessage.includes('replica set') ||
+            errorKind.includes('AuthenticationFailed') || errorKind.includes('ConnectorError');
+        if (isDbError) {
+            console.warn('Database unavailable for partner check (non-critical):', errorMessage.substring(0, 100));
+            return false; // Возвращаем false при ошибке БД
+        }
+        // Для других ошибок пробрасываем дальше
+        throw error;
+    }
 }
 /**
  * Проверяет и автоматически деактивирует истекшие профили
