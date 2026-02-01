@@ -83,12 +83,21 @@ export async function ensureUser(ctx) {
         return user;
     }
     catch (error) {
-        // Проверяем, является ли это ошибкой подключения или транзакций
-        if (isDatabaseConnectionError(error)) {
-            console.warn('Database unavailable, using mock user:', error.message?.substring(0, 100));
+        // Проверяем, является ли это ошибкой подключения, транзакций или replica set
+        const errorMessage = error.message || error.meta?.message || '';
+        const isReplicaSetError = errorMessage.includes('replica set') || errorMessage.includes('replica set');
+        if (isDatabaseConnectionError(error) || isReplicaSetError) {
+            if (isReplicaSetError) {
+                console.warn('⚠️  Database requires replica set (Railway MongoDB limitation):', errorMessage.substring(0, 100));
+                console.warn('💡 To fix: Use MongoDB Atlas (supports replica set) or configure Railway MongoDB as replica set');
+                console.warn('💡 See MONGODB_ATLAS_REQUIRED.md for instructions');
+            }
+            else {
+                console.warn('Database unavailable, using mock user:', errorMessage.substring(0, 100));
+            }
         }
         else {
-            console.warn('Failed to ensure user:', error.message?.substring(0, 100));
+            console.warn('Failed to ensure user:', errorMessage.substring(0, 100));
         }
         // Return mock user object to continue without DB
         return {
