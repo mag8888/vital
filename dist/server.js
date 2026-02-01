@@ -182,21 +182,63 @@ async function bootstrap() {
             console.error('Failed to register bot commands:', error);
         }
         console.log('Starting bot in long polling mode...');
-        // Clear any existing webhook first
-        try {
-            await bot.telegram.deleteWebhook();
-            console.log('Cleared existing webhook');
+        // Clear any existing webhook first with retry
+        let webhookCleared = false;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+                console.log('✅ Cleared existing webhook');
+                webhookCleared = true;
+                break;
+            }
+            catch (error) {
+                if (error.response?.error_code === 409) {
+                    console.log(`⚠️  Webhook conflict (attempt ${attempt}/3), waiting before retry...`);
+                    await new Promise(resolve => setTimeout(resolve, 2000 * attempt)); // Exponential backoff
+                }
+                else {
+                    console.log('No webhook to clear or error clearing:', error instanceof Error ? error.message : String(error));
+                    webhookCleared = true; // Continue anyway
+                    break;
+                }
+            }
         }
-        catch (error) {
-            console.log('No webhook to clear or error clearing:', error instanceof Error ? error.message : String(error));
+        // Wait a bit to ensure old instances are stopped
+        if (!webhookCleared) {
+            console.log('⏳ Waiting 5 seconds for other bot instances to stop...');
+            await new Promise(resolve => setTimeout(resolve, 5000));
         }
-        // Try to launch bot with error handling
-        try {
-            await bot.launch();
-            console.log('Bot launched successfully');
+        else {
+            // Still wait a bit to be safe
+            await new Promise(resolve => setTimeout(resolve, 2000));
         }
-        catch (error) {
-            console.error('Bot launch failed, but web server is running:', error);
+        // Try to launch bot with retry logic
+        let botLaunched = false;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                await bot.launch({
+                    dropPendingUpdates: true, // Drop pending updates to avoid conflicts
+                });
+                console.log('✅ Bot launched successfully');
+                botLaunched = true;
+                break;
+            }
+            catch (error) {
+                if (error.response?.error_code === 409) {
+                    const waitTime = 3000 * attempt; // 3s, 6s, 9s
+                    console.log(`⚠️  Bot conflict detected (attempt ${attempt}/3), waiting ${waitTime / 1000}s before retry...`);
+                    console.log('💡 This usually means another bot instance is still running. Railway will stop it automatically.');
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                }
+                else {
+                    console.error('❌ Bot launch failed, but web server is running:', error);
+                    break; // Don't retry for other errors
+                }
+            }
+        }
+        if (!botLaunched) {
+            console.error('❌ Failed to launch bot after 3 attempts. Web server will continue running.');
+            console.log('💡 The bot may start on next deployment when old instances are fully stopped.');
         }
         process.once('SIGINT', () => {
             void bot.stop('SIGINT');

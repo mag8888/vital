@@ -3,9 +3,17 @@ import { PrismaClient } from '@prisma/client';
 const dbUrl = process.env.DATABASE_URL || process.env.MONGO_URL;
 if (dbUrl) {
     console.log('Database URL configured:', dbUrl.substring(0, 30) + '...');
+    // Проверяем, используется ли Railway MongoDB (Reference Variable)
+    if (dbUrl.includes('${{') || dbUrl.includes('mongodb://mongo')) {
+        console.log('✅ Railway MongoDB detected');
+    }
+    else if (dbUrl.includes('mongodb+srv://') && dbUrl.includes('mongodb.net')) {
+        console.log('⚠️  MongoDB Atlas detected (consider switching to Railway MongoDB)');
+    }
 }
 else {
-    console.error('DATABASE_URL or MONGO_URL not found in environment variables');
+    console.error('❌ DATABASE_URL or MONGO_URL not found in environment variables');
+    console.error('💡 To use Railway MongoDB, set DATABASE_URL=${{MongoDB.MONGO_URL}}');
 }
 // Fix MongoDB connection string for Railway and Atlas compatibility
 let fixedDbUrl = undefined;
@@ -43,6 +51,12 @@ if (dbUrl) {
                     urlObj.pathname = `/${defaultDb}`;
                     url = urlObj.toString();
                     console.log(`Added default database name: ${defaultDb}`);
+                }
+                // Для Railway MongoDB добавляем authSource=admin если его нет
+                if (!urlObj.searchParams.has('authSource')) {
+                    urlObj.searchParams.set('authSource', 'admin');
+                    url = urlObj.toString();
+                    console.log('Added authSource=admin for Railway MongoDB');
                 }
             }
             catch (urlError) {
