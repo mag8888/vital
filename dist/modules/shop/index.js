@@ -382,7 +382,17 @@ async function handleBuy(ctx, productId) {
     // Check if user has active partner program
     const { checkPartnerActivation } = await import('../../services/partner-service.js');
     const { calculatePriceWithDiscount } = await import('../../services/cart-service.js');
-    const hasPartnerDiscount = await checkPartnerActivation(user.id);
+    let hasPartnerDiscount = false;
+    try {
+        hasPartnerDiscount = await Promise.race([
+            checkPartnerActivation(user.id),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 3000))
+        ]);
+    }
+    catch (error) {
+        console.warn('Failed to check partner activation (non-critical):', error);
+        // Продолжаем с false
+    }
     const cartItems = await getCartItems(user.id);
     // Create full items list including main product
     const allItems = [...cartItems];
