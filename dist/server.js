@@ -18,11 +18,12 @@ async function bootstrap() {
         // Try to connect to database first
         try {
             await prisma.$connect();
-            console.log('Database connected');
+            console.log('✅ Database connected');
         }
         catch (connectError) {
             const errorMessage = connectError.message || connectError.meta?.message || '';
             const errorKind = connectError.kind || '';
+            const errorName = connectError.name || '';
             if (errorMessage.includes('Authentication failed') ||
                 errorMessage.includes('SCRAM failure') ||
                 errorKind.includes('AuthenticationFailed')) {
@@ -37,6 +38,24 @@ async function bootstrap() {
                 console.error('   3. Check if MONGO_URL format is correct');
                 console.error('');
                 console.warn('⚠️  Bot will continue with mock data until database is fixed.');
+                // Не пробрасываем ошибку, чтобы бот продолжал работать
+            }
+            else if (errorMessage.includes('replica set') ||
+                errorMessage.includes('replica set') ||
+                errorName === 'PrismaClientUnknownRequestError') {
+                console.error('❌ MongoDB Replica Set Error:');
+                console.error('   Prisma requires replica set for write operations.');
+                console.error('   Railway MongoDB needs to be configured as replica set.');
+                console.error('');
+                console.error('   Quick fix:');
+                console.error('   1. Run: railway run mongosh');
+                console.error('   2. Execute: rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "localhost:27017" }] })');
+                console.error('   3. Add replicaSet=rs0 to DATABASE_URL');
+                console.error('');
+                console.error('   See QUICK_RAILWAY_MONGODB_SETUP.md for detailed instructions.');
+                console.error('   Or use MongoDB Atlas (supports replica set out of the box).');
+                console.error('');
+                console.warn('⚠️  Bot will continue with limited functionality until replica set is configured.');
                 // Не пробрасываем ошибку, чтобы бот продолжал работать
             }
             else {
