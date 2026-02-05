@@ -29,6 +29,8 @@ export const env = {
   videoUrl: process.env.VIDEO_URL || 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
   plazmaApiKey: process.env.PLAZMA_API_KEY || process.env.EXTERNAL_API_KEY || '',
   plazmaApiUrl: process.env.PLAZMA_API_URL || process.env.PUBLIC_BASE_URL || process.env.WEBAPP_BASE_URL || 'https://plazma.up.railway.app',
+  /** Папка в Cloudinary с аудио для «Звуковые матрицы» (если в БД нет записей) */
+  cloudinaryAudioFolder: process.env.CLOUDINARY_AUDIO_FOLDER || '',
 };
 
 // Helper function to get all admin chat IDs

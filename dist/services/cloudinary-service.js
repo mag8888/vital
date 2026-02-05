@@ -130,5 +130,27 @@ export function getImageUrl(publicId, transformations = []) {
 export function isCloudinaryConfigured() {
     return !!(cloudName && apiKey && apiSecret);
 }
+/**
+ * List resources in Cloudinary by prefix (folder) and optional resource type
+ */
+export async function listCloudinaryResources(prefix, resourceType = 'raw', maxResults = 100) {
+    if (!cloudName || !apiKey || !apiSecret) {
+        throw new Error('Cloudinary is not configured.');
+    }
+    const result = await cloudinary.api.resources({
+        type: 'upload',
+        prefix,
+        resource_type: resourceType,
+        max_results: maxResults,
+    });
+    return (result.resources || []);
+}
+/**
+ * Search for resources (e.g. audio) in folder - supports raw and video
+ */
+export async function searchCloudinaryByFolder(folder, options = {}) {
+    const { resourceType = 'raw', maxResults = 200 } = options;
+    return listCloudinaryResources(folder, resourceType, maxResults);
+}
 // Export configured cloudinary instance
 export { cloudinary };

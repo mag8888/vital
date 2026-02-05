@@ -14,6 +14,8 @@ export declare const env: {
     videoUrl: string;
     plazmaApiKey: string;
     plazmaApiUrl: string;
+    /** Папка в Cloudinary с аудио для «Звуковые матрицы» (если в БД нет записей) */
+    cloudinaryAudioFolder: string;
 };
 export declare function getAdminChatIds(): string[];
 export declare function sendToAllAdmins(bot: any, message: string): Promise<void>;

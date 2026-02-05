@@ -192,6 +192,48 @@ export function isCloudinaryConfigured(): boolean {
   return !!(cloudName && apiKey && apiSecret);
 }
 
+export type CloudinaryResourceType = 'image' | 'video' | 'raw' | 'auto';
+
+export interface CloudinaryResource {
+  public_id: string;
+  secure_url: string;
+  resource_type: string;
+  format?: string;
+  created_at?: string;
+  bytes?: number;
+}
+
+/**
+ * List resources in Cloudinary by prefix (folder) and optional resource type
+ */
+export async function listCloudinaryResources(
+  prefix: string,
+  resourceType: CloudinaryResourceType = 'raw',
+  maxResults: number = 100
+): Promise<CloudinaryResource[]> {
+  if (!cloudName || !apiKey || !apiSecret) {
+    throw new Error('Cloudinary is not configured.');
+  }
+  const result = await cloudinary.api.resources({
+    type: 'upload',
+    prefix,
+    resource_type: resourceType,
+    max_results: maxResults,
+  });
+  return (result.resources || []) as CloudinaryResource[];
+}
+
+/**
+ * Search for resources (e.g. audio) in folder - supports raw and video
+ */
+export async function searchCloudinaryByFolder(
+  folder: string,
+  options: { resourceType?: CloudinaryResourceType; maxResults?: number } = {}
+): Promise<CloudinaryResource[]> {
+  const { resourceType = 'raw', maxResults = 200 } = options;
+  return listCloudinaryResources(folder, resourceType, maxResults);
+}
+
 // Export configured cloudinary instance
 export { cloudinary };
 

@@ -35,4 +35,24 @@ export declare function getImageUrl(publicId: string, transformations?: any[]): 
  * Check if Cloudinary is configured
  */
 export declare function isCloudinaryConfigured(): boolean;
+export type CloudinaryResourceType = 'image' | 'video' | 'raw' | 'auto';
+export interface CloudinaryResource {
+    public_id: string;
+    secure_url: string;
+    resource_type: string;
+    format?: string;
+    created_at?: string;
+    bytes?: number;
+}
+/**
+ * List resources in Cloudinary by prefix (folder) and optional resource type
+ */
+export declare function listCloudinaryResources(prefix: string, resourceType?: CloudinaryResourceType, maxResults?: number): Promise<CloudinaryResource[]>;
+/**
+ * Search for resources (e.g. audio) in folder - supports raw and video
+ */
+export declare function searchCloudinaryByFolder(folder: string, options?: {
+    resourceType?: CloudinaryResourceType;
+    maxResults?: number;
+}): Promise<CloudinaryResource[]>;
 export { cloudinary };

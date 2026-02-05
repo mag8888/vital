@@ -1,6 +1,8 @@
 import { ensureUser, logUserAction } from '../../services/user-history.js';
 import { createAudioFile, getActiveAudioFiles, getAllAudioFiles, formatDuration, getAudioFileById } from '../../services/audio-service.js';
 import { getAdminChatIds } from '../../config/env.js';
+import { env } from '../../config/env.js';
+import { isCloudinaryConfigured, listCloudinaryResources } from '../../services/cloudinary-service.js';
 export async function showAudioFiles(ctx, category) {
     await logUserAction(ctx, 'audio:show_files', { category });
     try {
@@ -11,6 +13,30 @@ export async function showAudioFiles(ctx, category) {
             files: audioFiles.map(f => ({ title: f.title, category: f.category, isActive: f.isActive }))
         });
         if (audioFiles.length === 0) {
+            if (category === 'gift' && env.cloudinaryAudioFolder && isCloudinaryConfigured()) {
+                try {
+                    const raw = await listCloudinaryResources(env.cloudinaryAudioFolder, 'raw', 50);
+                    const video = await listCloudinaryResources(env.cloudinaryAudioFolder, 'video', 50);
+                    const fromCloudinary = [...raw, ...video].filter((r) => r.secure_url && /\.(mp3|m4a|ogg|wav|aac|webm|mp4)$/i.test(r.secure_url));
+                    if (fromCloudinary.length > 0) {
+                        console.log('🎵 Using audio from Cloudinary folder:', env.cloudinaryAudioFolder, fromCloudinary.length);
+                        for (let i = 0; i < fromCloudinary.length; i++) {
+                            const r = fromCloudinary[i];
+                            const name = r.public_id.split('/').pop() || `Аудио ${i + 1}`;
+                            await ctx.reply(`🎵 ${name}`, {
+                                reply_markup: {
+                                    inline_keyboard: [[{ text: '🎶 Слушать', url: r.secure_url }]],
+                                },
+                            });
+                        }
+                        await ctx.reply('💡 Откройте ссылки выше для прослушивания в браузере.');
+                        return;
+                    }
+                }
+                catch (e) {
+                    console.warn('Cloudinary audio fallback failed:', e?.message);
+                }
+            }
             console.log('❌ No audio files found for category:', category);
             await ctx.reply('🎵 Звуковые матрицы\n\nПока нет доступных аудиофайлов.');
             return;
