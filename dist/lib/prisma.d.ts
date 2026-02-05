@@ -5,14 +5,5 @@ export declare const prisma: PrismaClient<{
             url: string;
         };
     } | undefined;
-    log: ({
-        level: "info";
-        emit: "event";
-    } | {
-        level: "warn";
-        emit: "event";
-    } | {
-        level: "error";
-        emit: "event";
-    })[];
-}, "error" | "info" | "warn", import("@prisma/client/runtime/library").DefaultArgs>;
+    log: ("query" | "info" | "warn" | "error")[];
+}, never, import("@prisma/client/runtime/library").DefaultArgs>;

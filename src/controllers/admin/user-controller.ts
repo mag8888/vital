@@ -217,7 +217,7 @@ export class UserControllerImpl extends BaseControllerClass implements UserContr
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Admin Dashboard - Plazma Bot</title>
+        <title>Admin Dashboard - Vital Bot</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
@@ -287,7 +287,7 @@ export class UserControllerImpl extends BaseControllerClass implements UserContr
       </head>
       <body>
         <div class="header">
-          <h1>🚀 Plazma Bot Admin Dashboard</h1>
+          <h1>🚀 Vital Bot Admin Dashboard</h1>
         </div>
         
         <div class="stats-grid">
@@ -325,7 +325,7 @@ export class UserControllerImpl extends BaseControllerClass implements UserContr
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Users Management - Plazma Bot</title>
+        <title>Users Management - Vital Bot</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>

@@ -1,6 +1,27 @@
 import { Context } from '../bot/context.js';
-import { IUser } from '../models/index.js';
-export declare function ensureUser(ctx: Context): Promise<IUser | null>;
+export declare function ensureUser(ctx: Context): Promise<{
+    id: string;
+    telegramId: string;
+    firstName: string | null;
+    lastName: string | null;
+    username: string | null;
+    languageCode: string | null;
+    phone: string | null;
+    selectedRegion: import(".prisma/client").$Enums.Region | null;
+    deliveryAddress: string | null;
+    balance: number;
+    createdAt: Date;
+    updatedAt: Date;
+} | {
+    createdAt: Date;
+    updatedAt: Date;
+    telegramId: string;
+    firstName: string;
+    lastName: string | null;
+    username: string | null;
+    languageCode: string | null;
+    id: string;
+} | null>;
 /**
  * Проверяет наличие username и phone у пользователя
  * Если username отсутствует и phone тоже отсутствует - запрашивает номер телефона

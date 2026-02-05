@@ -3,136 +3,61 @@ import { ensureUser, logUserAction } from '../../services/user-history.js';
 import { getActiveCategories, getCategoryById, getProductById, getProductsByCategory } from '../../services/shop-service.js';
 import { addProductToCart, cartItemsToText, getCartItems } from '../../services/cart-service.js';
 import { createOrderRequest } from '../../services/order-service.js';
-import { checkPartnerActivation } from '../../services/partner-service.js';
+import { env } from '../../config/env.js';
+import { prisma } from '../../lib/prisma.js';
 const CATEGORY_ACTION_PREFIX = 'shop:cat:';
 const PRODUCT_MORE_PREFIX = 'shop:prod:more:';
 const PRODUCT_CART_PREFIX = 'shop:prod:cart:';
 const PRODUCT_BUY_PREFIX = 'shop:prod:buy:';
 const PRODUCT_INSTRUCTION_PREFIX = 'shop:prod:instruction:';
 const REGION_SELECT_PREFIX = 'shop:region:';
-const SHOP_PHOTO_URL = 'https://res.cloudinary.com/dt4r1tigf/image/upload/v1765250936/plazma-bot/photos/a1zkrn91ay1mm6r7vysh.jpg';
 export async function showRegionSelection(ctx) {
     await logUserAction(ctx, 'shop:region_selection');
     await ctx.reply('🌍 Выберите ваш регион для просмотра доступных товаров:', Markup.inlineKeyboard([
         [
             Markup.button.callback('🇷🇺 Россия', `${REGION_SELECT_PREFIX}RUSSIA`),
             Markup.button.callback('🇮🇩 Бали', `${REGION_SELECT_PREFIX}BALI`)
-        ],
-        [
-            Markup.button.callback('🇦🇪 Дубай', `${REGION_SELECT_PREFIX}DUBAI`),
-            Markup.button.callback('🇰🇿 Казахстан', `${REGION_SELECT_PREFIX}KAZAKHSTAN`)
-        ],
-        [
-            Markup.button.callback('🇧🇾 Беларусь', `${REGION_SELECT_PREFIX}BELARUS`),
-            Markup.button.callback('🌐 Другое', `${REGION_SELECT_PREFIX}OTHER`)
         ]
     ]));
 }
 export async function showCategories(ctx, region) {
-    console.log('🛍️ showCategories called, region:', region);
-    // If region not provided, try to get it from user
-    if (!region) {
-        const user = await ensureUser(ctx);
-        region = user?.selectedRegion || 'RUSSIA';
-        console.log('🛍️ Region from user:', region);
-    }
-    await logUserAction(ctx, 'shop:open', { region });
+    // Регион больше не используется, всегда показываем все товары
+    await logUserAction(ctx, 'shop:open');
     try {
-        console.log('🛍️ Loading categories for region:', region);
-        // Добавляем таймаут для операций БД
-        let categories = [];
-        try {
-            categories = await Promise.race([
-                getActiveCategories(),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 5000))
-            ]);
-            console.log('🛍️ Found active categories:', categories.length);
-        }
-        catch (dbError) {
-            console.error('❌ Error loading categories from DB:', dbError.message?.substring(0, 100));
-            // Продолжаем с пустым массивом категорий
-            categories = [];
-        }
+        console.log('🛍️ Loading categories...');
+        const categories = await getActiveCategories();
+        console.log('🛍️ Found active categories:', categories.length);
         // Debug: also check all categories
-        try {
-            const { Category } = await import('../../models/index.js');
-            const allCategories = await Category.find().lean();
-            console.log('🛍️ Total categories in DB:', allCategories.length);
-            allCategories.forEach((cat) => {
-                console.log(`  - ${cat.name} (ID: ${cat._id?.toString() || cat.id}, Active: ${cat.isActive})`);
-            });
-        }
-        catch (error) {
-            console.warn('Failed to fetch all categories for debug (non-critical):', error);
-        }
+        const allCategories = await prisma.category.findMany();
+        console.log('🛍️ Total categories in DB:', allCategories.length);
+        allCategories.forEach(cat => {
+            console.log(`  - ${cat.name} (ID: ${cat.id}, Active: ${cat.isActive})`);
+        });
         if (categories.length === 0) {
             console.log('🛍️ No active categories found, showing empty message');
             // Получаем баланс пользователя
             const user = await ensureUser(ctx);
-            if (!user) {
-                await ctx.reply('❌ Ошибка загрузки данных пользователя.');
-                return;
-            }
             const userBalance = Number(user?.balance || 0);
-            // Check partner program status with timeout
-            let hasPartnerDiscount = false;
-            try {
-                const userId = user._id?.toString() || '';
-                hasPartnerDiscount = await Promise.race([
-                    checkPartnerActivation(userId),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 3000))
-                ]);
-            }
-            catch (error) {
-                console.warn('Failed to check partner activation (non-critical):', error);
-                // Продолжаем с false
-            }
-            let partnerInfo = '';
-            if (hasPartnerDiscount) {
-                partnerInfo = '\n\n🎁 Ваша скидка 10%\n✅ У вас активная партнерская программа';
-            }
-            else {
-                partnerInfo = '\n\n❌ У вас не активна бонус программа, для активации нужно сделать покупку на 120PZ=12000р';
-            }
-            // Отправляем фото с описанием каталога в качестве caption
-            const catalogText = `🛍️ Каталог товаров Plazma Water\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ${partnerInfo}\n\nКаталог пока пуст. Добавьте категории и товары в админке.`;
-            try {
-                await ctx.replyWithPhoto(SHOP_PHOTO_URL, {
-                    caption: catalogText,
-                });
-            }
-            catch (error) {
-                console.error('Error sending shop photo:', error);
-                // Fallback: отправляем без фото, если ошибка
-                await ctx.reply(catalogText);
-            }
+            await ctx.reply(`🛍️ Каталог товаров Vital\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ\n\nКаталог пока пуст. Добавьте категории и товары в админке.`);
             return;
         }
-        // Show catalog with products grouped by categories
-        const regionEmoji = region === 'RUSSIA' ? '🇷🇺' : region === 'BALI' ? '🇮🇩' : region === 'DUBAI' ? '🇦🇪' : region === 'KAZAKHSTAN' ? '🇰🇿' : region === 'BELARUS' ? '🇧🇾' : '🌐';
-        const regionText = region === 'RUSSIA' ? 'Россия' : region === 'BALI' ? 'Бали' : region === 'DUBAI' ? 'Дубай' : region === 'KAZAKHSTAN' ? 'Казахстан' : region === 'BELARUS' ? 'Беларусь' : region === 'OTHER' ? 'Другое' : 'Все регионы';
         // Get cart items count
         const user = await ensureUser(ctx);
         let cartItemsCount = 0;
         if (user) {
             try {
-                const userId = user._id?.toString() || '';
-                const cartItems = await Promise.race([
-                    getCartItems(userId),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 3000))
-                ]);
+                const cartItems = await getCartItems(user.id);
                 cartItemsCount = cartItems.reduce((sum, item) => sum + (item.quantity ?? 0), 0);
             }
             catch (error) {
-                console.warn('Failed to get cart items count (non-critical):', error);
-                // Продолжаем с 0
+                console.warn('Failed to get cart items count:', error);
             }
         }
         const keyboard = [
             ...categories.map((category) => [
                 {
                     text: `📂 ${category.name}`,
-                    callback_data: `${CATEGORY_ACTION_PREFIX}${category._id?.toString() || category.id || ''}`,
+                    callback_data: `${CATEGORY_ACTION_PREFIX}${category.id}`,
                 },
             ]),
             [
@@ -140,102 +65,22 @@ export async function showCategories(ctx, region) {
                     text: `🛒 Корзина${cartItemsCount > 0 ? ` (${cartItemsCount})` : ''}`,
                     callback_data: 'shop:cart',
                 },
-            ],
-            [
-                {
-                    text: `🔄 Сменить регион (${regionEmoji} ${regionText})`,
-                    callback_data: `${REGION_SELECT_PREFIX}change`,
-                },
             ]
         ];
         // Получаем баланс пользователя
-        if (!user) {
-            await ctx.reply('❌ Ошибка загрузки данных пользователя.');
-            return;
-        }
         const userBalance = Number(user?.balance || 0);
-        // Check partner program status with timeout
-        let hasPartnerDiscount = false;
-        try {
-            hasPartnerDiscount = await Promise.race([
-                checkPartnerActivation(user._id.toString()),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 3000))
-            ]);
-        }
-        catch (error) {
-            console.warn('Failed to check partner activation (non-critical):', error);
-            // Продолжаем с false
-        }
-        let partnerInfo = '';
-        if (hasPartnerDiscount) {
-            partnerInfo = '\n\n🎁 Ваша скидка 10%\n✅ У вас активная партнерская программа';
-        }
-        else {
-            partnerInfo = '\n\n❌ У вас не активна бонус программа, для активации нужно сделать покупку на 120PZ=12000р';
-        }
-        // Отправляем фото с описанием каталога в качестве caption
-        const catalogText = `🛍️ Каталог товаров Plazma Water\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ\n📍 Регион: ${regionEmoji} ${regionText}${partnerInfo}\n\nВыберите категорию:`;
-        console.log('🛍️ Sending shop photo with URL:', SHOP_PHOTO_URL);
-        try {
-            await ctx.replyWithPhoto(SHOP_PHOTO_URL, {
-                caption: catalogText,
-                reply_markup: {
-                    inline_keyboard: keyboard,
-                },
-            });
-            console.log('✅ Shop photo sent successfully');
-        }
-        catch (error) {
-            console.error('❌ Error sending shop photo:', error);
-            // Fallback: отправляем без фото, если ошибка
-            console.log('🔄 Falling back to text-only message');
-            await ctx.reply(catalogText, {
-                reply_markup: {
-                    inline_keyboard: keyboard,
-                },
-            });
-        }
+        await ctx.reply(`🛍️ Каталог товаров Vital\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ\n\nВыберите категорию:`, {
+            reply_markup: {
+                inline_keyboard: keyboard,
+            },
+        });
     }
     catch (error) {
         console.error('Error loading categories:', error);
         // Получаем баланс пользователя
         const user = await ensureUser(ctx);
-        if (!user) {
-            await ctx.reply('❌ Ошибка загрузки данных пользователя.');
-            return;
-        }
         const userBalance = Number(user?.balance || 0);
-        // Check partner program status with timeout
-        let hasPartnerDiscount = false;
-        try {
-            hasPartnerDiscount = await Promise.race([
-                checkPartnerActivation(user._id.toString()),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 3000))
-            ]);
-        }
-        catch (error) {
-            console.warn('Failed to check partner activation (non-critical):', error);
-            // Продолжаем с false
-        }
-        let partnerInfo = '';
-        if (hasPartnerDiscount) {
-            partnerInfo = '\n\n🎁 Ваша скидка 10%\n✅ У вас активная партнерская программа';
-        }
-        else {
-            partnerInfo = '\n\n❌ У вас не активна бонус программа, для активации нужно сделать покупку на 120PZ=12000р';
-        }
-        // Отправляем фото с описанием каталога в качестве caption
-        const catalogText = `🛍️ Каталог товаров Plazma Water\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ${partnerInfo}\n\n❌ Ошибка загрузки каталога. Попробуйте позже.`;
-        try {
-            await ctx.replyWithPhoto(SHOP_PHOTO_URL, {
-                caption: catalogText,
-            });
-        }
-        catch (error) {
-            console.error('Error sending shop photo:', error);
-            // Fallback: отправляем без фото, если ошибка
-            await ctx.reply(catalogText);
-        }
+        await ctx.reply(`🛍️ Каталог товаров Vital\n\n💰 Баланс: ${userBalance.toFixed(2)} PZ\n\n❌ Ошибка загрузки каталога. Попробуйте позже.`);
     }
 }
 function formatProductMessage(product) {
@@ -243,28 +88,16 @@ function formatProductMessage(product) {
     const rubPrice = (pzPrice * 100).toFixed(2);
     return `💧 ${product.title}\n${product.summary}\n\nЦена: ${rubPrice} ₽ / ${pzPrice} PZ`;
 }
-async function sendProductCards(ctx, categoryId, region) {
+async function sendProductCards(ctx, categoryId) {
     try {
         const category = await getCategoryById(categoryId);
         if (!category) {
             await ctx.reply('❌ Категория не найдена.');
             return;
         }
-        let products = await getProductsByCategory(categoryId);
-        // Filter products by region
-        if (region === 'RUSSIA') {
-            products = products.filter((product) => product.availableInRussia);
-        }
-        else if (region === 'BALI') {
-            products = products.filter((product) => product.availableInBali);
-        }
-        else if (region === 'DUBAI' || region === 'KAZAKHSTAN' || region === 'BELARUS' || region === 'OTHER') {
-            // Для новых регионов показываем все товары (можно будет добавить отдельные флаги в БД позже)
-            // products = products; // уже все товары
-        }
+        const products = await getProductsByCategory(categoryId);
         if (products.length === 0) {
-            const regionText = region === 'RUSSIA' ? 'России' : region === 'BALI' ? 'Бали' : region === 'DUBAI' ? 'Дубая' : region === 'KAZAKHSTAN' ? 'Казахстана' : region === 'BELARUS' ? 'Беларуси' : region === 'OTHER' ? 'других регионов' : '';
-            await ctx.reply(`📂 ${category.name}\n\nВ этой категории нет товаров для ${regionText}.`);
+            await ctx.reply(`📂 ${category.name}\n\nВ этой категории пока нет товаров.`);
             return;
         }
         // Show category header
@@ -277,18 +110,18 @@ async function sendProductCards(ctx, categoryId, region) {
             // Первая строка: Подробнее + Инструкция
             const firstRow = [];
             if (product.description) {
-                firstRow.push(Markup.button.callback('📖 Подробнее', `${PRODUCT_MORE_PREFIX}${product._id?.toString() || product.id || ''}`));
+                firstRow.push(Markup.button.callback('📖 Подробнее', `${PRODUCT_MORE_PREFIX}${product.id}`));
             }
             if (product.instruction) {
-                firstRow.push(Markup.button.callback('📋 Инструкция', `${PRODUCT_INSTRUCTION_PREFIX}${product._id?.toString() || product.id || ''}`));
+                firstRow.push(Markup.button.callback('📋 Инструкция', `${PRODUCT_INSTRUCTION_PREFIX}${product.id}`));
             }
             if (firstRow.length > 0) {
                 buttons.push(firstRow);
             }
             // Вторая строка: В корзину + Купить
             const secondRow = [];
-            secondRow.push(Markup.button.callback('🛒 В корзину', `${PRODUCT_CART_PREFIX}${product._id?.toString() || product.id || ''}`));
-            secondRow.push(Markup.button.callback('💳 Купить', `${PRODUCT_BUY_PREFIX}${product._id?.toString() || product.id || ''}`));
+            secondRow.push(Markup.button.callback('🛒 В корзину', `${PRODUCT_CART_PREFIX}${product.id}`));
+            secondRow.push(Markup.button.callback('💳 Купить', `${PRODUCT_BUY_PREFIX}${product.id}`));
             buttons.push(secondRow);
             const message = formatProductMessage(product);
             if (product.imageUrl && product.imageUrl.trim() !== '') {
@@ -315,70 +148,36 @@ async function sendProductCards(ctx, categoryId, region) {
     }
 }
 async function handleAddToCart(ctx, productId) {
-    try {
-        const user = await ensureUser(ctx);
-        if (!user) {
-            await ctx.reply('Не удалось определить пользователя. Попробуйте позже.');
-            return;
-        }
-        const product = await getProductById(productId);
-        if (!product) {
-            await ctx.reply('Товар не найден.');
-            return;
-        }
-        try {
-            const userId = user._id?.toString() || '';
-            const productId = product._id?.toString() || product.id || '';
-            if (!userId || !productId) {
-                await ctx.reply('❌ Ошибка добавления в корзину.');
-                return;
-            }
-            await addProductToCart(userId, productId);
-        }
-        catch (cartError) {
-            // Ошибка уже обработана в addProductToCart с информативным сообщением
-            // Пробрасываем дальше для обработки в обработчике
-            throw cartError;
-        }
-        // Логируем действие с обработкой ошибок
-        try {
-            await logUserAction(ctx, 'shop:add-to-cart', { productId: product._id?.toString() || product.id || '' });
-        }
-        catch (logError) {
-            // Игнорируем ошибки логирования
-            console.warn('Failed to log add to cart action (non-critical):', logError);
-        }
-        await ctx.answerCbQuery('Добавлено в корзину ✅');
-        // Get updated cart info for button with error handling
-        let cartItems = [];
-        try {
-            cartItems = await getCartItems(user._id.toString());
-        }
-        catch (cartError) {
-            // Если не удалось получить корзину, продолжаем без кнопки
-            console.warn('Failed to get cart items (non-critical):', cartError);
-        }
-        const totalQuantity = cartItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
-        const totalSum = cartItems.reduce((sum, item) => sum + ((item.product?.price || 0) * (item.quantity || 0)), 0);
-        const cartButtonText = `🛒 Корзина (${totalQuantity} 💧, ${totalSum.toFixed(2)} PZ)`;
-        await ctx.reply(`«${product.title}» добавлен(а) в корзину.`, {
-            reply_markup: {
-                inline_keyboard: [
-                    [
-                        {
-                            text: cartButtonText,
-                            callback_data: 'shop:cart'
-                        }
-                    ]
+    const user = await ensureUser(ctx);
+    if (!user) {
+        await ctx.reply('Не удалось определить пользователя. Попробуйте позже.');
+        return;
+    }
+    const product = await getProductById(productId);
+    if (!product) {
+        await ctx.reply('Товар не найден.');
+        return;
+    }
+    await addProductToCart(user.id, product.id);
+    await logUserAction(ctx, 'shop:add-to-cart', { productId: product.id });
+    await ctx.answerCbQuery('Добавлено в корзину ✅');
+    // Get updated cart info for button
+    const cartItems = await getCartItems(user.id);
+    const totalQuantity = cartItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    const totalSum = cartItems.reduce((sum, item) => sum + ((item.product?.price || 0) * (item.quantity || 0)), 0);
+    const cartButtonText = `🛒 Корзина (${totalQuantity} 💧, ${totalSum.toFixed(2)} PZ)`;
+    await ctx.reply(`«${product.title}» добавлен(а) в корзину.`, {
+        reply_markup: {
+            inline_keyboard: [
+                [
+                    {
+                        text: cartButtonText,
+                        callback_data: 'shop:cart'
+                    }
                 ]
-            }
-        });
-    }
-    catch (error) {
-        // Ошибка уже обработана в addProductToCart или других местах
-        // Пробрасываем дальше для обработки в обработчике
-        throw error;
-    }
+            ]
+        }
+    });
 }
 async function handleProductMore(ctx, productId) {
     const product = await getProductById(productId);
@@ -391,8 +190,8 @@ async function handleProductMore(ctx, productId) {
     // Создаем кнопки для действий с товаром
     const actionButtons = [
         [
-            Markup.button.callback('🛒 В корзину', `${PRODUCT_CART_PREFIX}${product._id?.toString() || product.id || ''}`),
-            Markup.button.callback('💳 Купить', `${PRODUCT_BUY_PREFIX}${product._id?.toString() || product.id || ''}`)
+            Markup.button.callback('🛒 В корзину', `${PRODUCT_CART_PREFIX}${product.id}`),
+            Markup.button.callback('💳 Купить', `${PRODUCT_BUY_PREFIX}${product.id}`)
         ]
     ];
     await ctx.reply(`ℹ️ ${product.title}\n\n${product.description}`, Markup.inlineKeyboard(actionButtons));
@@ -408,8 +207,8 @@ async function handleProductInstruction(ctx, productId) {
     // Создаем кнопки для действий с товаром
     const actionButtons = [
         [
-            Markup.button.callback('🛒 В корзину', `${PRODUCT_CART_PREFIX}${product._id?.toString() || product.id || ''}`),
-            Markup.button.callback('💳 Купить', `${PRODUCT_BUY_PREFIX}${product._id?.toString() || product.id || ''}`)
+            Markup.button.callback('🛒 В корзину', `${PRODUCT_CART_PREFIX}${product.id}`),
+            Markup.button.callback('💳 Купить', `${PRODUCT_BUY_PREFIX}${product.id}`)
         ]
     ];
     await ctx.reply(`📋 Инструкция по применению\n\n${product.title}\n\n${product.instruction}`, Markup.inlineKeyboard(actionButtons));
@@ -425,26 +224,7 @@ async function handleBuy(ctx, productId) {
         await ctx.reply('Товар не найден.');
         return;
     }
-    // Check if user has active partner program
-    const { checkPartnerActivation } = await import('../../services/partner-service.js');
-    const { calculatePriceWithDiscount } = await import('../../services/cart-service.js');
-    let hasPartnerDiscount = false;
-    try {
-        hasPartnerDiscount = await Promise.race([
-            checkPartnerActivation(user._id.toString()),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Database timeout')), 3000))
-        ]);
-    }
-    catch (error) {
-        console.warn('Failed to check partner activation (non-critical):', error);
-        // Продолжаем с false
-    }
-    const userId = user._id?.toString() || '';
-    if (!userId) {
-        await ctx.reply('❌ Ошибка определения пользователя.');
-        return;
-    }
-    const cartItems = await getCartItems(userId);
+    const cartItems = await getCartItems(user.id);
     // Create full items list including main product
     const allItems = [...cartItems];
     allItems.push({
@@ -454,7 +234,7 @@ async function handleBuy(ctx, productId) {
         },
         quantity: 1
     });
-    const summaryText = await cartItemsToText(allItems, userId);
+    const summaryText = cartItemsToText(allItems);
     const lines = [
         '🛒 Запрос на покупку',
         `Пользователь: ${user.firstName ?? ''} ${user.lastName ?? ''}`.trim(),
@@ -466,369 +246,158 @@ async function handleBuy(ctx, productId) {
         summaryText
     ].filter(Boolean);
     const message = lines.join('\n');
-    // Create items payload with discounted prices
-    const itemsPayload = await Promise.all(cartItems.map(async (item) => {
-        const priceInfo = await calculatePriceWithDiscount(userId, item.product.price);
-        return {
-            productId: item.productId?.toString() || item.product?._id?.toString() || '',
-            title: item.product.title,
-            price: priceInfo.discountedPrice, // Save discounted price
-            originalPrice: priceInfo.originalPrice, // Save original price for reference
-            quantity: item.quantity,
-            hasDiscount: priceInfo.hasDiscount,
-            discount: priceInfo.discount,
-        };
+    const itemsPayload = cartItems.map((item) => ({
+        productId: item.productId,
+        title: item.product.title,
+        price: Number(item.product.price),
+        quantity: item.quantity,
     }));
-    // Add main product with discount
-    const productPriceInfo = await calculatePriceWithDiscount(userId, Number(product.price));
     itemsPayload.push({
-        productId: product._id?.toString() || product.id || '',
+        productId: product.id,
         title: product.title,
-        price: productPriceInfo.discountedPrice, // Save discounted price
-        originalPrice: productPriceInfo.originalPrice, // Save original price for reference
+        price: Number(product.price),
         quantity: 1,
-        hasDiscount: productPriceInfo.hasDiscount,
-        discount: productPriceInfo.discount,
     });
-    let orderMessage = `Покупка через бота. Основной товар: ${product.title}`;
-    if (hasPartnerDiscount) {
-        orderMessage += '\n🎁 Применена скидка партнера 10%';
-    }
-    console.log('🛒 SHOP: About to create order request for user:', userId, user.firstName, user.username);
+    console.log('🛒 SHOP: About to create order request for user:', user.id, user.firstName, user.username);
     await createOrderRequest({
-        userId: userId,
-        message: orderMessage,
+        userId: user.id,
+        message: `Покупка через бота. Основной товар: ${product.title}`,
         items: itemsPayload,
     });
     console.log('✅ SHOP: Order request created successfully');
     await logUserAction(ctx, 'shop:buy', { productId });
     // Send order to specific admin with contact button
     const { getBotInstance } = await import('../../lib/bot-instance.js');
+    const { getAdminChatIds } = await import('../../config/env.js');
     const bot = await getBotInstance();
     if (bot) {
-        const aureliaAdminId = '7077195545'; // @Aurelia_8888
+        const adminIds = getAdminChatIds();
         const fullMessage = `${message}\n\nЗдравствуйте, хочу приобрести товар…`;
-        try {
-            await bot.telegram.sendMessage(aureliaAdminId, fullMessage, {
-                parse_mode: 'HTML',
-                reply_markup: {
-                    inline_keyboard: [
-                        [
-                            {
-                                text: '💬 Написать пользователю',
-                                url: user.username ? `https://t.me/${user.username}` : `tg://user?id=${user.telegramId}`
-                            },
-                            {
-                                text: '🤖 Писать через бот',
-                                callback_data: `admin_reply:${user.telegramId}:${user.firstName || 'Пользователь'}`
-                            }
+        // Send to all admins
+        for (const adminId of adminIds) {
+            try {
+                await bot.telegram.sendMessage(adminId, fullMessage, {
+                    parse_mode: 'HTML',
+                    reply_markup: {
+                        inline_keyboard: [
+                            [
+                                {
+                                    text: '💬 Написать пользователю',
+                                    url: user.username ? `https://t.me/${user.username}` : `tg://user?id=${user.telegramId}`
+                                },
+                                {
+                                    text: '🤖 Писать через бот',
+                                    callback_data: `admin_reply:${user.telegramId}:${user.firstName || 'Пользователь'}`
+                                }
+                            ]
                         ]
-                    ]
-                }
-            });
-        }
-        catch (error) {
-            console.error('Failed to send order notification to admin:', error);
+                    }
+                });
+                console.log(`✅ Order notification sent to admin: ${adminId}`);
+            }
+            catch (error) {
+                console.error(`❌ Failed to send order notification to admin ${adminId}:`, error?.message || error);
+            }
         }
     }
     await ctx.answerCbQuery();
-    let replyMessage = '📞 <b>В ближайшее время с вами свяжется менеджер.</b>\n\n';
-    if (hasPartnerDiscount) {
-        replyMessage += '🎁 <b>Применена скидка партнера 10%!</b>\n\n';
-    }
-    replyMessage += 'Вы можете написать менеджеру напрямую: @Aurelia_8888';
-    await ctx.reply(replyMessage, {
+    await ctx.reply('📞 <b>В ближайшее время с вами свяжется менеджер.</b>\n\n' +
+        'Вы можете написать менеджеру напрямую: @Aurelia_8888', {
         parse_mode: 'HTML'
     });
 }
 export const shopModule = {
     async register(bot) {
         console.log('🛍️ Registering shop module...');
-        // Handle shop command
+        // Handle shop command - open webapp directly
         bot.command('shop', async (ctx) => {
             await logUserAction(ctx, 'command:shop');
-            await showRegionSelection(ctx);
+            const webappUrl = env.webappUrl;
+            await ctx.reply('🛒 <b>Открываю магазин...</b>', {
+                parse_mode: 'HTML',
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            {
+                                text: '🚀 Открыть магазин',
+                                web_app: { url: webappUrl }
+                            }
+                        ]
+                    ]
+                }
+            });
         });
-        bot.hears(['Магазин', 'Каталог', '🛒 Магазин'], async (ctx) => {
+        bot.hears(['Магазин', 'Каталог'], async (ctx) => {
             console.log('🛍️ Shop button pressed by user:', ctx.from?.id);
-            const user = await ensureUser(ctx);
-            if (user && user.selectedRegion) {
-                // User already has a region selected, show categories directly
-                console.log('🛍️ User has region selected:', user.selectedRegion);
-                await showCategories(ctx, user.selectedRegion);
-            }
-            else {
-                // User needs to select region first
-                console.log('🛍️ User needs to select region first');
-                await showRegionSelection(ctx);
-            }
+            await logUserAction(ctx, 'menu:shop');
+            const webappUrl = env.webappUrl;
+            await ctx.reply('🛒 <b>Открываю магазин...</b>', {
+                parse_mode: 'HTML',
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            {
+                                text: '🚀 Открыть магазин',
+                                web_app: { url: webappUrl }
+                            }
+                        ]
+                    ]
+                }
+            });
         });
         // Handle region selection
         bot.action(new RegExp(`^${REGION_SELECT_PREFIX}(.+)$`), async (ctx) => {
-            try {
-                const match = ctx.match;
-                const regionOrAction = match[1];
-                // Отвечаем на callback query сразу, чтобы не было таймаута
-                try {
-                    await ctx.answerCbQuery();
-                }
-                catch (cbError) {
-                    // Игнорируем ошибки ответа на callback
-                    console.warn('Failed to answer callback query (non-critical):', cbError);
-                }
-                if (regionOrAction === 'change') {
-                    try {
-                        await showRegionSelection(ctx);
-                    }
-                    catch (error) {
-                        console.error('Error showing region selection:', error);
-                        try {
-                            await ctx.reply('❌ Ошибка при загрузке выбора региона. Попробуйте позже.');
-                        }
-                        catch (replyError) {
-                            // Игнорируем ошибки отправки
-                        }
-                    }
-                    return;
-                }
-                // Save region to user and show categories
-                let user;
-                try {
-                    user = await ensureUser(ctx);
-                }
-                catch (userError) {
-                    console.error('Error ensuring user:', userError);
-                    try {
-                        await ctx.reply('❌ Ошибка загрузки данных пользователя. Попробуйте позже.');
-                    }
-                    catch (replyError) {
-                        // Игнорируем ошибки отправки
-                    }
-                    return;
-                }
-                const validRegions = ['RUSSIA', 'BALI', 'DUBAI', 'KAZAKHSTAN', 'BELARUS', 'OTHER'];
-                if (!user) {
-                    try {
-                        await ctx.reply('❌ Ошибка загрузки данных пользователя. Попробуйте позже.');
-                    }
-                    catch (replyError) {
-                        // Игнорируем ошибки отправки
-                    }
-                    return;
-                }
-                if (validRegions.includes(regionOrAction)) {
-                    try {
-                        const { User } = await import('../../models/index.js');
-                        await User.findByIdAndUpdate(user._id, {
-                            selectedRegion: regionOrAction
-                        });
-                    }
-                    catch (error) {
-                        // Если БД недоступна, продолжаем работу с выбранным регионом в памяти
-                        const errorMessage = error.message || error.meta?.message || '';
-                        const errorKind = error.kind || '';
-                        const errorName = error.name || '';
-                        const isDbError = errorName === 'MongoServerError' || errorName === 'MongoNetworkError' ||
-                            errorMessage.includes('connection') || errorMessage.includes('timeout') ||
-                            errorMessage.includes('Authentication failed') || errorMessage.includes('SCRAM failure');
-                        if (isDbError) {
-                            console.warn('Failed to save region to database (non-critical, DB unavailable):', errorMessage.substring(0, 100));
-                        }
-                        else {
-                            console.warn('Failed to save region to database (non-critical):', errorMessage.substring(0, 100));
-                        }
-                    }
-                    // Логируем действие с обработкой ошибок
-                    try {
-                        await logUserAction(ctx, 'shop:region_selected', { region: regionOrAction });
-                    }
-                    catch (logError) {
-                        // Игнорируем ошибки логирования
-                        console.warn('Failed to log region selection (non-critical):', logError);
-                    }
-                    // Показываем категории с обработкой ошибок
-                    try {
-                        await showCategories(ctx, regionOrAction);
-                    }
-                    catch (categoriesError) {
-                        console.error('❌ Error showing categories after region selection:', categoriesError);
-                        const errorMessage = categoriesError.message || categoriesError.meta?.message || '';
-                        const errorKind = categoriesError.kind || '';
-                        const errorName = categoriesError.name || '';
-                        const isDbError = errorName === 'MongoServerError' || errorName === 'MongoNetworkError' ||
-                            errorMessage.includes('connection') || errorMessage.includes('timeout') ||
-                            errorMessage.includes('Authentication failed') || errorMessage.includes('SCRAM failure');
-                        // Показываем пользователю понятное сообщение
-                        try {
-                            if (isDbError) {
-                                await ctx.reply('❌ Ошибка при загрузке каталога. База данных временно недоступна. Попробуйте позже или выберите другой регион.');
-                            }
-                            else {
-                                await ctx.reply('❌ Произошла ошибка при загрузке каталога. Пожалуйста, попробуйте позже или выберите другой регион.');
-                            }
-                        }
-                        catch (replyError) {
-                            // Игнорируем ошибки отправки
-                            console.error('Failed to send error message:', replyError);
-                        }
-                    }
-                }
-                else {
-                    try {
-                        await ctx.reply('❌ Неверный регион. Попробуйте выбрать снова.');
-                    }
-                    catch (replyError) {
-                        // Игнорируем ошибки отправки
-                    }
-                }
+            const match = ctx.match;
+            const regionOrAction = match[1];
+            await ctx.answerCbQuery();
+            if (regionOrAction === 'change') {
+                await showRegionSelection(ctx);
+                return;
             }
-            catch (error) {
-                console.error('Error in region selection handler:', error);
-                const errorMessage = error.message || error.meta?.message || '';
-                const errorKind = error.kind || '';
-                const errorName = error.name || '';
-                const isDbError = errorName === 'MongoServerError' || errorName === 'MongoNetworkError' ||
-                    errorMessage.includes('connection') || errorMessage.includes('timeout') ||
-                    errorMessage.includes('Authentication failed') || errorMessage.includes('SCRAM failure');
-                try {
-                    if (isDbError) {
-                        await ctx.reply('❌ Произошла ошибка. База данных временно недоступна. Попробуйте позже.');
-                    }
-                    else {
-                        await ctx.reply('❌ Произошла ошибка. Попробуйте позже.');
-                    }
-                }
-                catch (replyError) {
-                    // Игнорируем ошибки отправки сообщений
-                    console.error('Failed to send error message:', replyError);
-                }
+            // Save region to user and show categories
+            const user = await ensureUser(ctx);
+            if (user && (regionOrAction === 'RUSSIA' || regionOrAction === 'BALI')) {
+                await prisma.user.update({
+                    where: { id: user.id },
+                    data: { selectedRegion: regionOrAction }
+                });
+                await logUserAction(ctx, 'shop:region_selected', { region: regionOrAction });
+                await showCategories(ctx, regionOrAction);
             }
         });
         bot.action(new RegExp(`^${CATEGORY_ACTION_PREFIX}(.+)$`), async (ctx) => {
-            try {
-                const match = ctx.match;
-                const categoryId = match[1];
-                await ctx.answerCbQuery();
-                // Get user's selected region
-                const user = await ensureUser(ctx);
-                const region = user?.selectedRegion || 'RUSSIA';
-                await logUserAction(ctx, 'shop:category', { categoryId, region });
-                await sendProductCards(ctx, categoryId, region);
-            }
-            catch (error) {
-                console.error('Error in category selection handler:', error);
-                try {
-                    await ctx.reply('❌ Ошибка загрузки категории. Попробуйте позже.');
-                }
-                catch (replyError) {
-                    // Игнорируем ошибки отправки сообщений
-                }
-            }
+            const match = ctx.match;
+            const categoryId = match[1];
+            await ctx.answerCbQuery();
+            await logUserAction(ctx, 'shop:category', { categoryId });
+            await sendProductCards(ctx, categoryId);
         });
         bot.action(new RegExp(`^${PRODUCT_MORE_PREFIX}(.+)$`), async (ctx) => {
-            try {
-                const match = ctx.match;
-                const productId = match[1];
-                await handleProductMore(ctx, productId);
-            }
-            catch (error) {
-                console.error('Error in product more handler:', error);
-                try {
-                    await ctx.answerCbQuery('❌ Ошибка загрузки товара');
-                    await ctx.reply('❌ Ошибка загрузки товара. Попробуйте позже.');
-                }
-                catch (replyError) {
-                    // Игнорируем ошибки отправки сообщений
-                }
-            }
+            const match = ctx.match;
+            const productId = match[1];
+            await handleProductMore(ctx, productId);
         });
         bot.action(new RegExp(`^${PRODUCT_INSTRUCTION_PREFIX}(.+)$`), async (ctx) => {
-            try {
-                const match = ctx.match;
-                const productId = match[1];
-                await handleProductInstruction(ctx, productId);
-            }
-            catch (error) {
-                console.error('Error in product instruction handler:', error);
-                try {
-                    await ctx.answerCbQuery('❌ Ошибка загрузки инструкции');
-                    await ctx.reply('❌ Ошибка загрузки инструкции. Попробуйте позже.');
-                }
-                catch (replyError) {
-                    // Игнорируем ошибки отправки сообщений
-                }
-            }
+            const match = ctx.match;
+            const productId = match[1];
+            await handleProductInstruction(ctx, productId);
         });
         bot.action(new RegExp(`^${PRODUCT_CART_PREFIX}(.+)$`), async (ctx) => {
-            try {
-                const match = ctx.match;
-                const productId = match[1];
-                try {
-                    await handleAddToCart(ctx, productId);
-                }
-                catch (error) {
-                    console.error('❌ Error in add to cart handler:', error);
-                    const errorMessage = error.message || '';
-                    // Более информативное сообщение в зависимости от типа ошибки
-                    if (errorMessage.includes('replica set') || errorMessage.includes('replica set')) {
-                        await ctx.answerCbQuery('⚠️ Ошибка базы данных. Обратитесь к администратору.');
-                        await ctx.reply('⚠️ Ошибка добавления в корзину. База данных требует настройки.\n\nПожалуйста, попробуйте позже или обратитесь к поддержке.');
-                    }
-                    else if (errorMessage.includes('недоступна') || errorMessage.includes('временно')) {
-                        await ctx.answerCbQuery('⚠️ База данных временно недоступна');
-                        await ctx.reply('⚠️ База данных временно недоступна. Попробуйте позже.');
-                    }
-                    else {
-                        await ctx.answerCbQuery('❌ Ошибка добавления в корзину');
-                        await ctx.reply('❌ Ошибка добавления в корзину. Попробуйте позже.');
-                    }
-                }
-            }
-            catch (error) {
-                console.error('Error in add to cart handler:', error);
-                try {
-                    await ctx.answerCbQuery('❌ Ошибка добавления в корзину');
-                    await ctx.reply('❌ Ошибка добавления в корзину. Попробуйте позже.');
-                }
-                catch (replyError) {
-                    // Игнорируем ошибки отправки сообщений
-                }
-            }
+            const match = ctx.match;
+            const productId = match[1];
+            await handleAddToCart(ctx, productId);
         });
         bot.action(new RegExp(`^${PRODUCT_BUY_PREFIX}(.+)$`), async (ctx) => {
-            try {
-                const match = ctx.match;
-                const productId = match[1];
-                await handleBuy(ctx, productId);
-            }
-            catch (error) {
-                console.error('Error in buy handler:', error);
-                try {
-                    await ctx.answerCbQuery('❌ Ошибка оформления заказа');
-                    await ctx.reply('❌ Ошибка оформления заказа. Попробуйте позже.');
-                }
-                catch (replyError) {
-                    // Игнорируем ошибки отправки сообщений
-                }
-            }
+            const match = ctx.match;
+            const productId = match[1];
+            await handleBuy(ctx, productId);
         });
         // Handle cart button from shop
         bot.action('shop:cart', async (ctx) => {
-            try {
-                await ctx.answerCbQuery();
-                await logUserAction(ctx, 'shop:cart');
-                const { showCart } = await import('../cart/index.js');
-                await showCart(ctx);
-            }
-            catch (error) {
-                console.error('Error in cart handler:', error);
-                try {
-                    await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
-                }
-                catch (replyError) {
-                    // Игнорируем ошибки отправки сообщений
-                }
-            }
+            await ctx.answerCbQuery();
+            await logUserAction(ctx, 'shop:cart');
+            const { showCart } = await import('../cart/index.js');
+            await showCart(ctx);
         });
         // Handle payment methods
         bot.action('payment:card', async (ctx) => {

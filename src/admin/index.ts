@@ -24,7 +24,7 @@ export async function setupAdminPanel(app: Application) {
   const admin = new AdminJS({
     rootPath: '/admin',
     branding: {
-      companyName: 'Plazma Water MM',
+      companyName: 'Vital MM',
     },
     assets: {
       styles: [

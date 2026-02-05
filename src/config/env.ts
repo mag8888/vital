@@ -27,6 +27,8 @@ export const env = {
     return /example\.(com|org)/i.test(u) ? 'https://plazma.up.railway.app/webapp' : (u.endsWith('/webapp') ? u : `${u.replace(/\/$/, '')}/webapp`);
   })(),
   videoUrl: process.env.VIDEO_URL || 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  plazmaApiKey: process.env.PLAZMA_API_KEY || process.env.EXTERNAL_API_KEY || '',
+  plazmaApiUrl: process.env.PLAZMA_API_URL || process.env.PUBLIC_BASE_URL || process.env.WEBAPP_BASE_URL || 'https://plazma.up.railway.app',
 };
 
 // Helper function to get all admin chat IDs

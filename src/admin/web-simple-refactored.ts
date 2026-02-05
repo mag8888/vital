@@ -24,7 +24,7 @@ function generateLoginHTML(error?: string): string {
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Plazma Bot Admin Panel</title>
+      <title>Vital Bot Admin Panel</title>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
@@ -113,7 +113,7 @@ function generateLoginHTML(error?: string): string {
     <body>
       <div class="login-container">
         <div class="logo">
-          <h1>🚀 Plazma Bot</h1>
+          <h1>🚀 Vital Bot</h1>
           <p>Admin Panel v2.0</p>
         </div>
         
@@ -127,7 +127,7 @@ function generateLoginHTML(error?: string): string {
         </form>
         
         <div class="footer">
-          <p>© 2024 Plazma Bot. All rights reserved.</p>
+          <p>© 2024 Vital Bot. All rights reserved.</p>
           <p><small>Refactored Architecture v2.0</small></p>
         </div>
       </div>
@@ -141,7 +141,7 @@ function generateDashboardHTML(stats: any): string {
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Admin Dashboard - Plazma Bot v2.0</title>
+      <title>Admin Dashboard - Vital Bot v2.0</title>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
@@ -224,7 +224,7 @@ function generateDashboardHTML(stats: any): string {
       <div class="version-badge">v2.0 Refactored</div>
       
       <div class="header">
-        <h1>🚀 Plazma Bot Admin Dashboard</h1>
+        <h1>🚀 Vital Bot Admin Dashboard</h1>
         <p>Refactored Architecture - Clean Code</p>
       </div>
       

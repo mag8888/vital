@@ -1,6 +1,7 @@
 import 'dotenv/config';
 export declare const env: {
     botToken: string;
+    botUsername: string;
     botWebhookUrl: string | undefined;
     botWebhookSecret: string | undefined;
     adminChatId: string | undefined;
@@ -9,6 +10,7 @@ export declare const env: {
     adminPassword: string;
     publicBaseUrl: string;
     webappUrl: string;
+    webappBaseUrl: string;
     videoUrl: string;
 };
 export declare function getAdminChatIds(): string[];

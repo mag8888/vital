@@ -3,11 +3,8 @@ import { prisma } from '../lib/prisma.js';
 interface OrderItemPayload {
   productId: string;
   title: string;
-  price: number; // Final price after discount
+  price: number;
   quantity: number;
-  originalPrice?: number; // Original price before discount
-  hasDiscount?: boolean; // Whether discount was applied
-  discount?: number; // Discount amount
 }
 
 export async function createOrderRequest(params: {
@@ -19,9 +16,6 @@ export async function createOrderRequest(params: {
   const itemsJson = params.items.map((item) => ({
     ...item,
     price: Number(item.price),
-    originalPrice: item.originalPrice ? Number(item.originalPrice) : undefined,
-    discount: item.discount ? Number(item.discount) : undefined,
-    hasDiscount: item.hasDiscount || false,
   }));
 
   console.log('🛒 Creating order request:', {

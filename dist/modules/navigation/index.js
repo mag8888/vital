@@ -1,38 +1,48 @@
 import { Markup } from 'telegraf';
 import { logUserAction, ensureUser, checkUserContact } from '../../services/user-history.js';
-import { upsertPartnerReferral, recordPartnerTransaction, buildReferralLink } from '../../services/partner-service.js';
-import { PartnerProfile, User, PartnerTransaction } from '../../models/index.js';
-import { TransactionType } from '../../models/PartnerTransaction.js';
+import { upsertPartnerReferral, recordPartnerTransaction } from '../../services/partner-service.js';
 import { env } from '../../config/env.js';
-const greeting = `🌀 Добро пожаловать в эру будущего!
+const greeting = `👋 Добро пожаловать!
+Vital — жидкие витамины и минералы в наноформе.
+💧 Усвоение — до 99,9% (в отличие от таблеток 1–10%).
+⚡ Быстро, легко и без нагрузки на печень и почки — питание прямо в клетки.
 
-Plazma Water - это инновационная космическая эко технология, которая использует передовые наноматериалы в сфере здоровья, долголетия.
+Хотите узнать больше? 👇`;
+const introDetails = `💧 Что такое Vital?
+Жидкие витамины и минералы в плазменной наноформе ⚡️
 
-⚡️ Быстро, легко и без нагрузки на печень и почки — питание прямо в клетки.
+✨ Vital — это революционная форма витаминов и микроэлементов, заключённых в чистую воду.
+В отличие от таблеток, которые усваиваются всего на 1–10%, плазменная наноформа проникает напрямую в клетки 🧬 и усваивается на 99.9%!
 
-💧 Plazma Water - это инновационный водный раствор, содержащий микроэлементы в уникальной плазменной наноструктуре. Благодаря особой технологии, частицы в составе имеют нано размер и равномерно распределены в воде, что обеспечивает их естественное взаимодействие с биологическими системами организма.
+🚀 Частицы настолько малы, что проходят даже через гематоэнцефалический барьер — питая клетки быстро, легко и без нагрузки на печень, почки и другие органы.
 
-🧬 Усвоение — 99,9% (в отличие от таблеток 1–20%).
+💎 Преимущества Vital:
+• Без лишних добавок и побочных эффектов
+• Усвоение почти 100%
+• Поддержка иммунитета и восстановление клеток
+• Подходит даже для людей на реабилитации
 
-В отличие от традиционных форм добавок, где усвоение может быть ограничено, плазменная наноформа способствует более мягкому и естественному включению микроэлементов в обменные процессы. При этом не требуется участие дополнительных вспомогательных веществ, что делает продукт лёгким для восприятия и безопасным при разумном использовании.`;
-const introDetails = `💧 Что такое плазмированная вода?
+🛡️ Как это работает:
+Наночастицы Vital притягивают вирусы и бактерии ⚔️
+Они не убивают их (что часто создаёт токсины), а усыпляют — блокируя размножение и миграцию.
+Организм затем мягко выводит всё естественным образом 💨
 
-⚡️ Жидкие витамины и минералы в наноформе
-
-✨ Plazma Water — это инновационный водный раствор, содержащий микроэлементы в уникальной плазменной наноструктуре. Благодаря особой технологии, частицы в составе имеют нано размер и равномерно распределены в воде, что обеспечивает их естественное взаимодействие с биологическими системами организма.
-
-🧬 В отличие от традиционных форм добавок, где усвоение может быть ограничено, плазменная наноформа способствует более мягкому и естественному включению микроэлементов в обменные процессы. При этом не требуется участие дополнительных вспомогательных веществ, что делает продукт лёгким для восприятия и безопасным при разумном использовании.
-
-⚠️ Plazma Water не является лекарственным средством и не предназначен для лечения или диагностики заболеваний. Его использование направлено на поддержание оптимального водно-минерального баланса, повышение комфорта, энергии и общего самочувствия.
-
-🔬 Технология плазменной наноструктуризации воды основана на принципах взаимодействия магнитно-гравитационных полей, описанных в современной физике плазмы. Такая структура способствует гармонизации внутренней среды организма и может поддерживать естественные защитные и адаптационные функции.`;
+💠 Результат:
+Чистая кровь, лёгкость, энергия и глубокое восстановление 🌿`;
 const NAVIGATION_ACTION_PREFIX = 'nav:menu:';
 const SWITCH_TO_CLASSIC_ACTION = 'nav:mode:classic';
-const DEFAULT_UI_MODE = 'classic';
-const WELCOME_VIDEO_URL = 'https://res.cloudinary.com/dt4r1tigf/video/upload/v1765173370/plazma-bot/videos/dptdbiuaenxomoktgg9i.mp4';
-const GIFT_CHANNEL_URL = 'https://t.me/iplasmanano/534';
+const DEFAULT_UI_MODE = 'app';
+const WELCOME_VIDEO_URL = 'https://res.cloudinary.com/dt4r1tigf/video/upload/v1759337188/%D0%9F%D0%9E%D0%A7%D0%95%D0%9C%D0%A3_%D0%91%D0%90%D0%94%D0%AB_%D0%BD%D0%B5_%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%B0%D1%8E%D1%82_%D0%95%D1%81%D1%82%D1%8C_%D1%80%D0%B5%D1%88%D0%B5%D0%BD%D0%B8%D0%B5_gz54oh.mp4';
+const DEFAULT_WEBAPP_SUFFIX = '/webapp';
+function getWebappUrl() {
+    const baseUrl = env.webappUrl || env.publicBaseUrl || 'https://vital-production-82b0.up.railway.app';
+    if (baseUrl.includes(DEFAULT_WEBAPP_SUFFIX)) {
+        return baseUrl;
+    }
+    return `${baseUrl.replace(/\/$/, '')}${DEFAULT_WEBAPP_SUFFIX}`;
+}
 async function showSupport(ctx) {
-    await ctx.reply('💬 Служба поддержки\n\nНапишите свой вопрос прямо в этот чат — команда Plazma Water ответит как можно быстрее.\n\nЕсли нужен срочный контакт, оставьте номер телефона, и мы перезвоним.');
+    await ctx.reply('💬 Служба поддержки\n\nНапишите свой вопрос прямо в этот чат — команда Vital ответит как можно быстрее.\n\nЕсли нужен срочный контакт, оставьте номер телефона, и мы перезвоним.');
 }
 async function handleSupportMessage(ctx) {
     const user = await ensureUser(ctx);
@@ -45,7 +55,7 @@ async function handleSupportMessage(ctx) {
     if (messageText.startsWith('/'))
         return;
     // Skip if it's a button press (common button texts)
-    const buttonTexts = ['🛒 Магазин', '💰 Партнёрка', '🎵 Звуковые матрицы Гаряева', '⭐ Отзывы', 'ℹ️ О PLASMA', 'Меню', 'Главное меню', 'Назад'];
+    const buttonTexts = ['🛒 Магазин', '💰 Партнёрка', '⭐ Отзывы', 'ℹ️ О нас', 'Меню', 'Главное меню', 'Назад'];
     if (buttonTexts.includes(messageText))
         return;
     // Log the support message
@@ -96,14 +106,8 @@ async function showGiftMessage(ctx) {
             inline_keyboard: [
                 [
                     {
-                        text: '🎵 Слушать звуковые матрицы',
-                        callback_data: 'nav:audio:gift',
-                    },
-                ],
-                [
-                    {
                         text: '📖 ГИД по плазменному здоровью',
-                        url: 'https://t.me/iplazmabot',
+                        url: 'https://t.me/Vital_shop_bot',
                     },
                 ],
             ],
@@ -118,16 +122,22 @@ const navigationItems = [
         description: 'Каталог продукции и сезонные наборы',
         badgeKey: 'shop',
         handler: async (ctx) => {
-            const { showRegionSelection, showCategories } = await import('../shop/index.js');
-            const user = await ensureUser(ctx);
-            if (user && user.selectedRegion) {
-                // User already has a region selected, show categories directly
-                await showCategories(ctx, user.selectedRegion);
-            }
-            else {
-                // User needs to select region first
-                await showRegionSelection(ctx);
-            }
+            // Сразу открываем webapp
+            await ctx.answerCbQuery();
+            const webappUrl = getWebappUrl();
+            await ctx.reply('🛒 <b>Открываю магазин...</b>', {
+                parse_mode: 'HTML',
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            {
+                                text: '🚀 Открыть магазин',
+                                web_app: { url: webappUrl }
+                            }
+                        ]
+                    ]
+                }
+            });
         },
     },
     {
@@ -141,42 +151,21 @@ const navigationItems = [
         },
     },
     {
-        id: 'sounds',
-        title: 'Звуковые матрицы Гаряева',
-        emoji: '🎵',
-        description: 'Уникальные аудиофайлы для оздоровления',
-        handler: async (ctx) => {
-            const { showAudioFiles } = await import('../audio/index.js');
-            await showAudioFiles(ctx, 'gift');
-        },
-    },
-    {
         id: 'reviews',
         title: 'Отзывы',
         emoji: '⭐',
         description: 'Истории сообщества и результаты клиентов',
         badgeKey: 'reviews',
         handler: async (ctx) => {
-            try {
-                const { showReviews } = await import('../reviews/index.js');
-                await showReviews(ctx);
-            }
-            catch (error) {
-                console.error('⭐ Navigation: Failed to show reviews', error);
-                try {
-                    await ctx.reply('❌ Ошибка при загрузке отзывов. Попробуйте позже.');
-                }
-                catch (replyError) {
-                    // Игнорируем ошибки отправки сообщений
-                }
-            }
+            const { showReviews } = await import('../reviews/index.js');
+            await showReviews(ctx);
         },
     },
     {
         id: 'about',
-        title: 'О PLASMA',
+        title: 'О нас',
         emoji: 'ℹ️',
-        description: 'Информация о Plazma Water и соцсети',
+        description: 'Информация о Vital и соцсети',
         handler: async (ctx) => {
             const { showAbout } = await import('../about/index.js');
             await showAbout(ctx);
@@ -202,184 +191,43 @@ function getUiMode(ctx) {
 function setUiMode(ctx, mode) {
     ctx.session.uiMode = mode;
 }
-// Проверяет, заблокирован ли бот пользователем
-function isBotBlockedError(error) {
-    if (!error)
-        return false;
-    const errorMessage = error.message || error.description || '';
-    const errorCode = error.response?.error_code || error.error_code;
-    return (errorCode === 403 ||
-        errorMessage.includes('bot was blocked') ||
-        errorMessage.includes('Forbidden: bot was blocked'));
-}
-// Проверяет, является ли ошибка ошибкой неправильного типа контента
-function isWrongContentTypeError(error) {
-    if (!error)
-        return false;
-    const errorMessage = error.message || error.description || '';
-    const errorCode = error.response?.error_code || error.error_code;
-    return (errorCode === 400 &&
-        (errorMessage.includes('wrong type of the web page content') ||
-            errorMessage.includes('Bad Request: wrong type')));
-}
-/** Telegram HTML allows only: b, i, u, s, a, code, pre, span class="tg-spoiler". Strip other span tags to avoid "Tag span must have class tg-spoiler". */
-function sanitizeTelegramHtml(text) {
-    if (!text || typeof text !== 'string')
-        return text;
-    return text
-        .replace(/<span[^>]*>/gi, '')
-        .replace(/<\/span>/gi, '');
-}
 async function sendWelcomeVideo(ctx) {
-    const safeCaption = sanitizeTelegramHtml(greeting);
-    const sendVideoWithCaption = async (caption, useHtml) => {
-        const opts = {
-            supports_streaming: true,
-            width: 1280,
-            height: 720,
-            ...(useHtml ? { parse_mode: 'HTML' } : {}),
-        };
-        await ctx.replyWithVideo(WELCOME_VIDEO_URL, { caption, ...opts });
-    };
-    try {
-        await sendVideoWithCaption(safeCaption, true);
-    }
-    catch (error) {
-        if (isBotBlockedError(error)) {
-            console.log('Bot was blocked by user, skipping welcome video');
-            return;
-        }
-        if (error?.message?.includes?.('parse entities') || error?.description?.includes?.('parse entities')) {
-            try {
-                await sendVideoWithCaption(greeting, false);
-            }
-            catch (e) {
-                if (!isBotBlockedError(e))
-                    console.error('Welcome video fallback failed:', e);
-            }
-            return;
-        }
-        if (isWrongContentTypeError(error)) {
-            console.log('Video URL not recognized, using fallback method');
-        }
-        else {
-            console.error('Error sending welcome video:', error);
-        }
-        try {
-            const response = await fetch(WELCOME_VIDEO_URL);
-            if (!response.ok)
-                throw new Error(`Failed to fetch video: ${response.statusText}`);
-            const videoBuffer = await response.arrayBuffer();
-            const videoStream = Buffer.from(videoBuffer);
-            await ctx.replyWithVideo({ source: videoStream, filename: 'welcome-video.mp4' }, { caption: safeCaption, supports_streaming: true, parse_mode: 'HTML', width: 1280, height: 720 });
-        }
-        catch (fallbackError) {
-            if (isBotBlockedError(fallbackError))
-                return;
-            if (fallbackError?.message?.includes?.('parse entities')) {
-                try {
-                    await ctx.replyWithVideo({ source: Buffer.from(await (await fetch(WELCOME_VIDEO_URL)).arrayBuffer()), filename: 'welcome-video.mp4' }, { caption: greeting, supports_streaming: true, width: 1280, height: 720 });
-                }
-                catch (_) { }
-                return;
-            }
-            console.error('Fallback video send also failed:', fallbackError);
-            try {
-                await ctx.reply(greeting + '\n\n🎥 Видео: ' + WELCOME_VIDEO_URL);
-            }
-            catch (finalError) {
-                if (!isBotBlockedError(finalError))
-                    throw finalError;
-            }
-        }
-    }
-}
-async function sendGiftButton(ctx) {
-    try {
-        await ctx.reply('🎁', Markup.inlineKeyboard([
-            [Markup.button.callback('🎁 Подарок', 'nav:gift')]
-        ]));
-    }
-    catch (error) {
-        if (isBotBlockedError(error))
-            return;
-        console.error('Error sending gift button:', error);
-    }
-}
-const DEFAULT_WEBAPP_URL = 'https://plazma.up.railway.app/webapp';
-function getWebappUrl() {
-    const base = env.webappBaseUrl || env.webappUrl || env.publicBaseUrl || DEFAULT_WEBAPP_URL;
-    let url = base.endsWith('/webapp') ? base : `${base.replace(/\/$/, '')}/webapp`;
-    if (url.includes('example.com') || url.includes('example.org')) {
-        url = DEFAULT_WEBAPP_URL;
-    }
-    return url;
-}
-/** Приветствие с реферальной ссылкой (если есть) и кнопкой «Перейти в мини-приложение» (как в Vital). */
-async function sendWelcomeWithRefAndMiniAppButton(ctx) {
-    try {
-        const user = await ensureUser(ctx);
-        if (!user)
-            return;
-        const userId = user._id?.toString?.() || user.id;
-        if (!userId)
-            return;
-        const profile = await PartnerProfile.findOne({ userId: user._id }).populate('userId').lean();
-        let refText = '';
-        if (profile?.referralCode) {
-            const username = profile.userId?.username;
-            const link = buildReferralLink(profile.referralCode, profile.programType || 'DIRECT', username).main;
-            refText = `\n\n🔗 Ваша персональная реферальная ссылка:\n${link}`;
-        }
-        const webappUrl = getWebappUrl();
-        await ctx.reply(`👇 Перейдите в мини-приложение — каталог, корзина и заказы${refText}`, Markup.inlineKeyboard([
-            [Markup.button.webApp('📱 Перейти в мини-приложение', webappUrl)]
-        ]));
-    }
-    catch (error) {
-        if (isBotBlockedError(error))
-            return;
-        const webappUrl = getWebappUrl();
-        await ctx.reply('👇 Перейдите в мини-приложение', Markup.inlineKeyboard([
-            [Markup.button.webApp('📱 Перейти в мини-приложение', webappUrl)]
-        ]));
-    }
+    await ctx.reply('✨ Vital — это источник энергии нового поколения.', {
+        reply_markup: {
+            inline_keyboard: [
+                [
+                    {
+                        text: '🎥 Смотреть видео',
+                        url: WELCOME_VIDEO_URL,
+                    },
+                ],
+                [
+                    {
+                        text: '📖 Подробнее',
+                        callback_data: 'nav:more',
+                    },
+                ],
+                [
+                    {
+                        text: '🎁 Подарок',
+                        callback_data: 'nav:gift',
+                    },
+                ],
+            ],
+        },
+    });
 }
 async function sendClassicHome(ctx) {
-    try {
-        await sendWelcomeVideo(ctx);
-        await sendGiftButton(ctx);
-        await sendWelcomeWithRefAndMiniAppButton(ctx);
-        await ctx.reply('👇 Выберите раздел:', mainKeyboard());
-    }
-    catch (error) {
-        // Если бот заблокирован, просто выходим
-        if (isBotBlockedError(error)) {
-            console.log('Bot was blocked by user, skipping classic home');
-            return;
-        }
-        throw error;
-    }
+    await ctx.reply(greeting, Markup.removeKeyboard());
 }
 async function sendAppHome(ctx, options = {}) {
-    try {
-        const { introText, includeGreeting = true } = options;
-        await sendWelcomeVideo(ctx);
-        await sendGiftButton(ctx);
-        await sendWelcomeWithRefAndMiniAppButton(ctx);
-        if (introText) {
-            await ctx.reply(introText, Markup.removeKeyboard());
-        }
-        await sendNavigationMenu(ctx);
-    }
-    catch (error) {
-        // Если бот заблокирован, просто выходим
-        if (isBotBlockedError(error)) {
-            console.log('Bot was blocked by user, skipping app home');
-            return;
-        }
-        throw error;
-    }
+    const { introText, includeGreeting = true } = options;
+    let text = greeting;
+    if (introText)
+        text = introText;
+    else if (!includeGreeting)
+        text = 'Каталог';
+    await ctx.reply(text, Markup.removeKeyboard());
 }
 async function renderHome(ctx) {
     if (getUiMode(ctx) === 'app') {
@@ -458,7 +306,7 @@ async function collectMenuStats(ctx) {
             const user = await ensureUser(ctx);
             if (user) {
                 const { getCartItems } = await import('../../services/cart-service.js');
-                const cartItems = await getCartItems(user._id.toString());
+                const cartItems = await getCartItems(user.id);
                 const totalQuantity = cartItems.reduce((sum, item) => sum + (item.quantity ?? 0), 0);
                 if (totalQuantity > 0) {
                     stats.cart = String(totalQuantity);
@@ -474,25 +322,15 @@ async function collectMenuStats(ctx) {
 async function sendNavigationMenu(ctx) {
     const stats = await collectMenuStats(ctx);
     const message = formatMenuMessage(stats);
-    const safeMessage = sanitizeTelegramHtml(message);
     const keyboard = buildNavigationKeyboard(stats);
-    try {
-        await ctx.reply(safeMessage, { parse_mode: 'HTML', ...keyboard });
-    }
-    catch (error) {
-        if (error?.message?.includes?.('parse entities') || error?.description?.includes?.('parse entities')) {
-            await ctx.reply(message.replace(/<[^>]+>/g, ''), keyboard);
-        }
-        else {
-            throw error;
-        }
-    }
+    await ctx.reply(message, {
+        parse_mode: 'HTML',
+        ...keyboard,
+    });
 }
-export function mainKeyboard() {
+export function mainKeyboard(webappUrl) {
     return Markup.keyboard([
-        ['🛒 Магазин', '🤝 Партнёрка'],
-        ['🎵 Звуковые матрицы Гаряева'],
-        ['⭐ Отзывы', 'ℹ️ О PLASMA'],
+        [Markup.button.webApp('Каталог', webappUrl)],
     ]).resize();
 }
 export const navigationModule = {
@@ -506,10 +344,9 @@ export const navigationModule = {
                 '/help - Показать эту справку\n' +
                 '/shop - Открыть магазин товаров\n' +
                 '/partner - Партнерская программа\n' +
-                '/audio - Звуковые матрицы\n' +
                 '/reviews - Отзывы клиентов\n' +
-                '/about - О PLASMA Water\n' +
-                '/add_balance - Пополнить баланс\n' +
+                '/about - О нас\n' +
+                '/add_balance - Пополнить баланс через Lava\n' +
                 '/support - Поддержка 24/7\n' +
                 '/app - Открыть веб-приложение\n\n' +
                 'Или используйте кнопки меню для навигации!', { parse_mode: 'HTML' });
@@ -522,21 +359,7 @@ export const navigationModule = {
         // Handle app command - open webapp directly
         bot.command('app', async (ctx) => {
             await logUserAction(ctx, 'command:app');
-            const webappUrl = getWebappUrl();
-            console.log('🌐 WebApp URL:', webappUrl);
-            await ctx.reply('🌐 <b>Открываю веб-приложение Plazma Water...</b>', {
-                parse_mode: 'HTML',
-                reply_markup: {
-                    inline_keyboard: [
-                        [
-                            {
-                                text: '🚀 Открыть приложение',
-                                web_app: { url: webappUrl }
-                            }
-                        ]
-                    ]
-                }
-            });
+            await ctx.reply('Каталог', Markup.removeKeyboard());
         });
         bot.start(async (ctx) => {
             await logUserAction(ctx, 'command:start');
@@ -548,6 +371,151 @@ export const navigationModule = {
             // Check if user came from referral link
             const startPayload = ctx.startPayload;
             console.log('🔗 Referral: startPayload =', startPayload);
+            // Handle new format: username (simple referral link)
+            if (startPayload && !startPayload.startsWith('ref_direct_') && !startPayload.startsWith('ref_multi_')) {
+                // Try to find user by username
+                try {
+                    const { prisma } = await import('../../lib/prisma.js');
+                    // Check if user already existed before ensuring
+                    let existingUserBeforeEnsure = null;
+                    if (ctx.from?.id) {
+                        try {
+                            existingUserBeforeEnsure = await prisma.user.findUnique({
+                                where: { telegramId: ctx.from.id.toString() },
+                                select: { id: true }
+                            });
+                        }
+                        catch (error) {
+                            // Silent fail for DB errors
+                            if (error?.code === 'P1013' || error?.message?.includes('Authentication failed')) {
+                                existingUserBeforeEnsure = null;
+                            }
+                        }
+                    }
+                    const referrerUser = await prisma.user.findFirst({
+                        where: {
+                            username: startPayload,
+                        },
+                        include: { partner: true }
+                    });
+                    if (referrerUser) {
+                        console.log('🔗 Referral: Found user by username:', referrerUser.username);
+                        // Ensure current user exists first
+                        const user = await ensureUser(ctx);
+                        if (!user) {
+                            console.log('🔗 Referral: Failed to ensure user');
+                            return;
+                        }
+                        const isNewUser = !existingUserBeforeEnsure;
+                        console.log('🔗 Referral: Is new user:', isNewUser);
+                        // Process referral - create partner profile if it doesn't exist
+                        let partnerProfile = referrerUser.partner;
+                        if (!partnerProfile) {
+                            console.log('🔗 Referral: Partner profile not found, creating one for referrer');
+                            const { getOrCreatePartnerProfile } = await import('../../services/partner-service.js');
+                            partnerProfile = await getOrCreatePartnerProfile(referrerUser.id, 'DIRECT');
+                            console.log('🔗 Referral: Partner profile created:', partnerProfile.id);
+                        }
+                        // Create referral record
+                        if (partnerProfile) {
+                            const referralLevel = 1;
+                            const programType = partnerProfile.programType || 'DIRECT';
+                            await upsertPartnerReferral(partnerProfile.id, referralLevel, user.id, undefined, programType);
+                            console.log('🔗 Referral: Referral record created via username');
+                        }
+                        // Award 3 PZ bonus for new user registration via referral link
+                        if (isNewUser) {
+                            try {
+                                // Check if bonus was already awarded for this referral (using partnerProfile from above)
+                                let existingBonus = null;
+                                if (partnerProfile) {
+                                    existingBonus = await prisma.partnerTransaction.findFirst({
+                                        where: {
+                                            profileId: partnerProfile.id,
+                                            OR: [
+                                                { description: { contains: `Бонус 3PZ за приглашение нового пользователя (${user.id})` } },
+                                                { description: { contains: `Бонус за приглашение друга (${user.id})` } }
+                                            ]
+                                        }
+                                    });
+                                }
+                                if (!existingBonus) {
+                                    // Award 3PZ bonus to inviter for new user registration
+                                    console.log('🔗 Referral: Awarding 3PZ bonus to inviter for new user registration');
+                                    let updatedReferrer;
+                                    // Use partner profile (created above if didn't exist)
+                                    if (partnerProfile) {
+                                        await recordPartnerTransaction(partnerProfile.id, 3, `Бонус 3PZ за приглашение нового пользователя (${user.id})`, 'CREDIT');
+                                        // Get updated balance after transaction
+                                        updatedReferrer = await prisma.user.findUnique({
+                                            where: { id: referrerUser.id },
+                                            select: {
+                                                balance: true,
+                                                telegramId: true,
+                                                firstName: true
+                                            }
+                                        });
+                                    }
+                                    else {
+                                        // If no partner profile, update balance directly
+                                        updatedReferrer = await prisma.user.update({
+                                            where: { id: referrerUser.id },
+                                            data: {
+                                                balance: {
+                                                    increment: 3
+                                                }
+                                            },
+                                            select: {
+                                                balance: true,
+                                                telegramId: true,
+                                                firstName: true
+                                            }
+                                        });
+                                        console.log('🔗 Referral: Bonus 3PZ added directly to referrer balance (no partner profile)');
+                                    }
+                                    console.log('🔗 Referral: Bonus 3PZ processed, new balance:', updatedReferrer?.balance);
+                                    // Send notification to inviter (always send if bonus was awarded)
+                                    if (updatedReferrer) {
+                                        try {
+                                            const joinedLabel = user.username ? `@${user.username}` : (user.firstName || 'пользователь');
+                                            const notificationText = '🎉 <b>Баланс пополнен!</b>\n\n' +
+                                                `💰 Сумма: 3.00 PZ\n` +
+                                                `💳 Текущий баланс: ${updatedReferrer.balance.toFixed(2)} PZ\n\n` +
+                                                `✨ К вам присоединился ${joinedLabel} по вашей реферальной ссылке!\n\n` +
+                                                `Приглашайте больше друзей и получайте бонусы!`;
+                                            await ctx.telegram.sendMessage(referrerUser.telegramId, notificationText, { parse_mode: 'HTML' });
+                                            console.log('🔗 Referral: Notification sent successfully to inviter:', referrerUser.telegramId);
+                                        }
+                                        catch (error) {
+                                            console.error('🔗 Referral: Failed to send notification to inviter:', error?.message || error);
+                                            // Log full error for debugging
+                                            if (error?.response) {
+                                                console.error('🔗 Referral: Telegram API error:', JSON.stringify(error.response, null, 2));
+                                            }
+                                        }
+                                    }
+                                    else {
+                                        console.warn('🔗 Referral: updatedReferrer is null, cannot send notification');
+                                    }
+                                }
+                                else {
+                                    console.log('🔗 Referral: Bonus already awarded for this user, skipping');
+                                }
+                            }
+                            catch (error) {
+                                console.error('🔗 Referral: Error awarding bonus:', error?.message);
+                            }
+                        }
+                        else {
+                            console.log('🔗 Referral: User already exists, bonus not awarded');
+                        }
+                    }
+                }
+                catch (error) {
+                    console.warn('🔗 Referral: Error processing username referral:', error?.message);
+                }
+            }
+            // Handle old format: ref_direct_CODE or ref_multi_CODE
             if (startPayload && (startPayload.startsWith('ref_direct_') || startPayload.startsWith('ref_multi_'))) {
                 const parts = startPayload.split('_');
                 console.log('🔗 Referral: parts =', parts);
@@ -556,18 +524,44 @@ export const navigationModule = {
                 console.log('🔗 Referral: programType =', programType, 'referralCode =', referralCode);
                 try {
                     // Find partner profile by referral code
+                    const { prisma } = await import('../../lib/prisma.js');
                     console.log('🔗 Referral: Searching for partner profile with code:', referralCode);
-                    const partnerProfile = await PartnerProfile.findOne({ referralCode })
-                        .populate('userId')
-                        .lean();
+                    let partnerProfile;
+                    try {
+                        partnerProfile = await prisma.partnerProfile.findUnique({
+                            where: { referralCode },
+                            include: { user: true }
+                        });
+                    }
+                    catch (error) {
+                        // Silent fail for DB errors - continue without referral processing
+                        if (error?.code === 'P1013' || error?.message?.includes('Authentication failed')) {
+                            console.warn('🔗 Referral: Database auth error, skipping referral processing');
+                            partnerProfile = null;
+                        }
+                        else {
+                            throw error; // Re-throw non-auth errors
+                        }
+                    }
                     console.log('🔗 Referral: Found partner profile:', partnerProfile ? 'YES' : 'NO');
                     if (partnerProfile) {
                         // Check if user already existed before ensuring
                         let existingUserBeforeEnsure = null;
                         if (ctx.from?.id) {
-                            const existing = await User.findOne({ telegramId: ctx.from.id.toString() }).select('_id').lean();
-                            if (existing) {
-                                existingUserBeforeEnsure = { _id: existing._id.toString() };
+                            try {
+                                existingUserBeforeEnsure = await prisma.user.findUnique({
+                                    where: { telegramId: ctx.from.id.toString() },
+                                    select: { id: true }
+                                });
+                            }
+                            catch (error) {
+                                // Silent fail for DB errors
+                                if (error?.code === 'P1013' || error?.message?.includes('Authentication failed')) {
+                                    existingUserBeforeEnsure = null;
+                                }
+                                else {
+                                    throw error;
+                                }
                             }
                         }
                         // Ensure user exists first
@@ -581,138 +575,84 @@ export const navigationModule = {
                         console.log('🔗 Referral: User ensured, upserting referral record');
                         // Use upsert to create or get existing referral record
                         const referralLevel = programType === 'DIRECT' ? 1 : 1; // Both start at level 1
-                        const partnerProfileId = partnerProfile._id?.toString() || partnerProfile.id || '';
-                        const userId = user._id?.toString() || '';
-                        if (!partnerProfileId || !userId) {
-                            console.log('🔗 Referral: Missing IDs, cannot create referral');
-                            await ctx.reply('❌ Ошибка при обработке реферальной ссылки.');
-                            return;
-                        }
-                        const referral = await upsertPartnerReferral(partnerProfileId, referralLevel, userId, undefined, programType);
-                        // Award bonus only if this is a new user and new referral record
-                        const isNewReferral = new Date(referral.createdAt).getTime() > Date.now() - 5000; // Created within last 5 seconds
-                        const shouldReward = !isExistingUser && isNewReferral;
-                        if (shouldReward) {
+                        const referral = await upsertPartnerReferral(partnerProfile.id, referralLevel, user.id, undefined, programType);
+                        // Award bonus only if this is a new user (not existing before)
+                        if (!isExistingUser) {
                             // Check if bonus was already awarded for this user
-                            const partnerProfileId = partnerProfile._id?.toString() || partnerProfile.id || '';
-                            const userId = user._id?.toString() || '';
-                            const existingBonus = await PartnerTransaction.findOne({
-                                profileId: partnerProfileId,
-                                description: `Бонус за приглашение друга (${userId})`
-                            }).lean();
+                            const existingBonus = await prisma.partnerTransaction.findFirst({
+                                where: {
+                                    profileId: partnerProfile.id,
+                                    OR: [
+                                        { description: { contains: `Бонус за приглашение друга (${user.id})` } },
+                                        { description: { contains: `Бонус 3PZ за приглашение нового пользователя (${user.id})` } }
+                                    ]
+                                }
+                            });
                             if (!existingBonus) {
                                 // Award 3PZ to the inviter only if not already awarded
                                 console.log('🔗 Referral: Awarding 3PZ bonus to inviter for new user');
-                                await recordPartnerTransaction(partnerProfileId, 3, `Бонус за приглашение друга (${userId})`, TransactionType.CREDIT);
-                                console.log('🔗 Referral: Bonus awarded successfully');
+                                await recordPartnerTransaction(partnerProfile.id, 3, `Бонус 3PZ за приглашение нового пользователя (${user.id})`, 'CREDIT');
+                                // Get updated user balance after transaction
+                                const updatedReferrer = await prisma.user.findUnique({
+                                    where: { id: partnerProfile.userId },
+                                    select: {
+                                        balance: true,
+                                        telegramId: true,
+                                        firstName: true
+                                    }
+                                });
+                                console.log('🔗 Referral: Bonus awarded successfully, new balance:', updatedReferrer?.balance);
+                                // Send notification to inviter (always send if bonus was awarded)
+                                if (updatedReferrer) {
+                                    try {
+                                        console.log('🔗 Referral: Sending notification to inviter:', updatedReferrer.telegramId);
+                                        const joinedLabel = user.username ? `@${user.username}` : (user.firstName || 'пользователь');
+                                        const notificationText = '🎉 <b>Баланс пополнен!</b>\n\n' +
+                                            `💰 Сумма: 3.00 PZ\n` +
+                                            `💳 Текущий баланс: ${updatedReferrer.balance.toFixed(2)} PZ\n\n` +
+                                            `✨ К вам присоединился ${joinedLabel} по вашей реферальной ссылке!\n\n` +
+                                            `Приглашайте больше друзей и получайте бонусы!`;
+                                        await ctx.telegram.sendMessage(updatedReferrer.telegramId, notificationText, { parse_mode: 'HTML' });
+                                        console.log('🔗 Referral: Notification sent successfully to inviter');
+                                    }
+                                    catch (error) {
+                                        console.error('🔗 Referral: Failed to send notification to inviter:', error?.message || error);
+                                        // Log full error for debugging
+                                        if (error?.response) {
+                                            console.error('🔗 Referral: Telegram API error:', JSON.stringify(error.response, null, 2));
+                                        }
+                                    }
+                                }
+                                else {
+                                    console.warn('🔗 Referral: updatedReferrer is null, cannot send notification');
+                                }
                             }
                             else {
                                 console.log('🔗 Referral: Bonus already awarded for this user, skipping');
                             }
                         }
                         else {
-                            console.log('🔗 Referral: Skipping bonus because user already existed or referral is not new', {
-                                isExistingUser,
-                                isNewReferral
-                            });
-                        }
-                        // Send notification to inviter only for new referrals
-                        if (shouldReward) {
-                            try {
-                                const partnerUser = partnerProfile.userId;
-                                const telegramId = partnerUser?.telegramId || (await User.findById(partnerProfile.userId).select('telegramId').lean())?.telegramId;
-                                console.log('🔗 Referral: Sending notification to inviter:', telegramId);
-                                const joinedLabel = user.username ? `@${user.username}` : (user.firstName || 'пользователь');
-                                const text = `🎉 Ваш счет пополнен на 3PZ — присоединился ${joinedLabel}!\n\nПриглашайте больше друзей и получайте продукцию за бонусы!`;
-                                if (telegramId) {
-                                    await ctx.telegram.sendMessage(telegramId, text);
-                                    console.log('🔗 Referral: Notification sent successfully');
-                                }
-                            }
-                            catch (error) {
-                                console.warn('🔗 Referral: Failed to send notification to inviter:', error);
-                            }
-                        }
-                        else {
-                            console.log('🔗 Referral: Existing referral, no notification sent');
+                            console.log('🔗 Referral: User already existed, bonus not awarded');
                         }
                         console.log('🔗 Referral: Sending welcome message with bonus info');
-                        // Отправляем видео с текстом как единое сообщение для реферальных пользователей
-                        const partnerUser = partnerProfile.userId;
-                        const firstName = partnerUser?.firstName || (await User.findById(partnerProfile.userId).select('firstName').lean())?.firstName || 'партнёр';
-                        const referralGreeting = `👋 Добро пожаловать!
+                        await ctx.reply(`👋 Добро пожаловать!
 
-🎉 Вас пригласил ${firstName}
+🎉 Вас пригласил ${partnerProfile.user.firstName || 'партнёр'}
 
-${greeting}`;
-                        const safeReferralCaption = sanitizeTelegramHtml(referralGreeting);
-                        const sendReferralVideo = async (caption, useHtml) => {
-                            await ctx.replyWithVideo(WELCOME_VIDEO_URL, {
-                                caption,
-                                supports_streaming: true,
-                                width: 1280,
-                                height: 720,
-                                ...(useHtml ? { parse_mode: 'HTML' } : {}),
-                            });
-                        };
-                        try {
-                            await sendReferralVideo(safeReferralCaption, true);
-                        }
-                        catch (error) {
-                            if (isBotBlockedError(error)) {
-                                console.log('Bot was blocked by user, skipping referral welcome video');
-                                return;
-                            }
-                            if (error?.message?.includes?.('parse entities') || error?.description?.includes?.('parse entities')) {
-                                try {
-                                    await sendReferralVideo(referralGreeting, false);
-                                }
-                                catch (_) { }
-                                return;
-                            }
-                            if (isWrongContentTypeError(error)) {
-                                console.log('Referral video URL not recognized, using fallback method');
-                            }
-                            else {
-                                console.error('Error sending referral welcome video:', error);
-                            }
-                            try {
-                                const response = await fetch(WELCOME_VIDEO_URL);
-                                if (!response.ok)
-                                    throw new Error(`Failed to fetch video: ${response.statusText}`);
-                                const videoStream = Buffer.from(await response.arrayBuffer());
-                                await ctx.replyWithVideo({ source: videoStream, filename: 'welcome-video.mp4' }, { caption: safeReferralCaption, supports_streaming: true, parse_mode: 'HTML', width: 1280, height: 720 });
-                            }
-                            catch (fallbackError) {
-                                if (isBotBlockedError(fallbackError))
-                                    return;
-                                if (fallbackError?.message?.includes?.('parse entities')) {
-                                    try {
-                                        await ctx.replyWithVideo({ source: Buffer.from(await (await fetch(WELCOME_VIDEO_URL)).arrayBuffer()), filename: 'welcome-video.mp4' }, { caption: referralGreeting, supports_streaming: true, width: 1280, height: 720 });
-                                    }
-                                    catch (_) { }
-                                    return;
-                                }
-                                try {
-                                    await ctx.reply(referralGreeting);
-                                }
-                                catch (finalError) {
-                                    if (!isBotBlockedError(finalError))
-                                        throw finalError;
-                                }
-                            }
-                        }
+✨ Vital — жидкие витамины и минералы в наноформе.
+💧 Усвоение — до 99,9% (в отличие от таблеток 1–10%).
+⚡ Быстро, легко и без нагрузки на печень и почки — питание прямо в клетки.
+
+Хотите узнать больше? 👇`);
                         console.log('🔗 Referral: Welcome message sent');
-                        // Отправляем кнопку "Подарок"
-                        await sendGiftButton(ctx);
                         await logUserAction(ctx, 'partner:referral_joined', {
                             referralCode,
-                            partnerId: partnerProfile._id.toString(),
+                            partnerId: partnerProfile.id,
                             programType
                         });
                         console.log('🔗 Referral: User action logged');
-                        // For referral users, send navigation menu
-                        await sendNavigationMenu(ctx);
+                        // For referral users, show app launch button
+                        await sendAppHome(ctx, { includeGreeting: false });
                         return; // Don't call renderHome to avoid duplicate greeting
                     }
                     else {
@@ -732,38 +672,38 @@ ${greeting}`;
             await renderHome(ctx);
         });
         // Обработчики для кнопок классического меню
+        bot.hears('Каталог', async (ctx) => {
+            await logUserAction(ctx, 'menu:catalog');
+            await ctx.reply('Каталог', Markup.removeKeyboard());
+        });
         bot.hears('🛒 Магазин', async (ctx) => {
             await logUserAction(ctx, 'menu:shop');
-            const { showCategories } = await import('../shop/index.js');
-            await showCategories(ctx);
+            const webappUrl = getWebappUrl();
+            await ctx.reply('🛒 <b>Открываю магазин...</b>', {
+                parse_mode: 'HTML',
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            {
+                                text: '🚀 Открыть магазин',
+                                web_app: { url: webappUrl }
+                            }
+                        ]
+                    ]
+                }
+            });
         });
         bot.hears('🤝 Партнёрка', async (ctx) => {
             await logUserAction(ctx, 'menu:partner');
             const { showPartnerIntro } = await import('../partner/index.js');
             await showPartnerIntro(ctx);
         });
-        bot.hears('🎵 Звуковые матрицы Гаряева', async (ctx) => {
-            await logUserAction(ctx, 'menu:sounds');
-            const { showAudioFiles } = await import('../audio/index.js');
-            await showAudioFiles(ctx, 'gift');
-        });
         bot.hears('⭐ Отзывы', async (ctx) => {
-            try {
-                await logUserAction(ctx, 'menu:reviews');
-                const { showReviews } = await import('../reviews/index.js');
-                await showReviews(ctx);
-            }
-            catch (error) {
-                console.error('⭐ Navigation: Failed to show reviews', error);
-                try {
-                    await ctx.reply('❌ Ошибка при загрузке отзывов. Попробуйте позже.');
-                }
-                catch (replyError) {
-                    // Игнорируем ошибки отправки сообщений
-                }
-            }
+            await logUserAction(ctx, 'menu:reviews');
+            const { showReviews } = await import('../reviews/index.js');
+            await showReviews(ctx);
         });
-        bot.hears('ℹ️ О PLASMA', async (ctx) => {
+        bot.hears('ℹ️ О нас', async (ctx) => {
             await logUserAction(ctx, 'menu:about');
             const { showAbout } = await import('../about/index.js');
             await showAbout(ctx);
@@ -777,12 +717,6 @@ ${greeting}`;
             await ctx.answerCbQuery();
             await logUserAction(ctx, 'cta:gift');
             await showGiftMessage(ctx);
-        });
-        bot.action('nav:audio:gift', async (ctx) => {
-            await ctx.answerCbQuery();
-            await logUserAction(ctx, 'cta:audio:gift');
-            const { showAudioFiles } = await import('../audio/index.js');
-            await showAudioFiles(ctx, 'gift');
         });
         for (const item of navigationItems) {
             bot.action(`${NAVIGATION_ACTION_PREFIX}${item.id}`, async (ctx) => {
@@ -870,7 +804,7 @@ ${greeting}`;
                 await next();
                 return;
             }
-            const buttonTexts = ['🛒 Магазин', '💰 Партнёрка', '🎵 Звуковые матрицы Гаряева', '⭐ Отзывы', 'ℹ️ О PLASMA', 'Меню', 'Главное меню', 'Назад'];
+            const buttonTexts = ['🛒 Магазин', '💰 Партнёрка', '⭐ Отзывы', 'ℹ️ О нас', 'Меню', 'Главное меню', 'Назад'];
             if (buttonTexts.includes(messageText)) {
                 await next();
                 return;
@@ -882,6 +816,26 @@ ${greeting}`;
                 try {
                     // Send admin's reply to the user
                     await ctx.telegram.sendMessage(userTelegramId, `💬 <b>Ответ службы поддержки:</b>\n\n${messageText}`, { parse_mode: 'HTML' });
+                    // Also store reply in DB so WebApp chat can display it
+                    try {
+                        const { prisma } = await import('../../lib/prisma.js');
+                        const user = await prisma.user.findUnique({
+                            where: { telegramId: userTelegramId.toString() },
+                            select: { id: true }
+                        });
+                        if (user) {
+                            await prisma.userHistory.create({
+                                data: {
+                                    userId: user.id,
+                                    action: 'support:webapp',
+                                    payload: { direction: 'admin', text: messageText }
+                                }
+                            });
+                        }
+                    }
+                    catch (dbErr) {
+                        console.error('Failed to log support reply for webapp:', dbErr);
+                    }
                     // Confirm to admin
                     await ctx.reply(`✅ <b>Ответ отправлен пользователю ${userName}</b>\n\n` +
                         `💬 Ваше сообщение: "${messageText}"`, { parse_mode: 'HTML' });

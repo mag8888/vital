@@ -1,9 +1,8 @@
 import { logUserAction, ensureUser } from '../../services/user-history.js';
-import { getCartItems, cartItemsToText, clearCart, increaseProductQuantity, decreaseProductQuantity, removeProductFromCart, calculatePriceWithDiscount } from '../../services/cart-service.js';
+import { getCartItems, cartItemsToText, clearCart, increaseProductQuantity, decreaseProductQuantity, removeProductFromCart } from '../../services/cart-service.js';
 import { createOrderRequest } from '../../services/order-service.js';
 import { getBotContent } from '../../services/bot-content-service.js';
-import { checkPartnerActivation } from '../../services/partner-service.js';
-import mongoose from 'mongoose';
+import { prisma } from '../../lib/prisma.js';
 export const cartModule = {
     async register(bot) {
         // Handle "Корзина" button
@@ -53,11 +52,7 @@ export async function showCart(ctx) {
             await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
             return;
         }
-        const userId = user._id?.toString() || '';
-        if (!userId) {
-            await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
-            return;
-        }
+        const userId = user.id;
         console.log('🛍️ Cart: User ID:', userId);
         console.log('🛍️ Cart: Getting cart items for user:', userId);
         const cartItems = await getCartItems(userId);
@@ -78,81 +73,41 @@ export async function showCart(ctx) {
             });
             return;
         }
-        // Check if user has active partner program
-        const hasPartnerDiscount = await checkPartnerActivation(userId);
-        const discountPercent = hasPartnerDiscount ? 10 : 0;
         // Send each cart item separately with quantity controls
         for (const item of cartItems) {
-            const basePrice = item.product.price;
-            const priceInfo = await calculatePriceWithDiscount(userId, basePrice);
-            const originalRubPrice = (basePrice * 100).toFixed(2);
-            const originalPzPrice = basePrice.toFixed(2);
-            const finalRubPrice = (priceInfo.discountedPrice * 100).toFixed(2);
-            const finalPzPrice = priceInfo.discountedPrice.toFixed(2);
-            const itemTotalRub = (priceInfo.discountedPrice * item.quantity * 100).toFixed(2);
-            const itemTotalPz = (priceInfo.discountedPrice * item.quantity).toFixed(2);
-            let itemText = `🛍️ ${item.product.title}\n📦 Количество: ${item.quantity}\n`;
-            if (hasPartnerDiscount) {
-                itemText += `💰 Цена: ~~${originalRubPrice}~~ ${finalRubPrice} ₽ / ~~${originalPzPrice}~~ ${finalPzPrice} PZ\n`;
-                itemText += `🎁 Скидка 10%: -${(priceInfo.discount * 100).toFixed(2)} ₽ / -${priceInfo.discount.toFixed(2)} PZ\n`;
-            }
-            else {
-                itemText += `💰 Цена: ${finalRubPrice} ₽ / ${finalPzPrice} PZ\n`;
-            }
-            itemText += `💵 Итого: ${itemTotalRub} ₽ / ${itemTotalPz} PZ`;
-            // Получаем productId для callback_data
-            const productIdForCallback = item.productIdString ||
-                item.product?._id?.toString() ||
-                item.productId?._id?.toString() ||
-                String(item.productId || '');
-            if (!productIdForCallback) {
-                console.error('❌ Cart: Cannot determine productId for callback_data:', item);
-                continue; // Пропускаем этот товар, если не можем определить ID
-            }
+            const rubPrice = (item.product.price * 100).toFixed(2);
+            const pzPrice = item.product.price.toFixed(2);
+            const itemTotalRub = (item.product.price * item.quantity * 100).toFixed(2);
+            const itemTotalPz = (item.product.price * item.quantity).toFixed(2);
+            const itemText = `🛍️ ${item.product.title}\n📦 Количество: ${item.quantity}\n💰 Цена: ${rubPrice} ₽ / ${pzPrice} PZ\n💵 Итого: ${itemTotalRub} ₽ / ${itemTotalPz} PZ`;
             await ctx.reply(itemText, {
-                parse_mode: 'Markdown',
                 reply_markup: {
                     inline_keyboard: [
                         [
                             {
                                 text: '➖ Убрать 1',
-                                callback_data: `cart:decrease:${productIdForCallback}`,
+                                callback_data: `cart:decrease:${item.productId}`,
                             },
                             {
                                 text: '➕ Добавить 1',
-                                callback_data: `cart:increase:${productIdForCallback}`,
+                                callback_data: `cart:increase:${item.productId}`,
                             },
                         ],
                         [
                             {
                                 text: '🗑️ Удалить товар',
-                                callback_data: `cart:remove:${productIdForCallback}`,
+                                callback_data: `cart:remove:${item.productId}`,
                             },
                         ],
                     ],
                 },
             });
         }
-        // Calculate total with discount
-        let total = 0;
-        let totalDiscount = 0;
-        for (const item of cartItems) {
-            const priceInfo = await calculatePriceWithDiscount(userId, item.product.price);
-            total += priceInfo.discountedPrice * item.quantity;
-            if (hasPartnerDiscount) {
-                totalDiscount += priceInfo.discount * item.quantity;
-            }
-        }
+        // Send total and action buttons
+        const total = cartItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
         const totalRub = (total * 100).toFixed(2);
         const totalPz = total.toFixed(2);
-        let totalText = `💰 Итого к оплате: ${totalRub} ₽ / ${totalPz} PZ`;
-        if (hasPartnerDiscount && totalDiscount > 0) {
-            const discountRub = (totalDiscount * 100).toFixed(2);
-            const discountPz = totalDiscount.toFixed(2);
-            totalText += `\n\n🎁 Скидка партнера (10%): -${discountRub} ₽ / -${discountPz} PZ`;
-            totalText += `\n✨ Применена скидка 10% для партнеров`;
-        }
-        await ctx.reply(totalText, {
+        await ctx.reply(`💰 Итого к оплате: ${totalRub} ₽ / ${totalPz} PZ`, {
             reply_markup: {
                 inline_keyboard: [
                     [
@@ -229,11 +184,7 @@ export function registerCartActions(bot) {
             await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
             return;
         }
-        const userId = user._id?.toString() || '';
-        if (!userId) {
-            await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
-            return;
-        }
+        const userId = user.id;
         await clearCart(userId);
         await ctx.reply('🗑️ Корзина очищена');
     });
@@ -246,11 +197,7 @@ export function registerCartActions(bot) {
             await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
             return;
         }
-        const userId = user._id?.toString() || '';
-        if (!userId) {
-            await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
-            return;
-        }
+        const userId = user.id;
         try {
             console.log('🛒 CART CHECKOUT: Starting checkout for user:', userId, user.firstName, user.username);
             const cartItems = await getCartItems(userId);
@@ -260,36 +207,25 @@ export function registerCartActions(bot) {
                 return;
             }
             console.log('🛒 CART CHECKOUT: Found cart items:', cartItems.length);
-            // Check if user has active partner program and calculate prices with discount
-            const hasPartnerDiscount = await checkPartnerActivation(userId);
-            // Create order in database with discounted prices
-            const itemsPayload = await Promise.all(cartItems.map(async (item) => {
-                const priceInfo = await calculatePriceWithDiscount(userId, item.product.price);
-                return {
-                    productId: item.productId?.toString() || item.product?._id?.toString() || '',
-                    title: item.product.title,
-                    price: priceInfo.discountedPrice, // Save discounted price
-                    originalPrice: priceInfo.originalPrice, // Save original price for reference
-                    quantity: item.quantity,
-                    hasDiscount: priceInfo.hasDiscount,
-                    discount: priceInfo.discount,
-                };
+            // Create order in database
+            const itemsPayload = cartItems.map((item) => ({
+                productId: item.productId,
+                title: item.product.title,
+                price: Number(item.product.price),
+                quantity: item.quantity,
             }));
-            let orderMessage = `Заказ через корзину от ${user.firstName || 'Пользователь'}`;
-            if (hasPartnerDiscount) {
-                orderMessage += '\n🎁 Применена скидка партнера 10%';
-            }
             console.log('🛒 CART CHECKOUT: Creating order request...');
             await createOrderRequest({
                 userId: userId,
-                message: orderMessage,
+                message: `Заказ через корзину от ${user.firstName || 'Пользователь'}`,
                 items: itemsPayload,
             });
             console.log('✅ CART CHECKOUT: Order request created successfully');
-            const cartText = await cartItemsToText(cartItems, userId);
+            const cartText = cartItemsToText(cartItems);
             // Get user data for phone and address
-            const { User } = await import('../../models/index.js');
-            const userData = await User.findById(userId).lean();
+            const userData = await prisma.user.findUnique({
+                where: { id: userId }
+            });
             let contactInfo = `📞 Свяжитесь с покупателем: @${ctx.from?.username || 'нет username'}`;
             if (userData?.phone) {
                 contactInfo += `\n📱 Телефон: ${userData.phone}`;
@@ -298,32 +234,38 @@ export function registerCartActions(bot) {
                 contactInfo += `\n📍 Адрес доставки: ${userData.deliveryAddress}`;
             }
             const orderText = `🛍️ Новый заказ от ${ctx.from?.first_name || 'Пользователь'}\n\n${cartText}\n\n${contactInfo}`;
-            // Send order to specific admin with contact button
+            // Send order to all admins with contact button
             const { getBotInstance } = await import('../../lib/bot-instance.js');
+            const { getAdminChatIds } = await import('../../config/env.js');
             const bot = await getBotInstance();
             if (bot) {
-                const aureliaAdminId = '7077195545'; // @Aurelia_8888
-                try {
-                    await bot.telegram.sendMessage(aureliaAdminId, orderText, {
-                        parse_mode: 'HTML',
-                        reply_markup: {
-                            inline_keyboard: [
-                                [
-                                    {
-                                        text: '💬 Написать пользователю',
-                                        url: ctx.from?.username ? `https://t.me/${ctx.from.username}` : `tg://user?id=${ctx.from?.id}`
-                                    },
-                                    {
-                                        text: '🤖 Писать через бот',
-                                        callback_data: `admin_reply:${ctx.from?.id}:${ctx.from?.first_name || 'Пользователь'}`
-                                    }
+                const adminIds = getAdminChatIds();
+                const orderMessage = `🛍️ <b>Новый заказ от пользователя</b>\n\n${orderText}`;
+                // Send to all admins
+                for (const adminId of adminIds) {
+                    try {
+                        await bot.telegram.sendMessage(adminId, orderMessage, {
+                            parse_mode: 'HTML',
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [
+                                        {
+                                            text: '💬 Написать пользователю',
+                                            url: ctx.from?.username ? `https://t.me/${ctx.from.username}` : `tg://user?id=${ctx.from?.id}`
+                                        },
+                                        {
+                                            text: '🤖 Писать через бот',
+                                            callback_data: `admin_reply:${ctx.from?.id}:${ctx.from?.first_name || 'Пользователь'}`
+                                        }
+                                    ]
                                 ]
-                            ]
-                        }
-                    });
-                }
-                catch (error) {
-                    console.error('Failed to send order notification to admin:', error);
+                            }
+                        });
+                        console.log(`✅ Order notification sent to admin: ${adminId}`);
+                    }
+                    catch (error) {
+                        console.error(`❌ Failed to send order notification to admin ${adminId}:`, error?.message || error);
+                    }
                 }
             }
             // Clear cart after successful order
@@ -405,11 +347,7 @@ export function registerCartActions(bot) {
             await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
             return;
         }
-        const userId = user._id?.toString() || '';
-        if (!userId) {
-            await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
-            return;
-        }
+        const userId = user.id;
         try {
             await increaseProductQuantity(userId, productId);
             await ctx.reply('✅ Количество увеличено!');
@@ -426,68 +364,21 @@ export function registerCartActions(bot) {
         await ctx.answerCbQuery();
         await logUserAction(ctx, 'cart:decrease');
         const match = ctx.match;
-        const productId = match[1]?.trim();
-        if (!productId) {
-            console.error('❌ Cart: Empty productId in decrease callback');
-            await ctx.reply('❌ Ошибка: не указан товар. Попробуйте обновить корзину.');
-            return;
-        }
+        const productId = match[1];
         const user = await ensureUser(ctx);
         if (!user) {
             await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
             return;
         }
-        const userId = user._id?.toString() || '';
-        if (!userId) {
-            await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
-            return;
-        }
+        const userId = user.id;
         try {
-            console.log(`🛍️ Cart: Decreasing quantity for userId: ${userId}, productId: ${productId}`);
-            // Проверяем, что productId валидный ObjectId
-            if (!mongoose.Types.ObjectId.isValid(productId)) {
-                console.error(`❌ Cart: Invalid productId format: ${productId}`);
-                await ctx.reply('❌ Ошибка: неверный формат товара. Попробуйте обновить корзину.');
-                return;
-            }
-            const result = await decreaseProductQuantity(userId, productId);
-            // Проверяем результат операции
-            if (result === null) {
-                // Товар был удален (количество было 1 или меньше)
-                await ctx.reply('✅ Товар удален из корзины (количество было 1).');
-            }
-            else {
-                await ctx.reply('✅ Количество уменьшено!');
-            }
-            // Проверяем, есть ли еще товары в корзине перед обновлением
-            const cartItems = await getCartItems(userId);
-            if (cartItems.length > 0) {
-                await showCart(ctx);
-            }
-            else {
-                await ctx.reply('🛍️ Корзина пуста.');
-            }
+            await decreaseProductQuantity(userId, productId);
+            await ctx.reply('✅ Количество уменьшено!');
+            // Refresh cart display
+            await showCart(ctx);
         }
         catch (error) {
-            console.error('❌ Error decreasing quantity:', error);
-            console.error('❌ Error details:', {
-                message: error.message,
-                name: error.name,
-                stack: error.stack?.substring(0, 200),
-            });
-            // Обрабатываем ошибки MongoDB
-            if (error?.name === 'CastError' || error?.message?.includes('Cast to ObjectId')) {
-                console.error(`❌ Cart: Invalid ObjectId format for productId: ${productId}`);
-                await ctx.reply('❌ Ошибка: неверный формат товара. Попробуйте обновить корзину.');
-                return;
-            }
-            // Обрабатываем ошибки подключения к БД
-            if (error?.message?.includes('База данных временно недоступна') ||
-                error?.name === 'MongoServerError' ||
-                error?.name === 'MongoNetworkError') {
-                await ctx.reply('❌ База данных временно недоступна. Попробуйте позже.');
-                return;
-            }
+            console.error('Error decreasing quantity:', error);
             await ctx.reply('❌ Ошибка изменения количества. Попробуйте позже.');
         }
     });
@@ -502,45 +393,15 @@ export function registerCartActions(bot) {
             await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
             return;
         }
-        const userId = user._id?.toString() || '';
-        if (!userId) {
-            await ctx.reply('❌ Ошибка загрузки корзины. Попробуйте позже.');
-            return;
-        }
+        const userId = user.id;
         try {
-            const result = await removeProductFromCart(userId, productId);
-            // Проверяем результат операции
-            if (result === null) {
-                // Товар уже был удален или не существует
-                console.warn(`⚠️ Cart: Attempted to remove non-existent item (userId: ${userId}, productId: ${productId})`);
-                // Все равно обновляем корзину, чтобы показать актуальное состояние
-            }
-            else {
-                await ctx.reply('✅ Товар удален из корзины!');
-            }
-            // Проверяем, есть ли еще товары в корзине перед обновлением
-            const cartItems = await getCartItems(userId);
-            if (cartItems.length > 0) {
-                await showCart(ctx);
-            }
-            else {
-                await ctx.reply('🛍️ Корзина пуста.');
-            }
+            await removeProductFromCart(userId, productId);
+            await ctx.reply('✅ Товар удален из корзины!');
+            // Refresh cart display
+            await showCart(ctx);
         }
         catch (error) {
-            console.error('❌ Error removing product:', error);
-            // Обрабатываем специфичные ошибки Prisma
-            if (error?.code === 'P2025') {
-                // Товар уже удален - просто обновляем корзину
-                const cartItems = await getCartItems(userId);
-                if (cartItems.length > 0) {
-                    await showCart(ctx);
-                }
-                else {
-                    await ctx.reply('🛍️ Корзина пуста.');
-                }
-                return;
-            }
+            console.error('Error removing product:', error);
             await ctx.reply('❌ Ошибка удаления товара. Попробуйте позже.');
         }
     });
@@ -753,10 +614,11 @@ export function registerCartActions(bot) {
         const phoneNumber = contact.phone_number;
         try {
             // Save phone number to user profile
-            const { User } = await import('../../models/index.js');
-            await User.findByIdAndUpdate(user._id, { phone: phoneNumber });
-            const userId = user._id?.toString() || '';
-            console.log(`📞 Contact received from user ${userId}: ${phoneNumber}`);
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { phone: phoneNumber },
+            });
+            console.log(`📞 Contact received from user ${user.id}: ${phoneNumber}`);
             await ctx.reply('✅ Спасибо! Ваш номер телефона сохранен.');
             // Now ask for delivery address
             await ctx.reply('📍 Теперь укажите адрес доставки:', {
@@ -787,9 +649,12 @@ async function handleDeliveryAddress(ctx, addressType, address) {
             return;
         }
         // Save address to database
-        const { User } = await import('../../models/index.js');
+        const { prisma } = await import('../../lib/prisma.js');
         const fullAddress = `${addressType}: ${address}`;
-        await User.findByIdAndUpdate(user._id, { deliveryAddress: fullAddress });
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { deliveryAddress: fullAddress }
+        });
         const addressText = `✅ Ваш адрес принят!\n\n📍 Адрес доставки:\nТип: ${addressType}\nАдрес: ${address}`;
         await ctx.reply(addressText, {
             reply_markup: {

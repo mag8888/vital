@@ -16,6 +16,7 @@ import { prisma } from './lib/prisma.js';
 import { ensureInitialData } from './lib/bootstrap.js';
 import { adminRefactoredRouter } from './admin/web-simple-refactored.js';
 import { webappRouter } from './webapp/webapp.js';
+import { webappV2Router } from './webapp/webapp-v2.js';
 import { setBotInstance } from './lib/bot-instance.js';
 
 async function bootstrap() {
@@ -46,7 +47,7 @@ async function bootstrap() {
 
     // Настройка сессий
     app.use(session({
-      secret: process.env.SESSION_SECRET || 'plazma-bot-secret-key-refactored-v2',
+      secret: process.env.SESSION_SECRET || 'vital-bot-secret-key-refactored-v2',
       resave: false,
       saveUninitialized: false,
       cookie: { 
@@ -65,6 +66,7 @@ async function bootstrap() {
     // Маршруты
     app.use('/admin', adminRefactoredRouter);
     app.use('/webapp', webappRouter);
+    app.use('/webapp-v2', webappV2Router);
 
     // API для проверки здоровья
     app.get('/api/health', (req, res) => {
@@ -127,7 +129,7 @@ async function bootstrap() {
           <!DOCTYPE html>
           <html>
           <head>
-            <title>Error - Plazma Bot v2.0</title>
+            <title>Error - Vital Bot v2.0</title>
             <style>
               body { 
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -212,7 +214,7 @@ async function bootstrap() {
           <!DOCTYPE html>
           <html>
           <head>
-            <title>404 - Plazma Bot v2.0</title>
+            <title>404 - Vital Bot v2.0</title>
             <style>
               body { 
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -304,7 +306,7 @@ async function bootstrap() {
       console.log(`📱 Webapp: http://localhost:${PORT}/webapp`);
       console.log(`🔧 Admin v2.0: http://localhost:${PORT}/admin`);
       console.log(`📊 API: http://localhost:${PORT}/api/health`);
-      console.log(`🤖 Bot: @${bot.botInfo?.username || 'plazma-bot'}`);
+      console.log(`🤖 Bot: @${bot.botInfo?.username || 'vital-bot'}`);
       console.log('');
       console.log('🎉 REFACTORING COMPLETED SUCCESSFULLY!');
       console.log('✨ Architecture improvements:');

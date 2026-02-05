@@ -1,7 +1,6 @@
 import { Context } from '../bot/context.js';
-import { User, UserHistory, IUser } from '../models/index.js';
+import { prisma } from '../lib/prisma.js';
 import { Markup } from 'telegraf';
-import mongoose from 'mongoose';
 
 function generateObjectId(telegramId: number): string {
   // Convert Telegram ID to a valid MongoDB ObjectId (24 hex chars)
@@ -9,86 +8,57 @@ function generateObjectId(telegramId: number): string {
   return hex.substring(0, 24);
 }
 
-// Проверяет, заблокирован ли бот пользователем
-function isBotBlockedError(error: any): boolean {
-  if (!error) return false;
-  const errorMessage = error.message || error.description || '';
-  const errorCode = error.response?.error_code || error.error_code;
-  return (
-    errorCode === 403 ||
-    errorMessage.includes('bot was blocked') ||
-    errorMessage.includes('Forbidden: bot was blocked')
-  );
-}
-
-// Проверяет, является ли ошибка ошибкой подключения к БД
-function isDatabaseConnectionError(error: any): boolean {
-  if (!error) return false;
-  const errorMessage = error.message || '';
-  const errorName = error.name || '';
-  
-  return (
-    errorName === 'MongoServerError' ||
-    errorName === 'MongoNetworkError' ||
-    errorName === 'MongooseError' ||
-    errorMessage.includes('connection') ||
-    errorMessage.includes('timeout') ||
-    errorMessage.includes('Authentication failed') ||
-    errorMessage.includes('SCRAM failure') ||
-    errorMessage.includes('Server selection timeout') ||
-    errorMessage.includes('No available servers')
-  );
-}
-
-export async function ensureUser(ctx: Context): Promise<IUser | null> {
+export async function ensureUser(ctx: Context) {
   const from = ctx.from;
   if (!from) return null;
 
   const data = {
     telegramId: String(from.id),
-    firstName: from.first_name ?? undefined,
-    lastName: from.last_name ?? undefined,
-    username: from.username ?? undefined,
-    languageCode: from.language_code ?? undefined,
-  };
+    firstName: from.first_name ?? null,
+    lastName: from.last_name ?? null,
+    username: from.username ?? null,
+    languageCode: from.language_code ?? null,
+  } as const;
 
   try {
-    // Используем findOneAndUpdate с upsert для Mongoose
-    const user = await User.findOneAndUpdate(
-      { telegramId: data.telegramId },
-      {
-        $set: {
-          firstName: data.firstName,
-          lastName: data.lastName,
-          username: data.username,
-          languageCode: data.languageCode,
-        },
+    const user = await prisma.user.upsert({
+      where: { telegramId: data.telegramId },
+      update: {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        username: data.username,
+        languageCode: data.languageCode,
       },
-      {
-        upsert: true,
-        new: true,
-        setDefaultsOnInsert: true,
-      }
-    );
+      create: {
+        ...data,
+        id: generateObjectId(from.id),
+      },
+    });
 
     return user;
   } catch (error: any) {
-    const errorMessage = error.message || '';
-    
-    if (isDatabaseConnectionError(error)) {
-      console.warn('Database unavailable, using mock user:', errorMessage.substring(0, 100));
-    } else {
-      console.warn('Failed to ensure user:', errorMessage.substring(0, 100));
+    // Silent fail for authentication errors - don't spam logs
+    if (error?.code === 'P1013' || error?.message?.includes('Authentication failed') || error?.message?.includes('SCRAM failure')) {
+      // Database connection/auth issue - return mock user to continue
+      return {
+        id: generateObjectId(from.id),
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
     }
-    
+    // Log other errors once
+    if (!(global as any).__dbErrorLogged) {
+      console.warn('⚠️  Database error (subsequent errors will be silent):', error?.message || String(error));
+      (global as any).__dbErrorLogged = true;
+    }
     // Return mock user object to continue without DB
     return {
-      _id: generateObjectId(from.id) as any,
+      id: generateObjectId(from.id),
       ...data,
-      balance: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
-    } as unknown as IUser;
+    };
   }
 }
 
@@ -107,28 +77,18 @@ export async function checkUserContact(ctx: Context): Promise<boolean> {
   }
 
   // Если нет username, но есть phone - всё ок
-  if (user.phone) {
+  if ((user as any).phone) {
     return true;
   }
 
   // Если нет ни username, ни phone - запрашиваем телефон
-  try {
-    await ctx.reply(
-      '📱 Для продолжения работы с ботом необходимо указать номер телефона.\n\n' +
-      'Пожалуйста, нажмите кнопку ниже, чтобы поделиться своим номером телефона:',
-      Markup.keyboard([
-        [Markup.button.contactRequest('📱 Поделиться номером телефона')]
-      ]).resize()
-    );
-  } catch (error) {
-    // Если бот заблокирован пользователем, просто выходим без ошибки
-    if (isBotBlockedError(error)) {
-      console.log('Bot was blocked by user, skipping phone request');
-      return false;
-    }
-    // Для других ошибок пробрасываем дальше
-    throw error;
-  }
+  await ctx.reply(
+    '📱 Для продолжения работы с ботом необходимо указать номер телефона.\n\n' +
+    'Пожалуйста, нажмите кнопку ниже, чтобы поделиться своим номером телефона:',
+    Markup.keyboard([
+      [Markup.button.contactRequest('📱 Поделиться номером телефона')]
+    ]).resize()
+  );
 
   return false;
 }
@@ -153,67 +113,18 @@ export async function handlePhoneNumber(ctx: Context): Promise<void> {
     const user = await ensureUser(ctx);
     if (!user) return;
 
-    try {
-      await User.findByIdAndUpdate(user._id, { phone: phoneNumber });
-    } catch (dbError) {
-      // Если БД недоступна, просто логируем и продолжаем
-      if (isDatabaseConnectionError(dbError)) {
-        console.warn('Database unavailable, phone number not saved:', dbError);
-        // Продолжаем выполнение, чтобы сообщить пользователю
-      } else {
-        // Для других ошибок БД пробрасываем дальше
-        throw dbError;
-      }
-    }
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { phone: phoneNumber } as any
+    });
 
-    try {
-      await ctx.reply(
-        '✅ Спасибо! Номер телефона успешно сохранен.\n\nТеперь вы можете пользоваться всеми функциями бота.',
-        Markup.removeKeyboard()
-      );
-    } catch (replyError) {
-      // Если бот заблокирован, просто выходим без ошибки
-      if (isBotBlockedError(replyError)) {
-        console.log('Bot was blocked by user, skipping phone confirmation');
-        return;
-      }
-      throw replyError;
-    }
+    await ctx.reply(
+      '✅ Спасибо! Номер телефона успешно сохранен.\n\nТеперь вы можете пользоваться всеми функциями бота.',
+      Markup.removeKeyboard()
+    );
   } catch (error) {
-    // Если бот заблокирован, просто выходим без ошибки
-    if (isBotBlockedError(error)) {
-      console.log('Bot was blocked by user, skipping phone number save');
-      return;
-    }
-    
-    // Если ошибка подключения к БД, сообщаем пользователю, но не падаем
-    if (isDatabaseConnectionError(error)) {
-      console.warn('Database unavailable, phone number not saved:', error);
-      try {
-        await ctx.reply('⚠️ База данных временно недоступна. Номер телефона не сохранен. Попробуйте позже.');
-      } catch (replyError) {
-        if (isBotBlockedError(replyError)) {
-          console.log('Bot was blocked by user, skipping error message');
-          return;
-        }
-        throw replyError;
-      }
-      return;
-    }
-    
     console.error('Failed to save phone number:', error);
-    
-    try {
-      await ctx.reply('❌ Ошибка при сохранении номера телефона. Попробуйте позже.');
-    } catch (replyError) {
-      // Если бот заблокирован, просто выходим без ошибки
-      if (isBotBlockedError(replyError)) {
-        console.log('Bot was blocked by user, skipping error message');
-        return;
-      }
-      // Для других ошибок пробрасываем дальше
-      throw replyError;
-    }
+    await ctx.reply('❌ Ошибка при сохранении номера телефона. Попробуйте позже.');
   }
 }
 
@@ -222,20 +133,22 @@ export async function logUserAction(ctx: Context, action: string, payload?: any)
     const user = await ensureUser(ctx);
     if (!user) return;
 
-    await UserHistory.create({
-      userId: user._id,
-      action,
-      payload: payload ?? undefined,
+    await prisma.userHistory.create({
+      data: {
+        userId: user.id,
+        action,
+        payload: payload ?? undefined,
+      },
     });
   } catch (error: any) {
-    // Проверяем, является ли это ошибкой подключения/аутентификации
-    if (isDatabaseConnectionError(error)) {
-      // Не логируем ошибки аутентификации/подключения, так как они уже обрабатываются
-      // и бот продолжает работать с mock данными
-      return;
+    // Silent fail - don't log database errors, just continue
+    // This prevents error spam when DB is unavailable
+    if (error?.code === 'P1013' || error?.message?.includes('Authentication failed') || error?.message?.includes('SCRAM failure')) {
+      return; // Silent fail for auth errors
     }
-    // Логируем только другие ошибки
-    console.warn('Failed to log user action (non-critical):', error.message?.substring(0, 100));
-    // Continue without logging if DB fails
+    // Only log non-auth errors once
+    if (!(global as any).__logErrorLogged) {
+      (global as any).__logErrorLogged = true;
+    }
   }
 }

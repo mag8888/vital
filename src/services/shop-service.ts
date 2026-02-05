@@ -1,45 +1,63 @@
-import { Category, Product, ICategory, IProduct } from '../models/index.js';
-import mongoose from 'mongoose';
+import { prisma } from '../lib/prisma.js';
 
-export async function getActiveCategories(): Promise<any[]> {
-  try {
-    return await Category.find({ isActive: true })
-      .sort({ name: 1 })
-      .lean();
-  } catch (error: any) {
-    console.error('❌ Shop: Error fetching categories:', error.message?.substring(0, 100));
-    throw error;
-  }
+export async function getActiveCategories() {
+  const categories = await prisma.category.findMany({
+    where: { isActive: true },
+    orderBy: { name: 'asc' },
+  });
+  // Treat missing flag as visible (backward compatible)
+  return categories.filter((c: any) => c?.isVisibleInWebapp !== false);
 }
 
-export async function getCategoryById(id: string): Promise<any> {
-  try {
-    return await Category.findById(id).lean();
-  } catch (error: any) {
-    console.error('❌ Shop: Error fetching category:', error.message?.substring(0, 100));
-    throw error;
-  }
+export async function getCategoryById(id: string) {
+  return prisma.category.findUnique({
+    where: { id },
+  });
 }
 
-export async function getProductsByCategory(categoryId: string): Promise<any[]> {
-  try {
-    return await Product.find({
-      categoryId: categoryId,
+export async function getProductsByCategory(categoryId: string) {
+  const products = await prisma.product.findMany({
+    where: { 
+      categoryId, 
       isActive: true,
-    })
-      .sort({ title: 1 })
-      .lean();
-  } catch (error: any) {
-    console.error('❌ Shop: Error fetching products:', error.message?.substring(0, 100));
-    throw error;
-  }
+      imageUrl: { not: null }, // Only products with images
+    },
+    orderBy: { title: 'asc' },
+  });
+  // Additional filter to ensure imageUrl is not empty string
+  return products.filter(p => p.imageUrl && p.imageUrl.trim() !== '');
 }
 
-export async function getProductById(productId: string): Promise<any> {
+export async function getProductById(productId: string) {
+  return prisma.product.findUnique({
+    where: { id: productId },
+  });
+}
+
+export async function getAllActiveProducts() {
   try {
-    return await Product.findById(productId).lean();
+    console.log('📦 getAllActiveProducts: Querying database...');
+    const products = await prisma.product.findMany({
+      where: { 
+        isActive: true,
+        imageUrl: { not: null }, // Only products with images
+      },
+      include: {
+        category: true
+      },
+      orderBy: { title: 'asc' },
+    });
+    // Additional filter to ensure imageUrl is not empty string
+    const productsWithImages = products.filter(p => p.imageUrl && p.imageUrl.trim() !== '');
+    console.log(`✅ getAllActiveProducts: Found ${productsWithImages.length} products with images (out of ${products.length} total)`);
+    return productsWithImages;
   } catch (error: any) {
-    console.error('❌ Shop: Error fetching product:', error.message?.substring(0, 100));
+    console.error('❌ getAllActiveProducts error:', error);
+    if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
+      console.warn('⚠️  MongoDB replica set not configured');
+      // Return empty array instead of throwing
+      return [];
+    }
     throw error;
   }
 }

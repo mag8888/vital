@@ -1,11 +1,11 @@
 import { Markup, Telegraf } from 'telegraf';
-import { PartnerProgramType } from '../../models/PartnerProfile.js';
+import { PartnerProgramType } from '@prisma/client';
 import { Context } from '../../bot/context.js';
 import { BotModule } from '../../bot/types.js';
 import { ensureUser, logUserAction } from '../../services/user-history.js';
 import { buildReferralLink, getOrCreatePartnerProfile, getPartnerDashboard, getPartnerList } from '../../services/partner-service.js';
 import { getBotContent } from '../../services/bot-content-service.js';
-import { User } from '../../models/index.js';
+import { prisma } from '../../lib/prisma.js';
 
 // Тип для партнерского реферала с включенными данными
 type PartnerReferralWithUser = {
@@ -39,17 +39,15 @@ const PARTNERS_LEVEL_2_ACTION = 'partner:level:2';
 const PARTNERS_LEVEL_3_ACTION = 'partner:level:3';
 
 // Fallback тексты, если контент не найден в БД
-const fallbackProgramIntro = `✨ Описание партнёрской программы
+const fallbackProgramIntro = `👋 Станьте партнёром Vital!
 
-👋 Станьте партнёром Plazma Water!
 Вы можете рекомендовать друзьям здоровье и получать пассивный доход.
 
-💸 25% от каждой покупки по вашей ссылке.
-🔗 Достаточно поделиться своей персональной ссылкой.
+💸 15% от каждой покупки по вашей ссылке.
 
-⸻
++5% от покупок второй и 5% третьей линии
 
-📌 У нас есть 2 формата участия:`;
+🔗 Достаточно поделиться своей персональной ссылкой.`;
 
 const cardTemplate = (params: {
   balance: string;
@@ -91,16 +89,14 @@ const fallbackMultiPlanText = `Многоуровневая система — 1
 function planKeyboard() {
   return Markup.inlineKeyboard([
     [Markup.button.callback('📊 Карточка клиента', DASHBOARD_ACTION)],
-    [Markup.button.callback('💰 25%', DIRECT_PLAN_ACTION), Markup.button.callback('📈 15% + 5% + 5%', MULTI_PLAN_ACTION)],
+    [Markup.button.callback('📈 15% + 5% + 5%', MULTI_PLAN_ACTION)],
     [Markup.button.callback('📋 Подробнее', 'partner:details')],
   ]);
 }
 
 function partnerActionsKeyboard() {
   return Markup.inlineKeyboard([
-    [Markup.button.callback('👥 Мои партнёры', PARTNERS_ACTION), Markup.button.callback('📤 Пригласить друга', INVITE_ACTION)],
-    [Markup.button.callback('🔗 Ссылка 25%', INVITE_DIRECT_ACTION)],
-    [Markup.button.callback('🔗 Ссылка 15%+5%+5%', INVITE_MULTI_ACTION)],
+    [Markup.button.callback('👥 Мои партнёры', PARTNERS_ACTION), Markup.button.callback('📤 Пригласить друга', INVITE_MULTI_ACTION)],
   ]);
 }
 
@@ -119,12 +115,7 @@ async function showDashboard(ctx: Context) {
     return;
   }
 
-  const userId = user._id?.toString() || '';
-  if (!userId) {
-    await ctx.reply('Вы ещё не активировали программу.');
-    return;
-  }
-  const dashboard = await getPartnerDashboard(userId);
+  const dashboard = await getPartnerDashboard(user.id);
   if (!dashboard) {
     await ctx.reply('Вы ещё не активировали партнёрскую программу. Выберите формат участия.');
     return;
@@ -132,21 +123,12 @@ async function showDashboard(ctx: Context) {
 
   const { profile, stats } = dashboard;
   
-  // Получаем последние 3 транзакции
-  const { PartnerTransaction } = await import('../../models/index.js');
-  const profileId = (profile as any)._id?.toString() || (profile as any).id || '';
-  if (!profileId) {
-    await ctx.reply('Ошибка загрузки данных профиля.');
-    return;
-  }
-  const recentTransactions = await PartnerTransaction.find({ profileId: profileId })
-    .sort({ createdAt: -1 })
-    .limit(3)
-    .lean();
+  // Берем только последние 3 транзакции и улучшаем их отображение
+  const recentTransactions = profile.transactions.slice(0, 3);
   
   // Собираем все ID пользователей из транзакций для запроса в БД
   const userIds = new Set<string>();
-  recentTransactions.forEach((tx: any) => {
+  recentTransactions.forEach(tx => {
     if (tx.description.includes('приглашение друга') && tx.description.includes('(')) {
       const userIdMatch = tx.description.match(/\(([^)]+)\)/);
       if (userIdMatch) {
@@ -156,15 +138,15 @@ async function showDashboard(ctx: Context) {
   });
   
   // Получаем информацию о пользователях
-  const userIdsArray = Array.from(userIds);
-  const users = userIdsArray.length > 0 ? await User.find({
-    _id: { $in: userIdsArray }
-  }).select('_id username firstName').lean() : [];
+  const users = userIds.size > 0 ? await prisma.user.findMany({
+    where: { id: { in: Array.from(userIds) } },
+    select: { id: true, username: true, firstName: true }
+  }) : [];
   
   // Создаем мапу для быстрого поиска пользователей
-  const userMap = new Map(users.map((user: any) => [user._id.toString(), user]));
+  const userMap = new Map(users.map(user => [user.id, user]));
   
-  const transactions = recentTransactions.map((tx: any) => {
+  const transactions = recentTransactions.map((tx) => {
     const sign = tx.type === 'CREDIT' ? '+' : '-';
     const amount = Number(tx.amount).toFixed(2);
     
@@ -178,7 +160,7 @@ async function showDashboard(ctx: Context) {
         const userId = userIdMatch[1];
         const user = userMap.get(userId);
         if (user) {
-          const displayName = (user as any).username ? `@${(user as any).username}` : ((user as any).firstName || `ID:${userId.slice(-5)}`);
+          const displayName = user.username ? `@${user.username}` : (user.firstName || `ID:${userId.slice(-5)}`);
           description = `Бонус за приглашение ${displayName}`;
         }
       }
@@ -203,12 +185,12 @@ async function showDashboard(ctx: Context) {
       const daysLeft = Math.ceil((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
       
       if (daysLeft > 0) {
-        activationStatus = `\n✅ Партнёрская программа активна до ${expiration.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })} (осталось ${daysLeft} ${daysLeft === 1 ? 'день' : daysLeft < 5 ? 'дня' : 'дней'})`;
+        activationStatus = `\n✅ Активация партнерки 25% до ${expiration.toLocaleDateString('ru-RU')} (осталось ${daysLeft} дней)`;
       } else {
-        activationStatus = '\n❌ Срок действия партнёрской программы истёк';
+        activationStatus = '\n❌ Активация партнерки истекла';
       }
     } else {
-      activationStatus = '\n✅ Партнёрская программа активна';
+      activationStatus = '\n✅ Активация партнерки активна';
     }
   } else {
     // Вычисляем сколько нужно до активации (120 PZ товарооборот)
@@ -217,9 +199,9 @@ async function showDashboard(ctx: Context) {
     const remainingTurnover = Math.max(0, neededTurnover - currentTurnover);
     
     if (remainingTurnover > 0) {
-      activationStatus = `\n⏳ До активации партнёрской программы осталось ${remainingTurnover} PZ товарооборота (нужно 120 PZ в месяц)`;
+      activationStatus = `\n⏳ До активации партнерки осталось ${remainingTurnover} PZ товарооборота (нужно 120 PZ в месяц)`;
     } else {
-      activationStatus = '\n🎯 Достаточно активности для активации партнёрской программы!';
+      activationStatus = '\n🎯 Достаточно активности для активации партнерки!';
     }
   }
 
@@ -229,7 +211,7 @@ async function showDashboard(ctx: Context) {
     partners: stats.partners,
     direct: stats.directPartners,
     bonus: Number(profile.bonus).toFixed(2),
-    referral: buildReferralLink(profile.referralCode, profile.programType, (profile as any).userId?.username).main,
+    referral: buildReferralLink(profile.referralCode, profile.programType, user.username || undefined).main,
     transactions,
     isActive: (profile as any).isActive,
     expiresAt: (profile as any).expiresAt,
@@ -258,17 +240,12 @@ async function handlePlanSelection(
   }
 
   console.log('💰 Partner: User ensured, creating profile');
-  const userId = user._id?.toString() || '';
-  if (!userId) {
-    await ctx.reply('Не удалось активировать программу. Попробуйте позже.');
-    return false;
-  }
-  const profile = await getOrCreatePartnerProfile(userId, programType);
+  const profile = await getOrCreatePartnerProfile(user.id, programType);
   console.log('💰 Partner: Profile created:', profile.referralCode);
   
   await logUserAction(ctx, 'partner:select-program', { programType });
   
-  const referralLink = buildReferralLink(profile.referralCode, programType, (profile as any).userId?.username).main;
+  const referralLink = buildReferralLink(profile.referralCode, programType, user.username || undefined);
   console.log('💰 Partner: Generated referral link:', referralLink);
   
     await ctx.reply(
@@ -290,19 +267,14 @@ async function showPartners(ctx: Context) {
     return;
   }
 
-  const userId = user._id?.toString() || '';
-  if (!userId) {
-    await ctx.reply('Вы ещё не активировали программу.');
-    return;
-  }
-  const dashboard = await getPartnerDashboard(userId);
+  const dashboard = await getPartnerDashboard(user.id);
   if (!dashboard) {
     await ctx.reply('Вы ещё не активировали программу.');
     return;
   }
 
   const { stats } = dashboard;
-  const partnerList = await getPartnerList(userId);
+  const partnerList = await getPartnerList(user.id);
   
   await ctx.answerCbQuery();
   
@@ -312,7 +284,7 @@ async function showPartners(ctx: Context) {
     // Show direct partners
     if (partnerList.directPartners.length > 0) {
       message += `🎯 Прямые партнёры (1-й уровень):\n`;
-      partnerList.directPartners.forEach((partner: any, index: number) => {
+      partnerList.directPartners.forEach((partner, index) => {
         const displayName = partner.username ? `@${partner.username}` : partner.firstName || `ID:${partner.telegramId}`;
         message += `${index + 1}. ${displayName}\n`;
       });
@@ -322,7 +294,7 @@ async function showPartners(ctx: Context) {
     // Show multi-level partners
     if (partnerList.multiPartners.length > 0) {
       message += `🌳 Многоуровневые партнёры:\n`;
-      partnerList.multiPartners.forEach((partner: any, index: number) => {
+      partnerList.multiPartners.forEach((partner, index) => {
         const displayName = partner.username ? `@${partner.username}` : partner.firstName || `ID:${partner.telegramId}`;
         message += `${index + 1}. ${displayName} (${partner.level}-й уровень)\n`;
       });
@@ -343,12 +315,7 @@ async function showPartnersByLevel(ctx: Context, level: number) {
     return;
   }
 
-  const userId = user._id?.toString() || '';
-  if (!userId) {
-    await ctx.reply('Вы ещё не активировали программу.');
-    return;
-  }
-  const dashboard = await getPartnerDashboard(userId);
+  const dashboard = await getPartnerDashboard(user.id);
   if (!dashboard) {
     await ctx.reply('Вы ещё не активировали программу.');
     return;
@@ -356,31 +323,169 @@ async function showPartnersByLevel(ctx: Context, level: number) {
 
   await ctx.answerCbQuery();
   
-  const profileId = (dashboard.profile as any)._id?.toString() || (dashboard.profile as any).id || '';
-  console.log(`🔍 Partner: Looking for level ${level} partners for user ${userId}, profile ${profileId}`);
+  console.log(`🔍 Partner: Looking for level ${level} partners for user ${user.id}, profile ${dashboard.profile.id}`);
   
   // Получаем список партнеров конкретного уровня
   let partnerReferrals: PartnerReferralWithUser[] = [];
   
   if (level === 1) {
     // Прямые партнеры - те, кто пришел по нашей ссылке
-    const { PartnerReferral } = await import('../../models/index.js');
-    const referrals = await PartnerReferral.find({ 
-      profileId: profileId,
-      level: 1 
-    })
-      .populate('profileId')
-      .lean();
-    
-    partnerReferrals = referrals as any;
+    partnerReferrals = await prisma.partnerReferral.findMany({
+      where: { 
+        profileId: dashboard.profile.id,
+        level: 1 
+      },
+      include: {
+        profile: {
+          include: {
+            user: {
+              select: { username: true, firstName: true, telegramId: true }
+            }
+          }
+        }
+      }
+    });
     
     console.log(`🔍 Partner: Found ${partnerReferrals.length} level 1 partners`);
-    // Дополнительная проверка отключена для упрощения
-  } else if (level === 2 || level === 3) {
-    // Упрощенная реализация для уровней 2 и 3
-    // TODO: Реализовать полную логику многоуровневой системы
-    partnerReferrals = [];
-    console.log(`🔍 Partner: Level ${level} partners not fully implemented yet`);
+    partnerReferrals.forEach((p, index) => {
+      console.log(`🔍 Partner: Level 1 partner ${index + 1}:`, {
+        referredId: p.referredId,
+        username: p.profile.user.username,
+        firstName: p.profile.user.firstName,
+        profileId: p.profileId
+      });
+    });
+    
+    // Дополнительная проверка: кто пригласил каждого из прямых партнеров
+    for (const partner of partnerReferrals) {
+      if (partner.referredId) {
+        const whoInvitedThisPartner = await prisma.partnerReferral.findMany({
+          where: { referredId: partner.referredId },
+          include: {
+            profile: {
+              include: {
+                user: {
+                  select: { username: true, firstName: true }
+                }
+              }
+            }
+          }
+        });
+        
+        console.log(`🔍 Partner: Who invited ${partner.referredId}:`, whoInvitedThisPartner.map(p => ({
+          inviterUsername: p.profile.user.username,
+          inviterFirstName: p.profile.user.firstName,
+          profileId: p.profileId
+        })));
+      }
+    }
+  } else if (level === 2) {
+    // Партнеры 2-го уровня - партнеры наших партнеров
+    // Сначала находим наших прямых партнеров
+    const directPartners = await prisma.partnerReferral.findMany({
+      where: { 
+        profileId: dashboard.profile.id,
+        level: 1 
+      },
+      select: { referredId: true }
+    });
+    
+    console.log(`🔍 Partner: Found ${directPartners.length} direct partners:`, directPartners.map(p => p.referredId));
+    
+    if (directPartners.length > 0) {
+      const directPartnerIds = directPartners.map(p => p.referredId).filter((id): id is string => Boolean(id));
+      console.log(`🔍 Partner: Direct partner IDs for level 2 search:`, directPartnerIds);
+      
+      // Теперь находим партнеров наших прямых партнеров
+      // Сначала нужно найти profileId наших прямых партнеров
+      const directPartnerProfiles = await prisma.partnerProfile.findMany({
+        where: { userId: { in: directPartnerIds } },
+        select: { id: true, userId: true }
+      });
+      
+      const directPartnerProfileIds = directPartnerProfiles.map(p => p.id);
+      console.log(`🔍 Partner: Direct partner profile IDs for level 2 search:`, directPartnerProfileIds);
+      
+      // Теперь ищем партнеров наших прямых партнеров
+      partnerReferrals = await prisma.partnerReferral.findMany({
+        where: { 
+          profileId: { in: directPartnerProfileIds }
+        },
+        include: {
+          profile: {
+            include: {
+              user: {
+                select: { username: true, firstName: true, telegramId: true }
+              }
+            }
+          }
+        }
+      });
+      
+      console.log(`🔍 Partner: Found ${partnerReferrals.length} second level partners`);
+    }
+  } else if (level === 3) {
+    // Партнеры 3-го уровня - партнеры партнеров наших партнеров
+    const directPartners = await prisma.partnerReferral.findMany({
+      where: { 
+        profileId: dashboard.profile.id,
+        level: 1 
+      },
+      select: { referredId: true }
+    });
+    
+    if (directPartners.length > 0) {
+      const directPartnerIds = directPartners.map(p => p.referredId).filter((id): id is string => Boolean(id));
+      
+      // Находим profileId наших прямых партнеров
+      const directPartnerProfiles = await prisma.partnerProfile.findMany({
+        where: { userId: { in: directPartnerIds } },
+        select: { id: true, userId: true }
+      });
+      
+      const directPartnerProfileIds = directPartnerProfiles.map(p => p.id);
+      console.log(`🔍 Partner: Direct partner profile IDs for level 3 search:`, directPartnerProfileIds);
+      
+      // Находим партнеров наших прямых партнеров (2-й уровень)
+      const secondLevelPartners = await prisma.partnerReferral.findMany({
+        where: { 
+          profileId: { in: directPartnerProfileIds }
+        },
+        select: { referredId: true }
+      });
+      
+      if (secondLevelPartners.length > 0) {
+        const secondLevelPartnerIds = secondLevelPartners.map(p => p.referredId).filter((id): id is string => Boolean(id));
+        console.log(`🔍 Partner: Second level partner IDs for level 3 search:`, secondLevelPartnerIds);
+        
+        // Находим profileId партнеров 2-го уровня
+        const secondLevelPartnerProfiles = await prisma.partnerProfile.findMany({
+          where: { userId: { in: secondLevelPartnerIds } },
+          select: { id: true, userId: true }
+        });
+        
+        const secondLevelPartnerProfileIds = secondLevelPartnerProfiles.map(p => p.id);
+        console.log(`🔍 Partner: Second level partner profile IDs for level 3 search:`, secondLevelPartnerProfileIds);
+        
+        // Находим партнеров партнеров наших партнеров (3-й уровень)
+        partnerReferrals = await prisma.partnerReferral.findMany({
+          where: { 
+            profileId: { in: secondLevelPartnerProfileIds }
+          },
+          include: {
+            profile: {
+              include: {
+                user: {
+                  select: { username: true, firstName: true, telegramId: true }
+                }
+              }
+            }
+          }
+        });
+        
+        console.log(`🔍 Partner: Found ${partnerReferrals.length} third level partners`);
+      }
+    }
   }
 
   console.log(`🔍 Partner: Found ${partnerReferrals.length} partners for level ${level}`);
@@ -402,21 +507,22 @@ async function showPartnersByLevel(ctx: Context, level: number) {
     message += `📭 Пока нет партнёров ${level}-го уровня.\nПриглашайте друзей по вашей реферальной ссылке!`;
   } else {
     // Получаем информацию о приглашенных пользователях
-    const referredUserIds = partnerReferrals.map((r: any) => r.referredId).filter((id): id is string => Boolean(id));
-    const referredUsers = referredUserIds.length > 0 ? await User.find({
-      _id: { $in: referredUserIds }
-    }).select('_id username firstName telegramId').lean() : [];
+    const referredUserIds = partnerReferrals.map(r => r.referredId).filter((id): id is string => Boolean(id));
+    const referredUsers = referredUserIds.length > 0 ? await prisma.user.findMany({
+      where: { id: { in: referredUserIds } },
+      select: { id: true, username: true, firstName: true, telegramId: true }
+    }) : [];
     
-    const userMap = new Map(referredUsers.map((user: any) => [(user._id?.toString() || user.id || ''), user]));
+    const userMap = new Map(referredUsers.map(user => [user.id, user]));
     
-    partnerReferrals.forEach((referral: any, index: number) => {
+    partnerReferrals.forEach((referral, index) => {
       if (referral.referredId) {
-        const referredUser = userMap.get(referral.referredId.toString());
+        const referredUser = userMap.get(referral.referredId);
         if (referredUser) {
-          const displayName = (referredUser as any).username ? `@${(referredUser as any).username}` : ((referredUser as any).firstName || `ID:${(referredUser as any).telegramId}`);
+          const displayName = referredUser.username ? `@${referredUser.username}` : (referredUser.firstName || `ID:${referredUser.telegramId}`);
           message += `${index + 1}. ${displayName}\n`;
         } else {
-          message += `${index + 1}. ID:${referral.referredId.toString().slice(-5)}\n`;
+          message += `${index + 1}. ID:${referral.referredId.slice(-5)}\n`;
         }
       }
     });
@@ -426,29 +532,8 @@ async function showPartnersByLevel(ctx: Context, level: number) {
 }
 
 async function showInvite(ctx: Context) {
-  const user = await ensureUser(ctx);
-  if (!user) {
-    await ctx.reply('Не удалось получить ссылку.');
-    return;
-  }
-
-  const userId = user._id?.toString() || '';
-  if (!userId) {
-    await ctx.reply('Вы ещё не активировали программу.');
-    return;
-  }
-  const dashboard = await getPartnerDashboard(userId);
-  if (!dashboard) {
-    await ctx.reply('Активируйте один из тарифов, чтобы получить ссылку.');
-    return;
-  }
-
-  await ctx.answerCbQuery('Выберите тип ссылки', { show_alert: false });
-  const shareGuide = `💫 Хочешь получать бонусы от рекомендаций?\nПросто перешли это сообщение выше друзьям или в свои чаты — прямо как оно есть.\n\n🔗 Бот автоматически закрепит всех, кто перейдёт по твоей ссылке, за тобой.\nТы будешь получать до 25% с покупок и бонусы с трёх уровней (15% + 5% + 5%).\n\n📩 Чтобы поделиться:\n1️⃣ Нажми и удерживай сообщение\n2️⃣ Выбери «Переслать»\n3️⃣ Отправь его своим друзьям или в чаты\n\nВот и всё — система сама всё посчитает 🔥`;
-  const directRef = buildReferralLink(dashboard.profile.referralCode, 'DIRECT', (dashboard.profile as any).userId?.username).main;
-  const multiRef = buildReferralLink(dashboard.profile.referralCode, 'MULTI_LEVEL', (dashboard.profile as any).userId?.username).main;
-  await ctx.reply(`Ваши реферальные ссылки:\n\nДружище 🌟\nЯ желаю тебе энергии, здоровья и внутренней силы, поэтому делюсь с тобой этим ботом 💧\nПопробуй PLAZMA Water — технология будущего, которая реально меняет состояние ⚡️\n🔗 Твоя ссылка:\n${directRef}\n\nДружище 🌟\nЯ желаю тебе энергии, здоровья и внутренней силы, поэтому делюсь с тобой этим ботом 💧\nПопробуй PLAZMA Water — технология будущего, которая реально меняет состояние ⚡️\n🔗 Твоя ссылка (сеть 15% + 5% + 5%):\n${multiRef}`);
-  await ctx.reply(shareGuide);
+  // Перенаправляем на многоуровневую ссылку
+  await showMultiInvite(ctx);
 }
 
 async function showDirectInvite(ctx: Context) {
@@ -458,12 +543,7 @@ async function showDirectInvite(ctx: Context) {
     return;
   }
 
-  const userId = user._id?.toString() || '';
-  if (!userId) {
-    await ctx.reply('Вы ещё не активировали программу.');
-    return;
-  }
-  const dashboard = await getPartnerDashboard(userId);
+  const dashboard = await getPartnerDashboard(user.id);
   if (!dashboard) {
     await ctx.reply('Активируйте один из тарифов, чтобы получить ссылку.');
     return;
@@ -471,7 +551,7 @@ async function showDirectInvite(ctx: Context) {
 
   await ctx.answerCbQuery('Ссылка скопирована', { show_alert: false });
   const shareGuide = `💫 Хочешь получать бонусы от рекомендаций?\nПросто перешли это сообщение выше друзьям или в свои чаты — прямо как оно есть.\n\n🔗 Бот автоматически закрепит всех, кто перейдёт по твоей ссылке, за тобой.\nТы будешь получать до 25% с покупок и бонусы с трёх уровней (15% + 5% + 5%).\n\n📩 Чтобы поделиться:\n1️⃣ Нажми и удерживай сообщение\n2️⃣ Выбери «Переслать»\n3️⃣ Отправь его своим друзьям или в чаты\n\nВот и всё — система сама всё посчитает 🔥`;
-  await ctx.reply(`Дружище 🌟\nЯ желаю тебе энергии, здоровья и внутренней силы, поэтому делюсь с тобой этим ботом 💧\nПопробуй PLAZMA Water — технология будущего, которая реально меняет состояние ⚡️\n🔗 Твоя ссылка:\n${buildReferralLink(dashboard.profile.referralCode, 'DIRECT', (dashboard.profile as any).userId?.username).main}`);
+  await ctx.reply(`Дружище 🌟\nЯ желаю тебе энергии, здоровья и внутренней силы, поэтому делюсь с тобой этим ботом 💧\nПопробуй VITAL — технология будущего, которая реально меняет состояние ⚡️\n🔗 Твоя ссылка:\n${buildReferralLink(dashboard.profile.referralCode, 'DIRECT', user.username || undefined)}`);
   await ctx.reply(shareGuide);
 }
 
@@ -482,12 +562,7 @@ async function showMultiInvite(ctx: Context) {
     return;
   }
 
-  const userId = user._id?.toString() || '';
-  if (!userId) {
-    await ctx.reply('Вы ещё не активировали программу.');
-    return;
-  }
-  const dashboard = await getPartnerDashboard(userId);
+  const dashboard = await getPartnerDashboard(user.id);
   if (!dashboard) {
     await ctx.reply('Активируйте один из тарифов, чтобы получить ссылку.');
     return;
@@ -495,7 +570,7 @@ async function showMultiInvite(ctx: Context) {
 
   await ctx.answerCbQuery();
   const shareGuide = `💫 Хочешь получать бонусы от рекомендаций?\nПросто перешли это сообщение выше друзьям или в свои чаты — прямо как оно есть.\n\n🔗 Бот автоматически закрепит всех, кто перейдёт по твоей ссылке, за тобой.\nТы будешь получать до 25% с покупок и бонусы с трёх уровней (15% + 5% + 5%).\n\n📩 Чтобы поделиться:\n1️⃣ Нажми и удерживай сообщение\n2️⃣ Выбери «Переслать»\n3️⃣ Отправь его своим друзьям или в чаты\n\nВот и всё — система сама всё посчитает 🔥`;
-  await ctx.reply(`Дружище 🌟\nЯ желаю тебе энергии, здоровья и внутренней силы, поэтому делюсь с тобой этим ботом 💧\nПопробуй PLAZMA Water — технология будущего, которая реально меняет состояние ⚡️\n🔗 Твоя ссылка (сеть 15% + 5% + 5%):\n${buildReferralLink(dashboard.profile.referralCode, 'MULTI_LEVEL', (dashboard.profile as any).userId?.username).main}`);
+  await ctx.reply(`Дружище 🌟\nЯ желаю тебе энергии, здоровья и внутренней силы, поэтому делюсь с тобой этим ботом 💧\nПопробуй VITAL — технология будущего, которая реально меняет состояние ⚡️\n🔗 Твоя ссылка (сеть 15% + 5% + 5%):\n${buildReferralLink(dashboard.profile.referralCode, 'MULTI_LEVEL', user.username || undefined)}`);
   await ctx.reply(shareGuide);
   await ctx.reply('Выберите уровень партнёров для просмотра:', partnerLevelsKeyboard());
 }
@@ -533,10 +608,11 @@ export const partnerModule: BotModule = {
     });
 
     bot.action(DIRECT_PLAN_ACTION, async (ctx) => {
-      console.log('💰 Partner: Direct plan button pressed');
-      const directPlanText = await getBotContent('direct_plan_text') || fallbackDirectPlanText;
-      const success = await handlePlanSelection(ctx, PartnerProgramType.DIRECT, directPlanText);
-      await ctx.answerCbQuery(success ? 'Программа 25% активирована' : 'Не удалось активировать программу');
+      // Перенаправляем на многоуровневую программу
+      console.log('💰 Partner: Direct plan button pressed, redirecting to multi-level');
+      const multiPlanText = await getBotContent('multi_plan_text') || fallbackMultiPlanText;
+      const success = await handlePlanSelection(ctx, PartnerProgramType.MULTI_LEVEL, multiPlanText);
+      await ctx.answerCbQuery(success ? 'Сеть 15% + 5% + 5% активирована' : 'Не удалось активировать программу');
     });
 
     bot.action(MULTI_PLAN_ACTION, async (ctx) => {
@@ -557,8 +633,9 @@ export const partnerModule: BotModule = {
     });
 
     bot.action(INVITE_DIRECT_ACTION, async (ctx) => {
-      await logUserAction(ctx, 'partner:invite:direct');
-      await showDirectInvite(ctx);
+      // Перенаправляем на многоуровневую ссылку
+      await logUserAction(ctx, 'partner:invite:multi');
+      await showMultiInvite(ctx);
     });
 
     bot.action(INVITE_MULTI_ACTION, async (ctx) => {
@@ -607,62 +684,10 @@ export const partnerModule: BotModule = {
   },
 };
 
-const PARTNER_IMAGE_URL = 'https://res.cloudinary.com/dt4r1tigf/image/upload/v1765173311/plazma-bot/photos/yl31xntjdhq393ykhomk.jpg';
-
 export async function showPartnerIntro(ctx: Context) {
   try {
-    const user = await ensureUser(ctx);
-    if (!user) {
-      await ctx.reply('❌ Не удалось загрузить данные пользователя.');
-      return;
-    }
-
-    // Проверяем статус партнерской программы
-    const userId = user._id?.toString() || '';
-  if (!userId) {
-    await ctx.reply('Вы ещё не активировали программу.');
-    return;
-  }
-  const dashboard = await getPartnerDashboard(userId);
-    let activationInfo = '';
-    
-    if (dashboard && dashboard.profile) {
-      const profile = dashboard.profile as any;
-      if (profile.isActive) {
-        const expiresAt = profile.expiresAt;
-        if (expiresAt) {
-          const now = new Date();
-          const expiration = new Date(expiresAt);
-          const daysLeft = Math.ceil((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-          
-          if (daysLeft > 0) {
-            activationInfo = `\n\n✅ Ваша партнёрская программа активна до ${expiration.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })} (осталось ${daysLeft} ${daysLeft === 1 ? 'день' : daysLeft < 5 ? 'дня' : 'дней'})`;
-          } else {
-            activationInfo = '\n\n❌ Срок действия партнёрской программы истёк';
-          }
-        } else {
-          activationInfo = '\n\n✅ Ваша партнёрская программа активна';
-        }
-      } else {
-        activationInfo = '\n\n❌ Партнёрская программа не активирована';
-      }
-    }
-
     const programIntro = (await getBotContent('partner_intro')) || fallbackProgramIntro;
-    const fullText = programIntro + activationInfo;
-
-    // Отправляем картинку с текстом как подпись
-    try {
-      await ctx.replyWithPhoto(PARTNER_IMAGE_URL, {
-        caption: fullText,
-        ...planKeyboard(),
-        parse_mode: 'HTML',
-      });
-    } catch (photoError) {
-      console.error('💰 Partner: Failed to send photo:', photoError);
-      // Fallback: отправляем только текст, если фото не удалось отправить
-      await ctx.reply(fullText, planKeyboard());
-    }
+    await ctx.reply(programIntro, planKeyboard());
   } catch (error) {
     console.error('💰 Partner: Failed to load intro content', error);
     await ctx.reply(fallbackProgramIntro, planKeyboard());
@@ -670,10 +695,10 @@ export async function showPartnerIntro(ctx: Context) {
 }
 
 async function showPartnerDetails(ctx: Context) {
-  const text = `💠 Реферальная программа PLAZMA
+  const text = `💠 Реферальная программа VITAL
 Любой продукт нуждается в маркетинге —
 и мы решили отдавать маркетинговый бюджет клиентам!
-Теперь ты можешь зарабатывать до 25%, просто рекомендуя PLAZMA = здоровье 💧`;
+Теперь ты можешь зарабатывать до 25%, просто рекомендуя VITAL = здоровье 💧`;
 
   const keyboard = Markup.inlineKeyboard([
     [Markup.button.callback('🤔 Как работает?!', 'partner:how_it_works')]
@@ -707,11 +732,11 @@ async function showMoreDetails(ctx: Context) {
 3️⃣ 1 000 партнёров × 10 $ = 10 000 $
 ✨ Итого: 11 300 $ в месяц!
 
-⚡️ Рекомендуй PLAZMA — помогай друзьям, повышай вибрации и зарабатывай 💎`;
+⚡️ Рекомендуй VITAL — помогай друзьям, повышай вибрации и зарабатывай 💎`;
 
   const keyboard = Markup.inlineKeyboard([
     [Markup.button.callback('📊 Карточка клиента', DASHBOARD_ACTION)],
-    [Markup.button.callback('💰 25%', DIRECT_PLAN_ACTION), Markup.button.callback('📈 15% + 5% + 5%', MULTI_PLAN_ACTION)],
+    [Markup.button.callback('📈 15% + 5% + 5%', MULTI_PLAN_ACTION)],
     [Markup.button.callback('📋 Оферта', 'partner:offer')]
   ]);
 
@@ -719,11 +744,11 @@ async function showMoreDetails(ctx: Context) {
 }
 
 async function showPartnerOffer(ctx: Context) {
-  const text = `💎 ПРАВИЛА ПАРТНЁРСКОЙ ПРОГРАММЫ PLAZMA WATER
+  const text = `💎 ПРАВИЛА ПАРТНЁРСКОЙ ПРОГРАММЫ VITAL
 
 🔹 Общие положения
 
-Партнёрская программа создана для продвижения и продаж продукции Plazma Water 💧
+Партнёрская программа создана для продвижения и продаж продукции Vital 💧
 Участвовать может каждый — регистрация бесплатна.
 
 ⸻
@@ -794,11 +819,11 @@ async function showPartnerOffer(ctx: Context) {
 ✅ Согласие
 
 Регистрируясь, ты подтверждаешь, что прочитал и согласен с правилами программы.
-Правила действуют с момента публикации в боте и на официальном сайте Plazma Water 💧`;
+Правила действуют с момента публикации в боте и на официальном сайте Vital 💧`;
 
   const keyboard = Markup.inlineKeyboard([
     [Markup.button.callback('📊 Карточка клиента', DASHBOARD_ACTION)],
-    [Markup.button.callback('💰 25%', DIRECT_PLAN_ACTION), Markup.button.callback('📈 15% + 5% + 5%', MULTI_PLAN_ACTION)]
+    [Markup.button.callback('📈 15% + 5% + 5%', MULTI_PLAN_ACTION)]
   ]);
 
   await ctx.reply(text, keyboard);

@@ -15,11 +15,6 @@ export async function showAudioFiles(ctx, category) {
             await ctx.reply('🎵 Звуковые матрицы\n\nПока нет доступных аудиофайлов.');
             return;
         }
-        // Отправляем вступительное сообщение с описанием
-        const introMessage = `🎵 Звуковые матрицы с реакторов плазмы по методу Гаряева. Слушаем и исцеляемся. Перед прослушиванием задать намерение на исцеление, можно точечно.
-
-Это чистые звуковые матрицы без обработки и наложение фоновой музыки. Можно слушать как в наушниках так и фоном.`;
-        await ctx.reply(introMessage);
         // Send audio files
         for (const audioFile of audioFiles) {
             console.log('🎵 Sending audio file:', audioFile.title, 'File ID:', audioFile.fileId);
@@ -76,7 +71,8 @@ export async function showAudioFiles(ctx, category) {
         // Send summary message
         const totalDuration = audioFiles.reduce((sum, file) => sum + (file.duration || 0), 0);
         const formattedDuration = formatDuration(totalDuration);
-        await ctx.reply(`🎵 Всего файлов: ${audioFiles.length}\n⏱️ Общая длительность: ${formattedDuration}`, {
+        await ctx.reply(`🎵 Всего файлов: ${audioFiles.length}\n⏱️ Общая длительность: ${formattedDuration}\n\n` +
+            '💡 Слушайте эти звуковые матрицы для оздоровления и восстановления энергии.', {
             reply_markup: {
                 inline_keyboard: [
                     [
@@ -364,7 +360,7 @@ export const audioModule = {
                     // Отправляем реальный аудиофайл
                     await ctx.replyWithAudio(audioFile.fileId, {
                         title: audioFile.title,
-                        performer: audioFile.description || 'Plazma Water',
+                        performer: audioFile.description || 'Vital',
                         duration: audioFile.duration || undefined,
                         caption: `🎵 ${audioFile.title}\n📝 ${audioFile.description}`,
                     });
@@ -388,7 +384,7 @@ export const audioModule = {
                 // Пытаемся отправить файл снова
                 await ctx.replyWithAudio(audioFile.fileId, {
                     title: audioFile.title,
-                    performer: audioFile.description || 'Plazma Water',
+                    performer: audioFile.description || 'Vital',
                     duration: audioFile.duration || undefined,
                     caption: audioFile.description || undefined,
                     reply_markup: {

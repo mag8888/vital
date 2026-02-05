@@ -16,7 +16,7 @@ export class AuthControllerImpl extends BaseControllerClass implements AuthContr
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Plazma Bot Admin Panel</title>
+          <title>Vital Bot Admin Panel</title>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
@@ -105,7 +105,7 @@ export class AuthControllerImpl extends BaseControllerClass implements AuthContr
         <body>
           <div class="login-container">
             <div class="logo">
-              <h1>🚀 Plazma Bot</h1>
+              <h1>🚀 Vital Bot</h1>
               <p>Admin Panel</p>
             </div>
             
@@ -119,7 +119,7 @@ export class AuthControllerImpl extends BaseControllerClass implements AuthContr
             </form>
             
             <div class="footer">
-              <p>© 2024 Plazma Bot. All rights reserved.</p>
+              <p>© 2024 Vital Bot. All rights reserved.</p>
             </div>
           </div>
         </body>

@@ -16,6 +16,7 @@ import { prisma } from './lib/prisma.js';
 import { ensureInitialData } from './lib/bootstrap.js';
 import { adminRouter } from './admin/web-refactored.js';
 import { webappRouter } from './webapp/webapp.js';
+import { webappV2Router } from './webapp/webapp-v2.js';
 import { setBotInstance } from './lib/bot-instance.js';
 
 async function bootstrap() {
@@ -46,7 +47,7 @@ async function bootstrap() {
 
     // Настройка сессий
     app.use(session({
-      secret: process.env.SESSION_SECRET || 'plazma-bot-secret-key-refactored',
+      secret: process.env.SESSION_SECRET || 'vital-bot-secret-key-refactored',
       resave: false,
       saveUninitialized: false,
       cookie: { 
@@ -65,6 +66,7 @@ async function bootstrap() {
     // Маршруты
     app.use('/admin', adminRouter);
     app.use('/webapp', webappRouter);
+    app.use('/webapp-v2', webappV2Router);
 
     // API для бота
     app.get('/api/health', (req, res) => {
@@ -90,7 +92,7 @@ async function bootstrap() {
           <!DOCTYPE html>
           <html>
           <head>
-            <title>Error - Plazma Bot</title>
+            <title>Error - Vital Bot</title>
             <style>
               body { 
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -164,7 +166,7 @@ async function bootstrap() {
           <!DOCTYPE html>
           <html>
           <head>
-            <title>404 - Plazma Bot</title>
+            <title>404 - Vital Bot</title>
             <style>
               body { 
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -245,7 +247,7 @@ async function bootstrap() {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📱 Webapp: http://localhost:${PORT}/webapp`);
       console.log(`🔧 Admin: http://localhost:${PORT}/admin`);
-      console.log(`🤖 Bot: @${bot.botInfo?.username || 'plazma-bot'}`);
+      console.log(`🤖 Bot: @${bot.botInfo?.username || 'vital-bot'}`);
     });
 
   } catch (error) {

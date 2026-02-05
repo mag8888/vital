@@ -5,47 +5,58 @@ import session from 'express-session';
 import { session as telegrafSession, Telegraf } from 'telegraf';
 import { env } from './config/env.js';
 import { applyBotModules } from './bot/setup-modules.js';
-import { connectMongoose } from './lib/mongoose.js';
+import { prisma } from './lib/prisma.js';
 import { ensureInitialData } from './lib/bootstrap.js';
 import { adminWebRouter } from './admin/web.js';
 import { webappRouter } from './webapp/webapp.js';
+import { webappV2Router } from './webapp/webapp-v2.js';
+import lavaWebhook from './webhooks/lava.js';
 import { externalApiRouter } from './api/external.js';
+// YooKassa intentionally not used (delivery flow работает без онлайн-оплаты)
 import { setBotInstance } from './lib/bot-instance.js';
-// @ts-ignore - типы node-cron могут быть неполными
-import cron from 'node-cron';
 async function bootstrap() {
     try {
-        // Try to connect to database first
+        // Try to connect to database with timeout
+        let dbConnected = false;
         try {
-            await connectMongoose();
-            console.log('✅ Database connected');
+            await Promise.race([
+                prisma.$connect(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Database connection timeout')), 15000))
+            ]);
+            dbConnected = true;
+            console.log('✅ Database connected successfully');
         }
-        catch (connectError) {
-            const errorMessage = connectError.message || '';
-            const errorName = connectError.name || '';
-            if (errorMessage.includes('Authentication failed') ||
-                errorMessage.includes('SCRAM failure')) {
-                console.error('❌ MongoDB Authentication Error:');
-                console.error('   The connection string contains invalid credentials.');
-                console.error('   Please check your MONGO_URL or DATABASE_URL in Railway Variables.');
-                console.error('   See FIX_MONGODB_AUTH.md for instructions.');
-                console.error('');
-                console.error('   Common solutions:');
-                console.error('   1. Recreate MongoDB service in Railway');
-                console.error('   2. Update DATABASE_URL to use ${{MongoDB.MONGO_URL}}');
-                console.error('   3. Check if MONGO_URL format is correct');
-                console.error('');
-                console.warn('⚠️  Bot will continue with mock data until database is fixed.');
-                // Не пробрасываем ошибку, чтобы бот продолжал работать
+        catch (dbError) {
+            console.warn('⚠️  Database connection failed:', dbError?.message || 'Unknown error');
+            // Check for specific error types
+            if (dbError?.message?.includes('Server selection timeout')) {
+                console.error('❌ MongoDB Atlas connection issue:');
+                console.error('   1. Check Network Access in MongoDB Atlas - allow all IPs (0.0.0.0/0)');
+                console.error('   2. Verify DATABASE_URL is correct in Railway variables');
+                console.error('   3. Ensure cluster is running (not paused)');
             }
-            else {
-                console.error('❌ MongoDB Connection Error:', errorMessage.substring(0, 100));
-                console.warn('⚠️  Bot will continue with limited functionality until database is available.');
-                // Не пробрасываем ошибку, чтобы бот продолжал работать
+            else if (dbError?.message?.includes('Authentication failed')) {
+                console.error('❌ MongoDB authentication failed:');
+                console.error('   1. Check username and password in DATABASE_URL');
+                console.error('   2. Verify user has correct permissions in MongoDB Atlas');
             }
+            else if (dbError?.message?.includes('fatal alert')) {
+                console.error('❌ SSL/TLS connection error:');
+                console.error('   1. Network Access must allow Railway IP addresses');
+                console.error('   2. Connection string parameters may be incorrect');
+            }
+            console.warn('⚠️  Server will start, but database operations may fail');
+            console.warn('⚠️  Connection will be retried on first database query');
         }
-        await ensureInitialData();
-        console.log('Initial data ensured');
+        // Run initial data setup in background (non-blocking)
+        if (dbConnected) {
+            ensureInitialData().catch((err) => {
+                console.warn('⚠️  Failed to initialize data:', err?.message || err);
+            });
+        }
+        else {
+            console.warn('⚠️  Skipping initial data setup - database not connected');
+        }
         const app = express();
         app.use(express.json());
         app.use(express.urlencoded({ extended: true }));
@@ -62,12 +73,21 @@ async function bootstrap() {
             }
         });
         // Configure session middleware
+        // Suppress MemoryStore warning in production
+        const originalWarn = console.warn;
+        console.warn = (...args) => {
+            if (args[0]?.includes?.('MemoryStore') || args[0]?.includes?.('production environment')) {
+                return; // Suppress MemoryStore warning
+            }
+            originalWarn.apply(console, args);
+        };
         app.use(session({
             secret: process.env.SESSION_SECRET || 'plazma-bot-secret-key',
             resave: false,
             saveUninitialized: false,
             cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 } // 24 hours
         }));
+        console.warn = originalWarn;
         // Health check endpoints (must be before other routes for Railway)
         app.get('/health', (_req, res) => {
             res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -94,12 +114,40 @@ async function bootstrap() {
         app.use('/admin', adminWebRouter);
         // Webapp routes
         app.use('/webapp', webappRouter);
-        // External API for friendly services
+        app.use('/webapp-v2', webappV2Router);
         app.use('/api/external', externalApiRouter);
+        // Log route registration
+        console.log('✅ Routes registered:');
+        console.log('   - GET / → redirects to /webapp');
+        console.log('   - GET /health → health check');
+        console.log('   - GET /api/health → API health check');
+        console.log('   - /admin → admin panel');
+        console.log('   - /webapp → web application');
+        // Lava webhook routes (only if Lava is enabled)
+        const { lavaService } = await import('./services/lava-service.js');
+        if (lavaService.isEnabled()) {
+            app.use('/webhook', lavaWebhook);
+            console.log('✅ Lava webhook routes enabled');
+        }
+        else {
+            console.log('ℹ️  Lava webhook routes disabled (Lava service not configured)');
+        }
+        // 404 handler for unknown routes
+        app.use((req, res) => {
+            console.log(`⚠️  404: ${req.method} ${req.path}`);
+            if (req.path.startsWith('/api')) {
+                res.status(404).json({ error: 'Not found', path: req.path });
+            }
+            else {
+                // For non-API routes, redirect to webapp
+                res.redirect('/webapp');
+            }
+        });
         const port = Number(process.env.PORT ?? 3000);
         // Listen on 0.0.0.0 to accept connections from Railway
         app.listen(port, '0.0.0.0', () => {
-            console.log(`Server is running on port ${port}`);
+            console.log(`🌐 Server is running on port ${port}`);
+            console.log(`🔗 Webapp URL: ${env.webappUrl || `http://localhost:${port}/webapp`}`);
         });
         // Initialize bot separately
         const bot = new Telegraf(env.botToken, {
@@ -124,101 +172,125 @@ async function bootstrap() {
                 { command: 'audio', description: 'Звуковые матрицы' },
                 { command: 'reviews', description: 'Отзывы клиентов' },
                 { command: 'about', description: 'О PLASMA Water' },
-                { command: 'add_balance', description: 'Пополнить баланс' },
+                { command: 'add_balance', description: 'Пополнить баланс через Lava' },
                 { command: 'support', description: 'Поддержка 24/7' },
                 { command: 'app', description: 'Открыть веб-приложение' }
             ]);
             console.log('Bot commands registered successfully');
         }
         catch (error) {
-            console.error('Failed to register bot commands:', error);
+            // Telegram API timeout is common on Railway - continue anyway
+            if (error.code === 'ETIMEDOUT' || error.errno === 'ETIMEDOUT') {
+                console.warn('⚠️  Telegram API timeout when registering commands - continuing anyway');
+            }
+            else {
+                console.error('Failed to register bot commands:', error.message || error);
+            }
+        }
+        // Set single blue menu button to open WebApp
+        try {
+            const baseUrl = env.webappUrl || env.publicBaseUrl || 'https://vital-production-82b0.up.railway.app';
+            const webappUrl = baseUrl.includes('/webapp') ? baseUrl : `${baseUrl.replace(/\/$/, '')}/webapp`;
+            await bot.telegram.setChatMenuButton({
+                menu_button: {
+                    type: 'web_app',
+                    text: 'Каталог',
+                    web_app: { url: webappUrl }
+                }
+            });
+            console.log('Bot menu button set to WebApp');
+        }
+        catch (error) {
+            if (error.code === 'ETIMEDOUT' || error.errno === 'ETIMEDOUT') {
+                console.warn('⚠️  Telegram API timeout when setting menu button');
+            }
+            else {
+                console.warn('Failed to set menu button:', error?.message || error);
+            }
         }
         console.log('Starting bot in long polling mode...');
-        // Clear any existing webhook first with retry
-        let webhookCleared = false;
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            try {
-                await bot.telegram.deleteWebhook({ drop_pending_updates: true });
-                console.log('✅ Cleared existing webhook');
-                webhookCleared = true;
-                break;
+        // Clear any existing webhook first
+        try {
+            await bot.telegram.deleteWebhook();
+            console.log('Cleared existing webhook');
+        }
+        catch (error) {
+            // Telegram API timeout is common on Railway - continue anyway
+            if (error.code === 'ETIMEDOUT' || error.errno === 'ETIMEDOUT') {
+                console.warn('⚠️  Telegram API timeout when clearing webhook - continuing anyway');
             }
-            catch (error) {
-                if (error.response?.error_code === 409) {
-                    console.log(`⚠️  Webhook conflict (attempt ${attempt}/3), waiting before retry...`);
-                    await new Promise(resolve => setTimeout(resolve, 2000 * attempt)); // Exponential backoff
-                }
-                else {
-                    console.log('No webhook to clear or error clearing:', error instanceof Error ? error.message : String(error));
-                    webhookCleared = true; // Continue anyway
-                    break;
-                }
+            else {
+                console.log('No webhook to clear or error clearing:', error instanceof Error ? error.message : String(error));
             }
         }
-        // Wait a bit to ensure old instances are stopped
-        // Railway может запускать несколько контейнеров одновременно при деплое
-        console.log('⏳ Waiting 10 seconds for other bot instances to stop...');
-        await new Promise(resolve => setTimeout(resolve, 10000));
-        // Try to launch bot with retry logic
-        let botLaunched = false;
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            try {
-                await bot.launch({
-                    dropPendingUpdates: true, // Drop pending updates to avoid conflicts
-                });
-                console.log('✅ Bot launched successfully');
-                botLaunched = true;
-                break;
-            }
-            catch (error) {
-                if (error.response?.error_code === 409) {
-                    const waitTime = 5000 * attempt; // 5s, 10s, 15s
-                    console.log(`⚠️  Bot conflict detected (attempt ${attempt}/3), waiting ${waitTime / 1000}s before retry...`);
-                    console.log('💡 This usually means another bot instance is still running.');
-                    console.log('💡 Railway will stop old instances automatically. Web server will continue running.');
-                    await new Promise(resolve => setTimeout(resolve, waitTime));
-                }
-                else {
-                    console.error('❌ Bot launch failed (non-409 error), but web server is running:', error);
-                    break; // Don't retry for other errors
-                }
-            }
+        // Try to launch bot with error handling - don't crash server if bot fails
+        try {
+            await bot.launch();
+            console.log('✅ Bot launched successfully');
         }
-        if (!botLaunched) {
-            console.error('❌ Failed to launch bot after 3 attempts. Web server will continue running.');
-            console.log('💡 The bot will start automatically on next deployment when Railway fully stops old instances.');
-            console.log('💡 This is normal during Railway deployments. The web server (admin panel, API) will work normally.');
-            console.log('💡 To manually retry bot launch, redeploy the service.');
+        catch (error) {
+            const errorMessage = error?.message || String(error);
+            const errorCode = error?.response?.error_code || error?.code;
+            if (errorCode === 409 || errorMessage.includes('409') || errorMessage.includes('Conflict')) {
+                console.warn('⚠️  Bot conflict detected (409). Another bot instance may be running.');
+                console.warn('⚠️  Web server will continue running without bot.');
+                console.warn('ℹ️  To fix: Stop other bot instances or wait for webhook to clear.');
+            }
+            else if (error.code === 'ETIMEDOUT' || error.errno === 'ETIMEDOUT') {
+                console.warn('⚠️  Telegram API timeout when launching bot - web server continues');
+            }
+            else {
+                console.error('❌ Bot launch failed, but web server is running:', errorMessage);
+            }
+            // Don't exit - web server should continue working
+            console.log('✅ Web server continues to run despite bot error');
         }
+        // Graceful shutdown handlers
         process.once('SIGINT', () => {
-            void bot.stop('SIGINT');
+            console.log('\n🛑 Received SIGINT, shutting down gracefully...');
+            try {
+                bot.stop('SIGINT');
+            }
+            catch (error) {
+                console.warn('⚠️  Error stopping bot:', error);
+            }
+            process.exit(0);
         });
         process.once('SIGTERM', () => {
-            void bot.stop('SIGTERM');
+            console.log('\n🛑 Received SIGTERM, shutting down gracefully...');
+            try {
+                bot.stop('SIGTERM');
+            }
+            catch (error) {
+                console.warn('⚠️  Error stopping bot:', error);
+            }
+            process.exit(0);
         });
-        // Настройка автоматического резервного копирования
-        // Запуск каждый день в 02:00 UTC (05:00 МСК)
-        if (process.env.ENABLE_AUTO_BACKUP !== 'false') {
-            cron.schedule('0 2 * * *', async () => {
-                try {
-                    console.log('🔄 Запуск автоматического резервного копирования...');
-                    // @ts-ignore - скрипт не имеет типов
-                    const { exportDatabase } = await import('../scripts/backup-database-railway.js');
-                    const result = await exportDatabase();
-                    console.log('✅ Автоматический бэкап завершен:', result.filename);
-                }
-                catch (error) {
-                    console.error('❌ Ошибка автоматического бэкапа:', error);
-                }
-            }, {
-                timezone: 'UTC'
-            });
-            console.log('📦 Автоматическое резервное копирование настроено (ежедневно в 02:00 UTC)');
-        }
+        // Handle unhandled errors - don't crash server
+        process.on('unhandledRejection', (reason, promise) => {
+            console.error('⚠️  Unhandled Rejection at:', promise, 'reason:', reason);
+            // Don't exit - log and continue (server should keep running)
+        });
+        process.on('uncaughtException', (error) => {
+            console.error('⚠️  Uncaught Exception:', error);
+            // Only exit on critical errors, not on bot errors
+            if (error.message?.includes('Database') || error.message?.includes('Prisma')) {
+                console.error('❌ Critical database error - exiting');
+                process.exit(1);
+            }
+            // Don't exit for other errors - log and continue
+        });
     }
     catch (error) {
-        console.error('Bootstrap error:', error);
-        process.exit(1);
+        console.error('❌ Bootstrap error:', error?.message || error);
+        // Only exit if it's a critical database connection error before server starts
+        if (error instanceof Error && (error.message.includes('Database') || error.message.includes('connect'))) {
+            console.error('❌ Critical database error during bootstrap - exiting');
+            process.exit(1);
+        }
+        // For other errors (like bot conflicts), server might still be partially functional
+        console.warn('⚠️  Server may be partially functional despite bootstrap errors');
+        console.warn('⚠️  Web server and admin panel should still work');
     }
 }
 bootstrap().catch((error) => {

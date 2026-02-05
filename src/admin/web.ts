@@ -1,24 +1,473 @@
 import express from 'express';
 import multer from 'multer';
 import session from 'express-session';
-import { v2 as cloudinary } from 'cloudinary';
 import { prisma } from '../lib/prisma.js';
 import { recalculatePartnerBonuses, activatePartnerProfile, checkPartnerActivation, calculateDualSystemBonuses } from '../services/partner-service.js';
 import { ordersModule } from './orders-module.js';
-
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dt4r1tigf',
-  api_key: process.env.CLOUDINARY_API_KEY || '579625698851834',
-  api_secret: process.env.CLOUDINARY_API_SECRET || '3tqNb1QPMICBTW0bTLus5HFHGQI',
-});
+import { uploadImage, isCloudinaryConfigured } from '../services/cloudinary-service.js';
 
 const router = express.Router();
 
+// Basic HTML escaping helper (server-side templates)
+function escapeHtml(input: any): string {
+  const s = String(input ?? '');
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Shared UI styles for the web admin (keep inline to avoid relying on static assets).
+// Goal: consistent buttons/inputs/focus states across all admin pages.
+const ADMIN_UI_CSS = `
+  :root{
+    --admin-bg: #f5f6fb;
+    --admin-surface: #ffffff;
+    --admin-text: #111827;
+    --admin-muted: #6b7280;
+    --admin-border: rgba(17,24,39,0.12);
+    --admin-border-strong: rgba(17,24,39,0.18);
+    --admin-primary: #111827;
+    --admin-danger: #dc2626;
+    --admin-radius: 12px;
+    --admin-shadow: 0 2px 10px rgba(0,0,0,0.10);
+  }
+
+  /* Base */
+  body{
+    color: var(--admin-text);
+    background: var(--admin-bg);
+  }
+  a{ color: inherit; }
+  *:focus{ outline: none; }
+  :focus-visible{
+    outline: 3px solid rgba(102,126,234,0.35);
+    outline-offset: 2px;
+  }
+
+  /* Layout */
+  .admin-shell{
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 280px 1fr;
+  }
+  .admin-sidebar{
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    background: var(--admin-surface);
+    border-right: 1px solid var(--admin-border);
+    padding: 18px 14px;
+    overflow: auto;
+  }
+  .admin-brand{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 10px 18px 10px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    font-size: 18px;
+  }
+  .admin-brand-mark{
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+    border: 1px solid var(--admin-border-strong);
+    background: #fff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .admin-nav-group{
+    margin-top: 14px;
+    padding: 10px 10px 6px 10px;
+    font-size: 11px;
+    color: var(--admin-muted);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+  .admin-nav{
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 6px 10px 6px;
+  }
+  .admin-nav-item{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 10px;
+    border-radius: 12px;
+    text-decoration: none;
+    border: 1px solid transparent;
+    color: var(--admin-text);
+  }
+  .admin-nav-item:hover{
+    background: rgba(17,24,39,0.04);
+    border-color: var(--admin-border);
+  }
+  .admin-nav-item.active{
+    background: rgba(17,24,39,0.06);
+    border-color: var(--admin-border-strong);
+  }
+  .admin-ico{
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 18px;
+    color: rgba(17,24,39,0.85);
+  }
+  .admin-ico svg{
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .admin-main{
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .admin-topbar{
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--admin-border);
+    background: rgba(245,246,251,0.75);
+    backdrop-filter: blur(8px);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .admin-topbar h1{
+    margin: 0;
+    font-size: 22px;
+    letter-spacing: -0.02em;
+  }
+  .admin-build{
+    color: var(--admin-muted);
+    font-size: 12px;
+  }
+  .admin-content{
+    padding: 22px;
+    max-width: 1400px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  @media (max-width: 980px){
+    .admin-shell{ grid-template-columns: 1fr; }
+    .admin-sidebar{ position: relative; height: auto; }
+  }
+
+  /* Buttons */
+  a.btn, button.btn, .btn{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--admin-border-strong);
+    text-decoration: none;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    transition: transform .15s ease, box-shadow .15s ease, background .15s ease, opacity .15s ease;
+    box-shadow: none;
+    background: transparent;
+    color: var(--admin-text);
+  }
+  a.btn:hover, button.btn:hover, .btn:hover{
+    transform: none;
+    box-shadow: none;
+    background: var(--admin-text);
+    color: #fff;
+  }
+  a.btn:active, button.btn:active, .btn:active{
+    transform: none;
+  }
+  .btn-secondary{
+    background: transparent;
+    color: var(--admin-text);
+  }
+  .btn-danger{
+    background: var(--admin-danger);
+    border-color: var(--admin-danger);
+    color: #fff;
+  }
+  .btn-success{
+    background: var(--admin-text);
+    color: #fff;
+  }
+  button:disabled, .btn[aria-disabled="true"]{
+    opacity: .6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* Compact action buttons (tables, toolbars) */
+  .action-btn{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 0;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 12px;
+    line-height: 1;
+    background: transparent;
+    color: var(--admin-text);
+    border: 1px solid var(--admin-border);
+    box-shadow: none;
+    transition: transform .15s ease, box-shadow .15s ease, background .15s ease, opacity .15s ease;
+    text-decoration: none;
+  }
+  .action-btn:hover{
+    background: var(--admin-text);
+    color: #fff;
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* Inputs */
+  input, select, textarea{
+    font: inherit;
+  }
+  input[type="text"], input[type="password"], input[type="number"], select, textarea{
+    border-radius: 10px;
+    border: 1px solid var(--admin-border-strong);
+    background: var(--admin-surface);
+  }
+
+  /* Modals (Dribbble-like) */
+  .admin-shell .modal-overlay,
+  .admin-shell .modal{
+    position: fixed !important;
+    inset: 0 !important;
+    display: none;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 22px !important;
+    background: rgba(17,24,39,0.45) !important;
+    backdrop-filter: blur(10px) !important;
+    z-index: 12000 !important;
+  }
+  .admin-shell .modal-overlay[style*="display: flex"],
+  .admin-shell .modal[style*="display: block"],
+  .admin-shell .modal[style*="display:block"],
+  .admin-shell .modal[style*="display: flex"]{
+    display: flex !important;
+  }
+  .admin-shell .modal-content{
+    background: #fff !important;
+    border-radius: 26px !important;
+    border: 1px solid rgba(255,255,255,0.75) !important;
+    box-shadow: 0 35px 80px rgba(17,24,39,0.25) !important;
+    width: min(920px, 96vw) !important;
+    max-height: min(86vh, 980px) !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    transform: translateY(6px);
+    animation: adminModalIn .18s ease-out forwards;
+  }
+  @keyframes adminModalIn{
+    from{ opacity:0; transform: translateY(12px) scale(.98); }
+    to{ opacity:1; transform: translateY(0) scale(1); }
+  }
+  .admin-shell .modal-header{
+    background: transparent !important;
+    color: var(--admin-text) !important;
+    border-bottom: 1px solid var(--admin-border) !important;
+    padding: 18px 20px !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+  }
+  .admin-shell .modal-header h2,
+  .admin-shell .modal-header h3{
+    margin: 0 !important;
+    font-size: 22px !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.02em !important;
+    color: var(--admin-text) !important;
+    text-shadow: none !important;
+  }
+  .admin-shell .close-btn,
+  .admin-shell .close{
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 14px !important;
+    border: 1px solid var(--admin-border) !important;
+    background: rgba(255,255,255,0.72) !important;
+    color: var(--admin-text) !important;
+    cursor: pointer !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    font-size: 26px !important;
+    line-height: 1 !important;
+    box-shadow: none !important;
+  }
+  .admin-shell .close-btn:hover,
+  .admin-shell .close:hover{
+    background: rgba(17,24,39,0.06) !important;
+  }
+  .admin-shell .modal-form,
+  .admin-shell .modal-body{
+    padding: 18px 20px !important;
+    overflow: auto !important;
+    max-height: calc(86vh - 88px) !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Some existing modals use <form class="product-form"> or plain <form> without .modal-form */
+  .admin-shell .modal-content > form,
+  .admin-shell .modal-content > .product-form,
+  .admin-shell .modal-content > .product-modal{
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .admin-shell .modal-content > form.product-form{
+    padding: 18px 20px !important;
+  }
+  .admin-shell .form-actions,
+  .admin-shell .modal-footer{
+    padding: 16px 20px !important;
+    border-top: 1px solid var(--admin-border) !important;
+    display:flex !important;
+    gap: 10px !important;
+    justify-content:flex-end !important;
+    background: rgba(255,255,255,0.6) !important;
+    backdrop-filter: blur(6px) !important;
+  }
+  .admin-shell .form-actions button[type="submit"],
+  .admin-shell .modal-footer button[type="submit"],
+  .admin-shell .form-actions .btn-primary{
+    background: var(--admin-text) !important;
+    color: #fff !important;
+    border-color: var(--admin-text) !important;
+  }
+  .admin-shell .form-actions button[type="button"],
+  .admin-shell .modal-footer button[type="button"]{
+    background: transparent !important;
+    color: var(--admin-text) !important;
+    border: 1px solid var(--admin-border-strong) !important;
+  }
+`;
+
+function adminIcon(name: string): string {
+  const icons: Record<string, string> = {
+    dashboard: '<svg viewBox="0 0 24 24"><path d="M3 13h8V3H3z"/><path d="M13 21h8V11h-8z"/><path d="M13 3h8v6h-8z"/><path d="M3 21h8v-6H3z"/></svg>',
+    users: '<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    partners: '<svg viewBox="0 0 24 24"><path d="M16 11a4 4 0 0 1-8 0"/><path d="M12 12v9"/><path d="M7 21h10"/><circle cx="12" cy="7" r="4"/></svg>',
+    box: '<svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/></svg>',
+    tag: '<svg viewBox="0 0 24 24"><path d="M20.6 13.4 11 23H1V13l9.6-9.6a2 2 0 0 1 2.8 0l7.2 7.2a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>',
+    cart: '<svg viewBox="0 0 24 24"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2 2h3l2.4 12.4a2 2 0 0 0 2 1.6h9.2a2 2 0 0 0 2-1.6L23 6H6"/></svg>',
+    star: '<svg viewBox="0 0 24 24"><path d="M12 17.3 18.2 21l-1.6-7 5.4-4.7-7.1-.6L12 2 9.1 8.7 2 9.3l5.4 4.7L5.8 21z"/></svg>',
+    chat: '<svg viewBox="0 0 24 24"><path d="M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>',
+    upload: '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v14"/></svg>',
+    wrench: '<svg viewBox="0 0 24 24"><path d="M14.7 6.3a5 5 0 0 0-6.4 6.4l-5.3 5.3a2 2 0 0 0 2.8 2.8l5.3-5.3a5 5 0 0 0 6.4-6.4l-3 3-2-2z"/></svg>',
+    logout: '<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>',
+  };
+  return icons[name] || icons.dashboard;
+}
+
+function renderAdminShellStart(opts: { title: string; activePath: string; buildMarker?: string }): string {
+  const { title, activePath, buildMarker } = opts;
+  const isActive = (href: string, opts?: { also?: string[]; prefixes?: string[] }) => {
+    const also = opts?.also || [];
+    const prefixes = opts?.prefixes || [];
+    if ([href, ...also].includes(activePath)) return 'active';
+    if (prefixes.some((p) => activePath.startsWith(p))) return 'active';
+    return '';
+  };
+  return `
+    <div class="admin-shell">
+      <aside class="admin-sidebar">
+        <div class="admin-brand">
+          <span class="admin-brand-mark"></span>
+          <span>Vital Admin</span>
+        </div>
+
+        <div class="admin-nav-group">Главное</div>
+        <nav class="admin-nav">
+          <a class="admin-nav-item ${isActive('/admin')}" href="/admin"><span class="admin-ico">${adminIcon('dashboard')}</span><span>Dashboard</span></a>
+          <a class="admin-nav-item ${isActive('/admin/users-detailed', { also: ['/admin/users'], prefixes: ['/admin/users/'] })}" href="/admin/users-detailed"><span class="admin-ico">${adminIcon('users')}</span><span>Пользователи</span></a>
+          <a class="admin-nav-item ${isActive('/admin/partners')}" href="/admin/partners"><span class="admin-ico">${adminIcon('partners')}</span><span>Партнёры</span></a>
+        </nav>
+
+        <div class="admin-nav-group">Контент</div>
+        <nav class="admin-nav">
+          <a class="admin-nav-item ${isActive('/admin/products')}" href="/admin/products"><span class="admin-ico">${adminIcon('box')}</span><span>Товары</span></a>
+          <a class="admin-nav-item ${isActive('/admin/categories')}" href="/admin/categories"><span class="admin-ico">${adminIcon('tag')}</span><span>Категории</span></a>
+          <a class="admin-nav-item ${isActive('/admin/reviews')}" href="/admin/reviews"><span class="admin-ico">${adminIcon('star')}</span><span>Отзывы</span></a>
+          <a class="admin-nav-item ${isActive('/admin/orders')}" href="/admin/orders"><span class="admin-ico">${adminIcon('cart')}</span><span>Заказы</span></a>
+          <a class="admin-nav-item ${isActive('/admin/certificates')}" href="/admin/certificates"><span class="admin-ico">${adminIcon('tag')}</span><span>Сертификаты</span></a>
+          <a class="admin-nav-item ${isActive('/admin/specialists')}" href="/admin/specialists"><span class="admin-ico">${adminIcon('users')}</span><span>Специалисты</span></a>
+          <a class="admin-nav-item ${isActive('/admin/chats')}" href="/admin/chats"><span class="admin-ico">${adminIcon('chat')}</span><span>Чаты</span></a>
+        </nav>
+
+        <div class="admin-nav-group">Импорт и инструменты</div>
+        <nav class="admin-nav">
+          <a class="admin-nav-item ${isActive('/admin/invoice-import')}" href="/admin/invoice-import"><span class="admin-ico">${adminIcon('upload')}</span><span>Импорт инвойса</span></a>
+          <a class="admin-nav-item ${isActive('/admin/balance-topups')}" href="/admin/balance-topups"><span class="admin-ico">${adminIcon('upload')}</span><span>Пополнения</span></a>
+          <a class="admin-nav-item ${isActive('/admin/delivery-settings')}" href="/admin/delivery-settings"><span class="admin-ico">${adminIcon('wrench')}</span><span>Доставка</span></a>
+          <a class="admin-nav-item ${isActive('/admin/sync-siam-pdf')}" href="/admin/sync-siam-pdf"><span class="admin-ico">${adminIcon('wrench')}</span><span>Siam из PDF</span></a>
+          <a class="admin-nav-item ${isActive('/admin/sync-siam-json')}" href="/admin/sync-siam-json"><span class="admin-ico">${adminIcon('wrench')}</span><span>Siam из JSON</span></a>
+          <a class="admin-nav-item ${isActive('/admin/audio')}" href="/admin/audio"><span class="admin-ico">${adminIcon('wrench')}</span><span>Аудио</span></a>
+        </nav>
+
+        <div class="admin-nav-group">Сессия</div>
+        <nav class="admin-nav">
+          <a class="admin-nav-item" href="/admin/logout"><span class="admin-ico">${adminIcon('logout')}</span><span>Выйти</span></a>
+        </nav>
+      </aside>
+
+      <div class="admin-main">
+        <header class="admin-topbar">
+          <h1>${title}</h1>
+          <div class="admin-build">${buildMarker ? ('build: ' + buildMarker) : ''}</div>
+        </header>
+        <main class="admin-content">
+  `;
+}
+
+function renderAdminShellEnd(): string {
+  return `
+        </main>
+      </div>
+    </div>
+  `;
+}
+
 // Configure multer for file uploads
-const upload = multer({ 
+const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit for videos
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit for images
+  fileFilter: (req, file, cb) => {
+    // Accept only image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Только файлы изображений разрешены'));
+    }
+  }
 });
 
 // Middleware to check admin access
@@ -37,7 +486,7 @@ router.get('/login', (req, res) => {
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Plazma Bot Admin Panel</title>
+      <title>Vital Bot Admin Panel</title>
       <meta charset="utf-8">
       <style>
         body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; background: #f5f5f5; }
@@ -49,17 +498,20 @@ router.get('/login', (req, res) => {
         button:hover { background: #0056b3; }
         .error { color: red; margin-top: 10px; text-align: center; }
         h2 { text-align: center; color: #333; margin-bottom: 30px; }
+
+        /* Shared admin UI baseline */
+        ${ADMIN_UI_CSS}
       </style>
     </head>
     <body>
       <div class="login-container">
-        <h2>🔧 Plazma Bot Admin Panel</h2>
+        <h2>🔧 Vital Bot Admin Panel</h2>
         <form method="post" action="/admin/login">
           <div class="form-group">
             <label>Пароль:</label>
             <input type="password" name="password" placeholder="Введите пароль" required>
           </div>
-          <button type="submit">Войти</button>
+          <button type="submit" class="btn">Войти</button>
           ${error ? '<div class="error">Неверный пароль</div>' : ''}
         </form>
       </div>
@@ -72,7 +524,7 @@ router.get('/login', (req, res) => {
 router.post('/login', (req, res) => {
   const { password } = req.body;
   const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
-  
+
   if (password === adminPassword || password === 'test') {
     const session = req.session as any;
     session.isAdmin = true;
@@ -90,7 +542,7 @@ router.get('/', requireAdmin, async (req, res) => {
       select: { balance: true }
     });
     const totalBalance = allUsers.reduce((sum, user) => sum + (user.balance || 0), 0);
-    
+
     console.log(`🔍 Debug: Total balance of all users: ${totalBalance} PZ`);
 
     const stats = {
@@ -102,6 +554,7 @@ router.get('/', requireAdmin, async (req, res) => {
       users: await prisma.user.count(),
       totalBalance: totalBalance,
     };
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
 
     // Helper function for detailed users section
     async function getDetailedUsersSection() {
@@ -145,28 +598,28 @@ router.get('/', requireAdmin, async (req, res) => {
         const usersWithStats = usersWithInviterInfo.map((user: any) => {
           const partnerProfile = user.partner;
           const directPartners = partnerProfile?.referrals?.length || 0;
-          
+
           // Calculate total referrals at all levels (simplified for main page)
           function countAllReferrals(userId: string, visited = new Set()): number {
             if (visited.has(userId)) return 0; // Prevent infinite loops
             visited.add(userId);
-            
-            const directReferrals = users.filter(u => 
+
+            const directReferrals = users.filter(u =>
               u.partner?.referrals?.some((ref: any) => ref.referredId === userId)
             );
-            
+
             let totalCount = directReferrals.length;
-            
+
             // Recursively count referrals of referrals
             directReferrals.forEach(ref => {
               totalCount += countAllReferrals(ref.id, new Set(visited));
             });
-            
+
             return totalCount;
           }
-          
-        const totalPartners = countAllReferrals(user.id);
-          
+
+          const totalPartners = countAllReferrals(user.id);
+
           // Разделяем заказы по статусам
           const ordersByStatus = {
             new: user.orders?.filter((order: any) => order.status === 'NEW') || [],
@@ -174,11 +627,11 @@ router.get('/', requireAdmin, async (req, res) => {
             completed: user.orders?.filter((order: any) => order.status === 'COMPLETED') || [],
             cancelled: user.orders?.filter((order: any) => order.status === 'CANCELLED') || []
           };
-          
+
           // Сумма только оплаченных (завершенных) заказов
           const paidOrderSum = ordersByStatus.completed.reduce((sum: number, order: any) => {
             try {
-              const items = typeof order.itemsJson === 'string' 
+              const items = typeof order.itemsJson === 'string'
                 ? JSON.parse(order.itemsJson || '[]')
                 : (order.itemsJson || []);
               const orderTotal = items.reduce((itemSum: number, item: any) => itemSum + (item.price || 0) * (item.quantity || 1), 0);
@@ -187,19 +640,19 @@ router.get('/', requireAdmin, async (req, res) => {
               return sum;
             }
           }, 0);
-          
+
           // Определяем приоритетный статус (новые заказы имеют приоритет)
           const hasNewOrders = ordersByStatus.new.length > 0;
           const hasProcessingOrders = ordersByStatus.processing.length > 0;
           const hasCompletedOrders = ordersByStatus.completed.length > 0;
           const hasCancelledOrders = ordersByStatus.cancelled.length > 0;
-          
+
           let priorityStatus = 'none';
           if (hasNewOrders) priorityStatus = 'new';
           else if (hasProcessingOrders) priorityStatus = 'processing';
           else if (hasCompletedOrders) priorityStatus = 'completed';
           else if (hasCancelledOrders) priorityStatus = 'cancelled';
-          
+
           // Debug: Log status determination
           if (user.orders && user.orders.length > 0) {
             console.log(`User ${user.firstName} orders:`, {
@@ -211,12 +664,12 @@ router.get('/', requireAdmin, async (req, res) => {
               priorityStatus: priorityStatus
             });
           }
-          
+
           const totalOrderSum = paidOrderSum; // Используем только оплаченные заказы
           const balance = user.balance || partnerProfile?.balance || 0;
           const bonus = partnerProfile?.bonus || 0;
           const lastActivity = user.updatedAt || user.createdAt;
-          
+
           return {
             ...user,
             directPartners,
@@ -367,22 +820,22 @@ router.get('/', requireAdmin, async (req, res) => {
           take: 5,
           select: { firstName: true, lastName: true, username: true, createdAt: true }
         });
-        
+
         if (users.length === 0) {
-          return '<div class="empty-list">Нет пользователей</div>';
+          return '<div class="dash-item"><div><div class="title">Нет пользователей</div><div class="muted">Пока пусто</div></div><div class="muted">—</div></div>';
         }
-        
+
         return users.map(user => `
-          <div class="list-item">
-            <div class="list-info">
-              <div class="list-name">${user.firstName || 'Пользователь'} ${user.lastName || ''}</div>
-              <div class="list-time">${user.createdAt.toLocaleString('ru-RU')}</div>
+          <div class="dash-item">
+            <div>
+              <div class="title">${user.firstName || 'Пользователь'} ${user.lastName || ''}</div>
+              <div class="muted">${user.createdAt.toLocaleString('ru-RU')}</div>
             </div>
-            <div>@${user.username || 'без username'}</div>
+            <div class="muted">${user.username ? ('@' + user.username) : '—'}</div>
           </div>
         `).join('');
       } catch (error) {
-        return '<div class="empty-list">Ошибка загрузки</div>';
+        return '<div class="dash-item"><div><div class="title">Ошибка загрузки</div><div class="muted">Не удалось получить пользователей</div></div><div class="muted">—</div></div>';
       }
     }
 
@@ -395,22 +848,22 @@ router.get('/', requireAdmin, async (req, res) => {
             user: { select: { firstName: true, lastName: true } }
           }
         });
-        
+
         if (orders.length === 0) {
-          return '<div class="empty-list">Нет заказов</div>';
+          return '<div class="dash-item"><div><div class="title">Нет заказов</div><div class="muted">Пока пусто</div></div><div class="muted">—</div></div>';
         }
-        
+
         return orders.map(order => `
-          <div class="list-item">
-            <div class="list-info">
-              <div class="list-name">Заказ #${order.id}</div>
-              <div class="list-time">${order.createdAt.toLocaleString('ru-RU')}</div>
+          <div class="dash-item">
+            <div>
+              <div class="title">Заказ ${order.id.slice(0, 8)}…</div>
+              <div class="muted">${order.createdAt.toLocaleString('ru-RU')}</div>
             </div>
-            <div>${order.user?.firstName || 'Пользователь'}</div>
+            <div class="muted">${order.user?.firstName || 'Пользователь'}</div>
           </div>
         `).join('');
       } catch (error) {
-        return '<div class="empty-list">Ошибка загрузки</div>';
+        return '<div class="dash-item"><div><div class="title">Ошибка загрузки</div><div class="muted">Не удалось получить заказы</div></div><div class="muted">—</div></div>';
       }
     }
 
@@ -427,36 +880,35 @@ router.get('/', requireAdmin, async (req, res) => {
             }
           }
         });
-        
+
         if (transactions.length === 0) {
-          return '<div class="empty-list">Нет транзакций</div>';
+          return '<div class="dash-item"><div><div class="title">Нет транзакций</div><div class="muted">Пока пусто</div></div><div class="muted">—</div></div>';
         }
-        
+
         return transactions.map(tx => `
-          <div class="list-item">
-            <div class="list-info">
-              <div class="list-name">${tx.profile.user.firstName || 'Партнёр'}</div>
-              <div class="list-time">${tx.createdAt.toLocaleString('ru-RU')}</div>
-              <div style="font-size: 11px; color: #999; margin-top: 2px;">${tx.description}</div>
+          <div class="dash-item">
+            <div>
+              <div class="title">${tx.profile.user.firstName || 'Партнёр'}</div>
+              <div class="muted">${tx.createdAt.toLocaleString('ru-RU')} • ${(tx.description || '').toString().slice(0, 60)}${(tx.description || '').toString().length > 60 ? '…' : ''}</div>
             </div>
-            <div class="list-amount ${tx.amount < 0 ? 'negative' : ''}">
+            <div class="muted" style="font-weight:900; color:${tx.amount < 0 ? 'var(--admin-danger)' : 'var(--admin-text)'};">
               ${tx.amount > 0 ? '+' : ''}${tx.amount.toFixed(2)} PZ
             </div>
           </div>
         `).join('');
       } catch (error) {
-        return '<div class="empty-list">Ошибка загрузки</div>';
+        return '<div class="dash-item"><div><div class="title">Ошибка загрузки</div><div class="muted">Не удалось получить транзакции</div></div><div class="muted">—</div></div>';
       }
     }
     res.send(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Админ-панель Plazma Bot v2.0</title>
+        <title>Админ-панель Vital Bot v2.0</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }
           .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px; }
           .header { text-align: center; margin-bottom: 30px; }
           .tabs { display: flex; border-bottom: 2px solid #e9ecef; margin-bottom: 30px; }
@@ -692,7 +1144,17 @@ router.get('/', requireAdmin, async (req, res) => {
           .close:hover { color: #000; }
           .form-group { margin-bottom: 15px; }
           .form-group label { display: block; margin-bottom: 5px; font-weight: 600; }
-          .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px; }
+          /* Inputs: don't apply full-width/padding styles to checkboxes/radios (they become huge "switches" in some browsers) */
+          .form-group input[type="text"],
+          .form-group input[type="password"],
+          .form-group input[type="number"],
+          .form-group input[type="search"],
+          .form-group input[type="email"],
+          .form-group input[type="url"],
+          .form-group textarea,
+          .form-group select { width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px; }
+          .form-group input[type="checkbox"],
+          .form-group input[type="radio"] { width: auto; padding: 0; border: 0; box-shadow: none; }
           .form-group textarea { height: 100px; resize: vertical; }
           .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
           
@@ -711,18 +1173,6 @@ router.get('/', requireAdmin, async (req, res) => {
           }
           .product-grid.media-layout { grid-template-columns: repeat(2, 1fr); align-items: stretch; }
           .product-form textarea { resize: vertical; }
-          .product-form label { color: #212529; }
-          .product-form input,
-          .product-form select,
-          .product-form textarea {
-            background: #ffffff;
-            color: #212529;
-            border: 1px solid #ced4da;
-          }
-          .product-form input::placeholder,
-          .product-form textarea::placeholder {
-            color: #6c757d;
-          }
           #productShortDescription { min-height: 220px; }
           #productFullDescription { min-height: 220px; }
           .category-picker { display: flex; gap: 12px; }
@@ -747,12 +1197,193 @@ router.get('/', requireAdmin, async (req, res) => {
             .product-section { padding: 18px 20px; }
             .product-media { grid-template-columns: 1fr; }
           }
+
+          /* Shared admin UI baseline */
+          ${ADMIN_UI_CSS}
+
+          /* New Dashboard (Dribbble-like) */
+          .dash-wrap{ display:grid; grid-template-columns: 1.25fr 1fr; gap: 18px; }
+          .dash-cards{ display:grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+          .dash-card{
+            background: var(--admin-surface);
+            border: 1px dashed var(--admin-border-strong);
+            border-radius: 22px;
+            padding: 18px 18px;
+            box-shadow: 0 14px 34px rgba(17,24,39,0.06);
+            min-height: 120px;
+          }
+          .dash-card-link{
+            display:block;
+            text-decoration:none;
+            color: inherit;
+            cursor: pointer;
+            transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+          }
+          .dash-card-link:hover{
+            transform: translateY(-2px);
+            box-shadow: 0 18px 44px rgba(17,24,39,0.08);
+            background: rgba(17,24,39,0.01);
+          }
+          .dash-card-link:focus-visible{
+            outline: 3px solid rgba(102,126,234,0.35);
+            outline-offset: 3px;
+          }
+          .dash-card.solid{ border-style: solid; }
+          .dash-card h3{ margin:0; font-size: 14px; color: var(--admin-muted); font-weight: 800; }
+          .dash-card .value{ margin-top: 12px; font-size: 30px; font-weight: 900; letter-spacing: -0.04em; }
+          .dash-card .sub{ margin-top: 6px; font-size: 12px; color: var(--admin-muted); }
+          .dash-big{
+            background: var(--admin-surface);
+            border: 1px solid var(--admin-border);
+            border-radius: 22px;
+            padding: 18px;
+            box-shadow: 0 14px 34px rgba(17,24,39,0.06);
+          }
+          .dash-row{ display:flex; align-items:center; justify-content:space-between; gap: 10px; }
+          .pill{
+            display:inline-flex; align-items:center; justify-content:center;
+            padding: 8px 12px; border-radius: 999px;
+            border: 1px solid var(--admin-border);
+            background: rgba(255,255,255,0.7);
+            font-size: 12px; font-weight: 800;
+          }
+          .dash-actions{ display:flex; gap:10px; flex-wrap:wrap; }
+          .dash-top-actions{ display:flex; justify-content:flex-end; margin-bottom: 12px; }
+          .dash-list{ margin-top: 12px; display:flex; flex-direction:column; gap: 10px; }
+          .dash-item{
+            background:#fff;
+            border: 1px solid var(--admin-border);
+            border-radius: 18px;
+            padding: 12px 14px;
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap: 12px;
+          }
+          .dash-item .title{ font-weight: 900; }
+          .dash-item .muted{ color: var(--admin-muted); font-size: 12px; }
+          .dash-table{ width:100%; border-collapse: collapse; margin-top: 12px; }
+          .dash-table th, .dash-table td{ padding: 12px 10px; border-bottom: 1px solid rgba(17,24,39,0.06); text-align:left; }
+          .dash-table th{ font-size: 12px; color: var(--admin-muted); text-transform: uppercase; letter-spacing: .06em; }
+          .dash-cta{
+            background: linear-gradient(135deg, rgba(17,24,39,0.92) 0%, rgba(17,24,39,0.82) 100%);
+            color: #fff;
+            border: 1px solid rgba(17,24,39,0.10);
+          }
+          .dash-cta .sub{ color: rgba(255,255,255,0.75); }
+          .dash-cta .value{ color: #fff; }
+          .legacy-admin{ display:none !important; }
+          @media (max-width: 1120px){ .dash-wrap{ grid-template-columns: 1fr; } .dash-cards{ grid-template-columns: 1fr; } }
         </style>
       </head>
       <body>
-        <div class="container">
+        ${renderAdminShellStart({ title: 'Analytics', activePath: '/admin', buildMarker })}
+
+        <div class="dash-wrap">
+          <div>
+            <div class="dash-top-actions">
+              <div class="dash-actions">
+                <a class="btn" href="/admin/products?openAdd=1" style="background:var(--admin-text); color:#fff; border-color:var(--admin-text);">Добавить товар</a>
+                <a class="btn" href="/admin/products">Открыть товары</a>
+              </div>
+            </div>
+            <div class="dash-cards">
+              <a class="dash-card dash-card-link" href="/admin/users-detailed" aria-label="Перейти к пользователям">
+                <div class="dash-row">
+                  <h3>Пользователи</h3>
+                  <span class="pill">Всего</span>
+                </div>
+                <div class="value">${stats.users}</div>
+                <div class="sub">Аккаунты в системе</div>
+              </a>
+              <a class="dash-card dash-card-link" href="/admin/products" aria-label="Перейти к товарам">
+                <div class="dash-row">
+                  <h3>Товары</h3>
+                  <span class="pill">Каталог</span>
+                </div>
+                <div class="value">${stats.products}</div>
+                <div class="sub">Позиции</div>
+              </a>
+              <a class="dash-card dash-card-link" href="/admin/orders" aria-label="Перейти к заказам">
+                <div class="dash-row">
+                  <h3>Заказы</h3>
+                  <span class="pill">Заявки</span>
+                </div>
+                <div class="value">${stats.orders}</div>
+                <div class="sub">Новые/в работе/выполнено</div>
+              </a>
+            </div>
+
+            <div style="height: 16px;"></div>
+
+            <div class="dash-big">
+              <div class="dash-row">
+                <div>
+                  <h3 style="margin:0; font-size:16px; font-weight:900;">Последние заказы</h3>
+                  <div class="muted" style="color:var(--admin-muted); font-size:12px; margin-top:6px;">Быстрый обзор активности</div>
+                </div>
+                <div class="dash-actions">
+                  <a class="btn" href="/admin/orders">Открыть заказы</a>
+                  <button type="button" class="btn" onclick="try{ if(typeof openAddProductModal==='function') openAddProductModal(); }catch(e){}">Добавить товар</button>
+                </div>
+              </div>
+              <div class="dash-list">
+                ${await getRecentOrders()}
+              </div>
+            </div>
+
+            <div style="height: 16px;"></div>
+
+            <div class="dash-big">
+              <div class="dash-row">
+                <div>
+                  <h3 style="margin:0; font-size:16px; font-weight:900;">Транзакции</h3>
+                  <div class="muted" style="color:var(--admin-muted); font-size:12px; margin-top:6px;">Последние начисления/списания</div>
+                </div>
+                <a class="btn" href="/admin/partners">Партнёры</a>
+              </div>
+              <div class="dash-list">
+                ${await getRecentTransactions()}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="dash-card dash-cta solid">
+              <h3 style="color:rgba(255,255,255,0.82);">Баланс пользователей</h3>
+              <div class="value">${stats.totalBalance.toFixed(2)} PZ</div>
+              <div class="sub">Сумма по всем пользователям</div>
+              <div style="height: 10px;"></div>
+              <div class="dash-actions">
+                <a class="btn" href="/admin/users-detailed" style="background:#fff; color:#111827;">Открыть пользователей</a>
+              </div>
+            </div>
+
+            <div style="height: 16px;"></div>
+
+            <div class="dash-big">
+              <div class="dash-row">
+                <div>
+                  <h3 style="margin:0; font-size:16px; font-weight:900;">Быстрые разделы</h3>
+                  <div class="muted" style="color:var(--admin-muted); font-size:12px; margin-top:6px;">Навигация по админке</div>
+                </div>
+              </div>
+              <table class="dash-table">
+                <tbody>
+                  <tr><td><a href="/admin/products" class="link">Товары</a></td><td class="muted">Каталог</td></tr>
+                  <tr><td><a href="/admin/categories" class="link">Категории</a></td><td class="muted">Структура</td></tr>
+                  <tr><td><a href="/admin/chats" class="link">Чаты</a></td><td class="muted">Поддержка</td></tr>
+                  <tr><td><a href="/admin/invoice-import" class="link">Импорт инвойса</a></td><td class="muted">Загрузка</td></tr>
+                  <tr><td><a href="/admin/sync-siam-json" class="link">Siam из JSON</a></td><td class="muted">Синхронизация</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="container legacy-admin">
           <div class="header">
-            <h1>🚀 Админ-панель Plazma Bot v2.0</h1>
+            <h1>🚀 Админ-панель Vital Bot v2.0</h1>
             <p>Единое управление ботом, пользователями и партнёрами</p>
           </div>
           
@@ -760,11 +1391,12 @@ router.get('/', requireAdmin, async (req, res) => {
           ${req.query.error === 'bonus_recalculation' ? '<div class="alert alert-error">❌ Ошибка при пересчёте бонусов</div>' : ''}
           
           <div class="tabs">
-            <button class="tab active" onclick="switchTab('overview')">📊 Обзор</button>
-            <button class="tab" onclick="switchTab('users')">👥 Пользователи</button>
-            <button class="tab" onclick="switchTab('partners')">🤝 Партнёры</button>
-            <button class="tab" onclick="switchTab('content')">📦 Контент</button>
-            <button class="tab" onclick="switchTab('tools')">🔧 Инструменты</button>
+            <button type="button" class="tab active" data-tab="overview" onclick="if(typeof window.switchTab==='function'){window.switchTab('overview', this);}return false;">📊 Обзор</button>
+            <button type="button" class="tab" onclick="window.location.href='/admin/users-detailed'">👥 Пользователи</button>
+            <button type="button" class="tab" data-tab="partners" onclick="if(typeof window.switchTab==='function'){window.switchTab('partners', this);}return false;">🤝 Партнёры</button>
+            <button type="button" class="tab" data-tab="content" onclick="if(typeof window.switchTab==='function'){window.switchTab('content', this);}return false;">📦 Контент</button>
+            <button type="button" class="tab" data-tab="invoice-import" onclick="if(typeof window.switchTab==='function'){window.switchTab('invoice-import', this);}return false;">📥 Импорт инвойса</button>
+            <button type="button" class="tab" data-tab="tools" onclick="if(typeof window.switchTab==='function'){window.switchTab('tools', this);}return false;">🔧 Инструменты</button>
           </div>
           
           <!-- Overview Tab -->
@@ -774,27 +1406,27 @@ router.get('/', requireAdmin, async (req, res) => {
             </div>
             
             <div class="stats">
-              <button class="stat-card" onclick="switchTab('users')">
+              <button type="button" class="stat-card" onclick="if(typeof window.switchTab==='function'){window.switchTab('users');}return false;">
                 <div class="stat-number">${stats.users}</div>
                 <div class="stat-label">Пользователи</div>
               </button>
-              <button class="stat-card" onclick="switchTab('partners')">
+              <button type="button" class="stat-card" onclick="if(typeof window.switchTab==='function'){window.switchTab('partners');}return false;">
                 <div class="stat-number">${stats.partners}</div>
                 <div class="stat-label">Партнёры</div>
               </button>
-              <button class="stat-card" onclick="switchTab('content')">
+              <button type="button" class="stat-card" onclick="if(typeof window.switchTab==='function'){window.switchTab('content');}return false;">
                 <div class="stat-number">${stats.products}</div>
                 <div class="stat-label">Товары</div>
               </button>
-              <button class="stat-card" onclick="switchTab('content')">
+              <button type="button" class="stat-card" onclick="if(typeof window.switchTab==='function'){window.switchTab('content');}return false;">
                 <div class="stat-number">${stats.categories}</div>
                 <div class="stat-label">Категории</div>
               </button>
-              <button class="stat-card" onclick="switchTab('content')">
+              <button type="button" class="stat-card" onclick="if(typeof window.switchTab==='function'){window.switchTab('content');}return false;">
                 <div class="stat-number">${stats.reviews}</div>
                 <div class="stat-label">Отзывы</div>
               </button>
-              <button class="stat-card" onclick="switchTab('content')">
+              <button type="button" class="stat-card" onclick="if(typeof window.switchTab==='function'){window.switchTab('content');}return false;">
                 <div class="stat-number">${stats.orders}</div>
                 <div class="stat-label">Заказы</div>
               </button>
@@ -873,15 +1505,17 @@ router.get('/', requireAdmin, async (req, res) => {
               <div class="action-buttons">
                 <a href="/admin/categories" class="btn">📁 Категории</a>
                 <a href="/admin/products" class="btn">🛍️ Товары</a>
+                <a href="/admin/chats" class="btn">💬 Чаты</a>
                 <a href="/admin/reviews" class="btn">⭐ Отзывы</a>
                 <a href="/admin/orders" class="btn">📦 Заказы</a>
-                <a href="/admin/media" class="btn" style="background: #17a2b8; color: white; font-weight: bold;">📸🎥 Медиа</a>
-                <a href="/admin/content" class="btn" style="background: #6f42c1; color: white; font-weight: bold;">📝 Контент бота</a>
                 <button class="btn" onclick="openAddProductModal()" style="background: #28a745;">➕ Добавить товар</button>
-                <button class="btn" onclick="createBackup()" style="background: #6f42c1; color: white;">💾 Создать бэкап БД</button>
+                <a href="/admin/product2" class="btn" style="background: #9c27b0;">🛍️ Товар 2</a>
+                <button class="btn import-siam-btn" style="background: #17a2b8; cursor: pointer; pointer-events: auto !important;">🤖 Импорт Siam Botanicals</button>
+                <a href="/admin/sync-siam-pdf" class="btn" style="background:#111827;">📄 Siam из PDF</a>
+                <a href="/admin/sync-siam-json" class="btn" style="background:#374151;">🧾 Siam из JSON</a>
               </div>
             </div>
-            <p>Управление каталогом товаров, отзывами, заказами и медиафайлами.</p>
+            <p>Управление каталогом товаров, отзывами и заказами.</p>
           </div>
           
           <!-- Tools Tab -->
@@ -894,6 +1528,36 @@ router.get('/', requireAdmin, async (req, res) => {
             </div>
             </div>
             <p>Дополнительные инструменты для отладки и тестирования.</p>
+          </div>
+          
+          <!-- Invoice Import Tab -->
+          <div id="invoice-import" class="tab-content">
+            <div class="section-header">
+              <h2 class="section-title">📥 Импорт инвойса</h2>
+            </div>
+            <p>Импортируйте товары из инвойса и управляйте настройками расчета цен.</p>
+            
+            <div class="action-buttons" style="margin-top: 20px;">
+              <a href="/admin/invoice-import" class="btn" style="background: #28a745;">📥 Импорт инвойса</a>
+              <a href="/admin/invoice-settings" class="btn" style="background: #667eea;">⚙️ Настройки импорта</a>
+            </div>
+            
+            <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+              <h3 style="margin-bottom: 15px;">Как использовать:</h3>
+              <ol style="line-height: 1.8;">
+                <li>Настройте курс обмена и мультипликатор в разделе "Настройки импорта"</li>
+                <li>Подготовьте данные инвойса в формате: SKU|Описание|Количество|Цена в БАТ|Сумма</li>
+                <li>Вставьте данные в форму импорта и нажмите "Импортировать"</li>
+                <li>Система автоматически:
+                  <ul style="margin-top: 10px;">
+                    <li>Рассчитает продажные цены по формуле: Цена в БАТ × Курс × Мультипликатор</li>
+                    <li>Обновит количество товаров</li>
+                    <li>Отправит уведомления при низком остатке (≤3 шт)</li>
+                    <li>Деактивирует товары с нулевым остатком</li>
+                  </ul>
+                </li>
+              </ol>
+            </div>
           </div>
           
           <div style="text-align: center; margin-top: 30px;">
@@ -963,7 +1627,7 @@ router.get('/', requireAdmin, async (req, res) => {
         <div id="addProductModal" class="modal">
           <div class="modal-content product-modal">
             <div class="modal-header">
-              <h2>➕ Добавить новый товар</h2>
+              <h2>Добавить новый товар</h2>
               <span class="close" onclick="closeAddProductModal()">&times;</span>
             </div>
             
@@ -977,7 +1641,10 @@ router.get('/', requireAdmin, async (req, res) => {
                 <div class="product-grid three-columns">
                   <div class="form-group">
                     <label>Название товара *</label>
-                    <input type="text" id="productName" required placeholder="Введите название товара">
+                    <div style="display: flex; gap: 8px;">
+                      <input type="text" id="productName" required placeholder="Введите название товара" style="flex: 1;">
+                      <button type="button" class="btn-translate" onclick="translateProductField('productName', 'title')" title="Перевести с английского через AI">AI</button>
+                    </div>
                   </div>
                   <div class="form-group">
                     <label>Цена (₽) *</label>
@@ -1011,8 +1678,8 @@ router.get('/', requireAdmin, async (req, res) => {
                   <span class="product-section-subtitle">Выберите регионы, где товар доступен</span>
                 </div>
                 <div class="regions-grid">
-                  <label class="switch-row"><input type="checkbox" id="regionRussia" checked> 🇷🇺 Россия</label>
-                  <label class="switch-row"><input type="checkbox" id="regionBali"> 🇮🇩 Бали</label>
+                  <label class="switch-row"><input type="checkbox" id="regionRussia" checked> Россия</label>
+                  <label class="switch-row"><input type="checkbox" id="regionBali"> Бали</label>
                 </div>
               </div>
 
@@ -1024,7 +1691,10 @@ router.get('/', requireAdmin, async (req, res) => {
                 <div class="product-grid media-layout">
                   <div class="form-group">
                     <label>Краткое описание *</label>
-                    <textarea id="productShortDescription" required placeholder="Краткое описание товара (до 200 символов)" maxlength="200"></textarea>
+                    <div style="position: relative;">
+                      <textarea id="productShortDescription" required placeholder="Краткое описание товара (до 200 символов)" maxlength="200" style="padding-right: 50px;"></textarea>
+                      <button type="button" class="btn-translate" onclick="translateProductField('productShortDescription', 'summary')" title="Перевести с английского через AI" style="position: absolute; top: 8px; right: 8px;">AI</button>
+                    </div>
                     <div class="char-count" id="shortDescCount">0/200</div>
                   </div>
                   <div class="form-group media-group">
@@ -1040,10 +1710,13 @@ router.get('/', requireAdmin, async (req, res) => {
                 </div>
                 <div class="form-group">
                   <label>Полное описание *</label>
-                  <textarea id="productFullDescription" required placeholder="Подробное описание товара"></textarea>
+                  <div style="position: relative;">
+                    <textarea id="productFullDescription" required placeholder="Подробное описание товара" style="padding-right: 50px;"></textarea>
+                    <button type="button" class="btn-translate" onclick="translateProductField('productFullDescription', 'description')" title="Перевести с английского через AI" style="position: absolute; top: 8px; right: 8px;">AI</button>
+                  </div>
                 </div>
                 <div class="form-group">
-                  <label>📋 Инструкция по применению</label>
+                  <label>Инструкция по применению</label>
                   <textarea id="productInstruction" placeholder="Инструкция по применению товара (необязательно)"></textarea>
                   <div class="char-count">Инструкция будет отображаться в мини-приложении</div>
                 </div>
@@ -1062,8 +1735,8 @@ router.get('/', requireAdmin, async (req, res) => {
               </div>
 
               <div class="modal-footer">
-                <button type="button" class="btn" onclick="closeAddProductModal()" style="background: #6c757d;">Отмена</button>
-                <button type="submit" class="btn" style="background: #28a745;">💾 Создать товар</button>
+                <button type="button" class="btn" onclick="closeAddProductModal()">Отмена</button>
+                <button type="submit" class="btn" id="productModalSubmit">Создать товар</button>
               </div>
             </form>
           </div>
@@ -1101,7 +1774,146 @@ router.get('/', requireAdmin, async (req, res) => {
           </div>
         </div>
         <script>
-          window.switchTab = function(tabName) {
+          // Импорт продуктов - определяем сразу для раннего перехвата
+          (function() {
+            'use strict';
+            
+            // Обработчик импорта - определяем глобально сразу
+            async function handleImportSiamProducts(event) {
+              // Проверяем, что клик именно по кнопке импорта
+              const target = event.target.closest('.import-siam-btn');
+              if (!target) return;
+              
+              event.preventDefault();
+              event.stopPropagation();
+              event.stopImmediatePropagation();
+              
+              if (!confirm('Запустить импорт продуктов из Siam Botanicals? Это может занять несколько минут.')) {
+                return false;
+              }
+              
+              const btn = target;
+              const originalText = btn.textContent;
+              btn.disabled = true;
+              btn.textContent = '⏳ Импорт запущен...';
+              btn.style.opacity = '0.6';
+              
+              try {
+                console.log('📤 Отправляю запрос на импорт...');
+                const response = await fetch('/admin/api/import-siam-products', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  credentials: 'include'
+                });
+                
+                console.log('📥 Ответ получен, status:', response.status);
+                
+                if (!response.ok) {
+                  const errorText = await response.text();
+                  console.error('❌ Ошибка ответа:', errorText);
+                  throw new Error('HTTP ' + response.status + ': ' + errorText);
+                }
+                
+                const result = await response.json();
+                console.log('📋 Результат:', result);
+                
+                if (result.success) {
+                  alert('✅ Импорт запущен! Продукты будут добавлены в течение нескольких минут. Проверьте логи сервера или обновите страницу через 3-5 минут.');
+                } else {
+                  throw new Error(result.error || 'Ошибка запуска импорта');
+                }
+              } catch (error) {
+                console.error('❌ Import error:', error);
+                console.error('❌ Error details:', {
+                  message: error instanceof Error ? error.message : String(error),
+                  stack: error instanceof Error ? error.stack : undefined
+                });
+                alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Не удалось запустить импорт. Проверьте консоль браузера (F12) для подробностей.'));
+              } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+                btn.style.opacity = '1';
+              }
+              
+              return false;
+            }
+            
+            // Прикрепляем обработчик СРАЗУ с самым ранним capture phase
+            // Это должно сработать до любых блокировщиков
+            if (document.readyState === 'loading') {
+              document.addEventListener('click', handleImportSiamProducts, true);
+            } else {
+              document.addEventListener('click', handleImportSiamProducts, true);
+            }
+            
+            // Также прикрепляем после загрузки DOM для надежности
+            document.addEventListener('DOMContentLoaded', function() {
+              document.addEventListener('click', handleImportSiamProducts, true);
+              
+              // Прямой обработчик на кнопку
+              function attachDirectHandler() {
+                const importBtn = document.querySelector('.import-siam-btn');
+                if (importBtn && !importBtn.hasAttribute('data-handler-attached')) {
+                  importBtn.addEventListener('click', handleImportSiamProducts, true);
+                  importBtn.setAttribute('data-handler-attached', 'true');
+                  console.log('✅ Direct import button handler attached');
+                } else if (!importBtn) {
+                  setTimeout(attachDirectHandler, 200);
+                }
+              }
+              
+              attachDirectHandler();
+              setTimeout(attachDirectHandler, 500);
+              setTimeout(attachDirectHandler, 1000);
+            });
+            
+            // Экстренная попытка - через небольшую задержку
+            setTimeout(function() {
+              document.addEventListener('click', handleImportSiamProducts, true);
+              console.log('✅ Import handler attached (delayed)');
+            }, 50);
+          })();
+          
+          window.switchTab = function(tabName, tabEl) {
+            // Guard: allow only known tabs (prevents invalid selector + broken UI)
+            // Но список берём динамически из DOM, чтобы не ломать вкладки при добавлениях.
+            const getAllowedTabs = function() {
+              const out = [];
+              try {
+                const tabBtns = document.querySelectorAll('.tab[data-tab]');
+                for (let i = 0; i < tabBtns.length; i++) {
+                  const t = tabBtns[i];
+                  if (t && t.dataset && t.dataset.tab) out.push(String(t.dataset.tab));
+                }
+                const tabContents = document.querySelectorAll('.tab-content[id]');
+                for (let j = 0; j < tabContents.length; j++) {
+                  const c = tabContents[j];
+                  if (c && c.id) out.push(String(c.id));
+                }
+              } catch (_) {}
+              // уникальные
+              const uniq = [];
+              const seen = {};
+              for (let k = 0; k < out.length; k++) {
+                const v = out[k];
+                if (!v) continue;
+                if (seen[v]) continue;
+                seen[v] = true;
+                uniq.push(v);
+              }
+              return uniq;
+            };
+            const allowedTabs = getAllowedTabs();
+            const normalizeTab = function(v) {
+              try { return String(v || '').trim(); } catch (_) { return ''; }
+            };
+            const safeTab = normalizeTab(tabName);
+            const finalTab = (allowedTabs && allowedTabs.indexOf(safeTab) !== -1)
+              ? safeTab
+              : ((allowedTabs && allowedTabs.length > 0 ? allowedTabs[0] : null) || 'overview');
+
             // Hide all tab contents
             const contents = document.querySelectorAll('.tab-content');
             contents.forEach(content => content.classList.remove('active'));
@@ -1111,11 +1923,85 @@ router.get('/', requireAdmin, async (req, res) => {
             tabs.forEach(tab => tab.classList.remove('active'));
             
             // Show selected tab content
-            document.getElementById(tabName).classList.add('active');
+            const target = document.getElementById(finalTab);
+            if (target) target.classList.add('active');
             
-            // Add active class to clicked tab
-            event.target.classList.add('active');
-          }
+            // Add active class to clicked tab (or infer by data-tab)
+            const candidate = (typeof event !== 'undefined' && event && event.target ? event.target : null);
+            let inferred = null;
+            try {
+              if (!inferred && tabEl) inferred = tabEl;
+              if (!inferred && candidate && candidate.classList && candidate.classList.contains('tab')) inferred = candidate;
+              if (!inferred) {
+                const list = document.querySelectorAll('.tab');
+                for (let i = 0; i < list.length; i++) {
+                  const t = list[i];
+                  if (t && t.dataset && t.dataset.tab === finalTab) { inferred = t; break; }
+                }
+              }
+            } catch (_) {}
+            const el = inferred;
+            if (el && el.classList) el.classList.add('active');
+
+            // Persist in URL for sharable links (e.g. /admin?tab=content)
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.set('tab', finalTab);
+              history.replaceState({}, '', url.toString());
+            } catch {}
+          };
+
+          // Restore tab from URL on initial load
+          ;(function(){
+            try {
+              const url = new URL(window.location.href);
+              const tabRaw = url.searchParams.get('tab');
+              if (!tabRaw) return;
+
+              const tab = String(tabRaw || '').trim();
+              const allowedTabs = (function(){
+                const out = [];
+                try {
+                  const tabBtns = document.querySelectorAll('.tab[data-tab]');
+                  for (let i = 0; i < tabBtns.length; i++) {
+                    const t = tabBtns[i];
+                    if (t && t.dataset && t.dataset.tab) out.push(String(t.dataset.tab));
+                  }
+                  const tabContents = document.querySelectorAll('.tab-content[id]');
+                  for (let j = 0; j < tabContents.length; j++) {
+                    const c = tabContents[j];
+                    if (c && c.id) out.push(String(c.id));
+                  }
+                } catch (_) {}
+                const uniq = [];
+                const seen = {};
+                for (let k = 0; k < out.length; k++) {
+                  const v = out[k];
+                  if (!v) continue;
+                  if (seen[v]) continue;
+                  seen[v] = true;
+                  uniq.push(v);
+                }
+                return uniq;
+              })();
+
+              if (!allowedTabs || allowedTabs.indexOf(tab) === -1) {
+                // Drop invalid tab param to avoid breaking the page
+                url.searchParams.delete('tab');
+                history.replaceState({}, '', url.toString());
+                return;
+              }
+
+              let tabBtn = null;
+              const list = document.querySelectorAll('.tab');
+              for (let i = 0; i < list.length; i++) {
+                const t = list[i];
+                if (t && t.dataset && t.dataset.tab === tab) { tabBtn = t; break; }
+              }
+
+              if (typeof window.switchTab === 'function') window.switchTab(tab, tabBtn);
+            } catch {}
+          })();
           
           window.showHierarchy = function(userId) {
             window.open(\`/admin/partners-hierarchy?user=\${userId}\`, '_blank', 'width=800,height=600');
@@ -1123,47 +2009,6 @@ router.get('/', requireAdmin, async (req, res) => {
           
           window.showUserDetails = function(userId) {
             window.open(\`/admin/users/\${userId}\`, '_blank', 'width=600,height=400');
-          }
-          
-          window.createBackup = async function() {
-            if (!confirm('Создать резервную копию базы данных? Это может занять несколько минут.')) {
-              return;
-            }
-            
-            const btn = event.target;
-            const originalText = btn.textContent;
-            btn.disabled = true;
-            btn.textContent = '⏳ Создание бэкапа...';
-            
-            try {
-              const response = await fetch('/admin/backup', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-              });
-              
-              const result = await response.json();
-              
-              if (result.success) {
-                let message = \`✅ Резервная копия создана успешно!\\n\\n\`;
-                message += \`📄 Файл: \${result.filename}\\n\`;
-                message += \`📊 Размер: \${result.fileSize}\\n\`;
-                if (result.cloudinaryUrl) {
-                  message += \`☁️ URL: \${result.cloudinaryUrl}\\n\`;
-                }
-                message += \`\\n📈 Статистика:\\n\`;
-                message += \`   - Пользователей: \${result.statistics.totalUsers}\\n\`;
-                message += \`   - Товаров: \${result.statistics.totalProducts}\\n\`;
-                message += \`   - Заказов: \${result.statistics.totalOrders}\`;
-                alert(message);
-              } else {
-                alert(\`❌ Ошибка: \${result.error || result.message || 'Неизвестная ошибка'}\`);
-              }
-            } catch (error) {
-              alert(\`❌ Ошибка при создании бэкапа: \${error.message}\`);
-            } finally {
-              btn.disabled = false;
-              btn.textContent = originalText;
-            }
           }
           
           window.openChangeInviter = async function(userId, userName) {
@@ -1373,7 +2218,7 @@ router.get('/', requireAdmin, async (req, res) => {
                 categories.forEach(category => {
                   const option = document.createElement('option');
                   option.value = category.id;
-                  option.textContent = category.icon ? category.icon + ' ' + category.name : category.name;
+                  option.textContent = category.name;
                   select.appendChild(option);
                 });
               }
@@ -1382,67 +2227,8 @@ router.get('/', requireAdmin, async (req, res) => {
             }
           };
           
-          // Simple global function for editing products
-          window.editProduct = function(button) {
-            const productId = button.dataset.id;
-            const title = button.dataset.title;
-            const summary = button.dataset.summary;
-            const description = button.dataset.description;
-            const price = button.dataset.price;
-            const categoryId = button.dataset.categoryId;
-            const isActive = button.dataset.active === 'true';
-            const availableInRussia = button.dataset.russia === 'true';
-            const availableInBali = button.dataset.bali === 'true';
-            const imageUrl = button.dataset.image;
-            
-            // Fill form fields
-            document.getElementById('productId').value = productId;
-            document.getElementById('productName').value = title;
-            document.getElementById('productShortDescription').value = summary;
-            document.getElementById('productFullDescription').value = description;
-            document.getElementById('productInstruction').value = button.dataset.instruction || '';
-            document.getElementById('productPrice').value = price;
-            document.getElementById('productPriceRub').value = (price * 100).toFixed(2);
-            document.getElementById('productStock').value = '999';
-            document.getElementById('productCategory').value = categoryId;
-            document.getElementById('productStatus').checked = isActive;
-            const regionRussiaEl = document.getElementById('regionRussia');
-            const regionBaliEl = document.getElementById('regionBali');
-            if (regionRussiaEl) regionRussiaEl.checked = availableInRussia;
-            if (regionBaliEl) regionBaliEl.checked = availableInBali;
-            
-            // Set image preview
-            const imagePreview = document.getElementById('imagePreview');
-            if (imageUrl) {
-              imagePreview.src = imageUrl;
-              imagePreview.style.display = 'block';
-              imagePreview.nextElementSibling.style.display = 'none';
-            } else {
-              imagePreview.style.display = 'none';
-              imagePreview.nextElementSibling.style.display = 'flex';
-            }
-            
-            // Update modal title and submit button
-            document.querySelector('.product-modal h2').textContent = 'Редактировать товар';
-            document.querySelector('#productModalSubmit').textContent = 'Обновить товар';
-            
-            // Load categories
-            fetch('/admin/api/categories', { credentials: 'include' })
-              .then(response => response.json())
-              .then(categories => {
-                const select = document.getElementById('productCategory');
-                select.innerHTML = '<option value="">Выберите категорию</option>';
-                categories.forEach(category => {
-                  const option = document.createElement('option');
-                  option.value = category.id;
-                  option.textContent = category.name;
-                  select.appendChild(option);
-                });
-              });
-            
-            // Show modal
-            document.getElementById('addProductModal').style.display = 'block';
-          };
+          // УДАЛЕНО: Старая функция editProduct, которая конфликтовала с новой версией на странице /admin/products
+          // Новая версия находится в роутере /admin/products и использует модальное окно editProductModal
           
           // Global function for editing products (legacy)
           window.editProductUsingCreateModal = function(button) {
@@ -1458,68 +2244,45 @@ router.get('/', requireAdmin, async (req, res) => {
             const imageUrl = button.dataset.image;
             
             // Set hidden product ID field
-            const productIdEl = document.getElementById('productId');
-            if (productIdEl) productIdEl.value = productId;
+            document.getElementById('productId').value = productId;
             
             // Fill form fields
-            const productNameEl = document.getElementById('productName');
-            if (productNameEl) productNameEl.value = title;
-            
-            const productShortDescEl = document.getElementById('productShortDescription');
-            if (productShortDescEl) productShortDescEl.value = summary;
-            
-            const productFullDescEl = document.getElementById('productFullDescription');
-            if (productFullDescEl) productFullDescEl.value = description;
-            
-            const productInstructionEl = document.getElementById('productInstruction');
-            if (productInstructionEl) productInstructionEl.value = button.dataset.instruction || '';
-            
-            const productPriceEl = document.getElementById('productPrice');
-            if (productPriceEl) productPriceEl.value = price;
-            
-            const productPriceRubEl = document.getElementById('productPriceRub');
-            if (productPriceRubEl) productPriceRubEl.value = (price * 100).toFixed(2);
-            
-            const productStockEl = document.getElementById('productStock');
-            if (productStockEl) productStockEl.value = '999'; // Default stock
-            
-            const productCategoryEl = document.getElementById('productCategory');
-            if (productCategoryEl) productCategoryEl.value = categoryId;
+            document.getElementById('productName').value = title;
+            document.getElementById('productShortDescription').value = summary;
+            document.getElementById('productFullDescription').value = description;
+            document.getElementById('productInstruction').value = button.dataset.instruction || '';
+            document.getElementById('productPrice').value = price;
+            document.getElementById('productPriceRub').value = (price * 100).toFixed(2);
+            document.getElementById('productStock').value = '999'; // Default stock
+            document.getElementById('productCategory').value = categoryId;
             
             // Set status toggle
-            const productStatusEl = document.getElementById('productStatus');
-            if (productStatusEl) productStatusEl.checked = isActive;
+            document.getElementById('productStatus').checked = isActive;
             
             // Set region toggles
-            const productRussiaEl = document.getElementById('productRussia') || document.getElementById('regionRussia');
-            if (productRussiaEl) productRussiaEl.checked = availableInRussia;
-            
-            const productBaliEl = document.getElementById('productBali') || document.getElementById('regionBali');
-            if (productBaliEl) productBaliEl.checked = availableInBali;
+            document.getElementById('productRussia').checked = availableInRussia;
+            document.getElementById('productBali').checked = availableInBali;
             
             // Set image preview
             const imagePreview = document.getElementById('imagePreview');
-            if (imagePreview) {
-              if (imageUrl) {
-                imagePreview.style.backgroundImage = 'url(' + imageUrl + ')';
-                imagePreview.style.display = 'block';
-              } else {
-                imagePreview.style.backgroundImage = '';
-                imagePreview.style.display = 'none';
-              }
+            if (imageUrl) {
+              imagePreview.src = imageUrl;
+              imagePreview.style.display = 'block';
+              imagePreview.nextElementSibling.style.display = 'none';
+            } else {
+              imagePreview.style.display = 'none';
+              imagePreview.nextElementSibling.style.display = 'flex';
             }
             
-            // Update modal title
-            const modalTitle = document.querySelector('.product-modal h2');
-            if (modalTitle) modalTitle.textContent = 'Редактировать товар';
+            // Update modal title and submit button
+            const modalH2 = document.querySelector('.product-modal h2');
+            const submitBtn = document.getElementById('productModalSubmit');
+            if (modalH2) modalH2.textContent = 'Редактировать товар';
+            if (submitBtn) submitBtn.textContent = 'Обновить товар';
             
             // Load categories and show modal
-            if (window.loadCategories) {
-              window.loadCategories();
-            }
-            
-            const modal = document.getElementById('addProductModal');
-            if (modal) modal.style.display = 'block';
+            loadCategories();
+            document.getElementById('addProductModal').style.display = 'block';
           };
           // Sorting: redirect to full users page with server-side sorting across ALL users
           function sortTable(column) {
@@ -1591,19 +2354,9 @@ router.get('/', requireAdmin, async (req, res) => {
           
           function sendMessages() {
             const selectedUsers = getSelectedUsers();
-            const messageTypeEl = document.getElementById('messageType');
-            const subjectEl = document.getElementById('messageSubject');
-            const textEl = document.getElementById('messageText');
-            const includeButtonsEl = document.getElementById('includeButtons');
-            const button1TextEl = document.getElementById('button1Text');
-            const button1UrlEl = document.getElementById('button1Url');
-            const button2TextEl = document.getElementById('button2Text');
-            const button2UrlEl = document.getElementById('button2Url');
-            
-            const messageType = messageTypeEl ? messageTypeEl.value : 'plain';
-            const subject = subjectEl ? subjectEl.value : '';
-            const text = textEl ? textEl.value : '';
-            const includeButtons = includeButtonsEl ? includeButtonsEl.checked : false;
+            const messageType = document.getElementById('messageType').value;
+            const subject = document.getElementById('messageSubject').value;
+            const text = document.getElementById('messageText').value;
             
             if (!text.trim()) {
               alert('Введите текст сообщения');
@@ -1619,14 +2372,14 @@ router.get('/', requireAdmin, async (req, res) => {
                 type: messageType,
                 subject: subject,
                 text: text,
-                includeButtons: includeButtons,
+                includeButtons: document.getElementById('includeButtons').checked,
                 button1: {
-                  text: button1TextEl ? button1TextEl.value : '',
-                  url: button1UrlEl ? button1UrlEl.value : ''
+                  text: document.getElementById('button1Text').value,
+                  url: document.getElementById('button1Url').value
                 },
                 button2: {
-                  text: button2TextEl ? button2TextEl.value : '',
-                  url: button2UrlEl ? button2UrlEl.value : ''
+                  text: document.getElementById('button2Text').value,
+                  url: document.getElementById('button2Url').value
                 }
               })
             })
@@ -1653,47 +2406,13 @@ router.get('/', requireAdmin, async (req, res) => {
           
           // Show/hide buttons section
           document.addEventListener('DOMContentLoaded', function() {
-            const includeButtonsToggle = document.getElementById('includeButtons');
-            if (includeButtonsToggle) {
-              includeButtonsToggle.addEventListener('change', function() {
-                const buttonsSection = document.getElementById('buttonsSection');
-                if (buttonsSection) {
-                  buttonsSection.style.display = this.checked ? 'block' : 'none';
-                }
-              });
-            }
-            
-            function setupPriceSync(priceId, priceRubId) {
-              const pricePzInput = document.getElementById(priceId);
-              const priceRubInput = document.getElementById(priceRubId);
-              if (!pricePzInput || !priceRubInput) return;
-              
-              const syncFromRub = () => {
-                const rubValue = parseFloat(priceRubInput.value) || 0;
-                pricePzInput.value = (rubValue / 100).toFixed(2);
-              };
-              const syncFromPz = () => {
-                const pzValue = parseFloat(pricePzInput.value) || 0;
-                priceRubInput.value = (pzValue * 100).toFixed(2);
-              };
-              
-              priceRubInput.addEventListener('input', syncFromRub);
-              pricePzInput.addEventListener('input', syncFromPz);
-              
-              if (priceRubInput.value) syncFromRub();
-              else if (pricePzInput.value) syncFromPz();
-            }
-            
-            // Initialize price sync for create form
-            setupPriceSync('productPrice', 'productPriceRub');
+            document.getElementById('includeButtons').addEventListener('change', function() {
+              const buttonsSection = document.getElementById('buttonsSection');
+              buttonsSection.style.display = this.checked ? 'block' : 'none';
+            });
             
             // Load categories when product modal opens
-            const addProductModalEl = document.getElementById('addProductModal');
-            if (addProductModalEl) {
-              addProductModalEl.addEventListener('shown.bs.modal', function() {
-                if (window.loadCategories) window.loadCategories();
-              });
-            }
+            document.getElementById('addProductModal').addEventListener('shown.bs.modal', loadCategories);
             
             // Character counter for short description
             const shortDesc = document.getElementById('productShortDescription');
@@ -1720,122 +2439,137 @@ router.get('/', requireAdmin, async (req, res) => {
           });
           
           // Product modal functions
-          window.openAddProductModal = function() {
+          function openAddProductModal() {
             // Reset form for new product
-            const modal = document.getElementById('addProductModal');
-            if (!modal) {
-              console.error('Modal addProductModal not found');
-              return;
-            }
-            
-            const productIdEl = document.getElementById('productId');
-            if (productIdEl) productIdEl.value = '';
-            
-            const modalTitle = document.querySelector('.product-modal h2');
-            if (modalTitle) modalTitle.textContent = 'Добавить товар';
-            
-            modal.style.display = 'block';
-            
-            // Load categories if function exists
-            if (window.loadCategories) {
-              window.loadCategories();
-            } else {
-              console.error('loadCategories function not found');
-            }
+            document.getElementById('productId').value = '';
+            const modalH2 = document.querySelector('.product-modal h2');
+            const submitBtn = document.getElementById('productModalSubmit');
+            if (modalH2) modalH2.textContent = 'Добавить товар';
+            if (submitBtn) submitBtn.textContent = 'Создать товар';
+            document.getElementById('addProductModal').style.display = 'block';
+            loadCategories();
           }
           
-          window.closeAddProductModal = function() {
-            const modal = document.getElementById('addProductModal');
-            if (modal) modal.style.display = 'none';
+          function closeAddProductModal() {
+            document.getElementById('addProductModal').style.display = 'none';
+            document.getElementById('addProductForm').reset();
+            document.getElementById('productId').value = '';
+            document.getElementById('shortDescCount').textContent = '0/200';
             
-            const form = document.getElementById('addProductForm');
-            if (form) form.reset();
-            
-            const productIdEl = document.getElementById('productId');
-            if (productIdEl) productIdEl.value = '';
-            
-            const shortDescCount = document.getElementById('shortDescCount');
-            if (shortDescCount) shortDescCount.textContent = '0/200';
-            
-            // Reset modal title
-            const modalTitle = document.querySelector('.product-modal h2');
-            if (modalTitle) modalTitle.textContent = '➕ Добавить новый товар';
-            
-            // Reset image preview
-            const imagePreview = document.getElementById('imagePreview');
-            if (imagePreview) {
-              imagePreview.style.backgroundImage = '';
-              imagePreview.innerHTML = '';
-            }
+            // Reset modal title and submit button
+            const modalH2 = document.querySelector('.product-modal h2');
+            const submitBtn = document.getElementById('productModalSubmit');
+            if (modalH2) modalH2.textContent = 'Добавить новый товар';
+            if (submitBtn) submitBtn.textContent = 'Создать товар';
           }
           
-          window.openAddCategoryModal = function() {
-            const modal = document.getElementById('addCategoryModal');
-            if (modal) modal.style.display = 'block';
+          function openAddCategoryModal() {
+            document.getElementById('addCategoryModal').style.display = 'block';
           }
           
-          window.closeAddCategoryModal = function() {
-            const modal = document.getElementById('addCategoryModal');
-            if (modal) modal.style.display = 'none';
-            
-            const form = document.getElementById('addCategoryForm');
-            if (form) form.reset();
+          function closeAddCategoryModal() {
+            document.getElementById('addCategoryModal').style.display = 'none';
+            document.getElementById('addCategoryForm').reset();
           }
           
           // Edit product using create modal
-          // editProductUsingCreateModal is already defined as window.editProductUsingCreateModal above
+          function editProductUsingCreateModal(button) {
+            const productId = button.dataset.id;
+            const title = button.dataset.title;
+            const summary = button.dataset.summary;
+            const description = button.dataset.description;
+            const price = button.dataset.price;
+            const categoryId = button.dataset.categoryId;
+            const isActive = button.dataset.active === 'true';
+            const availableInRussia = button.dataset.russia === 'true';
+            const availableInBali = button.dataset.bali === 'true';
+            const imageUrl = button.dataset.image;
+            
+            // Set hidden product ID field
+            document.getElementById('productId').value = productId;
+            
+            // Fill form fields
+            document.getElementById('productName').value = title;
+            document.getElementById('productShortDescription').value = summary;
+            document.getElementById('productFullDescription').value = description;
+            document.getElementById('productInstruction').value = button.dataset.instruction || '';
+            document.getElementById('productPrice').value = price;
+            document.getElementById('productPriceRub').value = (price * 100).toFixed(2);
+            document.getElementById('productStock').value = '999'; // Default stock
+            document.getElementById('productCategory').value = categoryId;
+            
+            // Set status toggle
+            const activeEl = document.getElementById('productActive');
+            if (activeEl) activeEl.checked = isActive;
+            
+            // Set region toggles
+            const rEl = document.getElementById('regionRussia');
+            const bEl = document.getElementById('regionBali');
+            if (rEl) rEl.checked = availableInRussia;
+            if (bEl) bEl.checked = availableInBali;
+            
+            // Set image preview (div with background-image)
+            const imagePreview = document.getElementById('imagePreview');
+            if (imagePreview) {
+            if (imageUrl) {
+                imagePreview.style.backgroundImage = 'url(' + imageUrl + ')';
+            } else {
+                imagePreview.style.backgroundImage = '';
+              }
+            }
+            
+            // Update modal title and submit button
+            const modalH2 = document.querySelector('.product-modal h2');
+            const submitBtn = document.getElementById('productModalSubmit');
+            if (modalH2) modalH2.textContent = 'Редактировать товар';
+            if (submitBtn) submitBtn.textContent = 'Обновить товар';
+            
+            // Load categories and show modal
+            loadCategories();
+            document.getElementById('addProductModal').style.display = 'block';
+          }
           
           // Load categories for product form
-          // loadCategories is already defined as window.loadCategories above
+          async function loadCategories() {
+            try {
+              const response = await fetch('/admin/api/categories');
+              const categories = await response.json();
+              
+              const select = document.getElementById('productCategory');
+              select.innerHTML = '<option value="">Выберите категорию</option>';
+              
+              categories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category.id;
+                option.textContent = category.name;
+                select.appendChild(option);
+              });
+            } catch (error) {
+              console.error('Error loading categories:', error);
+            }
+          }
           
           // Handle product form submission
-           document.getElementById('addProductForm').addEventListener('submit', async function(e) {
+          document.getElementById('addProductForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const productId = document.getElementById('productId').value;
             const isEdit = productId !== '';
             
-             const productPriceInput = document.getElementById('productPrice');
-             const productPriceRubInput = document.getElementById('productPriceRub');
-             let productPriceValue = productPriceInput ? productPriceInput.value : '';
-             if ((!productPriceValue || Number(productPriceValue) === 0) && productPriceRubInput) {
-               const rubValue = parseFloat(productPriceRubInput.value) || 0;
-               if (rubValue > 0 && productPriceInput) {
-                 productPriceValue = (rubValue / 100).toFixed(2);
-                 productPriceInput.value = productPriceValue;
-               }
-             }
-             
             const formData = new FormData();
-            const productNameValue = document.getElementById('productName').value || '';
-            const shortDescValue = document.getElementById('productShortDescription').value || '';
-            const fullDescValue = document.getElementById('productFullDescription').value || '';
-            const productInstructionEl = document.getElementById('productInstruction');
-            const productStatusEl = document.getElementById('productStatus');
-            const productInstructionValue = productInstructionEl ? productInstructionEl.value : '';
-            const productStatusValue = productStatusEl ? productStatusEl.checked : false;
-            
-            formData.append('title', productNameValue);
-            formData.append('name', productNameValue);
-            const finalPriceValue = productPriceValue || document.getElementById('productPrice').value;
-            formData.append('price', finalPriceValue);
+            // Backend /admin/api/products expects: name, shortDescription, fullDescription, active
+            formData.append('name', document.getElementById('productName').value);
+            formData.append('price', document.getElementById('productPrice').value);
             formData.append('categoryId', document.getElementById('productCategory').value);
-            formData.append('stock', document.getElementById('productStock').value || 0);
-            formData.append('summary', shortDescValue);
-            formData.append('shortDescription', shortDescValue);
-            formData.append('description', fullDescValue);
-            formData.append('fullDescription', fullDescValue);
-            formData.append('instruction', productInstructionValue);
-            formData.append('isActive', productStatusValue);
-            formData.append('active', productStatusValue ? 'true' : 'false');
+            formData.append('stock', String(document.getElementById('productStock').value || 0));
+            formData.append('shortDescription', document.getElementById('productShortDescription').value);
+            formData.append('fullDescription', document.getElementById('productFullDescription').value);
+            formData.append('instruction', document.getElementById('productInstruction').value);
+            formData.append('active', document.getElementById('productActive').checked ? 'true' : 'false');
             
             // Regions
-            const regionRussiaEl = document.getElementById('regionRussia');
-            const regionBaliEl = document.getElementById('regionBali');
-            const russiaAvailable = regionRussiaEl ? regionRussiaEl.checked : false;
-            const baliAvailable = regionBaliEl ? regionBaliEl.checked : false;
-            formData.append('availableInRussia', russiaAvailable ? 'true' : 'false');
-            formData.append('availableInBali', baliAvailable ? 'true' : 'false');
+            formData.append('availableInRussia', document.getElementById('regionRussia').checked ? 'true' : 'false');
+            formData.append('availableInBali', document.getElementById('regionBali').checked ? 'true' : 'false');
             
             // Add image if selected
             const imageFile = document.getElementById('productImage').files[0];
@@ -1853,15 +2587,15 @@ router.get('/', requireAdmin, async (req, res) => {
               const result = await response.json();
               
               if (result.success) {
-                alert(isEdit ? '✅ Товар успешно обновлен!' : '✅ Товар успешно создан!');
+                alert(isEdit ? 'Товар успешно обновлен' : 'Товар успешно создан');
                 closeAddProductModal();
                 // Refresh the page to show changes
                 window.location.reload();
               } else {
-                alert(\`❌ Ошибка при \${isEdit ? 'обновлении' : 'создании'} товара: \` + result.error);
+                alert('Ошибка: ' + result.error);
               }
             } catch (error) {
-              alert('❌ Ошибка: ' + (error instanceof Error ? error.message : String(error)));
+              alert('Ошибка: ' + (error instanceof Error ? error.message : String(error)));
             }
           });
           // Handle category form submission
@@ -1887,7 +2621,7 @@ router.get('/', requireAdmin, async (req, res) => {
                 alert('✅ Категория успешно создана!');
                 closeAddCategoryModal();
                 // Reload categories in product form
-                window.loadCategories();
+                loadCategories();
               } else {
                 alert('❌ Ошибка при создании категории: ' + result.error);
               }
@@ -2027,56 +2761,7 @@ router.get('/', requireAdmin, async (req, res) => {
             }
           };
           
-          // Instruction modal functions
-          window.showInstruction = function(productId, instructionText) {
-            const modal = document.createElement('div');
-            modal.className = 'instruction-modal';
-            modal.innerHTML = \`
-              <div class="instruction-overlay" onclick="closeInstruction()">
-                <div class="instruction-content" onclick="event.stopPropagation()">
-                  <div class="instruction-header">
-                    <h3>📋 Инструкция по применению</h3>
-                    <button class="btn-close" onclick="closeInstruction()">×</button>
-                  </div>
-                  <div class="instruction-body">
-                    <div class="instruction-text" id="instructionText" style="display: none;">\${instructionText.replace(/\\n/g, '<br>')}</div>
-                    <div class="instruction-edit" id="instructionEdit" style="display: block;">
-                      <textarea id="instructionTextarea" placeholder="Введите инструкцию по применению товара..." style="width: 100%; height: 200px; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical;">\${instructionText}</textarea>
-                    </div>
-                  </div>
-                  <div class="instruction-footer">
-                    <button class="btn btn-save" onclick="saveInstruction('\${productId}')" style="background: #28a745; margin-right: 8px;">💾 Сохранить</button>
-                    <button class="btn btn-cancel" onclick="cancelInstruction()" style="background: #6c757d; margin-right: 8px;">❌ Отмена</button>
-                    <button class="btn btn-delete" onclick="deleteInstruction('\${productId}')" style="background: #dc3545; margin-right: 8px;">🗑️ Удалить</button>
-                    <button class="btn btn-secondary" onclick="closeInstruction()">Закрыть</button>
-                  </div>
-                </div>
-              </div>
-            \`;
-            
-            document.body.appendChild(modal);
-            
-            // Add animation
-            setTimeout(() => {
-              const content = modal.querySelector('.instruction-content');
-              if (content) {
-                content.style.transform = 'scale(1)';
-              }
-            }, 10);
-          };
-          
-          window.closeInstruction = function() {
-            const modal = document.querySelector('.instruction-modal');
-            if (modal) {
-              const content = modal.querySelector('.instruction-content');
-              if (content) {
-                content.style.transform = 'scale(0.8)';
-              }
-              setTimeout(() => {
-                modal.remove();
-              }, 200);
-            }
-          };
+          // Instruction modal functions - MOVED TO LATER IN SCRIPT TO AVOID DUPLICATES
           
           window.editInstruction = function(productId) {
             // Redirect to product edit page
@@ -2146,6 +2831,7 @@ router.get('/', requireAdmin, async (req, res) => {
             closeInstruction();
           };
         </script>
+        ${renderAdminShellEnd()}
       </body>
       </html>
     `);
@@ -2159,36 +2845,11 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
   try {
     const sortBy = req.query.sort as string || 'orders';
     const sortOrder = req.query.order as string || 'desc';
-    const page = parseInt(req.query.page as string || '1', 10);
-    const perPage = 100;
-    const skip = (page - 1) * perPage;
-    
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
+
     // Get all users with their related data
     // Optional search by username
-    const searchRaw = (req.query.search as string | undefined)?.trim();
-    const usernameSearch = searchRaw?.replace(/^@/, '');
-    const phoneDigits = searchRaw ? searchRaw.replace(/\D+/g, '') : '';
-    const searchConditions: any[] = [];
-    if (usernameSearch) {
-      searchConditions.push({ username: { contains: usernameSearch, mode: 'insensitive' } });
-    }
-    if (searchRaw) {
-      searchConditions.push({ username: { contains: searchRaw, mode: 'insensitive' } });
-    }
-    if (phoneDigits) {
-      searchConditions.push({ phone: { contains: phoneDigits } });
-    }
-    if (searchRaw && !phoneDigits) {
-      searchConditions.push({ phone: { contains: searchRaw } });
-    }
-    
-    // Получаем общее количество пользователей для пагинации
-    const totalUsers = await prisma.user.count({
-      where: searchConditions.length > 0 ? { OR: searchConditions } : undefined
-    });
-    
-    const totalPages = Math.ceil(totalUsers / perPage);
-    
+    const search = (req.query.search as string | undefined)?.trim();
     const users = await prisma.user.findMany({
       include: {
         partner: {
@@ -2199,19 +2860,17 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
         },
         orders: true
       },
-      where: searchConditions.length > 0 ? { OR: searchConditions } : undefined,
+      where: search ? { username: { contains: search, mode: 'insensitive' } } : undefined,
       orderBy: {
         createdAt: sortOrder === 'desc' ? 'desc' : 'asc'
-      },
-      take: perPage,
-      skip: skip
+      }
     });
 
     // Helper function to count partners by level (based on hierarchy depth)
-    async function countPartnersByLevel(userId: string): Promise<{level1: number, level2: number, level3: number}> {
+    async function countPartnersByLevel(userId: string): Promise<{ level1: number, level2: number, level3: number }> {
       // Level 1: Direct referrals (all referrals of this user)
       const level1Partners = await prisma.partnerReferral.findMany({
-        where: { 
+        where: {
           profile: { userId: userId },
           referredId: { not: null }
         },
@@ -2222,11 +2881,11 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
 
       // Level 2: Referrals of level 1 partners
       const level1UserIds = level1Partners.map(p => p.referredId).filter((id): id is string => id !== null);
-      
+
       const level2Count = level1UserIds.length > 0 ? await prisma.partnerReferral.count({
-        where: { 
-          profile: { 
-            userId: { 
+        where: {
+          profile: {
+            userId: {
               in: level1UserIds
             }
           },
@@ -2236,9 +2895,9 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
 
       // Level 3: Referrals of level 2 partners
       const level2Partners = level1UserIds.length > 0 ? await prisma.partnerReferral.findMany({
-        where: { 
-          profile: { 
-            userId: { 
+        where: {
+          profile: {
+            userId: {
               in: level1UserIds
             }
           },
@@ -2250,9 +2909,9 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
       const level2UserIds = level2Partners.map(p => p.referredId).filter((id): id is string => id !== null);
 
       const level3Count = level2UserIds.length > 0 ? await prisma.partnerReferral.count({
-        where: { 
-          profile: { 
-            userId: { 
+        where: {
+          profile: {
+            userId: {
               in: level2UserIds
             }
           },
@@ -2267,12 +2926,12 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
     const usersWithStats = await Promise.all(users.map(async (user: any) => {
       const partnerProfile = user.partner;
       const directPartners = partnerProfile?.referrals?.length || 0;
-      
+
       // Get partners count by level
       const partnersByLevel = await countPartnersByLevel(user.id);
-      
+
       console.log(`👤 User ${user.firstName} (@${user.username}) ID: ${user.id}: ${user.orders?.length || 0} orders`);
-      
+
       // Разделяем заказы по статусам
       const ordersByStatus = {
         new: user.orders?.filter((order: any) => order.status === 'NEW') || [],
@@ -2280,11 +2939,11 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
         completed: user.orders?.filter((order: any) => order.status === 'COMPLETED') || [],
         cancelled: user.orders?.filter((order: any) => order.status === 'CANCELLED') || []
       };
-      
+
       // Сумма только оплаченных (завершенных) заказов
       const paidOrderSum = ordersByStatus.completed.reduce((sum: number, order: any) => {
         try {
-          const items = typeof order.itemsJson === 'string' 
+          const items = typeof order.itemsJson === 'string'
             ? JSON.parse(order.itemsJson || '[]')
             : (order.itemsJson || []);
           const orderTotal = items.reduce((itemSum: number, item: any) => itemSum + (item.price || 0) * (item.quantity || 1), 0);
@@ -2293,19 +2952,19 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
           return sum;
         }
       }, 0);
-      
+
       // Определяем приоритетный статус (новые заказы имеют приоритет)
       const hasNewOrders = ordersByStatus.new.length > 0;
       const hasProcessingOrders = ordersByStatus.processing.length > 0;
       const hasCompletedOrders = ordersByStatus.completed.length > 0;
       const hasCancelledOrders = ordersByStatus.cancelled.length > 0;
-      
+
       let priorityStatus = 'none';
       if (hasNewOrders) priorityStatus = 'new';
       else if (hasProcessingOrders) priorityStatus = 'processing';
       else if (hasCompletedOrders) priorityStatus = 'completed';
       else if (hasCancelledOrders) priorityStatus = 'cancelled';
-      
+
       // Debug: Log status determination for detailed view
       if (user.orders && user.orders.length > 0) {
         console.log(`Detailed view - User ${user.firstName} orders:`, {
@@ -2317,12 +2976,12 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
           priorityStatus: priorityStatus
         });
       }
-      
+
       const totalOrderSum = paidOrderSum; // Используем только оплаченные заказы
       const balance = user.balance || partnerProfile?.balance || 0;
       const bonus = partnerProfile?.bonus || 0;
       const lastActivity = user.updatedAt || user.createdAt;
-      
+
       return {
         ...user,
         directPartners,
@@ -2354,11 +3013,11 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
     // Apply sorting
     let sortedUsers = usersWithInviters;
     if (sortBy === 'balance') {
-      sortedUsers = usersWithInviters.sort((a, b) => 
+      sortedUsers = usersWithInviters.sort((a, b) =>
         sortOrder === 'desc' ? b.balance - a.balance : a.balance - b.balance
       );
     } else if (sortBy === 'partners') {
-      sortedUsers = usersWithInviters.sort((a, b) => 
+      sortedUsers = usersWithInviters.sort((a, b) =>
         sortOrder === 'desc' ? b.directPartners - a.directPartners : a.directPartners - b.directPartners
       );
     } else if (sortBy === 'orders') {
@@ -2366,44 +3025,44 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
         // 1. Приоритет: сначала новые красные заказы
         const aHasNew = a.priorityStatus === 'new';
         const bHasNew = b.priorityStatus === 'new';
-        
+
         if (aHasNew && !bHasNew) return -1;
         if (!aHasNew && bHasNew) return 1;
-        
+
         // 2. Если оба имеют новые заказы или оба не имеют - сортируем по дате новых заказов
         if (aHasNew && bHasNew) {
           const aNewOrder = a.orders?.find((order: any) => order.status === 'NEW');
           const bNewOrder = b.orders?.find((order: any) => order.status === 'NEW');
-          
+
           if (aNewOrder && bNewOrder) {
             return new Date(bNewOrder.createdAt).getTime() - new Date(aNewOrder.createdAt).getTime();
           }
         }
-        
+
         // 3. Затем приоритет: новые зеленые заказы
         const aHasCompleted = a.priorityStatus === 'completed';
         const bHasCompleted = b.priorityStatus === 'completed';
-        
+
         if (aHasCompleted && !bHasCompleted) return -1;
         if (!aHasCompleted && bHasCompleted) return 1;
-        
+
         // 4. Если оба имеют завершенные заказы - сортируем по дате
         if (aHasCompleted && bHasCompleted) {
           const aCompletedOrder = a.orders?.find((order: any) => order.status === 'COMPLETED');
           const bCompletedOrder = b.orders?.find((order: any) => order.status === 'COMPLETED');
-          
+
           if (aCompletedOrder && bCompletedOrder) {
             return new Date(bCompletedOrder.createdAt).getTime() - new Date(aCompletedOrder.createdAt).getTime();
           }
         }
-        
+
         // 5. Если нет заказов, сортируем по сумме
         return sortOrder === 'desc' ? b.totalOrderSum - a.totalOrderSum : a.totalOrderSum - b.totalOrderSum;
       });
     } else if (sortBy === 'activity') {
-      sortedUsers = usersWithInviters.sort((a, b) => 
-        sortOrder === 'desc' ? new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime() : 
-                               new Date(a.lastActivity).getTime() - new Date(b.lastActivity).getTime()
+      sortedUsers = usersWithInviters.sort((a, b) =>
+        sortOrder === 'desc' ? new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime() :
+          new Date(a.lastActivity).getTime() - new Date(b.lastActivity).getTime()
       );
     }
 
@@ -2417,126 +3076,43 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Детальная информация о пользователях - Plazma Water Admin</title>
+        <title>Детальная информация о пользователях - Vital Admin</title>
         <meta charset="utf-8">
-        <script>
-          // Определяем все функции ДО загрузки DOM для использования в inline обработчиках
-          window.searchByUsername = function(){
-            var q = document.getElementById('searchUsername').value.trim();
-            if(!q) return;
-            if(q.startsWith('@')) q = q.slice(1);
-            const urlParams = new URLSearchParams(window.location.search);
-            const sortBy = urlParams.get('sort') || 'orders';
-            const order = urlParams.get('order') || 'desc';
-            window.location.href = '/admin/users-detailed?search=' + encodeURIComponent(q) + '&sort=' + sortBy + '&order=' + order + '&page=1';
-          };
-          
-          window.updateSelectedUsers = function() {
-            const checkboxes = document.querySelectorAll('.user-checkbox');
-            const checkedCount = document.querySelectorAll('.user-checkbox:checked').length;
-            const selectAllCheckbox = document.getElementById('selectAllUsers');
-            if (selectAllCheckbox) {
-              selectAllCheckbox.checked = checkedCount === checkboxes.length;
-              selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
-            }
-          };
-          
-          window.openMessageModal = function() {
-            const selectedCheckboxes = document.querySelectorAll('.user-checkbox:checked');
-            if (selectedCheckboxes.length === 0) {
-              alert('Выберите пользователей для отправки сообщения');
-              return;
-            }
-            // Эта функция будет переопределена в основном скрипте с полной реализацией
-            // Здесь только заглушка для предотвращения ошибок
-            console.log('openMessageModal called, but full implementation is in main script');
-          };
-          
-          window.toggleAllUsers = function(checked) {
-            const checkboxes = document.querySelectorAll('.user-checkbox');
-            checkboxes.forEach(checkbox => {
-              checkbox.checked = checked;
-            });
-            updateSelectedUsers();
-          };
-          
-          // Заглушки для функций, используемых в модальном окне сообщений
-          window.closeMessageModal = function() {
-            console.log('closeMessageModal: waiting for full implementation');
-          };
-          
-          window.sendMessage = function() {
-            console.log('sendMessage: waiting for full implementation');
-          };
-          
-          // Заглушки функций будут переопределены полными реализациями ниже
-          window.openPhotoGallery = function() {
-            console.log('openPhotoGallery: loading...');
-          };
-          
-          window.closePhotoGallery = function() {
-            console.log('closePhotoGallery: loading...');
-          };
-          
-          window.selectPhotoFromGallery = function() {
-            console.log('selectPhotoFromGallery: loading...');
-          };
-          
-          window.openUploadPhoto = function() {
-            console.log('openUploadPhoto: loading...');
-          };
-          
-          window.clearSelectedPhoto = function() {
-            console.log('clearSelectedPhoto: loading...');
-          };
-          
-          window.addMessageButton = function() {
-            console.log('addMessageButton: loading...');
-          };
-          
-          window.removeMessageButton = function() {
-            console.log('removeMessageButton: loading...');
-          };
-          
-          window.toggleButtonFields = function() {
-            console.log('toggleButtonFields: loading...');
-          };
-        </script>
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-          .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
-          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
-          .header h1 { margin: 0; font-size: 28px; font-weight: 600; }
-          .header p { margin: 10px 0 0 0; opacity: 0.9; font-size: 16px; }
-          .back-btn:hover { background: rgba(255,255,255,0.3) !important; transform: translateY(-2px); }
+          /* UI kit baseline */
+          ${ADMIN_UI_CSS}
+
+          body { margin: 0; padding: 0; background: var(--admin-bg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+          .page-title{ margin: 0; font-size: 18px; font-weight: 900; letter-spacing: -0.02em; }
+          .page-subtitle{ margin-top: 6px; font-size: 12px; color: var(--admin-muted); }
+          .page-header-row{ display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; margin-bottom: 12px; }
           
-          .controls { padding: 20px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; }
+          .controls { padding: 14px; background: #fff; border: 1px solid var(--admin-border); border-radius: 18px; }
           .sort-controls { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
           .sort-group { display: flex; gap: 10px; align-items: center; }
           .sort-group label { font-weight: 600; color: #495057; }
-          .sort-group select, .sort-group button { padding: 8px 12px; border: 1px solid #ced4da; border-radius: 6px; font-size: 14px; }
-          .sort-group button { background: #007bff; color: white; border: none; cursor: pointer; }
-          .sort-group button:hover { background: #0056b3; }
+          .sort-group select { padding: 10px 12px; border: 1px solid var(--admin-border-strong); border-radius: 12px; background: #fff; }
+          .sort-group input { padding: 10px 12px; border: 1px solid var(--admin-border-strong); border-radius: 12px; background: #fff; }
           
-          .stats-bar { display: flex; gap: 20px; padding: 15px 20px; background: #e3f2fd; border-bottom: 1px solid #bbdefb; }
-          .stat-item { text-align: center; }
-          .stat-number { font-size: 24px; font-weight: bold; color: #1976d2; }
-          .stat-label { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+          .stats-bar { display: grid; grid-template-columns: repeat(5, minmax(160px, 1fr)); gap: 12px; margin-top: 12px; }
+          .stat-item { text-align: left; background:#fff; border: 1px solid var(--admin-border); border-radius: 18px; padding: 12px 14px; }
+          .stat-number { font-size: 22px; font-weight: 900; letter-spacing: -0.03em; color: var(--admin-text); }
+          .stat-label { font-size: 11px; color: var(--admin-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 6px; }
           
-          .table-container { overflow-x: auto; width: 100%; border: 1px solid #dee2e6; border-radius: 8px; }
+          .table-container { overflow: auto; width: 100%; border: 1px solid var(--admin-border); border-radius: 18px; background:#fff; margin-top: 12px; }
           .users-table { width: 100%; border-collapse: collapse; min-width: 100%; table-layout: fixed; }
-          .users-table th { background: #f8f9fa; padding: 6px 4px; text-align: left; font-weight: 600; color: #495057; border-bottom: 2px solid #dee2e6; white-space: nowrap; position: sticky; top: 0; z-index: 10; font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
-          .users-table td { padding: 6px 4px; border-bottom: 1px solid #dee2e6; vertical-align: top; white-space: nowrap; font-size: 11px; overflow: hidden; text-overflow: ellipsis; position: relative; }
-          .users-table tr:hover { background: #f8f9fa; }
+          .users-table th { background: rgba(17,24,39,0.03); padding: 10px 8px; text-align: left; font-weight: 900; color: var(--admin-muted); border-bottom: 1px solid rgba(17,24,39,0.08); white-space: nowrap; position: sticky; top: 0; z-index: 10; font-size: 11px; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; letter-spacing: .06em; }
+          .users-table td { padding: 10px 8px; border-bottom: 1px solid rgba(17,24,39,0.06); vertical-align: top; white-space: nowrap; font-size: 12px; overflow: hidden; text-overflow: ellipsis; position: relative; }
+          .users-table tr:hover td { background: rgba(17,24,39,0.02); }
           
           /* Sticky колонка пользователя с улучшенным эффектом */
           .users-table th.user-cell, .users-table td.user-cell { 
             position: sticky; left: 0; z-index: 15; 
-            background: #f8f9fa; border-right: 3px solid #007bff;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            background: #fff; border-right: 1px solid rgba(17,24,39,0.10);
+            box-shadow: 2px 0 10px rgba(17,24,39,0.06);
             min-width: 140px; max-width: 140px;
           }
-          .users-table tr:hover td.user-cell { background: #f8f9fa; }
+          .users-table tr:hover td.user-cell { background: #fff; }
           
           /* Стили для горизонтального скролла */
           .table-container::-webkit-scrollbar { height: 8px; }
@@ -2609,67 +3185,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             border-bottom: none;
           }
           
-          /* Стили для модальных окон */
-          .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10000;
-          }
-          
-          .modal-content {
-            background: white;
-            border-radius: 12px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-          }
-          
-          .modal-header {
-            padding: 20px;
-            border-bottom: 1px solid #dee2e6;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-          }
-          
-          .modal-header h2 {
-            margin: 0;
-            color: #212529;
-            font-size: 18px;
-          }
-          
-          .modal-close {
-            font-size: 24px;
-            font-weight: bold;
-            color: #6c757d;
-            cursor: pointer;
-            line-height: 1;
-          }
-          
-          .modal-close:hover {
-            color: #dc3545;
-          }
-          
-          .modal-body {
-            padding: 20px;
-          }
-          
-          .modal-footer {
-            padding: 15px 20px;
-            border-top: 1px solid #dee2e6;
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-          }
+          /* Модалки: используем UI kit (не переопределяем глобальные .modal-*) */
           
           /* Стили для формы сообщений */
           .message-form-group {
@@ -2745,39 +3261,185 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
           .partners-count { background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 8px; font-size: 10px; font-weight: 600; }
           .orders-sum { background: #fff3cd; color: #856404; padding: 2px 6px; border-radius: 8px; font-size: 10px; font-weight: 600; }
           
-          .action-btn { background: #007bff; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; margin: 1px; }
-          .action-btn:hover { background: #0056b3; }
-          .action-btn.hierarchy { background: #28a745; }
-          .action-btn.hierarchy:hover { background: #1e7e34; }
-          
-          .back-btn { background: #6c757d; color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; display: inline-block; margin-bottom: 20px; }
-          .back-btn:hover { background: #5a6268; }
+          /* action-btn already styled by ADMIN_UI_CSS */
           
           .empty-state { text-align: center; padding: 60px 20px; color: #6c757d; }
           .empty-state h3 { margin: 0 0 10px 0; font-size: 24px; }
           .empty-state p { margin: 0; font-size: 16px; }
+
         </style>
       </head>
       <body>
-        <div class="container">
-          <div class="header">
-            <div style="display: flex; align-items: center; justify-content: space-between;">
-              <div>
-            <h1>👥 Детальная информация о пользователях</h1>
-            <p>Полная статистика, балансы, партнёры и заказы</p>
-              </div>
-              <a href="/admin" class="back-btn" style="background: rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; border: 1px solid rgba(255,255,255,0.3); transition: all 0.3s ease;">
-                ← Назад к панели
-              </a>
-            </div>
+        ${renderAdminShellStart({ title: 'Пользователи', activePath: '/admin/users-detailed', buildMarker })}
+        <script>
+          // Определяем все функции ДО загрузки HTML
+          (function() {
+            // Функции для совместимости
+            window.showUserDetails = function(userId) {
+              window.open('/admin/users/' + userId, '_blank', 'width=600,height=400');
+            };
+            
+            window.showHierarchy = function(userId) {
+              window.open('/admin/partners-hierarchy?user=' + userId, '_blank', 'width=800,height=600');
+            };
+            
+            // Функции для массового выбора пользователей
+            window.updateSelectedUsers = function() {
+              const checkboxes = document.querySelectorAll('.user-checkbox');
+              const checkedCount = document.querySelectorAll('.user-checkbox:checked').length;
+              const selectAllCheckbox = document.getElementById('selectAllUsers');
+              
+              if (selectAllCheckbox) {
+                selectAllCheckbox.checked = checkedCount === checkboxes.length;
+                selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+              }
+            };
+            
+            window.toggleAllUsers = function(checked) {
+              const checkboxes = document.querySelectorAll('.user-checkbox');
+              checkboxes.forEach(checkbox => {
+                checkbox.checked = checked;
+              });
+              window.updateSelectedUsers();
+            };
+            
+            window.deleteSelectedUser = async function(userId, userName) {
+              if (!confirm('⚠️ ВНИМАНИЕ! Вы уверены, что хотите удалить пользователя "' + userName + '"?\\n\\nЭто действие удалит:\\n- Пользователя\\n- Партнерский профиль\\n- Все рефералы\\n- Все транзакции\\n- Все заказы\\n- Историю действий\\n\\nЭто действие НЕОБРАТИМО!')) {
+                return;
+              }
+              
+              const doubleCheck = prompt('Для подтверждения введите: УДАЛИТЬ');
+              if (doubleCheck !== 'УДАЛИТЬ') {
+                alert('Отмена удаления. Пользователь не был удален.');
+                return;
+              }
+              
+              try {
+                const response = await fetch('/admin/users/' + userId + '/delete', {
+                  method: 'DELETE',
+                  credentials: 'include',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  }
+                });
+                
+                if (!response.ok) {
+                  const error = await response.json();
+                  throw new Error(error.error || 'Ошибка при удалении пользователя');
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                  alert('✅ Пользователь "' + userName + '" успешно удален!');
+                  window.location.reload();
+                } else {
+                  throw new Error(result.error || 'Ошибка при удалении');
+                }
+              } catch (error) {
+                console.error('Error deleting user:', error);
+                alert('❌ Ошибка при удалении пользователя: ' + (error instanceof Error ? error.message : String(error)));
+              }
+            };
+            
+            window.deleteSelectedUsers = async function() {
+              const selectedCheckboxes = document.querySelectorAll('.user-checkbox:checked');
+              if (selectedCheckboxes.length === 0) {
+                alert('Выберите пользователей для удаления');
+                return;
+              }
+              
+              const selectedIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+              
+              if (!confirm('⚠️ ВНИМАНИЕ! Вы уверены, что хотите удалить ' + selectedIds.length + ' пользователей?\\n\\nЭто действие удалит:\\n- Пользователей\\n- Партнерские профили\\n- Все рефералы\\n- Все транзакции\\n- Все заказы\\n- Историю действий\\n\\nЭто действие НЕОБРАТИМО!')) {
+                return;
+              }
+              
+              const doubleCheck = prompt('Для подтверждения введите: УДАЛИТЬ ВСЕХ');
+              if (doubleCheck !== 'УДАЛИТЬ ВСЕХ') {
+                alert('Отмена удаления. Пользователи не были удалены.');
+                return;
+              }
+              
+              try {
+                let successCount = 0;
+                let failCount = 0;
+                
+                for (const userId of selectedIds) {
+                  try {
+                    const response = await fetch('/admin/users/' + userId + '/delete', {
+                      method: 'DELETE',
+                      credentials: 'include',
+                      headers: {
+                        'Content-Type': 'application/json'
+                      }
+                    });
+                    
+                    if (response.ok) {
+                      successCount++;
+                    } else {
+                      failCount++;
+                    }
+                  } catch (error) {
+                    failCount++;
+                  }
+                }
+                
+                alert('✅ Удалено пользователей: ' + successCount + '\\n❌ Ошибок: ' + failCount);
+                window.location.reload();
+              } catch (error) {
+                console.error('Error deleting users:', error);
+                alert('❌ Ошибка при удалении пользователей');
+              }
+            };
+            
+            // Event delegation - работает сразу
+            document.addEventListener('change', function(e) {
+              if (e.target && e.target.classList && e.target.classList.contains('user-checkbox')) {
+                if (typeof window.updateSelectedUsers === 'function') {
+                  window.updateSelectedUsers();
+                }
+              }
+            });
+            
+            document.addEventListener('click', function(e) {
+              if (e.target && e.target.classList && e.target.classList.contains('delete-selected-btn')) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof window.deleteSelectedUsers === 'function') {
+                  window.deleteSelectedUsers();
+                }
+              }
+            });
+            
+            // После загрузки DOM
+            document.addEventListener('DOMContentLoaded', function() {
+              const selectAllCheckbox = document.getElementById('selectAllUsers');
+              if (selectAllCheckbox) {
+                selectAllCheckbox.addEventListener('change', function(e) {
+                  if (typeof window.toggleAllUsers === 'function') {
+                    window.toggleAllUsers(e.target.checked);
+                  }
+                });
+              }
+            });
+          })();
+        </script>
+
+        <div class="page-header-row">
+          <div>
+            <div class="page-title">Детальная информация о пользователях</div>
+            <div class="page-subtitle">Полная статистика, балансы, партнёры и заказы</div>
           </div>
+          <a class="btn" href="/admin">Назад</a>
+        </div>
           
           <div class="controls">
             <div class="sort-controls">
               <div class="sort-group" style="position: relative;">
-                <label>Найти по юзернейм или телефону:</label>
-                <input type="text" id="searchUsername" placeholder="@username или +7999..." style="padding:8px 12px; border:1px solid #ced4da; border-radius:6px; font-size:14px;" autocomplete="off" />
-                <button id="searchButton" type="button">🔎 Найти</button>
+                <label>Найти по юзернейм:</label>
+                <input type="text" id="searchUsername" placeholder="@username" autocomplete="off" />
+                <button type="button" class="btn" onclick="searchByUsername()">Найти</button>
                 <div id="searchSuggestions" style="position:absolute; top:36px; left:0; background:#fff; border:1px solid #e5e7eb; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,.1); width:260px; max-height:220px; overflow:auto; display:none; z-index:5"></div>
               </div>
               <div class="sort-group">
@@ -2798,13 +3460,16 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                 </select>
               </div>
               
-              <button onclick="applySorting()">🔄 Применить</button>
+              <button type="button" class="btn" onclick="applySorting()">Применить</button>
+            </div>
+            <div class="message-controls" style="margin-top: 10px;">
+              <button type="button" class="btn btn-danger delete-selected-btn">Удалить выбранных</button>
             </div>
           </div>
           
           <div class="stats-bar">
             <div class="stat-item" style="cursor:pointer" onclick="applyFilter('all')">
-              <div class="stat-number">${totalUsers}</div>
+              <div class="stat-number">${sortedUsers.length}</div>
               <div class="stat-label">Всего пользователей</div>
             </div>
             <div class="stat-item" style="cursor:pointer" onclick="applyFilter('with_balance')">
@@ -2825,14 +3490,6 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             </div>
           </div>
           
-          ${totalPages > 1 ? `
-            <div class="pagination" style="margin: 20px 0; display: flex; justify-content: center; align-items: center; gap: 10px;">
-              <button onclick="goToPage(${page - 1})" ${page === 1 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : 'style="padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"'}>← Предыдущая</button>
-              <span style="padding: 8px 16px;">Страница ${page} из ${totalPages}</span>
-              <button onclick="goToPage(${page + 1})" ${page === totalPages ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : 'style="padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;"'}>Следующая →</button>
-            </div>
-          ` : ''}
-          
           ${sortedUsers.length === 0 ? `
             <div class="empty-state">
               <h3>📭 Нет пользователей</h3>
@@ -2844,8 +3501,9 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                 <thead>
                   <tr>
                     <th class="compact-cell">
-                      <input type="checkbox" id="selectAllUsers" onchange="toggleAllUsers(this.checked)" style="margin-right: 5px;">
-                      <button onclick="openMessageModal()" class="action-btn" style="font-size: 10px; padding: 2px 6px;">📧</button>
+                      <input type="checkbox" id="selectAllUsers" style="margin-right: 5px;">
+                      <button type="button" onclick="openMessageModal()" class="action-btn" title="Сообщение">Сообщение</button>
+                      <button type="button" class="action-btn delete-selected-btn" title="Удалить выбранных" style="border-color: rgba(220,38,38,0.35); color:#991b1b;">Удалить</button>
                     </th>
                     <th class="compact-cell">Партнерская программа</th>
                     <th class="compact-cell">Баланс</th>
@@ -2864,23 +3522,23 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                 </thead>
               <tbody>
                 ${sortedUsers.map(user => {
-                  // Вычисляем данные для новых колонок
-                  const partnerProfile = user.partner;
-                  const totalEarnings = partnerProfile?.totalEarnings || 0;
-                  const withdrawnEarnings = partnerProfile?.withdrawnEarnings || 0;
-                  const pendingEarnings = totalEarnings - withdrawnEarnings;
-                  
-                  // Подсчет партнеров по уровням
-                  const level1Partners = user.directPartners || 0;
-                  const level2Partners = user.level2Partners || 0;
-                  const level3Partners = user.level3Partners || 0;
-                  
-                  const isPartnerActive = partnerProfile?.isActive || false;
-                  
-                  return `
+      // Вычисляем данные для новых колонок
+      const partnerProfile = user.partner;
+      const totalEarnings = partnerProfile?.totalEarnings || 0;
+      const withdrawnEarnings = partnerProfile?.withdrawnEarnings || 0;
+      const pendingEarnings = totalEarnings - withdrawnEarnings;
+
+      // Подсчет партнеров по уровням
+      const level1Partners = user.directPartners || 0;
+      const level2Partners = user.level2Partners || 0;
+      const level3Partners = user.level3Partners || 0;
+
+      const isPartnerActive = partnerProfile?.isActive || false;
+
+      return `
                   <tr>
                     <td class="compact-cell">
-                      <input type="checkbox" class="user-checkbox" value="${user.id}" onchange="updateSelectedUsers()" style="margin-right: 5px;">
+                      <input type="checkbox" class="user-checkbox" value="${user.id}" data-user-id="${user.id}" style="margin-right: 5px;">
                     </td>
                     <td class="compact-cell cell-tooltip" data-tooltip="Партнерская программа: ${isPartnerActive ? 'Активирована' : 'Не активирована'}">
                       <input type="checkbox" 
@@ -2949,13 +3607,16 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                       <button class="action-btn" onclick="if(typeof showUserDetails === 'function') { showUserDetails('${user.id}'); } else { console.error('showUserDetails not defined'); window.open('/admin/users/${user.id}', '_blank', 'width=600,height=400'); }" title="Подробная информация">
                         👁
                       </button>
-                      <button class="action-btn" onclick="openChangeInviter('${user.id}', '${user.firstName || 'Без имени'} ${user.lastName || ''}')" title="Сменить пригласителя">
+                      <button class="action-btn" onclick="openChangeInviter('${user.id}', ${JSON.stringify((user.firstName || 'Без имени') + ' ' + (user.lastName || ''))})" title="Сменить пригласителя">
                         🔄
+                      </button>
+                      <button class="action-btn delete-user-btn" onclick="deleteSelectedUser('${user.id}', ${JSON.stringify(user.firstName || 'Пользователь')})" title="Удалить пользователя" style="background: #dc3545; color: white;">
+                        🗑️
                       </button>
                     </td>
                   </tr>
                 `;
-                }).join('')}
+    }).join('')}
               </tbody>
             </table>
             </div>
@@ -2967,54 +3628,8 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
         </div>
         
         <script>
-          // Определяем функции для совместимости
-          window.showUserDetails = function(userId) {
-            window.open('/admin/users/' + userId, '_blank', 'width=600,height=400');
-          };
-          
-          window.showHierarchy = function(userId) {
-            window.open('/admin/partners-hierarchy?user=' + userId, '_blank', 'width=800,height=600');
-          };
-          
-          // Привязываем обработчик кнопки поиска после загрузки DOM
-          (function() {
-            function initSearchButton() {
-              const searchButton = document.getElementById('searchButton');
-              if (searchButton) {
-                searchButton.addEventListener('click', function() {
-                  window.searchByUsername();
-                });
-              } else {
-                // Если кнопка еще не загружена, пробуем снова через небольшую задержку
-                setTimeout(initSearchButton, 100);
-              }
-            }
-            if (document.readyState === 'loading') {
-              document.addEventListener('DOMContentLoaded', initSearchButton);
-            } else {
-              initSearchButton();
-            }
-          })();
-          
-          // Функции для массового выбора пользователей
-          window.toggleAllUsers = function(checked) {
-            const checkboxes = document.querySelectorAll('.user-checkbox');
-            checkboxes.forEach(checkbox => {
-              checkbox.checked = checked;
-            });
-            updateSelectedUsers();
-          };
-          
-          window.updateSelectedUsers = function() {
-            const checkboxes = document.querySelectorAll('.user-checkbox');
-            const checkedCount = document.querySelectorAll('.user-checkbox:checked').length;
-            const selectAllCheckbox = document.getElementById('selectAllUsers');
-            
-            if (selectAllCheckbox) {
-              selectAllCheckbox.checked = checkedCount === checkboxes.length;
-              selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
-            }
-          };
+          // Все основные функции уже определены в начале документа в IIFE
+          // Здесь только дополнительные функции, которые не были определены выше
           
           // Функция для показа списка партнеров
           window.showPartnersList = async function(userId, userName, level) {
@@ -3127,7 +3742,6 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
           };
           
           // Функция для открытия модального окна отправки сообщений
-          // Переопределяем функцию из head секции полной реализацией
           window.openMessageModal = function() {
             const selectedCheckboxes = document.querySelectorAll('.user-checkbox:checked');
             if (selectedCheckboxes.length === 0) {
@@ -3171,45 +3785,10 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                       '</div>' +
                     '</div>' +
                     '<div class="message-form-group">' +
-                      '<label>📷 Фото к сообщению:</label>' +
-                      '<div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">' +
-                        '<button type="button" class="btn" onclick="openPhotoGallery()" style="background: #17a2b8; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer;">📂 Выбрать из базы</button>' +
-                        '<button type="button" class="btn" onclick="openUploadPhoto()" style="background: #28a745; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer;">📤 Загрузить фото</button>' +
-                        '<button type="button" class="btn" onclick="clearSelectedPhoto()" id="deletePhotoBtn" style="background: #dc3545; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; display: none;">🗑️ Удалить фото</button>' +
-                      '</div>' +
-                      '<div id="selectedPhotoPreview" style="display: none; margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 6px; border: 1px solid #dee2e6;">' +
-                        '<div style="display: flex; align-items: center; gap: 10px;">' +
-                          '<img id="selectedPhotoImg" src="" alt="Выбранное фото" style="max-width: 100px; max-height: 100px; border-radius: 4px; object-fit: cover;">' +
-                          '<div style="flex: 1;">' +
-                            '<p id="selectedPhotoTitle" style="margin: 0; font-weight: bold; color: #333;"></p>' +
-                            '<p id="selectedPhotoUrlText" style="margin: 5px 0 0 0; font-size: 12px; color: #6c757d; word-break: break-all;"></p>' +
-                          '</div>' +
-                          '<button type="button" onclick="clearSelectedPhoto()" style="background: #dc3545; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer;" title="Удалить фото">✕</button>' +
-                        '</div>' +
-                      '</div>' +
-                      '<input type="hidden" id="selectedPhotoUrl" value="">' +
-                    '</div>' +
-                    '<div class="message-form-group">' +
-                      '<label>🔘 Кнопки к сообщению:</label>' +
-                      '<div id="buttonsContainer" style="margin-top: 10px;">' +
-                      '</div>' +
-                      '<button type="button" onclick="addMessageButton()" style="background: #007bff; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; margin-top: 10px;">+ Добавить кнопку</button>' +
-                    '</div>' +
-                    '<div class="message-form-group">' +
-                      '<label>📋 Шаблоны сообщений:</label>' +
-                      '<div style="display: flex; gap: 10px; margin-bottom: 10px;">' +
-                        '<select id="templateSelect" onchange="loadTemplate()" style="flex: 1; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">' +
-                          '<option value="">Выберите шаблон...</option>' +
-                        '</select>' +
-                        '<button type="button" onclick="loadTemplates()" style="background: #6c757d; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer;">🔄 Обновить</button>' +
-                      '</div>' +
-                    '</div>' +
-                    '<div class="message-form-group">' +
                       '<label>' +
                         '<input type="checkbox" id="saveAsTemplate">' +
                         'Сохранить как шаблон' +
                       '</label>' +
-                      '<input type="text" id="templateName" placeholder="Название шаблона" style="margin-left: 10px; padding: 6px; border: 1px solid #ced4da; border-radius: 4px; display: none; width: 200px;">' +
                     '</div>' +
                     '<div class="message-error" id="messageError" style="display: none;"></div>' +
                   '</div>' +
@@ -3243,11 +3822,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             const selectedUserIds = Array.from(selectedCheckboxes).map(cb => cb.value);
             const subject = document.getElementById('messageSubject').value.trim();
             const text = document.getElementById('messageText').value.trim();
-            const photoUrlInput = document.getElementById('selectedPhotoUrl');
-            const photoUrl = photoUrlInput ? photoUrlInput.value.trim() : '';
             const saveAsTemplate = document.getElementById('saveAsTemplate').checked;
-            const templateNameInput = document.getElementById('templateName');
-            const templateName = templateNameInput ? templateNameInput.value.trim() : '';
             const errorDiv = document.getElementById('messageError');
             
             // Валидация
@@ -3269,28 +3844,6 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             try {
               errorDiv.style.display = 'none';
               
-              // Собираем данные о кнопках
-              const buttons = [];
-              const buttonItems = document.querySelectorAll('.message-button-item');
-              buttonItems.forEach(item => {
-                const buttonId = item.id.replace('button-', '');
-                const type = document.getElementById('buttonType-' + buttonId)?.value;
-                
-                if (type === 'url') {
-                  const text = document.getElementById('buttonText-' + buttonId)?.value.trim();
-                  const url = document.getElementById('buttonUrl-' + buttonId)?.value.trim();
-                  if (text && url) {
-                    buttons.push({ type: 'url', text: text, url: url });
-                  }
-                } else if (type === 'product') {
-                  const productId = document.getElementById('buttonProduct-' + buttonId)?.value;
-                  const action = document.getElementById('buttonProductAction-' + buttonId)?.value;
-                  if (productId) {
-                    buttons.push({ type: 'product', productId: productId, action: action });
-                  }
-                }
-              });
-              
               const response = await fetch('/admin/messages/send', {
                 method: 'POST',
                 headers: {
@@ -3301,10 +3854,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
                   userIds: selectedUserIds,
                   subject: subject,
                   text: text,
-                  photoUrl: photoUrl || null,
-                  buttons: buttons.length > 0 ? buttons : null,
-                  saveAsTemplate: saveAsTemplate,
-                  templateName: templateName || null
+                  saveAsTemplate: saveAsTemplate
                 })
               });
               
@@ -3328,504 +3878,10 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             errorDiv.style.display = 'block';
           };
           
-          window.openPhotoGallery = async function() {
-            try {
-              const response = await fetch('/admin/media/photos', { credentials: 'include' });
-              const photos = await response.json();
-              
-              if (photos.length === 0) {
-                alert('В базе нет доступных фото. Загрузите фото в разделе "Медиа"');
-                return;
-              }
-              
-              const galleryModal = document.createElement('div');
-              galleryModal.id = 'photoGalleryModal';
-              galleryModal.innerHTML = 
-                '<div class="modal-overlay" onclick="closePhotoGallery()">' +
-                  '<div class="modal-content" onclick="event.stopPropagation()" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">' +
-                    '<div class="modal-header">' +
-                      '<h2>📂 Выбрать фото из базы</h2>' +
-                      '<span class="modal-close" onclick="closePhotoGallery()">&times;</span>' +
-                    '</div>' +
-                    '<div class="modal-body" style="padding: 20px;">' +
-                      '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px;">' +
-                        photos.map(function(photo) {
-                          const safeUrl = photo.url.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-                          const safeTitle = photo.title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-                          const colorHover = '#007bff';
-                          const colorDefault = '#dee2e6';
-                          const colorBg = '#f8f9fa';
-                          const colorText = '#333';
-                          const div = document.createElement('div');
-                          div.style.cssText = 'cursor: pointer; border: 2px solid ' + colorDefault + '; border-radius: 8px; overflow: hidden; transition: all 0.2s;';
-                          div.onmouseover = function() {
-                            this.style.borderColor = colorHover;
-                            this.style.transform = 'scale(1.05)';
-                          };
-                          div.onmouseout = function() {
-                            this.style.borderColor = colorDefault;
-                            this.style.transform = 'scale(1)';
-                          };
-                          div.onclick = function() {
-                            if (typeof window.selectPhotoFromGallery === 'function') {
-                              window.selectPhotoFromGallery(safeUrl, safeTitle);
-                            }
-                          };
-                          const img = document.createElement('img');
-                          img.src = photo.url;
-                          img.alt = safeTitle;
-                          img.style.cssText = 'width: 100%; height: 150px; object-fit: cover;';
-                          const titleDiv = document.createElement('div');
-                          titleDiv.style.cssText = 'padding: 8px; background: ' + colorBg + '; font-size: 12px; color: ' + colorText + '; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
-                          titleDiv.textContent = safeTitle;
-                          div.appendChild(img);
-                          div.appendChild(titleDiv);
-                          return div.outerHTML;
-                        }).join('') +
-                      '</div>' +
-                    '</div>' +
-                  '</div>' +
-                '</div>';
-              
-              document.body.appendChild(galleryModal);
-              
-              // Добавляем фото в галерею после создания модального окна
-              const grid = document.getElementById('photoGalleryGrid');
-              if (grid) {
-                photos.forEach(function(photo) {
-                  const safeUrl = photo.url.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-                  const safeTitle = photo.title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-                  const colorHover = '#007bff';
-                  const colorDefault = '#dee2e6';
-                  const colorBg = '#f8f9fa';
-                  const colorText = '#333';
-                  
-                  const div = document.createElement('div');
-                  div.style.cssText = 'cursor: pointer; border: 2px solid ' + colorDefault + '; border-radius: 8px; overflow: hidden; transition: all 0.2s;';
-                  div.onmouseover = function() {
-                    this.style.borderColor = colorHover;
-                    this.style.transform = 'scale(1.05)';
-                  };
-                  div.onmouseout = function() {
-                    this.style.borderColor = colorDefault;
-                    this.style.transform = 'scale(1)';
-                  };
-                  div.onclick = function() {
-                    if (typeof window.selectPhotoFromGallery === 'function') {
-                      window.selectPhotoFromGallery(photo.url, photo.title);
-                    }
-                  };
-                  
-                  const img = document.createElement('img');
-                  img.src = photo.url;
-                  img.alt = photo.title;
-                  img.style.cssText = 'width: 100%; height: 150px; object-fit: cover;';
-                  
-                  const titleDiv = document.createElement('div');
-                  titleDiv.style.cssText = 'padding: 8px; background: ' + colorBg + '; font-size: 12px; color: ' + colorText + '; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
-                  titleDiv.textContent = photo.title;
-                  
-                  div.appendChild(img);
-                  div.appendChild(titleDiv);
-                  grid.appendChild(div);
-                });
-              }
-            } catch (error) {
-              console.error('Error loading photos:', error);
-              alert('Ошибка загрузки фото из базы: ' + (error instanceof Error ? error.message : String(error)));
-            }
-          };
-          
-          window.closePhotoGallery = function() {
-            const modal = document.getElementById('photoGalleryModal');
-            if (modal) modal.remove();
-          };
-          
-          window.selectPhotoFromGallery = function(url, title) {
-            console.log('selectPhotoFromGallery called with:', url, title);
-            const urlInput = document.getElementById('selectedPhotoUrl');
-            const img = document.getElementById('selectedPhotoImg');
-            const titleEl = document.getElementById('selectedPhotoTitle');
-            const urlText = document.getElementById('selectedPhotoUrlText');
-            const preview = document.getElementById('selectedPhotoPreview');
-            const deleteBtn = document.getElementById('deletePhotoBtn');
-            
-            if (!urlInput || !img || !titleEl || !urlText || !preview) {
-              console.error('Required elements not found:', { urlInput, img, titleEl, urlText, preview });
-              alert('Ошибка: не найдены элементы формы. Попробуйте обновить страницу.');
-              return;
-            }
-            
-            urlInput.value = url;
-            img.src = url;
-            titleEl.textContent = title || 'Без названия';
-            urlText.textContent = url.length > 50 ? url.substring(0, 50) + '...' : url;
-            preview.style.display = 'block';
-            if (deleteBtn) deleteBtn.style.display = 'inline-block';
-            
-            console.log('Photo selected successfully:', { url, title });
-            
-            if (typeof window.closePhotoGallery === 'function') {
-              window.closePhotoGallery();
-            }
-          };
-          
-          window.openUploadPhoto = function() {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'image/*';
-            input.onchange = async function(e) {
-              const target = e.target;
-              const file = target.files?.[0];
-              if (!file) return;
-              
-              const formData = new FormData();
-              formData.append('file', file);
-              formData.append('type', 'photo');
-              formData.append('title', 'Фото для сообщения');
-              formData.append('description', 'Загружено из формы отправки сообщения');
-              
-              try {
-                const response = await fetch('/admin/media/upload', {
-                  method: 'POST',
-                  credentials: 'include',
-                  body: formData
-                });
-                
-                if (response.redirected || response.ok) {
-                  const mediaResponse = await fetch('/admin/media/photos', { credentials: 'include' });
-                  const photos = await mediaResponse.json();
-                  if (photos.length > 0 && photos[0].url) {
-                    selectPhotoFromGallery(photos[0].url, photos[0].title);
-                    alert('Фото успешно загружено и добавлено в базу!');
-                  } else {
-                    alert('Фото загружено, но не удалось получить URL. Обновите страницу.');
-                  }
-                } else {
-                  alert('Ошибка загрузки фото');
-                }
-              } catch (error) {
-                console.error('Error uploading photo:', error);
-                alert('Ошибка загрузки фото');
-              }
-            };
-            input.click();
-          };
-          
-          window.clearSelectedPhoto = function() {
-            const urlInput = document.getElementById('selectedPhotoUrl');
-            const img = document.getElementById('selectedPhotoImg');
-            const titleEl = document.getElementById('selectedPhotoTitle');
-            const urlText = document.getElementById('selectedPhotoUrlText');
-            const preview = document.getElementById('selectedPhotoPreview');
-            const deleteBtn = document.getElementById('deletePhotoBtn');
-            
-            if (urlInput) urlInput.value = '';
-            if (img) img.src = '';
-            if (titleEl) titleEl.textContent = '';
-            if (urlText) urlText.textContent = '';
-            if (preview) preview.style.display = 'none';
-            if (deleteBtn) deleteBtn.style.display = 'none';
-            
-            console.log('Photo cleared');
-          };
-          
-          // Загрузка списка шаблонов
-          window.loadTemplates = async function() {
-            try {
-              const response = await fetch('/admin/messages/templates', {
-                credentials: 'include'
-              });
-              if (response.ok) {
-                const templates = await response.json();
-                const select = document.getElementById('templateSelect');
-                if (select) {
-                  select.innerHTML = '<option value="">Выберите шаблон...</option>';
-                  templates.forEach(function(template) {
-                    const option = document.createElement('option');
-                    option.value = template.id;
-                    option.textContent = template.name || 'Без названия';
-                    select.appendChild(option);
-                  });
-                }
-              }
-            } catch (error) {
-              console.error('Ошибка загрузки шаблонов:', error);
-            }
-          };
-          
-          // Загрузка шаблона в форму
-          window.loadTemplate = async function() {
-            const select = document.getElementById('templateSelect');
-            if (!select || !select.value) return;
-            
-            try {
-              const response = await fetch('/admin/messages/templates/' + select.value, {
-                credentials: 'include'
-              });
-              if (response.ok) {
-                const template = await response.json();
-                const subjectInput = document.getElementById('messageSubject');
-                const textInput = document.getElementById('messageText');
-                const photoUrlInput = document.getElementById('selectedPhotoUrl');
-                const charCount = document.getElementById('charCount');
-                
-                if (subjectInput) subjectInput.value = template.subject || '';
-                if (textInput) {
-                  textInput.value = template.text || '';
-                  if (charCount) charCount.textContent = textInput.value.length;
-                }
-                if (photoUrlInput && template.photoUrl) {
-                  photoUrlInput.value = template.photoUrl;
-                  const preview = document.getElementById('selectedPhotoPreview');
-                  const img = document.getElementById('selectedPhotoImg');
-                  if (preview && img) {
-                    img.src = template.photoUrl;
-                    preview.style.display = 'block';
-                  }
-                }
-                
-                // Загружаем кнопки если есть
-                if (template.buttons && Array.isArray(template.buttons)) {
-                  const container = document.getElementById('buttonsContainer');
-                  if (container) {
-                    container.innerHTML = '';
-                    window.buttonCounter = 0;
-                    template.buttons.forEach(function(button) {
-                      window.addMessageButton();
-                      const buttonId = window.buttonCounter;
-                      const typeSelect = document.getElementById('buttonType-' + buttonId);
-                      if (typeSelect) {
-                        typeSelect.value = button.type;
-                        window.toggleButtonFields(buttonId);
-                        if (button.type === 'url') {
-                          const textInput = document.getElementById('buttonText-' + buttonId);
-                          const urlInput = document.getElementById('buttonUrl-' + buttonId);
-                          if (textInput) textInput.value = button.text || '';
-                          if (urlInput) urlInput.value = button.url || '';
-                        } else if (button.type === 'product') {
-                          const productSelect = document.getElementById('buttonProduct-' + buttonId);
-                          const actionSelect = document.getElementById('buttonProductAction-' + buttonId);
-                          if (productSelect) productSelect.value = button.productId || '';
-                          if (actionSelect) actionSelect.value = button.action || 'cart';
-                          // Загружаем товары в select если нужно
-                          setTimeout(function() {
-                            window.loadProductsIntoSelect('buttonProduct-' + buttonId);
-                          }, 500);
-                        }
-                      }
-                    });
-                  }
-                }
-              }
-            } catch (error) {
-              console.error('Ошибка загрузки шаблона:', error);
-            }
-          };
-          
-          // Инициализация переменных для кнопок
-          if (!window.buttonCounter) {
-            window.buttonCounter = 0;
-          }
-          if (!window.productsList) {
-            window.productsList = [];
-          }
-          
-          // Загрузка списка товаров для кнопок
-          window.loadProductsForButtons = async function() {
-            try {
-              const response = await fetch('/admin/api/products', {
-                credentials: 'include'
-              });
-              if (response.ok) {
-                const result = await response.json();
-                if (result.success && result.data) {
-                  window.productsList = result.data;
-                } else if (Array.isArray(result)) {
-                  // Если API возвращает массив напрямую
-                  window.productsList = result;
-                } else {
-                  console.error('Неожиданный формат ответа API:', result);
-                  window.productsList = [];
-                }
-                console.log('Загружено товаров:', window.productsList.length);
-              } else {
-                console.error('Ошибка загрузки товаров: HTTP', response.status);
-                window.productsList = [];
-              }
-            } catch (error) {
-              console.error('Ошибка загрузки товаров:', error);
-              window.productsList = [];
-            }
-          };
-          
-          // Загрузка товаров в выпадающий список
-          window.loadProductsIntoSelect = function(selectId, retryCount = 0) {
-            const MAX_RETRIES = 5;
-            const select = document.getElementById(selectId);
-            if (!select) {
-              if (retryCount < MAX_RETRIES) {
-                setTimeout(function() {
-                  window.loadProductsIntoSelect(selectId, retryCount + 1);
-                }, 200);
-              }
-              return;
-            }
-            
-            // Если товары еще не загружены, загружаем их
-            if (!window.productsList || window.productsList.length === 0) {
-              if (retryCount < MAX_RETRIES) {
-                if (!window.productsLoading) {
-                  window.productsLoading = true;
-                  window.loadProductsForButtons().then(function() {
-                    window.productsLoading = false;
-                    window.loadProductsIntoSelect(selectId, retryCount + 1);
-                  }).catch(function(error) {
-                    window.productsLoading = false;
-                    console.error('Ошибка загрузки товаров:', error);
-                    select.innerHTML = '<option value="">Ошибка загрузки товаров</option>';
-                  });
-                }
-              } else {
-                select.innerHTML = '<option value="">Товары не загружены</option>';
-              }
-              return;
-            }
-            
-            select.innerHTML = '<option value="">Выберите товар...</option>';
-            window.productsList.forEach(function(product) {
-              const option = document.createElement('option');
-              option.value = product.id;
-              const title = product.title || '';
-              const price = product.price || 0;
-              const categoryName = (product.category && product.category.name) ? product.category.name : '';
-              option.textContent = title + ' (' + price + ' PZ' + (categoryName ? ', ' + categoryName : '') + ')';
-              select.appendChild(option);
-            });
-          };
-          
-          // Добавление кнопки к сообщению
-          window.addMessageButton = function() {
-            window.buttonCounter++;
-            const buttonCounter = window.buttonCounter;
-            const container = document.getElementById('buttonsContainer');
-            if (!container) return;
-            
-            const buttonDiv = document.createElement('div');
-            buttonDiv.id = 'button-' + buttonCounter;
-            buttonDiv.className = 'message-button-item';
-            buttonDiv.style.cssText = 'margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 6px; border: 1px solid #dee2e6;';
-            
-            buttonDiv.innerHTML = 
-              '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">' +
-                '<strong>Кнопка ' + buttonCounter + '</strong>' +
-                '<button type="button" onclick="window.removeMessageButton(' + buttonCounter + ')" style="background: #dc3545; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer;">✕ Удалить</button>' +
-              '</div>' +
-              '<div style="margin-bottom: 10px;">' +
-                '<label style="display: block; margin-bottom: 5px;">Тип кнопки:</label>' +
-                '<select id="buttonType-' + buttonCounter + '" onchange="window.toggleButtonFields(' + buttonCounter + ')" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">' +
-                  '<option value="url">🔗 Ссылка</option>' +
-                  '<option value="product">🛍️ Товар</option>' +
-                '</select>' +
-              '</div>' +
-              '<div id="buttonUrlFields-' + buttonCounter + '">' +
-                '<div style="margin-bottom: 10px;">' +
-                  '<label style="display: block; margin-bottom: 5px;">Текст кнопки:</label>' +
-                  '<input type="text" id="buttonText-' + buttonCounter + '" placeholder="Например: Перейти на сайт" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">' +
-                '</div>' +
-                '<div>' +
-                  '<label style="display: block; margin-bottom: 5px;">URL:</label>' +
-                  '<input type="url" id="buttonUrl-' + buttonCounter + '" placeholder="https://example.com" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">' +
-                '</div>' +
-              '</div>' +
-              '<div id="buttonProductFields-' + buttonCounter + '" style="display: none;">' +
-                '<div style="margin-bottom: 10px;">' +
-                  '<label style="display: block; margin-bottom: 5px;">Выберите товар:</label>' +
-                  '<select id="buttonProduct-' + buttonCounter + '" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">' +
-                    '<option value="">Загрузка товаров...</option>' +
-                  '</select>' +
-                '</div>' +
-                '<div>' +
-                  '<label style="display: block; margin-bottom: 5px;">Действие:</label>' +
-                  '<select id="buttonProductAction-' + buttonCounter + '" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">' +
-                    '<option value="cart">🛒 Добавить в корзину</option>' +
-                    '<option value="buy">💳 Купить сразу</option>' +
-                  '</select>' +
-                '</div>' +
-              '</div>';
-            
-            container.appendChild(buttonDiv);
-            window.loadProductsIntoSelect('buttonProduct-' + buttonCounter);
-          };
-          
-          // Удаление кнопки
-          window.removeMessageButton = function(buttonId) {
-            const buttonDiv = document.getElementById('button-' + buttonId);
-            if (buttonDiv) {
-              buttonDiv.remove();
-            }
-          };
-          
-          // Переключение полей в зависимости от типа кнопки
-          window.toggleButtonFields = function(buttonId) {
-            const typeSelect = document.getElementById('buttonType-' + buttonId);
-            if (!typeSelect) return;
-            const type = typeSelect.value;
-            const urlFields = document.getElementById('buttonUrlFields-' + buttonId);
-            const productFields = document.getElementById('buttonProductFields-' + buttonId);
-            
-            if (type === 'url') {
-              if (urlFields) urlFields.style.display = 'block';
-              if (productFields) productFields.style.display = 'none';
-            } else {
-              if (urlFields) urlFields.style.display = 'none';
-              if (productFields) productFields.style.display = 'block';
-            }
-          };
-          
-          // Инициализация загрузки шаблонов при открытии модального окна
-          const originalOpenMessageModal = window.openMessageModal;
-          window.openMessageModal = function() {
-            if (typeof originalOpenMessageModal === 'function') {
-              originalOpenMessageModal();
-            }
-            // Загружаем шаблоны после открытия модального окна
-            setTimeout(function() {
-              if (typeof window.loadTemplates === 'function') {
-                window.loadTemplates();
-              }
-              // Показываем поле названия шаблона при установке чекбокса
-              const saveAsTemplateCheckbox = document.getElementById('saveAsTemplate');
-              const templateNameInput = document.getElementById('templateName');
-              if (saveAsTemplateCheckbox && templateNameInput) {
-                saveAsTemplateCheckbox.addEventListener('change', function() {
-                  templateNameInput.style.display = this.checked ? 'inline-block' : 'none';
-                });
-              }
-            }, 100);
-          };
-          
           function applySorting() {
             const sortBy = document.getElementById('sortSelect').value;
             const order = document.getElementById('orderSelect').value;
-            const urlParams = new URLSearchParams(window.location.search);
-            const page = urlParams.get('page') || '1';
-            const search = urlParams.get('search') || '';
-            let url = '/admin/users-detailed?sort=' + sortBy + '&order=' + order;
-            if (page !== '1') url += '&page=' + page;
-            if (search) url += '&search=' + encodeURIComponent(search);
-            window.location.href = url;
-          }
-          
-          function goToPage(pageNum) {
-            if (pageNum < 1) return;
-            const urlParams = new URLSearchParams(window.location.search);
-            const sortBy = urlParams.get('sort') || 'orders';
-            const order = urlParams.get('order') || 'desc';
-            const search = urlParams.get('search') || '';
-            let url = '/admin/users-detailed?sort=' + sortBy + '&order=' + order + '&page=' + pageNum;
-            if (search) url += '&search=' + encodeURIComponent(search);
-            window.location.href = url;
+            window.location.href = '/admin/users-detailed?sort=' + sortBy + '&order=' + order;
           }
           function applyFilter(filter){
             const url = new URL(window.location.href);
@@ -3836,99 +3892,41 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             url.searchParams.set('order', order);
             window.location.href = url.pathname + '?' + url.searchParams.toString();
           }
-          // Функция searchByUsername уже определена выше в начале скрипта
+          function searchByUsername(){
+            var q = document.getElementById('searchUsername').value.trim();
+            if(!q) return;
+            if(q.startsWith('@')) q = q.slice(1);
+            window.location.href = '/admin/users-detailed?search=' + encodeURIComponent(q);
+          }
           (function(){
-            var typingTimer;
-            var searchAbortController = null;
-            var inputEl = document.getElementById('searchUsername');
-            var box = document.getElementById('searchSuggestions');
-            
-            if (!inputEl || !box) {
-              console.warn('Search elements not found');
-              return;
-            }
-            
-            function hide(){ 
-              if (box) {
-                box.style.display='none'; 
-                box.innerHTML=''; 
-              }
-              if (searchAbortController) {
-                searchAbortController.abort();
-                searchAbortController = null;
-              }
-            }
-            
-            inputEl.addEventListener('keydown', function(e){ 
-              if(e.key==='Enter'){ 
-                e.preventDefault(); 
-                if (typeof window.searchByUsername === 'function') {
-                  window.searchByUsername(); 
-                }
-                hide(); 
-              }
-            });
-            
+            var typingTimer; var inputEl = document.getElementById('searchUsername'); var box = document.getElementById('searchSuggestions');
+            function hide(){ box.style.display='none'; box.innerHTML=''; }
+            inputEl.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); searchByUsername(); hide(); }});
             inputEl.addEventListener('input', function(){
               clearTimeout(typingTimer);
               var val = inputEl.value.trim();
               if(val.startsWith('@')) val = val.slice(1);
               if(!val){ hide(); return; }
-              
               typingTimer = setTimeout(async function(){
-                // Отменяем предыдущий запрос, если он еще выполняется
-                if (searchAbortController) {
-                  searchAbortController.abort();
-                }
-                searchAbortController = new AbortController();
-                
                 try{
-                  const resp = await fetch('/admin/users/search?q=' + encodeURIComponent(val), { 
-                    credentials:'include',
-                    signal: searchAbortController.signal
-                  });
-                  
-                  if (!resp.ok) {
-                    hide();
-                    return;
-                  }
-                  
+                  const resp = await fetch('/admin/users/search?q=' + encodeURIComponent(val), { credentials:'include' });
                   const data = await resp.json();
                   if(!Array.isArray(data) || data.length===0){ hide(); return; }
-                  
-                  box.innerHTML = data.map(u => {
-                    const main = u.username ? '@' + u.username : (u.firstName || u.phone || '');
-                    const phoneInfo = u.phone ? '<span style="color:#6b7280; font-size:12px; margin-left:6px;">' + u.phone + '</span>' : '';
-                    return '<div class="list-item" style="padding:6px 10px; cursor:pointer; border-bottom:1px solid #f3f4f6">' + main + phoneInfo + '</div>';
-                  }).join('');
-                  
+                  box.innerHTML = data.map(u => '<div class="list-item" style="padding:6px 10px; cursor:pointer; border-bottom:1px solid #f3f4f6">' +
+                    (u.username ? '@'+u.username : (u.firstName||'')) +
+                    '</div>').join('');
                   Array.from(box.children).forEach((el, idx)=>{
                     el.addEventListener('click', function(){
-                      var targetValue = data[idx].username || data[idx].phone || '';
-                      if(targetValue){
-                        const urlParams = new URLSearchParams(window.location.search);
-                        const sortBy = urlParams.get('sort') || 'orders';
-                        const order = urlParams.get('order') || 'desc';
-                        window.location.href = '/admin/users-detailed?search=' + encodeURIComponent(targetValue) + '&sort=' + sortBy + '&order=' + order + '&page=1';
-                      }
+                      var uname = data[idx].username || '';
+                      if(uname){ window.location.href = '/admin/users-detailed?search=' + encodeURIComponent(uname); }
                       hide();
                     });
                   });
                   box.style.display = 'block';
-                }catch(e){ 
-                  if (e.name !== 'AbortError') {
-                    console.error('Search error:', e);
-                  }
-                  hide(); 
-                }
-              }, 300);
+                }catch(e){ hide(); }
+              }, 250);
             });
-            
-            document.addEventListener('click', function(e){ 
-              if(box && inputEl && !box.contains(e.target) && e.target !== inputEl){ 
-                hide(); 
-              } 
-            });
+            document.addEventListener('click', function(e){ if(!box.contains(e.target) && e.target !== inputEl){ hide(); } });
           })();
           
           window.openChangeInviter = async function(userId, userName) {
@@ -4050,6 +4048,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
             });
           }
         </script>
+        ${renderAdminShellEnd()}
       </body>
       </html>
     `);
@@ -4063,19 +4062,11 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
 // Username prefix search (router mounted at /admin → final path /admin/users/search)
 router.get('/users/search', requireAdmin, async (req, res) => {
   try {
-    const rawQuery = String((req.query.q as string) || '').trim();
-    const sanitizedQuery = rawQuery.replace(/^@/, '');
-    if (!sanitizedQuery) return res.json([]);
-    const phoneDigits = sanitizedQuery.replace(/\D+/g, '');
-    const whereConditions: any[] = [
-      { username: { startsWith: sanitizedQuery, mode: 'insensitive' } }
-    ];
-    if (phoneDigits.length >= 3) {
-      whereConditions.push({ phone: { contains: phoneDigits } });
-    }
+    const q = String((req.query.q as string) || '').trim().replace(/^@/, '');
+    if (!q) return res.json([]);
     const users = await prisma.user.findMany({
-      where: { OR: whereConditions },
-      select: { id: true, username: true, firstName: true, phone: true },
+      where: { username: { startsWith: q, mode: 'insensitive' } },
+      select: { id: true, username: true, firstName: true },
       take: 10,
       orderBy: { username: 'asc' }
     });
@@ -4120,22 +4111,22 @@ router.get('/inviters/search', requireAdmin, async (req, res) => {
 router.post('/send-messages', requireAdmin, async (req, res) => {
   try {
     const { userIds, type, subject, text, includeButtons, button1, button2 } = req.body;
-    
+
     if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
       return res.status(400).json({ success: false, error: 'Не выбраны получатели' });
     }
-    
+
     if (!text || !text.trim()) {
       return res.status(400).json({ success: false, error: 'Не указан текст сообщения' });
     }
-    
+
     // Get bot instance for real message sending
     const { getBotInstance } = await import('../lib/bot-instance.js');
     const bot = await getBotInstance();
-    
+
     let sentCount = 0;
     let errors = [];
-    
+
     // Send messages to each user
     for (const userId of userIds) {
       try {
@@ -4144,14 +4135,14 @@ router.post('/send-messages', requireAdmin, async (req, res) => {
           errors.push(`Пользователь ${userId} не найден`);
           continue;
         }
-        
+
         // Build message text
         let messageText = '';
         if (subject) {
           messageText += `📢 **${subject}**\n\n`;
         }
         messageText += text;
-        
+
         // Add type indicator
         const typeEmojiMap: { [key: string]: string } = {
           'text': '💬',
@@ -4160,19 +4151,18 @@ router.post('/send-messages', requireAdmin, async (req, res) => {
           'system': '⚙️'
         };
         const typeEmoji = typeEmojiMap[type] || '💬';
-        
+
         messageText = `${typeEmoji} ${messageText}`;
-        
+
         // Send message via Telegram bot
         try {
           // Экранируем Markdown символы
           const escapeMarkdown = (text: string) => {
-            // Экранируем только специальные символы Markdown, но не дефис и не слэш
-            return text.replace(/([_*\[\]()~`>#+=|{}.!])/g, '\\$1');
+            return text.replace(/([_*\[\]()~`>#+=|{}.!-])/g, '\\$1');
           };
-          
+
           const escapedMessageText = escapeMarkdown(messageText);
-          
+
           try {
             await bot.telegram.sendMessage(user.telegramId, escapedMessageText, {
               parse_mode: 'Markdown'
@@ -4182,7 +4172,7 @@ router.post('/send-messages', requireAdmin, async (req, res) => {
             // Если Markdown не работает, отправляем без форматирования
             await bot.telegram.sendMessage(user.telegramId, messageText);
           }
-          
+
           // Add buttons if requested
           if (includeButtons && (button1.text || button2.text)) {
             const buttons = [];
@@ -4192,23 +4182,23 @@ router.post('/send-messages', requireAdmin, async (req, res) => {
             if (button2.text) {
               buttons.push([{ text: button2.text, url: button2.url }]);
             }
-            
+
             if (buttons.length > 0) {
               await bot.telegram.sendMessage(user.telegramId, '👇 Выберите действие:', {
                 reply_markup: { inline_keyboard: buttons }
               });
             }
           }
-          
+
           console.log(`✅ Message sent to user ${user.firstName} (${user.id})`);
-          
+
         } catch (telegramError) {
           console.error(`❌ Telegram error for user ${user.id}:`, telegramError);
           const telegramErrorMessage = telegramError instanceof Error ? telegramError.message : String(telegramError);
           errors.push(`Ошибка Telegram для ${user.firstName}: ${telegramErrorMessage}`);
           continue;
         }
-        
+
         // Log successful message
         await prisma.userHistory.create({
           data: {
@@ -4225,27 +4215,27 @@ router.post('/send-messages', requireAdmin, async (req, res) => {
             }
           }
         });
-        
+
         sentCount++;
-        
+
       } catch (error) {
         console.error(`Error sending message to user ${userId}:`, error);
         const errorMessage = error instanceof Error ? error.message : String(error);
         errors.push(`Ошибка отправки пользователю ${userId}: ${errorMessage}`);
       }
     }
-    
+
     res.json({
       success: true,
       sent: sentCount,
       total: userIds.length,
       failed: userIds.length - sentCount,
       errors: errors.length > 0 ? errors : undefined,
-      message: sentCount > 0 ? 
-        `Успешно отправлено ${sentCount} из ${userIds.length} сообщений` : 
+      message: sentCount > 0 ?
+        `Успешно отправлено ${sentCount} из ${userIds.length} сообщений` :
         'Не удалось отправить ни одного сообщения'
     });
-    
+
   } catch (error) {
     console.error('Send messages error:', error);
     res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' });
@@ -4271,12 +4261,12 @@ router.get('/test-dual-system', requireAdmin, async (req, res) => {
     // Test with a sample order amount
     const testOrderAmount = 100; // 100 PZ
     const testUserId = '0000000000000001a5d56f19'; // Aurelia (direct referral of Roman)
-    
+
     console.log(`🧪 Testing dual system with order amount: ${testOrderAmount} PZ for user: ${testUserId}`);
-    
+
     // Call the dual system calculation
     const bonuses = await calculateDualSystemBonuses(testUserId, testOrderAmount);
-    
+
     res.json({
       success: true,
       message: 'Dual system test completed',
@@ -4298,32 +4288,193 @@ router.get('/test-dual-system', requireAdmin, async (req, res) => {
 // API: Create category
 router.post('/api/categories', requireAdmin, async (req, res) => {
   try {
-    const { name, description, icon } = req.body;
-    
+    const { name, description, imageUrl, isVisibleInWebapp } = req.body;
+
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, error: 'Название категории обязательно' });
     }
-    
-    const category = await prisma.category.create({
+
+    const category = await (prisma as any).category.create({
       data: {
         name: name.trim(),
         slug: name.trim().toLowerCase().replace(/\s+/g, '-'),
         description: description?.trim() || '',
+        imageUrl: String(imageUrl || '').trim() || null,
+        isVisibleInWebapp: String(isVisibleInWebapp || '').trim() === 'false' ? false : true,
         isActive: true
       }
     });
-    
+
     res.json({ success: true, category });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Create category error:', error);
+    if (error.code === 'P2002') {
+      return res.status(400).json({ success: false, error: 'Категория с таким названием уже существует' });
+    }
     res.status(500).json({ success: false, error: 'Ошибка создания категории' });
   }
 });
+
+// API: Update category
+router.post('/api/categories/:id/update', requireAdmin, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const name = String((req.body && req.body.name) || '').trim();
+    const description = String((req.body && req.body.description) || '').trim();
+    const imageUrl = String((req.body && req.body.imageUrl) || '').trim();
+    const isVisibleRaw = (req.body && req.body.isVisibleInWebapp);
+    const isActiveRaw = (req.body && req.body.isActive);
+    const isActive = typeof isActiveRaw === 'boolean' ? isActiveRaw : String(isActiveRaw || '').trim();
+
+    if (!id) return res.status(400).json({ success: false, error: 'category_id_required' });
+    if (!name) return res.status(400).json({ success: false, error: 'Название категории обязательно' });
+
+    const slug = name.toLowerCase().replace(/\s+/g, '-');
+    const data: any = { name, slug, description, imageUrl: imageUrl || null };
+    if (typeof isVisibleRaw === 'boolean') data.isVisibleInWebapp = isVisibleRaw;
+    if (String(isVisibleRaw) === 'true' || String(isVisibleRaw) === 'false') data.isVisibleInWebapp = (String(isVisibleRaw) === 'true');
+    if (typeof isActive === 'boolean') data.isActive = isActive;
+    if (isActive === 'true' || isActive === 'false') data.isActive = (isActive === 'true');
+
+    const updated = await (prisma as any).category.update({
+      where: { id },
+      data
+    });
+
+    return res.json({ success: true, category: updated });
+  } catch (error: any) {
+    console.error('Update category error:', error);
+    if (error.code === 'P2002') {
+      return res.status(400).json({ success: false, error: 'Категория с таким названием/slug уже существует' });
+    }
+    return res.status(500).json({ success: false, error: 'Ошибка обновления категории' });
+  }
+});
+
+// API: Auto-assign category covers from first product image
+router.post('/api/categories/auto-covers', requireAdmin, async (req, res) => {
+  try {
+    const categories = await (prisma as any).category.findMany({
+      where: {
+        OR: [
+          { imageUrl: null },
+          { imageUrl: '' }
+        ]
+      }
+    });
+    let updated = 0;
+    for (const cat of categories) {
+      const product = await prisma.product.findFirst({
+        where: { categoryId: cat.id, imageUrl: { not: null } },
+        orderBy: { createdAt: 'desc' }
+      });
+      const url = product?.imageUrl ? String(product.imageUrl).trim() : '';
+      if (!url) continue;
+      await (prisma as any).category.update({
+        where: { id: cat.id },
+        data: { imageUrl: url }
+      });
+      updated += 1;
+    }
+    return res.json({ success: true, updated });
+  } catch (error: any) {
+    console.error('Auto covers error:', error);
+    return res.status(500).json({ success: false, error: 'Ошибка автообложек' });
+  }
+});
+
+// API: Delete category (safe: do not allow deleting non-empty categories)
+router.post('/api/categories/:id/delete', requireAdmin, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ success: false, error: 'category_id_required' });
+
+    const productsCount = await prisma.product.count({ where: { categoryId: id } });
+    if (productsCount > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Нельзя удалить категорию: в ней есть товары (${productsCount}). Сначала переместите товары в другую категорию.`
+      });
+    }
+
+    await prisma.category.delete({ where: { id } });
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Delete category error:', error);
+    return res.status(500).json({ success: false, error: 'Ошибка удаления категории' });
+  }
+});
+
+// HTML action: toggle category active (used by /admin/categories page)
+router.post('/categories/:id/toggle-active', requireAdmin, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.redirect('/admin/categories?error=category_not_found');
+    const cat = await prisma.category.findUnique({ where: { id } });
+    if (!cat) return res.redirect('/admin/categories?error=category_not_found');
+    await prisma.category.update({ where: { id }, data: { isActive: !cat.isActive } });
+    return res.redirect('/admin/categories?success=category_updated');
+  } catch (error) {
+    console.error('Toggle category error:', error);
+    return res.redirect('/admin/categories?error=category_update_failed');
+  }
+});
+
+// API: Move all products to "Косметика" category
+router.post('/api/move-all-to-cosmetics', requireAdmin, async (req, res) => {
+  try {
+    // Find or create "Косметика" category
+    let cosmeticsCategory = await prisma.category.findFirst({
+      where: {
+        OR: [
+          { name: 'Косметика' },
+          { slug: 'kosmetika' }
+        ]
+      }
+    });
+
+    if (!cosmeticsCategory) {
+      cosmeticsCategory = await prisma.category.create({
+        data: {
+          name: 'Косметика',
+          slug: 'kosmetika',
+          description: 'Категория косметических товаров',
+          isActive: true
+        }
+      });
+      console.log('✅ Создана категория "Косметика"');
+    }
+
+    // Get all active products
+    const allProducts = await prisma.product.findMany({
+      where: { isActive: true }
+    });
+
+    // Update all products to use "Косметика" category
+    const updateResult = await prisma.product.updateMany({
+      where: { isActive: true },
+      data: { categoryId: cosmeticsCategory.id }
+    });
+
+    console.log(`✅ Перемещено ${updateResult.count} продуктов в категорию "Косметика"`);
+
+    res.json({
+      success: true,
+      movedCount: updateResult.count,
+      categoryName: cosmeticsCategory.name,
+      categoryId: cosmeticsCategory.id
+    });
+  } catch (error: any) {
+    console.error('Move all to cosmetics error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Ошибка перемещения продуктов' });
+  }
+});
+
 // API: Create product
 router.post('/api/products', requireAdmin, upload.single('image'), async (req, res) => {
   try {
-    const { name, price, categoryId, stock, shortDescription, fullDescription, instruction, active, availableInRussia, availableInBali } = req.body;
-    
+    const { name, price, categoryId, stock, sku, shortDescription, fullDescription, instruction, active, availableInRussia, availableInBali } = req.body;
+
     // Validation
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, error: 'Название товара обязательно' });
@@ -4340,37 +4491,44 @@ router.post('/api/products', requireAdmin, upload.single('image'), async (req, r
     if (!fullDescription || !fullDescription.trim()) {
       return res.status(400).json({ success: false, error: 'Полное описание обязательно' });
     }
-    
+
     // Regions parsing removed; using fixed switches on client side
-    
+
     // Check if category exists
     const category = await prisma.category.findUnique({ where: { id: categoryId } });
     if (!category) {
       return res.status(400).json({ success: false, error: 'Категория не найдена' });
     }
-    
+
     // Handle image upload (if provided)
     let imageUrl = '';
     if (req.file) {
       try {
-        // Upload to Cloudinary
-        const result = await new Promise((resolve, reject) => {
-          cloudinary.uploader.upload_stream(
-            { resource_type: 'auto', folder: 'plazma-products' },
-            (error, result) => {
-              if (error) reject(error);
-              else resolve(result);
-            }
-          ).end(req.file!.buffer);
+        if (!isCloudinaryConfigured()) {
+          return res.status(500).json({ success: false, error: 'Cloudinary не настроен. Установите переменные окружения CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET' });
+        }
+
+        // Upload to Cloudinary using service
+        const result = await uploadImage(req.file.buffer, {
+          folder: 'vital/products',
+          resourceType: 'image',
         });
-        
-        imageUrl = (result as any).secure_url;
-      } catch (error) {
+
+        imageUrl = result.secureUrl;
+        console.log('✅ Image uploaded successfully:', imageUrl);
+      } catch (error: any) {
         console.error('Image upload error:', error);
-        return res.status(500).json({ success: false, error: 'Ошибка загрузки изображения' });
+        return res.status(500).json({ success: false, error: `Ошибка загрузки изображения: ${error.message || 'Неизвестная ошибка'}` });
       }
     }
-    
+
+    const stockNum = Number.parseInt(String(stock ?? ''), 10);
+    const finalStock = Number.isFinite(stockNum) ? Math.max(0, stockNum) : 999;
+
+    const cleanSku = String(sku || '').trim();
+    const generatedSku = 'MANUAL-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 5).toUpperCase();
+    const finalSku = cleanSku || generatedSku;
+
     // Create product
     const product = await prisma.product.create({
       data: {
@@ -4380,13 +4538,15 @@ router.post('/api/products', requireAdmin, upload.single('image'), async (req, r
         instruction: instruction?.trim() || null,
         price: parseFloat(price),
         categoryId,
-        imageUrl,
+        imageUrl: imageUrl || null,
+        stock: finalStock,
+        sku: finalSku,
         isActive: active === 'true' || active === true,
         availableInRussia: availableInRussia === 'true' || availableInRussia === true,
         availableInBali: availableInBali === 'true' || availableInBali === true
       }
     });
-    
+
     res.json({ success: true, product });
   } catch (error) {
     console.error('Create product error:', error);
@@ -4397,7 +4557,7 @@ router.post('/api/products', requireAdmin, upload.single('image'), async (req, r
 router.get('/users/:userId', requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -4645,27 +4805,27 @@ router.get('/users/:userId', requireAdmin, async (req, res) => {
                   </thead>
                   <tbody>
                     ${(user as any).orders.map((order: any) => {
-                      try {
-                        const items = JSON.parse(order.itemsJson || '[]');
-                        const orderTotal = items.reduce((sum: number, item: any) => sum + (item.price || 0) * (item.quantity || 1), 0);
-                        const itemNames = items.map((item: any) => `${item.name || 'Товар'} (${item.quantity || 1} шт.)`).join(', ');
-                        return `
+      try {
+        const items = JSON.parse(order.itemsJson || '[]');
+        const orderTotal = items.reduce((sum: number, item: any) => sum + (item.price || 0) * (item.quantity || 1), 0);
+        const itemNames = items.map((item: any) => `${item.name || 'Товар'} (${item.quantity || 1} шт.)`).join(', ');
+        return `
                           <tr>
                             <td>${itemNames || 'Заказ'}</td>
                             <td>${orderTotal.toFixed(2)} PZ</td>
                             <td>${order.createdAt.toLocaleString('ru-RU')}</td>
                           </tr>
                         `;
-                      } catch {
-                        return `
+      } catch {
+        return `
                           <tr>
                             <td>Заказ #${order.id}</td>
                             <td>0.00 PZ</td>
                             <td>${order.createdAt.toLocaleString('ru-RU')}</td>
                           </tr>
                         `;
-                      }
-                    }).join('')}
+      }
+    }).join('')}
                   </tbody>
                 </table>
               </div>
@@ -4710,41 +4870,41 @@ router.get('/users/:userId', requireAdmin, async (req, res) => {
                   </thead>
                   <tbody>
                     ${(user as any).histories.map((action: any) => {
-                      function humanizeAction(a: any): string {
-                        const map: Record<string, string> = {
-                          'shop:buy': 'Покупка оформлена',
-                          'shop:add-to-cart': 'Добавлен товар в корзину',
-                          'shop:product-details': 'Просмотр товара',
-                          'shop:category': 'Переход в категорию',
-                          'nav:more': 'Открыт подробный раздел',
-                          'partner:invite': 'Открыт экран приглашений',
-                          'partner:dashboard': 'Просмотр кабинета партнёра',
-                          'partner:level:1': 'Просмотр партнёров 1-го уровня',
-                          'partner:level:2': 'Просмотр партнёров 2-го уровня',
-                          'partner:level:3': 'Просмотр партнёров 3-го уровня',
-                          'cart:add': 'Товар добавлен в корзину',
-                          'cart:checkout': 'Оформление заказа',
-                          'admin_message_sent': 'Отправлено сообщение пользователю'
-                        };
-                        return map[a.action] || a.action;
-                      }
-                      function humanizePayload(a: any): string {
-                        try {
-                          if (!a.payload) return '-';
-                          const p = a.payload;
-                          if (p.productId) return `Товар: ${p.productId}`;
-                          if (p.categoryId) return `Категория: ${p.categoryId}`;
-                          if (p.type === 'text' && p.messageLength) return `Текст ${p.messageLength} симв.`;
-                          return JSON.stringify(p);
-                        } catch { return '-'; }
-                      }
-                      return `
+      function humanizeAction(a: any): string {
+        const map: Record<string, string> = {
+          'shop:buy': 'Покупка оформлена',
+          'shop:add-to-cart': 'Добавлен товар в корзину',
+          'shop:product-details': 'Просмотр товара',
+          'shop:category': 'Переход в категорию',
+          'nav:more': 'Открыт подробный раздел',
+          'partner:invite': 'Открыт экран приглашений',
+          'partner:dashboard': 'Просмотр кабинета партнёра',
+          'partner:level:1': 'Просмотр партнёров 1-го уровня',
+          'partner:level:2': 'Просмотр партнёров 2-го уровня',
+          'partner:level:3': 'Просмотр партнёров 3-го уровня',
+          'cart:add': 'Товар добавлен в корзину',
+          'cart:checkout': 'Оформление заказа',
+          'admin_message_sent': 'Отправлено сообщение пользователю'
+        };
+        return map[a.action] || a.action;
+      }
+      function humanizePayload(a: any): string {
+        try {
+          if (!a.payload) return '-';
+          const p = a.payload;
+          if (p.productId) return `Товар: ${p.productId}`;
+          if (p.categoryId) return `Категория: ${p.categoryId}`;
+          if (p.type === 'text' && p.messageLength) return `Текст ${p.messageLength} симв.`;
+          return JSON.stringify(p);
+        } catch { return '-'; }
+      }
+      return `
                       <tr>
                         <td>${humanizeAction(action)}</td>
                         <td>${humanizePayload(action)}</td>
                         <td>${action.createdAt.toLocaleString('ru-RU')}</td>
                       </tr>`;
-                    }).join('')}
+    }).join('')}
                   </tbody>
                 </table>
               </div>
@@ -4767,28 +4927,28 @@ router.get('/users/:userId', requireAdmin, async (req, res) => {
 router.post('/force-recalculate-all-bonuses', requireAdmin, async (req, res) => {
   try {
     console.log('🔄 Starting force recalculation of all partner bonuses...');
-    
+
     // Get all partner profiles
     const partners = await prisma.partnerProfile.findMany({
       include: { transactions: true }
     });
-    
+
     console.log(`📊 Found ${partners.length} partner profiles to recalculate`);
-    
+
     let totalRecalculated = 0;
-    
+
     for (const partner of partners) {
       console.log(`🔄 Recalculating bonuses for partner ${partner.id}...`);
-      
+
       // Calculate total from all transactions
       const totalBonus = partner.transactions.reduce((sum, tx) => {
         const amount = tx.type === 'CREDIT' ? tx.amount : -tx.amount;
         console.log(`  - Transaction: ${tx.type} ${tx.amount} PZ (${tx.description})`);
         return sum + amount;
       }, 0);
-      
+
       console.log(`💰 Calculated total bonus for partner ${partner.id}: ${totalBonus} PZ`);
-      
+
       // Update both balance and bonus fields
       await prisma.partnerProfile.update({
         where: { id: partner.id },
@@ -4797,11 +4957,11 @@ router.post('/force-recalculate-all-bonuses', requireAdmin, async (req, res) => 
           bonus: totalBonus
         }
       });
-      
+
       totalRecalculated += totalBonus;
       console.log(`✅ Updated partner ${partner.id}: balance = ${totalBonus} PZ, bonus = ${totalBonus} PZ`);
     }
-    
+
     console.log(`🎉 Force recalculation completed! Total recalculated: ${totalRecalculated} PZ`);
     res.redirect('/admin?success=all_bonuses_recalculated&total=' + totalRecalculated);
   } catch (error) {
@@ -4813,9 +4973,14 @@ router.post('/force-recalculate-all-bonuses', requireAdmin, async (req, res) => 
 router.get('/categories', requireAdmin, async (req, res) => {
   try {
     console.log('📁 Admin categories page accessed');
-    const categories = await prisma.category.findMany({
+    const categoriesRaw = await prisma.category.findMany({
       orderBy: { createdAt: 'desc' }
     });
+    const categories = await Promise.all(categoriesRaw.map(async (c) => {
+      const productsCount = await prisma.product.count({ where: { categoryId: c.id } });
+      return { ...c, productsCount };
+    }));
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
 
     let html = `
       <!DOCTYPE html>
@@ -4824,45 +4989,336 @@ router.get('/categories', requireAdmin, async (req, res) => {
         <title>Управление категориями</title>
         <meta charset="utf-8">
         <style>
-          body { font-family: Arial, sans-serif; max-width: 1000px; margin: 20px auto; padding: 20px; }
-          .btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; margin: 5px; }
-          .btn:hover { background: #0056b3; }
-          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-          th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-          th { background-color: #f2f2f2; }
-          .status-btn { transition: all 0.2s ease; }
-          .status-btn:hover { transform: scale(1.1); }
-          .status-btn.active { color: #28a745; }
-          .status-btn.inactive { color: #dc3545; }
+          ${ADMIN_UI_CSS}
+          body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--admin-bg); }
+          .page-actions{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom: 14px; }
+          .page-actions .btn{ height: 40px; border-radius: 14px; font-weight: 800; }
+          .alert { padding: 12px 14px; margin: 10px 0; border-radius: 16px; border: 1px solid var(--admin-border); background: #fff; }
+          .alert-success { border-color: rgba(34,197,94,0.25); background: rgba(34,197,94,0.08); color: #166534; }
+          .alert-error { border-color: rgba(220,38,38,0.25); background: rgba(220,38,38,0.08); color: #991b1b; }
+          table { width: 100%; border-collapse: collapse; margin-top: 12px; background: #fff; border: 1px solid var(--admin-border); border-radius: 18px; overflow:hidden; }
+          th, td { padding: 12px 12px; text-align: left; border-bottom: 1px solid rgba(17,24,39,0.06); vertical-align: middle; }
+          th { background: rgba(17,24,39,0.03); font-size: 12px; color: var(--admin-muted); text-transform: uppercase; letter-spacing: .06em; }
+          tr:hover td{ background: rgba(17,24,39,0.02); }
+          .actions{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:flex-end; }
+          .btn-mini{
+            height: 34px;
+            padding: 0 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 900;
+            border: 1px solid var(--admin-border-strong);
+            background: #fff;
+            cursor: pointer;
+          }
+          .btn-mini:hover{ background: rgba(17,24,39,0.06); }
+          .btn-mini.danger{ border-color: rgba(220,38,38,0.35); color: #991b1b; }
+          .btn-mini.danger:hover{ background: rgba(220,38,38,0.08); }
+          .pill{ display:inline-flex; align-items:center; justify-content:center; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--admin-border); background: rgba(255,255,255,0.7); font-size: 12px; font-weight: 900; }
+          .muted{ color: var(--admin-muted); font-size: 12px; }
         </style>
       </head>
       <body>
-        <h2>📁 Управление категориями</h2>
-        <a href="/admin" class="btn">← Назад</a>
+        ${renderAdminShellStart({ title: 'Категории', activePath: '/admin/categories', buildMarker })}
+        <div class="page-actions">
+          <button type="button" class="btn" onclick="window.openCategoryModal()">Добавить категорию</button>
+          <button type="button" class="btn btn-secondary" onclick="window.autoAssignCategoryCovers()">Автообложки из товаров</button>
+        </div>
+
+        ${req.query.success ? '<div class="alert alert-success">Изменения сохранены</div>' : ''}
+        ${req.query.error ? '<div class="alert alert-error">Ошибка: ' + String(req.query.error) + '</div>' : ''}
+
         <table>
-          <tr><th>ID</th><th>Название</th><th>Слаг</th><th>Статус</th><th>Создана</th></tr>
+          <thead>
+            <tr>
+              <th>Название</th>
+              <th>Обложка</th>
+              <th>Slug</th>
+              <th>Товары</th>
+              <th>Статус</th>
+              <th>Видима</th>
+              <th>Создана</th>
+              <th style="text-align:right;">Действия</th>
+            </tr>
+          </thead>
+          <tbody>
     `;
+
+    const escapeHtml = (str: any) => String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    const escapeAttr = (str: any) => escapeHtml(str).replace(/'/g, '&#39;');
 
     categories.forEach(cat => {
       html += `
         <tr>
-          <td>${cat.id.substring(0, 8)}...</td>
-          <td>${cat.name}</td>
-          <td>${cat.slug}</td>
           <td>
-            <form method="post" action="/admin/categories/${cat.id}/toggle-active" style="display: inline;">
-              <button type="submit" class="status-btn ${cat.isActive ? 'active' : 'inactive'}" style="border: none; background: none; cursor: pointer; font-size: 16px;">
-                ${cat.isActive ? '✅ Активна' : '❌ Неактивна'}
-              </button>
+            <div style="font-weight: 900;">${escapeHtml(cat.name)}</div>
+            ${cat.description ? `<div class="muted">${escapeHtml(cat.description)}</div>` : ''}
+          </td>
+          <td>
+            ${(cat as any).imageUrl ? `<img src="${escapeAttr((cat as any).imageUrl)}" alt="" style="width:46px;height:46px;border-radius:10px;object-fit:cover;border:1px solid rgba(17,24,39,0.12);" />` : '<span class="muted">—</span>'}
+          </td>
+          <td style="color:#6b7280;">${escapeHtml(cat.slug)}</td>
+          <td><span class="pill">${Number((cat as any).productsCount || 0)}</span></td>
+          <td>
+            <form method="post" action="/admin/categories/${escapeAttr(cat.id)}/toggle-active" style="display:inline; margin:0;">
+              <button type="submit" class="btn-mini" title="Переключить статус">${cat.isActive ? 'Активна' : 'Отключена'}</button>
             </form>
           </td>
-          <td>${new Date(cat.createdAt).toLocaleDateString()}</td>
+          <td>${(cat as any).isVisibleInWebapp === false ? 'Нет' : 'Да'}</td>
+          <td>${new Date(cat.createdAt).toLocaleDateString('ru-RU')}</td>
+          <td style="text-align:right;">
+            <div class="actions">
+              <button type="button" class="btn-mini cat-edit"
+                data-id="${escapeAttr(cat.id)}"
+                data-name="${escapeAttr(cat.name)}"
+                data-description="${escapeAttr(cat.description || '')}"
+                data-image-url="${escapeAttr((cat as any).imageUrl || '')}"
+                data-visible="${(cat as any).isVisibleInWebapp === false ? 'false' : 'true'}"
+                data-active="${cat.isActive ? 'true' : 'false'}">Редактировать</button>
+              <button type="button" class="btn-mini danger cat-delete"
+                data-id="${escapeAttr(cat.id)}"
+                data-name="${escapeAttr(cat.name)}"
+                data-products-count="${escapeAttr((cat as any).productsCount || 0)}">Удалить</button>
+            </div>
+          </td>
         </tr>
       `;
     });
 
     html += `
+          </tbody>
         </table>
+
+        <!-- Modal: add/edit category -->
+        <div id="categoryModal" class="modal-overlay" style="display:none; z-index: 12000;">
+          <div class="modal-content" style="max-width: 680px;">
+            <div class="modal-header">
+              <h2 id="categoryModalTitle" style="margin:0;">Категория</h2>
+              <button class="close-btn" type="button" onclick="window.closeCategoryModal()">&times;</button>
+            </div>
+            <form id="categoryForm" class="modal-form">
+              <input type="hidden" id="categoryId">
+              <div class="form-group">
+                <label for="categoryNameInput">Название *</label>
+                <input id="categoryNameInput" type="text" required placeholder="Например: Косметика">
+              </div>
+              <div class="form-group">
+                <label for="categoryDescInput">Описание</label>
+                <textarea id="categoryDescInput" rows="4" placeholder="Описание категории (опционально)"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="categoryImageInput">Обложка (URL)</label>
+                <input id="categoryImageInput" type="text" placeholder="https://...">
+                <div class="muted" style="margin-top:6px;">Если оставить пустым — в клиенте будет первая картинка товара.</div>
+              </div>
+              <div class="form-group">
+                <label style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--admin-border-strong); border-radius:12px; background:#fff;">
+                  <input id="categoryActiveInput" type="checkbox" checked>
+                  <span style="font-weight:800;">Активна</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--admin-border-strong); border-radius:12px; background:#fff;">
+                  <input id="categoryVisibleInput" type="checkbox" checked>
+                  <span style="font-weight:800;">Видима в клиенте</span>
+                </label>
+              </div>
+              <div class="form-actions">
+                <button type="button" onclick="window.closeCategoryModal()">Отмена</button>
+                <button type="submit" id="categorySaveBtn">Сохранить</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Modal: confirm delete -->
+        <div id="deleteCategoryModal" class="modal-overlay" style="display:none; z-index: 12000;">
+          <div class="modal-content" style="max-width: 560px;">
+            <div class="modal-header">
+              <h2 style="margin:0;">Удалить категорию?</h2>
+              <button class="close-btn" type="button" onclick="window.closeDeleteCategoryModal()">&times;</button>
+            </div>
+            <div class="modal-form">
+              <p id="deleteCategoryText" style="margin:0; color:#374151; font-size:14px; line-height:1.5;"></p>
+            </div>
+            <div class="form-actions">
+              <button type="button" onclick="window.closeDeleteCategoryModal()">Отмена</button>
+              <button type="button" id="deleteCategoryConfirmBtn" style="background: var(--admin-danger); color:#fff; border-color: var(--admin-danger);">Удалить</button>
+            </div>
+          </div>
+        </div>
+
+        <script>
+          'use strict';
+          window.__categoryDeleteId = null;
+
+          window.openCategoryModal = function(cat){
+            const modal = document.getElementById('categoryModal');
+            const title = document.getElementById('categoryModalTitle');
+            const idEl = document.getElementById('categoryId');
+            const nameEl = document.getElementById('categoryNameInput');
+            const descEl = document.getElementById('categoryDescInput');
+            const imageEl = document.getElementById('categoryImageInput');
+            const activeEl = document.getElementById('categoryActiveInput');
+            const visibleEl = document.getElementById('categoryVisibleInput');
+            if (!modal || !title || !idEl || !nameEl || !descEl || !imageEl || !activeEl || !visibleEl) return;
+
+            const isEdit = !!(cat && cat.id);
+            title.textContent = isEdit ? 'Редактировать категорию' : 'Добавить категорию';
+            idEl.value = isEdit ? String(cat.id) : '';
+            nameEl.value = isEdit ? String(cat.name || '') : '';
+            descEl.value = isEdit ? String(cat.description || '') : '';
+            imageEl.value = isEdit ? String(cat.imageUrl || '') : '';
+            activeEl.checked = isEdit ? (String(cat.isActive) === 'true') : true;
+            visibleEl.checked = isEdit ? (String(cat.isVisibleInWebapp) !== 'false') : true;
+            modal.style.display = 'flex';
+            modal.onclick = function(e){ if (e && e.target === modal) window.closeCategoryModal(); };
+            setTimeout(() => { try { nameEl.focus(); } catch(_){} }, 30);
+          };
+
+          window.closeCategoryModal = function(){
+            const modal = document.getElementById('categoryModal');
+            if (modal) modal.style.display = 'none';
+          };
+
+          window.openDeleteCategoryModal = function(id, name, productsCount){
+            const modal = document.getElementById('deleteCategoryModal');
+            const text = document.getElementById('deleteCategoryText');
+            const btn = document.getElementById('deleteCategoryConfirmBtn');
+            if (!modal || !text || !btn) return;
+            window.__categoryDeleteId = String(id || '');
+            const cnt = parseInt(String(productsCount || '0'), 10) || 0;
+            if (cnt > 0){
+              text.textContent = 'Категорию “' + (name || '') + '” нельзя удалить: в ней есть товары (' + cnt + '). Сначала переместите товары в другую категорию.';
+              btn.disabled = true;
+              btn.style.opacity = '0.5';
+            } else {
+              text.textContent = 'Вы точно хотите удалить категорию “' + (name || '') + '”? Это действие нельзя отменить.';
+              btn.disabled = false;
+              btn.style.opacity = '1';
+            }
+            modal.style.display = 'flex';
+            modal.onclick = function(e){ if (e && e.target === modal) window.closeDeleteCategoryModal(); };
+          };
+
+          window.closeDeleteCategoryModal = function(){
+            const modal = document.getElementById('deleteCategoryModal');
+            if (modal) modal.style.display = 'none';
+            window.__categoryDeleteId = null;
+          };
+
+          document.addEventListener('click', function(e){
+            const t = e.target;
+            const el = (t && t.nodeType === 1) ? t : (t && t.parentElement ? t.parentElement : null);
+            if (!el) return;
+            const edit = el.closest('.cat-edit');
+            if (edit){
+              e.preventDefault();
+              window.openCategoryModal({
+                id: edit.getAttribute('data-id'),
+                name: edit.getAttribute('data-name'),
+                description: edit.getAttribute('data-description'),
+                imageUrl: edit.getAttribute('data-image-url'),
+                isVisibleInWebapp: edit.getAttribute('data-visible'),
+                isActive: edit.getAttribute('data-active')
+              });
+              return;
+            }
+            const del = el.closest('.cat-delete');
+            if (del){
+              e.preventDefault();
+              window.openDeleteCategoryModal(
+                del.getAttribute('data-id'),
+                del.getAttribute('data-name'),
+                del.getAttribute('data-products-count')
+              );
+              return;
+            }
+          }, true);
+
+          document.getElementById('categoryForm').addEventListener('submit', async function(e){
+            e.preventDefault();
+            const id = document.getElementById('categoryId').value.trim();
+            const name = document.getElementById('categoryNameInput').value.trim();
+            const description = document.getElementById('categoryDescInput').value.trim();
+            const imageUrl = document.getElementById('categoryImageInput').value.trim();
+            const isActive = document.getElementById('categoryActiveInput').checked ? 'true' : 'false';
+            const isVisibleInWebapp = document.getElementById('categoryVisibleInput').checked ? 'true' : 'false';
+            if (!name) { alert('Введите название'); return; }
+
+            const btn = document.getElementById('categorySaveBtn');
+            const old = btn ? btn.textContent : '';
+            if (btn){ btn.disabled = true; btn.textContent = 'Сохранение...'; }
+            try{
+              const payload = { name, description, imageUrl, isActive, isVisibleInWebapp };
+              const url = id ? ('/admin/api/categories/' + encodeURIComponent(id) + '/update') : '/admin/api/categories';
+              const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(payload)
+              });
+              const result = await resp.json().catch(() => ({}));
+              if (resp.ok && result && result.success){
+                window.closeCategoryModal();
+                window.location.reload();
+              } else {
+                alert('Ошибка: ' + (result && result.error ? result.error : ('HTTP ' + resp.status)));
+              }
+            }catch(err){
+              alert('Ошибка: ' + (err && err.message ? err.message : String(err)));
+            }finally{
+              if (btn){ btn.disabled = false; btn.textContent = old || 'Сохранить'; }
+            }
+          });
+
+          window.autoAssignCategoryCovers = async function(){
+            if (!confirm('Заполнить обложки из первых картинок товаров?')) return;
+            const resp = await fetch('/admin/api/categories/auto-covers', {
+              method: 'POST',
+              credentials: 'include'
+            });
+            const result = await resp.json().catch(() => ({}));
+            if (!resp.ok) {
+              alert(result.error || 'Ошибка автообложек');
+              return;
+            }
+            alert('Готово: обновлено ' + (result.updated || 0) + ' категорий');
+            window.location.reload();
+          };
+
+          document.getElementById('deleteCategoryConfirmBtn').addEventListener('click', async function(){
+            const id = window.__categoryDeleteId;
+            if (!id) return;
+            const btn = this;
+            const old = btn.textContent;
+            btn.disabled = true; btn.textContent = 'Удаление...';
+            try{
+              const resp = await fetch('/admin/api/categories/' + encodeURIComponent(id) + '/delete', {
+                method: 'POST',
+                credentials: 'include'
+              });
+              const result = await resp.json().catch(() => ({}));
+              if (resp.ok && result && result.success){
+                window.closeDeleteCategoryModal();
+                window.location.reload();
+              } else {
+                alert('Ошибка: ' + (result && result.error ? result.error : ('HTTP ' + resp.status)));
+              }
+            }catch(err){
+              alert('Ошибка: ' + (err && err.message ? err.message : String(err)));
+            }finally{
+              btn.textContent = old || 'Удалить';
+            }
+          });
+        </script>
+
+        ${renderAdminShellEnd()}
       </body>
       </html>
     `;
@@ -4877,7 +5333,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
 router.get('/partners', requireAdmin, async (req, res) => {
   try {
     const partners = await prisma.partnerProfile.findMany({
-      include: { 
+      include: {
         user: true,
         referrals: {
           include: {
@@ -4917,6 +5373,8 @@ router.get('/partners', requireAdmin, async (req, res) => {
       })
     );
 
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
+
     let html = `
       <!DOCTYPE html>
       <html>
@@ -4924,47 +5382,99 @@ router.get('/partners', requireAdmin, async (req, res) => {
         <title>Управление партнёрами</title>
         <meta charset="utf-8">
         <style>
-          body { font-family: Arial, sans-serif; max-width: 1000px; margin: 20px auto; padding: 20px; }
-          .btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; margin: 5px; }
-          .btn:hover { background: #0056b3; }
-          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-          th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-          th { background-color: #f2f2f2; }
+          ${ADMIN_UI_CSS}
+          body { margin: 0; padding: 0; background: var(--admin-bg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+
+          .page-actions{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom: 14px; }
+          .page-actions form{ display:inline; margin:0; }
+          .page-actions .btn{ height: 40px; border-radius: 14px; font-weight: 800; }
+
+          .metric-card{
+            background: var(--admin-surface);
+            border: 1px solid var(--admin-border);
+            border-radius: 22px;
+            padding: 18px;
+            box-shadow: 0 14px 34px rgba(17,24,39,0.06);
+            display:flex;
+            align-items:center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 10px 0 14px 0;
+          }
+          .metric-card .label{ font-weight: 900; font-size: 14px; color: var(--admin-muted); }
+          .metric-card .value{ font-weight: 900; font-size: 34px; letter-spacing: -0.04em; }
+
+          .alert { padding: 12px 14px; margin: 10px 0; border-radius: 16px; border: 1px solid var(--admin-border); background: #fff; }
+          .alert-success { border-color: rgba(34,197,94,0.25); background: rgba(34,197,94,0.08); color: #166534; }
+          .alert-error { border-color: rgba(220,38,38,0.25); background: rgba(220,38,38,0.08); color: #991b1b; }
+
+          table { width: 100%; border-collapse: collapse; margin-top: 12px; background: #fff; border: 1px solid var(--admin-border); border-radius: 18px; overflow:hidden; }
+          th, td { padding: 12px 12px; text-align: left; border-bottom: 1px solid rgba(17,24,39,0.06); vertical-align: top; }
+          th { background: rgba(17,24,39,0.03); font-size: 12px; color: var(--admin-muted); text-transform: uppercase; letter-spacing: .06em; }
+          tr:hover td{ background: rgba(17,24,39,0.02); }
+
+          /* Row actions: compact and predictable (no giant stacks) */
+          .actions{ display:grid; gap:8px; justify-content:flex-end; }
+          .actions form{ display:flex; gap:8px; align-items:center; justify-content:flex-end; margin:0; flex-wrap:nowrap; }
+          .mini-input{
+            width: 160px;
+            height: 34px;
+            padding: 0 10px;
+            border-radius: 12px;
+            border: 1px solid var(--admin-border-strong);
+            font-size: 12px;
+          }
+          .btn-mini{
+            height: 34px;
+            padding: 0 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 900;
+            border: 1px solid var(--admin-border-strong);
+            background: #fff;
+            cursor: pointer;
+          }
+          .btn-mini:hover{ background: rgba(17,24,39,0.06); }
+          .btn-mini.danger{ border-color: rgba(220,38,38,0.35); color: #991b1b; }
+          .btn-mini.danger:hover{ background: rgba(220,38,38,0.08); }
         </style>
       </head>
       <body>
-        <h2>👥 Управление партнёрами v2.0</h2>
-        <p style="color: #666; font-size: 12px; margin: 5px 0;">Версия: 2.0 | ${new Date().toLocaleString()}</p>
-        <a href="/admin" class="btn">← Назад</a>
-        <a href="/admin/partners-hierarchy" class="btn" style="background: #6f42c1;">🌳 Иерархия партнёров</a>
-        <a href="/admin/test-referral-links" class="btn" style="background: #17a2b8;">🧪 Тест ссылок</a>
-        <form method="post" action="/admin/recalculate-bonuses" style="display: inline;">
-          <button type="submit" class="btn" style="background: #28a745;" onclick="return confirm('Пересчитать бонусы всех партнёров?')">🔄 Пересчитать бонусы</button>
+        ${renderAdminShellStart({ title: 'Партнёры', activePath: '/admin/partners', buildMarker })}
+
+        <div class="page-actions">
+          <a href="/admin/partners-hierarchy" class="btn">Иерархия</a>
+          <a href="/admin/test-referral-links" class="btn">Тест ссылок</a>
+          <a href="/admin/debug-partners" class="btn">Отладка</a>
+          <form method="post" action="/admin/recalculate-bonuses">
+            <button type="submit" class="btn" onclick="return confirm('Пересчитать бонусы всех партнёров?')">Пересчитать бонусы</button>
         </form>
-        <form method="post" action="/admin/cleanup-duplicates" style="display: inline;">
-          <button type="submit" class="btn" style="background: #dc3545;" onclick="return confirm('⚠️ Удалить дублирующиеся записи партнёров и транзакций? Это действие необратимо!')">🧹 Очистить дубли</button>
+          <form method="post" action="/admin/recalculate-all-balances">
+            <button type="submit" class="btn" onclick="return confirm('Пересчитать ВСЕ балансы партнёров?')">Пересчитать балансы</button>
         </form>
-        <form method="post" action="/admin/recalculate-all-balances" style="display: inline;">
-          <button type="submit" class="btn" style="background: #ffc107; color: #000;" onclick="return confirm('🔄 Пересчитать ВСЕ балансы партнёров?')">🔄 Пересчитать все балансы</button>
+          <form method="post" action="/admin/cleanup-duplicates">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Удалить дублирующиеся записи партнёров и транзакций? Это действие необратимо!')">Очистить дубли</button>
         </form>
-        <a href="/admin/debug-partners" class="btn" style="background: #6c757d;">🔍 Отладка партнёров</a>
-        <form method="post" action="/admin/cleanup-referral-duplicates" style="display: inline;">
-          <button type="submit" class="btn" style="background: #dc3545;" onclick="return confirm('⚠️ Очистить дублирующиеся записи рефералов? Это действие необратимо!')">🧹 Очистить дубли рефералов</button>
+          <form method="post" action="/admin/cleanup-referral-duplicates">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Очистить дублирующиеся записи рефералов? Это действие необратимо!')">Очистить дубли рефералов</button>
         </form>
-        <form method="post" action="/admin/force-recalculate-bonuses" style="display: inline;">
-          <button type="submit" class="btn" style="background: #17a2b8;" onclick="return confirm('🔄 Принудительно пересчитать ВСЕ бонусы?')">🔄 Пересчитать бонусы</button>
+          <form method="post" action="/admin/cleanup-duplicate-bonuses">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Удалить дублирующиеся бонусы? Это действие необратимо!')">Очистить дубли бонусов</button>
         </form>
-        <form method="post" action="/admin/cleanup-duplicate-bonuses" style="display: inline;">
-          <button type="submit" class="btn" style="background: #dc3545;" onclick="return confirm('⚠️ Удалить дублирующиеся бонусы? Это действие необратимо!')">🧹 Очистить дубли бонусов</button>
+          <form method="post" action="/admin/fix-roman-bonuses">
+            <button type="submit" class="btn" onclick="return confirm('Исправить бонусы Roman Arctur?')">Исправить бонусы Roman</button>
         </form>
-        <form method="post" action="/admin/fix-roman-bonuses" style="display: inline;">
-          <button type="submit" class="btn" style="background: #28a745;" onclick="return confirm('🔧 Исправить бонусы Roman Arctur?')">🔧 Исправить бонусы Roman</button>
+          <form method="post" action="/admin/reset-all-partners">
+            <button type="submit" class="btn btn-danger" onclick="const confirmed = confirm('КРИТИЧЕСКОЕ ПОДТВЕРЖДЕНИЕ!\\n\\nЭто удалит ВСЕ партнерские профили, рефералы и транзакции!\\n\\nЭто действие НЕОБРАТИМО!\\n\\nПродолжить?'); if (!confirmed) return false; const doubleCheck = prompt('Для подтверждения введите точно: УДАЛИТЬ ВСЕХ ПАРТНЕРОВ'); return doubleCheck === 'УДАЛИТЬ ВСЕХ ПАРТНЕРОВ';">Сбросить всех партнёров</button>
         </form>
+        </div>
         
-        <div style="background: linear-gradient(135deg, #e8f5e8 0%, #d4edda 100%); padding: 20px; border-radius: 12px; margin: 20px 0; text-align: center; border: 3px solid #28a745; box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2);">
-          <h2 style="margin: 0 0 5px 0; color: #28a745; font-size: 28px;">💰 Общий баланс всех партнёров</h2>
-          <div style="font-size: 36px; font-weight: bold; color: #155724; margin: 10px 0;">${totalBalance.toFixed(2)} PZ</div>
-          <div style="font-size: 14px; color: #666; margin-top: 5px;">Сумма всех балансов партнёров в системе</div>
+        <div class="metric-card">
+          <div>
+            <div class="label">Общий баланс партнёров</div>
+            <div class="sub" style="color: var(--admin-muted); font-size: 12px; margin-top: 6px;">Сумма всех балансов партнёров в системе</div>
+          </div>
+          <div class="value">${totalBalance.toFixed(2)} PZ</div>
         </div>
         
         ${req.query.success === 'inviter_changed' ? '<div class="alert alert-success">✅ Пригласитель успешно изменен</div>' : ''}
@@ -4979,7 +5489,9 @@ router.get('/partners', requireAdmin, async (req, res) => {
         ${req.query.success === 'bonuses_force_recalculated' ? '<div class="alert alert-success">✅ Все бонусы принудительно пересчитаны</div>' : ''}
         ${req.query.success === 'duplicate_bonuses_cleaned' ? `<div class="alert alert-success">✅ Дубли бонусов очищены! Удалено ${req.query.count || 0} дублей</div>` : ''}
         ${req.query.success === 'roman_bonuses_fixed' ? `<div class="alert alert-success">✅ Бонусы Roman Arctur исправлены! Новый бонус: ${req.query.bonus || 0} PZ</div>` : ''}
+        ${req.query.success === 'all_partners_reset' ? `<div class="alert alert-success">✅ Все партнёры удалены! Удалено профилей: ${req.query.count || 0}</div>` : ''}
         ${req.query.error === 'balance_add' ? '<div class="alert alert-error">❌ Ошибка при пополнении баланса</div>' : ''}
+        ${req.query.error === 'reset_partners_failed' ? '<div class="alert alert-error">❌ Ошибка при сбросе всех партнёров</div>' : ''}
         ${req.query.error === 'balance_subtract' ? '<div class="alert alert-error">❌ Ошибка при списании баланса</div>' : ''}
         ${req.query.error === 'bonus_recalculation' ? '<div class="alert alert-error">❌ Ошибка при пересчёте бонусов</div>' : ''}
         ${req.query.error === 'balance_recalculation_failed' ? '<div class="alert alert-error">❌ Ошибка при пересчёте всех балансов</div>' : ''}
@@ -4989,13 +5501,6 @@ router.get('/partners', requireAdmin, async (req, res) => {
         ${req.query.error === 'roman_profile_not_found' ? '<div class="alert alert-error">❌ Профиль Roman Arctur не найден</div>' : ''}
         ${req.query.error === 'referral_cleanup_failed' ? '<div class="alert alert-error">❌ Ошибка при очистке дублей рефералов</div>' : ''}
         ${req.query.error === 'cleanup_failed' ? '<div class="alert alert-error">❌ Ошибка при очистке дублей</div>' : ''}
-        <style>
-          .change-inviter-btn { background: #10b981; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 5px; }
-          .change-inviter-btn:hover { background: #059669; }
-          .alert { padding: 10px; margin: 10px 0; border-radius: 4px; }
-          .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-          .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-        </style>
         <table>
           <tr><th>Пользователь</th><th>Тип программы</th><th>Баланс</th><th>Всего бонусов</th><th>Партнёров</th><th>Код</th><th>Пригласитель</th><th>Создан</th><th>Действия</th></tr>
     `;
@@ -5010,25 +5515,26 @@ router.get('/partners', requireAdmin, async (req, res) => {
           <td>${partner.totalPartners}</td>
           <td>${partner.referralCode}</td>
           <td>
-            ${partner.inviter 
-              ? `${partner.inviter.firstName || ''} ${partner.inviter.lastName || ''} ${partner.inviter.username ? `(@${partner.inviter.username})` : ''}`.trim()
-              : 'Нет данных'
-            }
+            ${partner.inviter
+          ? `${partner.inviter.firstName || ''} ${partner.inviter.lastName || ''} ${partner.inviter.username ? `(@${partner.inviter.username})` : ''}`.trim()
+          : 'Нет данных'
+        }
           </td>
           <td>${new Date(partner.createdAt).toLocaleDateString()}</td>
           <td>
-            <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-              <form method="post" action="/admin/partners/${partner.id}/change-inviter" style="display: inline;">
-                <input type="text" name="newInviterCode" placeholder="Код пригласителя" style="width: 120px; padding: 4px; font-size: 11px;" required>
-                <button type="submit" class="change-inviter-btn" onclick="return confirm('Изменить пригласителя для ${partner.user.firstName || 'пользователя'}?')" style="padding: 4px 8px; font-size: 11px;">🔄</button>
+            <div class="actions">
+              <form method="post" action="/admin/partners/${partner.id}/change-inviter">
+                <input class="mini-input" type="text" name="newInviterCode" placeholder="Код пригласителя" required>
+                <button type="submit" class="btn-mini" onclick="return confirm('Изменить пригласителя для ${partner.user.firstName || 'пользователя'}?')">Сменить</button>
               </form>
-              <form method="post" action="/admin/partners/${partner.id}/add-balance" style="display: inline;">
-                <input type="number" name="amount" placeholder="Сумма" style="width: 80px; padding: 4px; font-size: 11px;" step="0.01" required>
-                <button type="submit" class="balance-btn" style="background: #28a745; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 2px;">💰+</button>
+              <form method="post" action="/admin/partners/${partner.id}/add-balance">
+                <input class="mini-input" type="number" name="amount" placeholder="Сумма" step="0.01" required>
+                <button type="submit" class="btn-mini">+PZ</button>
               </form>
-              <form method="post" action="/admin/partners/${partner.id}/subtract-balance" style="display: inline;">
-                <input type="number" name="amount" placeholder="Сумма" style="width: 80px; padding: 4px; font-size: 11px;" step="0.01" required>
-                <button type="submit" class="balance-btn" style="background: #dc3545; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 2px;">💰-</button>
+              <form method="post" action="/admin/partners/${partner.id}/adjust-balance">
+                <input class="mini-input" type="number" name="amount" placeholder="Сумма" step="0.01" required>
+                <button type="submit" class="btn-mini" name="op" value="add">+PZ</button>
+                <button type="submit" class="btn-mini danger" name="op" value="sub">-PZ</button>
               </form>
             </div>
           </td>
@@ -5038,6 +5544,7 @@ router.get('/partners', requireAdmin, async (req, res) => {
 
     html += `
         </table>
+        ${renderAdminShellEnd()}
       </body>
       </html>
     `;
@@ -5052,7 +5559,7 @@ router.get('/partners', requireAdmin, async (req, res) => {
 router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
   try {
     const userId = req.query.user as string;
-    
+
     // Get all partners with their referrals
     const partners = await prisma.partnerProfile.findMany({
       include: {
@@ -5090,47 +5597,48 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
         };
       })
     );
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
 
     // Build interactive hierarchy with multi-level referrals (full tree)
     function buildInteractiveHierarchy() {
       const rootPartners = partnersWithInviters.filter(p => !p.inviter);
-      
+
       function buildPartnerNode(partner: any, level = 0) {
         const levelEmoji = level === 0 ? '👑' : level === 1 ? '🥈' : level === 2 ? '🥉' : '📋';
         const partnerName = `${partner.user.firstName || ''} ${partner.user.lastName || ''}`.trim();
         const username = partner.user.username ? ` (@${partner.user.username})` : '';
         const balance = partner.balance.toFixed(2);
-        
+
         // Count all referrals at all levels recursively
         function countAllReferrals(partnerId: string, visited = new Set()): number {
           if (visited.has(partnerId)) return 0; // Prevent infinite loops
           visited.add(partnerId);
-          
-          const directReferrals = partnersWithInviters.filter(p => 
+
+          const directReferrals = partnersWithInviters.filter(p =>
             p.inviter && p.inviter.id === partnerId
           );
-          
+
           let totalCount = directReferrals.length;
-          
+
           // Recursively count referrals of referrals
           directReferrals.forEach(ref => {
             totalCount += countAllReferrals(ref.user.id, new Set(visited));
           });
-          
+
           return totalCount;
         }
-        
+
         const totalReferrals = countAllReferrals(partner.user.id);
-        
+
         // Get direct referrals (level 1)
-        const directReferrals = partnersWithInviters.filter(p => 
+        const directReferrals = partnersWithInviters.filter(p =>
           p.inviter && p.inviter.id === partner.user.id
         );
-        
+
         const hasChildren = directReferrals.length > 0;
         const expandId = `expand-${partner.id}`;
         const childrenId = `children-${partner.id}`;
-        
+
         let node = `
           <div class="partner-node level-${level}" style="margin-left: ${level * 20}px;">
             <div class="partner-header" onclick="${hasChildren ? `toggleChildren('${expandId}', '${childrenId}')` : ''}" style="cursor: ${hasChildren ? 'pointer' : 'default'};">
@@ -5145,17 +5653,17 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
             </div>
             <div class="children" id="${childrenId}" style="display: none;">
         `;
-        
+
         // Add child nodes recursively
         directReferrals.forEach(referral => {
           node += buildPartnerNode(referral, level + 1);
         });
-        
+
         node += `
             </div>
           </div>
         `;
-        
+
         return node;
       }
 
@@ -5203,10 +5711,10 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
           <div class="partner-node"><div class="partner-header level-1"><strong>${label}:</strong> (${arr.length})</div>
             <div class="children">
               ${arr.map(p => {
-                const name = `${p.user.firstName || ''} ${p.user.lastName || ''}`.trim();
-                const username = p.user.username ? ` (@${p.user.username})` : '';
-                return `<div class=\"partner-node\"><div class=\"partner-header level-2\">${name}${username} <span class=\"balance\">${p.balance.toFixed(2)} PZ</span></div></div>`;
-              }).join('')}
+          const name = `${p.user.firstName || ''} ${p.user.lastName || ''}`.trim();
+          const username = p.user.username ? ` (@${p.user.username})` : '';
+          return `<div class=\"partner-node\"><div class=\"partner-header level-2\">${name}${username} <span class=\"balance\">${p.balance.toFixed(2)} PZ</span></div></div>`;
+        }).join('')}
             </div>
           </div>`;
       }
@@ -5229,7 +5737,8 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+          ${ADMIN_UI_CSS}
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background: var(--admin-bg); }
           .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px; }
           h2 { color: #333; margin-bottom: 20px; }
           .btn { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; margin: 5px; }
@@ -5269,6 +5778,7 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
         </style>
       </head>
       <body>
+        ${renderAdminShellStart({ title: 'Иерархия', activePath: '/admin/partners', buildMarker })}
         <div class="container">
           <h2>🌳 Иерархия партнёров ${userId ? '(фокус на пользователе)' : 'v3.0'}</h2>
           <p style="color: #666; font-size: 12px; margin: 5px 0;">Версия: 3.0 | ${new Date().toLocaleString()}</p>
@@ -5368,6 +5878,7 @@ router.get('/partners-hierarchy', requireAdmin, async (req, res) => {
             });
           }
         </script>
+        ${renderAdminShellEnd()}
       </body>
       </html>
     `);
@@ -5405,7 +5916,7 @@ router.post('/partners/:id/change-inviter', requireAdmin, async (req, res) => {
               },
               include: { user: true }
             });
-          } catch {}
+          } catch { }
         }
       }
     } else if (newInviterCode) {
@@ -5429,7 +5940,7 @@ router.post('/partners/:id/change-inviter', requireAdmin, async (req, res) => {
 
     await prisma.partnerReferral.deleteMany({ where: { referredId: currentPartner.userId } });
     await prisma.partnerReferral.create({ data: { profileId: newInviter.id, referredId: currentPartner.userId, level: 1 } });
-    
+
     if ((req.headers['accept'] || '').toString().includes('application/json')) {
       return res.json({ success: true });
     }
@@ -5441,6 +5952,59 @@ router.post('/partners/:id/change-inviter', requireAdmin, async (req, res) => {
     }
     return res.redirect('/admin/partners?error=inviter_change');
   }
+});
+
+// Partner balance adjust (used by /admin/partners actions)
+router.post('/partners/:id/adjust-balance', requireAdmin, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const op = String((req.body && (req.body.op || req.body.operation)) || '').trim();
+    const amountRaw = (req.body && req.body.amount);
+    const amount = Number.parseFloat(String(amountRaw || '0'));
+    if (!id) return res.redirect('/admin/partners?error=balance_add');
+    if (!Number.isFinite(amount) || amount <= 0) return res.redirect('/admin/partners?error=balance_add');
+
+    const partner = await prisma.partnerProfile.findUnique({ where: { id }, include: { user: true } });
+    if (!partner) return res.redirect('/admin/partners?error=partner_not_found');
+
+    const isSub = (op === 'sub' || op === 'subtract' || op === 'debit' || op === '-');
+    const txType = isSub ? 'DEBIT' : 'CREDIT';
+    const txAmount = amount;
+    const description = (isSub ? 'Admin: subtract balance' : 'Admin: add balance');
+
+    // Update balance & bonus to keep them consistent
+    await prisma.partnerProfile.update({
+      where: { id },
+      data: {
+        balance: isSub ? { decrement: txAmount } : { increment: txAmount },
+        bonus: isSub ? { decrement: txAmount } : { increment: txAmount },
+      }
+    });
+
+    await prisma.partnerTransaction.create({
+      data: {
+        profileId: id,
+        amount: txAmount,
+        type: txType,
+        description
+      }
+    });
+
+    return res.redirect('/admin/partners?success=' + (isSub ? 'balance_subtracted' : 'balance_added'));
+  } catch (error) {
+    console.error('Partner adjust balance error:', error);
+    return res.redirect('/admin/partners?error=balance_add');
+  }
+});
+
+// Backward-compatible routes (old UI)
+router.post('/partners/:id/add-balance', requireAdmin, async (req, res) => {
+  req.body = { ...(req.body || {}), op: 'add' };
+  return res.redirect(307, `/admin/partners/${encodeURIComponent(String(req.params.id || ''))}/adjust-balance`);
+});
+router.post('/partners/:id/subtract-balance', requireAdmin, async (req, res) => {
+  req.body = { ...(req.body || {}), op: 'sub' };
+  return res.redirect(307, `/admin/partners/${encodeURIComponent(String(req.params.id || ''))}/adjust-balance`);
 });
 
 // Handle user inviter change
@@ -5470,7 +6034,7 @@ router.post('/users/:id/change-inviter', requireAdmin, async (req, res) => {
               },
               include: { user: true }
             });
-          } catch {}
+          } catch { }
         }
       }
     } else if (newInviterCode) {
@@ -5494,7 +6058,7 @@ router.post('/users/:id/change-inviter', requireAdmin, async (req, res) => {
 
     await prisma.partnerReferral.deleteMany({ where: { referredId: id } });
     await prisma.partnerReferral.create({ data: { profileId: newInviter.id, referredId: id, level: 1 } });
-    
+
     if ((req.headers['accept'] || '').toString().includes('application/json')) {
       return res.json({ success: true });
     }
@@ -5507,6 +6071,91 @@ router.post('/users/:id/change-inviter', requireAdmin, async (req, res) => {
     return res.redirect('/admin/users?error=inviter_change');
   }
 });
+
+// Delete user endpoint
+router.delete('/users/:id/delete', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    console.log('🗑️ Deleting user:', id);
+
+    // Find user first
+    const user = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        partner: true,
+        orders: true,
+        cartItems: true,
+        histories: true,
+        payments: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'Пользователь не найден'
+      });
+    }
+
+    console.log(`🗑️ User found: ${user.firstName || 'Unknown'} (@${user.username || 'no username'})`);
+    console.log(`   - Partner profile: ${user.partner ? 'YES' : 'NO'}`);
+    console.log(`   - Orders: ${user.orders?.length || 0}`);
+    console.log(`   - Cart items: ${user.cartItems?.length || 0}`);
+    console.log(`   - Histories: ${user.histories?.length || 0}`);
+    console.log(`   - Payments: ${user.payments?.length || 0}`);
+
+    // Delete in correct order (dependencies first)
+    // PartnerReferral with this user as referrer will be deleted via cascade
+    // But we need to delete referrals where this user is the referred user
+    await prisma.partnerReferral.deleteMany({
+      where: { referredId: id }
+    });
+    console.log('   ✅ Deleted partner referrals');
+
+    // PartnerProfile will be deleted via cascade when user is deleted
+    // But transactions and referrals of the partner profile need to be handled
+    if (user.partner) {
+      await prisma.partnerTransaction.deleteMany({
+        where: { profileId: user.partner.id }
+      });
+      await prisma.partnerReferral.deleteMany({
+        where: { profileId: user.partner.id }
+      });
+      console.log('   ✅ Deleted partner transactions and referrals');
+    }
+
+    // Cart items will be deleted via cascade
+    // Orders - we keep them but remove user reference
+    await prisma.orderRequest.updateMany({
+      where: { userId: id },
+      data: { userId: null }
+    });
+    console.log('   ✅ Removed user from orders');
+
+    // Histories will be deleted via cascade
+    // Payments - we keep them but could remove user reference if needed
+
+    // Finally delete the user (this will cascade delete partner profile, cart items, histories)
+    await prisma.user.delete({
+      where: { id }
+    });
+    console.log('   ✅ User deleted successfully');
+
+    res.json({
+      success: true,
+      message: 'Пользователь успешно удален'
+    });
+  } catch (error: any) {
+    console.error('❌ Delete user error:', error);
+    console.error('❌ Error stack:', error?.stack);
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Ошибка при удалении пользователя'
+    });
+  }
+});
+
 router.get('/products', requireAdmin, async (req, res) => {
   try {
     console.log('🛍️ Admin products page accessed');
@@ -5525,6 +6174,16 @@ router.get('/products', requireAdmin, async (req, res) => {
       categoryName: category.name,
     })));
 
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
+
+    const ICONS = {
+      pencil: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+      power: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v10"/><path d="M6.4 4.9a8 8 0 1 0 11.2 0"/></svg>',
+      camera: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><path d="M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/></svg>',
+      image: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m8 13 2-2 4 4 2-2 3 3"/><path d="M8.5 8.5h.01"/></svg>',
+      trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>',
+    };
+
     let html = `
       <!DOCTYPE html>
       <html>
@@ -5532,16 +6191,16 @@ router.get('/products', requireAdmin, async (req, res) => {
         <title>Управление товарами</title>
         <meta charset="utf-8">
         <style>
-          body { font-family: Arial, sans-serif; max-width: 1200px; margin: 20px auto; padding: 20px; background: #f5f5f5; }
-          a.btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 6px; margin: 5px 0 20px; transition: background 0.2s ease; }
-          a.btn:hover { background: #0056b3; }
-          h2 { margin-top: 0; }
+          ${ADMIN_UI_CSS}
+          body { margin: 0; padding: 0; background: var(--admin-bg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+          /* Use shared .btn styles from ADMIN_UI_CSS (no gradients) */
+          h2 { margin-top: 0; color: #1f2937; font-weight: 600; }
           .filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
-          .filter-btn { padding: 8px 16px; border: none; border-radius: 999px; background: #e0e7ff; color: #1d4ed8; cursor: pointer; transition: all 0.2s ease; }
-          .filter-btn:hover { background: #c7d2fe; }
-          .filter-btn.active { background: #1d4ed8; color: #fff; box-shadow: 0 4px 10px rgba(29, 78, 216, 0.2); }
+          .filter-btn { padding: 8px 16px; border: 1px solid #111827; border-radius: 999px; background: transparent; color: #111827; cursor: pointer; transition: all 0.15s ease; }
+          .filter-btn:hover { background: #111827; color: #fff; }
+          .filter-btn.active { background: #111827; color: #fff; }
           .product-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
-          .product-card { background: #fff; border-radius: 12px; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08); padding: 18px; display: flex; flex-direction: column; gap: 12px; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+          .product-card { position: relative; background: #fff; border-radius: 12px; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08); padding: 18px; display: flex; flex-direction: column; gap: 12px; transition: transform 0.2s ease, box-shadow 0.2s ease; }
           .product-card:hover { transform: translateY(-4px); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12); }
           .product-header { display: flex; justify-content: space-between; align-items: flex-start; }
           .product-title { font-size: 18px; font-weight: 600; color: #111827; margin: 0; }
@@ -5556,8 +6215,70 @@ router.get('/products', requireAdmin, async (req, res) => {
           .product-summary { color: #4b5563; font-size: 14px; line-height: 1.5; margin: 0; }
           .product-price { font-size: 16px; font-weight: 600; color: #1f2937; }
           .product-meta { font-size: 12px; color: #6b7280; display: flex; justify-content: space-between; }
-          .product-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+          .product-actions { display: grid; grid-template-columns: 1fr; gap: 10px; }
           .product-actions form { margin: 0; }
+
+          /* Card action buttons (clean + consistent) */
+          .btn-action{
+            width: 100%;
+            height: 52px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 0 16px;
+            border-radius: 18px;
+            font-weight: 800;
+            font-size: 15px;
+            cursor: pointer;
+            border: 1px solid var(--admin-border-strong);
+            background: #fff;
+            color: var(--admin-text);
+            box-shadow: 0 10px 22px rgba(17,24,39,0.06);
+          }
+          .btn-compact{ height: 40px; border-radius: 14px; font-size: 13px; font-weight: 800; box-shadow: none; }
+          .btn-action .btn-ico{
+            display:inline-flex;
+            width: 18px;
+            height: 18px;
+            align-items:center;
+            justify-content:center;
+            flex: 0 0 18px;
+          }
+          .btn-action svg{
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+          }
+          .btn-outline{ background: #fff; }
+          .btn-outline:hover{ background: rgba(17,24,39,0.06); }
+          .btn-solid-black{
+            background:#111827;
+            border-color:#111827 !important;
+            color:#fff;
+          }
+          .btn-solid-black:hover{
+            background:#0b0f19;
+            border-color:#0b0f19 !important;
+          }
+          .btn-solid-danger{
+            background: var(--admin-danger);
+            border-color: var(--admin-danger) !important;
+            color:#fff;
+          }
+          .btn-solid-danger:hover{
+            background:#b91c1c;
+            border-color:#b91c1c !important;
+          }
+          .file-label-btn{ user-select:none; }
+          .file-label-btn input{ display:none; }
+
+          .admin-page-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin: 0 0 18px 0; }
+          .admin-page-row .btn { min-width: 200px; justify-content: center; }
           
           /* Modal styles - Modern Design */
           .modal-overlay { 
@@ -5604,7 +6325,7 @@ router.get('/products', requireAdmin, async (req, res) => {
             margin-bottom: 16px; padding-bottom: 8px; 
             border-bottom: 2px solid #e2e8f0; display: flex; align-items: center; gap: 8px;
           }
-          .form-section-title::before { content: '📋'; font-size: 18px; }
+          .form-section-title::before { content: ''; }
           
           .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
           .form-grid.single { grid-template-columns: 1fr; }
@@ -5626,6 +6347,34 @@ router.get('/products', requireAdmin, async (req, res) => {
           }
           .form-group textarea { min-height: 80px; resize: vertical; }
           .form-group textarea.large { min-height: 120px; }
+          
+          /* AI Translation button styles */
+          .btn-translate {
+            padding: 6px 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+            white-space: nowrap;
+          }
+          .btn-translate:hover {
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.4);
+          }
+          .btn-translate:active {
+            transform: translateY(0);
+          }
+          .btn-translate:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+          }
           
           .price-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
           .price-input { position: relative; }
@@ -5704,15 +6453,23 @@ router.get('/products', requireAdmin, async (req, res) => {
             .regions-grid { grid-template-columns: 1fr; }
             .form-actions { flex-direction: column; }
           }
-          .product-actions button { padding: 6px 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; }
-          .product-actions .toggle-btn { background: #fbbf24; color: #92400e; }
-          .product-actions .toggle-btn:hover { background: #f59e0b; }
-          .product-actions .delete-btn { background: #f87171; color: #7f1d1d; }
-          .product-actions .delete-btn:hover { background: #ef4444; }
-          .product-actions .image-btn { background: #10b981; color: #064e3b; }
-          .product-actions .image-btn:hover { background: #059669; }
-          .product-actions .edit-btn { background: #e0e7ff; color: #1d4ed8; }
-          .product-actions .edit-btn:hover { background: #c7d2fe; }
+          /* Remove legacy rainbow button styles in cards */
+          /* iOS/Safari: input[type=file].click() may fail if input is display:none.
+             Keep it in DOM (not display:none) but visually hidden. */
+          .product-image-input {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            overflow: hidden;
+            pointer-events: none;
+            left: -9999px;
+          }
+          .file-label-btn {
+            display: inline-block;
+            user-select: none;
+          }
+          /* Instruction button removed from cards; keep empty to avoid accidental legacy overrides */
           .empty-state { text-align: center; padding: 60px 20px; color: #6b7280; background: #fff; border-radius: 12px; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08); }
           img.product-image { width: 100%; height: 200px; object-fit: cover; border-radius: 10px; }
           .product-image-placeholder { 
@@ -5729,6 +6486,57 @@ router.get('/products', requireAdmin, async (req, res) => {
           }
           .placeholder-icon { font-size: 32px; margin-bottom: 8px; }
           .placeholder-text { font-size: 14px; font-weight: 500; }
+          .product-image-btn{
+            display:block;
+            width:100%;
+            padding:0;
+            margin:0;
+            border:none;
+            background: transparent;
+            cursor:pointer;
+          }
+          .product-image-btn:focus-visible{
+            outline: 3px solid rgba(102,126,234,0.35);
+            outline-offset: 3px;
+            border-radius: 12px;
+          }
+          .card-toggle-form{
+            position:absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 2;
+            margin: 0;
+          }
+          .card-toggle-btn{
+            width: 40px;
+            height: 40px;
+            border-radius: 14px;
+            border: 1px solid var(--admin-border-strong);
+            background: rgba(255,255,255,0.9);
+            backdrop-filter: blur(6px);
+            color: #111827;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            cursor:pointer;
+            box-shadow: 0 10px 22px rgba(17,24,39,0.08);
+          }
+          .card-toggle-btn:hover{ background: rgba(17,24,39,0.06); }
+          .card-toggle-btn svg{
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+          }
+          .card-toggle-btn.is-inactive{
+            background: #111827;
+            border-color: #111827;
+            color: #fff;
+          }
+          .card-toggle-btn.is-inactive:hover{ background: #0b0f19; }
           .alert { padding: 12px 16px; margin: 16px 0; border-radius: 8px; font-weight: 500; }
           .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
           .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
@@ -5831,31 +6639,1017 @@ router.get('/products', requireAdmin, async (req, res) => {
             background: #5a6268;
           }
         </style>
+        <script>
+          // КРИТИЧНО: Определяем функции глобально ДО загрузки HTML, чтобы они были доступны для onclick обработчиков
+          // Защита от ошибок выполнения - оборачиваем в try-catch
+          try {
+          window.editProduct = function(button) {
+            console.log('🔵 editProduct called', button);
+            
+            if (!button) {
+              console.error('❌ editProduct: button is required');
+              alert('Ошибка: кнопка не найдена');
+              return;
+            }
+            
+            // Safely extract data from button attributes
+            const productId = String(button.dataset.id || '').trim();
+            const title = String(button.dataset.title || '').trim();
+            const summary = String(button.dataset.summary || '').trim();
+            const description = String(button.dataset.description || '').trim();
+            const price = String(button.dataset.price || '0').trim();
+            const categoryId = String(button.dataset.categoryId || '').trim();
+            const isActive = String(button.dataset.active || 'false').trim() === 'true';
+            const availableInRussia = String(button.dataset.russia || 'false').trim() === 'true';
+            const availableInBali = String(button.dataset.bali || 'false').trim() === 'true';
+            const imageUrl = String(button.dataset.image || '').trim();
+            
+            console.log('📦 Product data extracted:', {
+              productId: productId.substring(0, 10) + '...',
+              title: title.substring(0, 30) + '...',
+              price,
+              categoryId,
+              isActive,
+              availableInRussia,
+              availableInBali
+            });
+            
+            if (!productId) {
+              console.error('❌ Product ID is missing');
+              alert('Ошибка: ID товара не найден');
+              return;
+            }
+            
+            // Create modal if it doesn't exist
+            let modal = document.getElementById('editProductModal');
+            if (!modal) {
+              console.log('🔵 Creating new edit modal');
+              modal = document.createElement('div');
+              modal.id = 'editProductModal';
+              modal.className = 'modal-overlay';
+              modal.style.cssText = 'display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;';
+              modal.onclick = function(e) {
+                if (e.target === modal) {
+                  window.closeEditModal();
+                }
+              };
+              const content = document.createElement('div');
+              content.className = 'modal-content';
+              content.style.cssText = 'background: white; border-radius: 12px; padding: 0; max-width: 800px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+              content.addEventListener('click', function(e) { e.stopPropagation(); });
+              // Разбиваем длинную innerHTML строку на части для предотвращения SyntaxError
+              content.innerHTML = 
+                '<div class="modal-header">' +
+                  '<h2>Редактировать товар</h2>' +
+                  '<button type="button" class="close-btn" onclick="window.closeEditModal()">&times;</button>' +
+                '</div>' +
+                '<form id="editProductForm" enctype="multipart/form-data" class="modal-form">' +
+                  '<input type="hidden" id="editProductId" name="productId" value="">' +
+                  '<div class="form-section">' +
+                    '<div class="form-section-title">Основная информация</div>' +
+                    '<div class="form-grid single">' +
+                      '<div class="form-group">' +
+                        '<label for="editProductName">Название товара</label>' +
+                        '<input type="text" id="editProductName" name="title" required placeholder="Введите название товара">' +
+                      '</div>' +
+                    '</div>' +
+                    '<div class="form-grid">' +
+                      '<div class="form-group">' +
+                        '<label for="editProductPrice">Цена в PZ</label>' +
+                        '<div class="price-input">' +
+                          '<input type="number" id="editProductPrice" name="price" step="0.01" required placeholder="0.00">' +
+                        '</div>' +
+                      '</div>' +
+                      '<div class="form-group">' +
+                        '<label for="editProductPriceRub">Цена в RUB</label>' +
+                        '<div class="price-input rub">' +
+                          '<input type="number" id="editProductPriceRub" name="priceRub" step="0.01" readonly placeholder="0.00">' +
+                        '</div>' +
+                      '</div>' +
+                    '</div>' +
+                    '<div class="form-grid">' +
+                      '<div class="form-group">' +
+                        '<label for="editProductStock">Остаток на складе</label>' +
+                        '<input type="number" id="editProductStock" name="stock" value="999" required placeholder="999">' +
+                      '</div>' +
+                      '<div class="form-group">' +
+                        '<label for="editProductCategory">Категория</label>' +
+                        '<select id="editProductCategory" name="categoryId" required>' +
+                          '<option value="">Загрузка категорий...</option>' +
+                        '</select>' +
+                      '</div>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="form-section">' +
+                    '<div class="form-section-title">Описание товара</div>' +
+                    '<div class="form-group">' +
+                      '<label for="editProductSummary">Краткое описание</label>' +
+                      '<textarea id="editProductSummary" name="summary" rows="3" placeholder="Краткое описание для карточки товара"></textarea>' +
+                    '</div>' +
+                    '<div class="form-group">' +
+                      '<label for="editProductDescription">Полное описание</label>' +
+                      '<textarea id="editProductDescription" name="description" rows="5" class="large" placeholder="Подробное описание товара, применение, состав и т.д."></textarea>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="form-section">' +
+                    '<div class="form-section-title">Настройки доставки</div>' +
+                    '<div class="form-group">' +
+                      '<label>Регионы доставки</label>' +
+                      '<div class="regions-grid">' +
+                        '<label class="switch-row">' +
+                          '<input type="checkbox" id="editProductRussia" name="availableInRussia">' +
+                          '<span class="switch-slider"></span>' +
+                          '<span class="switch-label">Россия</span>' +
+                        '</label>' +
+                        '<label class="switch-row">' +
+                          '<input type="checkbox" id="editProductBali" name="availableInBali">' +
+                          '<span class="switch-slider"></span>' +
+                          '<span class="switch-label">Бали</span>' +
+                        '</label>' +
+                      '</div>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="form-section">' +
+                    '<div class="form-section-title">Статус публикации</div>' +
+                    '<div class="status-section">' +
+                      '<label class="status-row">' +
+                        '<input type="checkbox" id="editProductStatus" name="isActive">' +
+                        '<span class="switch-slider"></span>' +
+                        '<span class="status-label">Товар активен и доступен для покупки</span>' +
+                      '</label>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="form-actions">' +
+                    '<button type="button" onclick="window.closeEditModal()">Отмена</button>' +
+                    '<button type="submit">Обновить товар</button>' +
+                  '</div>' +
+                '</form>';
+              modal.appendChild(content);
+              document.body.appendChild(modal);
+              
+              // Setup form submission handler - удаляем старый обработчик если есть
+              const editForm = document.getElementById('editProductForm');
+              if (editForm) {
+                // Удаляем старый обработчик если есть
+                const oldHandler = editForm.getAttribute('data-handler-attached');
+                if (oldHandler) {
+                  editForm.removeEventListener('submit', oldHandler);
+                }
+                
+                // Создаем новый обработчик
+                const submitHandler = function(e) {
+                e.preventDefault();
+                  e.stopPropagation();
+                  
+                  const form = e.target;
+                  const formData = new FormData(form);
+                const productId = formData.get('productId');
+                  
+                  if (!productId) {
+                    alert('Ошибка: ID товара не найден');
+                    return;
+                  }
+                
+                const formDataToSend = new FormData();
+                  formDataToSend.append('productId', String(productId));
+                  formDataToSend.append('title', String(formData.get('title') || ''));
+                  formDataToSend.append('price', String(formData.get('price') || '0'));
+                  formDataToSend.append('summary', String(formData.get('summary') || ''));
+                  formDataToSend.append('description', String(formData.get('description') || ''));
+                  formDataToSend.append('categoryId', String(formData.get('categoryId') || ''));
+                  formDataToSend.append('stock', String(formData.get('stock') || '999'));
+                  
+                  const statusCheckbox = document.getElementById('editProductStatus');
+                  const russiaCheckbox = document.getElementById('editProductRussia');
+                  const baliCheckbox = document.getElementById('editProductBali');
+                  
+                  if (statusCheckbox && statusCheckbox.checked) {
+                  formDataToSend.append('isActive', 'true');
+                  } else {
+                    formDataToSend.append('isActive', 'false');
+                }
+                  
+                  if (russiaCheckbox && russiaCheckbox.checked) {
+                  formDataToSend.append('availableInRussia', 'true');
+                  } else {
+                    formDataToSend.append('availableInRussia', 'false');
+                }
+                  
+                  if (baliCheckbox && baliCheckbox.checked) {
+                  formDataToSend.append('availableInBali', 'true');
+                  } else {
+                    formDataToSend.append('availableInBali', 'false');
+                }
+                  
+                  console.log('📤 Sending update request for product:', productId);
+                
+                fetch('/admin/products/' + productId + '/update', {
+                  method: 'POST',
+                  body: formDataToSend,
+                  credentials: 'include'
+                })
+                  .then(response => {
+                    if (!response.ok) {
+                      throw new Error('HTTP ' + response.status);
+                    }
+                    return response.json();
+                  })
+                .then(data => {
+                  if (data.success) {
+                      alert('✅ Товар успешно обновлен!');
+                    window.closeEditModal();
+                      setTimeout(() => {
+                        if (typeof window.reloadAdminProductsPreservingState === 'function') {
+                          window.reloadAdminProductsPreservingState({ success: 'product_updated' });
+                        } else {
+                    location.reload();
+                        }
+                      }, 150);
+                  } else {
+                      alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+                  }
+                })
+                .catch(error => {
+                    console.error('❌ Update error:', error);
+                    alert('❌ Ошибка при обновлении товара: ' + (error instanceof Error ? error.message : String(error)));
+                });
+              };
+                
+                editForm.addEventListener('submit', submitHandler);
+                editForm.setAttribute('data-handler-attached', 'true');
+              }
+            }
+            
+            // Helper function to decode HTML entities safely
+            const decodeHtml = function(html) {
+              if (!html) return '';
+              const txt = document.createElement('textarea');
+              txt.innerHTML = html;
+              return txt.value;
+            };
+            
+            // Fill form fields with decoded values
+            try {
+              const editProductIdEl = document.getElementById('editProductId');
+              const editProductNameEl = document.getElementById('editProductName');
+              const editProductSummaryEl = document.getElementById('editProductSummary');
+              const editProductDescriptionEl = document.getElementById('editProductDescription');
+              const editProductPriceEl = document.getElementById('editProductPrice');
+              const editProductPriceRubEl = document.getElementById('editProductPriceRub');
+              const editProductStockEl = document.getElementById('editProductStock');
+              const editProductStatusEl = document.getElementById('editProductStatus');
+              const editProductRussiaEl = document.getElementById('editProductRussia');
+              const editProductBaliEl = document.getElementById('editProductBali');
+              
+              if (!editProductIdEl || !editProductNameEl || !editProductPriceEl) {
+                console.error('❌ Required form elements not found');
+                alert('Ошибка: форма редактирования не найдена. Пожалуйста, обновите страницу.');
+                return;
+              }
+              
+              editProductIdEl.value = productId || '';
+              if (editProductNameEl) editProductNameEl.value = decodeHtml(title) || '';
+              if (editProductSummaryEl) editProductSummaryEl.value = decodeHtml(summary) || '';
+              if (editProductDescriptionEl) editProductDescriptionEl.value = decodeHtml(description) || '';
+              editProductPriceEl.value = price || '0';
+              if (editProductPriceRubEl) editProductPriceRubEl.value = ((parseFloat(price) || 0) * 100).toFixed(2);
+              if (editProductStockEl) editProductStockEl.value = '999';
+              if (editProductStatusEl) editProductStatusEl.checked = isActive;
+              if (editProductRussiaEl) editProductRussiaEl.checked = availableInRussia;
+              if (editProductBaliEl) editProductBaliEl.checked = availableInBali;
+              
+              console.log('✅ Form fields filled:', {
+                productId,
+                title: title.substring(0, 50),
+                price,
+                isActive,
+                availableInRussia,
+                availableInBali
+              });
+            } catch (error) {
+              console.error('❌ Error filling form fields:', error);
+              alert('Ошибка при загрузке данных товара: ' + (error instanceof Error ? error.message : String(error)));
+              return;
+            }
+            
+            // Load categories
+            fetch('/admin/api/categories', { credentials: 'include' })
+              .then(response => response.json())
+              .then(categories => {
+                const select = document.getElementById('editProductCategory');
+                if (select) {
+                  select.innerHTML = '<option value="">Выберите категорию</option>';
+                  categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category.id;
+                    option.textContent = category.name;
+                    if (category.id === categoryId) {
+                      option.selected = true;
+                    }
+                    select.appendChild(option);
+                  });
+                }
+              })
+              .catch(error => {
+                console.error('Error loading categories:', error);
+              });
+            
+            // Add price conversion
+            const priceInput = document.getElementById('editProductPrice');
+            const priceRubInput = document.getElementById('editProductPriceRub');
+            if (priceInput && priceRubInput) {
+              priceInput.oninput = function() {
+                const pzPrice = parseFloat(this.value) || 0;
+                priceRubInput.value = (pzPrice * 100).toFixed(2);
+              };
+              priceRubInput.oninput = function() {
+                const rubPrice = parseFloat(this.value) || 0;
+                priceInput.value = (rubPrice / 100).toFixed(2);
+              };
+            }
+            
+            // Show modal
+            console.log('✅ Showing edit modal');
+            console.log('✅ Modal element:', modal);
+            console.log('✅ Modal in DOM:', document.body.contains(modal));
+            
+            // Убеждаемся, что модальное окно в DOM
+            if (!document.body.contains(modal)) {
+              console.log('⚠️ Modal not in DOM, appending...');
+              document.body.appendChild(modal);
+            }
+            
+            // Устанавливаем стили для показа
+            modal.style.display = 'flex';
+            modal.style.alignItems = 'center';
+            modal.style.justifyContent = 'center';
+            modal.style.position = 'fixed';
+            modal.style.top = '0';
+            modal.style.left = '0';
+            modal.style.width = '100%';
+            modal.style.height = '100%';
+            modal.style.background = 'rgba(0,0,0,0.6)';
+            modal.style.zIndex = '10000';
+            
+            console.log('✅ Modal display set to:', modal.style.display);
+            console.log('✅ Modal computed style:', window.getComputedStyle(modal).display);
+            
+            // Убеждаемся, что модальное окно видимо (и не переоткрываем после закрытия)
+            try { modal.dataset.__closing = '0'; } catch (_) {}
+            if (modal.__forceShowTimer) { try { clearTimeout(modal.__forceShowTimer); } catch (_) {} }
+            modal.__forceShowTimer = setTimeout(() => {
+              try {
+                if (modal.dataset && modal.dataset.__closing === '1') return;
+              } catch (_) {}
+              const computedDisplay = window.getComputedStyle(modal).display;
+              if (computedDisplay === 'none') {
+                console.error('❌ Modal still hidden! Forcing display...');
+                modal.style.display = 'flex';
+                modal.style.visibility = 'visible';
+                modal.style.opacity = '1';
+              } else {
+                console.log('✅ Modal is visible, display:', computedDisplay);
+              }
+            }, 50);
+          };
+          } catch (e) {
+            console.error('❌ CRITICAL ERROR defining window.editProduct:', e);
+            window.editProduct = function() {
+              alert('Ошибка: функция редактирования не загружена. Обновите страницу.');
+            };
+          }
+          
+          window.closeEditModal = function() {
+            const modal = document.getElementById('editProductModal');
+            if (modal) {
+              try { modal.dataset.__closing = '1'; } catch (_) {}
+              if (modal.__forceShowTimer) { try { clearTimeout(modal.__forceShowTimer); } catch (_) {} }
+              // remove to avoid any CSS/display re-open edge cases
+              modal.remove();
+            }
+          };
+          
+          // NOTE: Инструкция удалена из карточек по требованию — не держим лишние обработчики,
+          // чтобы не ломать парсинг JS в HTML-шаблоне.
+          
+          // КРИТИЧНО: Проверяем, что функция определена
+          if (typeof window.editProduct !== 'function') {
+            console.error('❌ CRITICAL: window.editProduct is not a function after definition!');
+            window.editProduct = function() {
+              alert('Ошибка: функция редактирования не загружена. Обновите страницу.');
+            };
+          } else {
+            console.log('✅ window.editProduct successfully defined');
+          }
+
+          // ===== /admin/products UI state (filter/search/view/sort) =====
+          window.__adminProductsState = window.__adminProductsState || {
+            filter: 'all',
+            q: '',
+            view: 'cards', // cards | table
+            sort: 'title_asc' // title_asc | title_desc | category_asc | category_desc
+          };
+
+          function __safeStr(v) { try { return String(v || ''); } catch (_) { return ''; } }
+          function __norm(v) { return __safeStr(v).trim().toLowerCase(); }
+
+          window.__setAdminProductsUrl = function() {
+            try {
+              const st = window.__adminProductsState || {};
+              const url = new URL(window.location.href);
+              url.searchParams.set('filter', __safeStr(st.filter || 'all'));
+              url.searchParams.set('q', __safeStr(st.q || ''));
+              url.searchParams.set('view', __safeStr(st.view || 'cards'));
+              url.searchParams.set('sort', __safeStr(st.sort || 'title_asc'));
+              // не ломаем success/error если они есть
+              window.history.replaceState(null, '', url.toString());
+            } catch (e) {
+              console.warn('Failed to update URL state:', e);
+            }
+          };
+
+          window.__persistAdminProductsState = function() {
+            try {
+              const st = window.__adminProductsState || {};
+              localStorage.setItem('admin_products_filter', __safeStr(st.filter || 'all'));
+              localStorage.setItem('admin_products_q', __safeStr(st.q || ''));
+              localStorage.setItem('admin_products_view', __safeStr(st.view || 'cards'));
+              localStorage.setItem('admin_products_sort', __safeStr(st.sort || 'title_asc'));
+            } catch (e) {
+              console.warn('Failed to persist admin products state:', e);
+            }
+          };
+
+          window.__restoreAdminProductsState = function() {
+            try {
+              const st = window.__adminProductsState || {};
+              const url = new URL(window.location.href);
+              const sp = url.searchParams;
+              const urlFilter = sp.get('filter');
+              const urlQ = sp.get('q');
+              const urlView = sp.get('view');
+              const urlSort = sp.get('sort');
+
+              const lsFilter = localStorage.getItem('admin_products_filter');
+              const lsQ = localStorage.getItem('admin_products_q');
+              const lsView = localStorage.getItem('admin_products_view');
+              const lsSort = localStorage.getItem('admin_products_sort');
+
+              st.filter = (urlFilter !== null ? urlFilter : (lsFilter || st.filter || 'all')) || 'all';
+              st.q = (urlQ !== null ? urlQ : (lsQ || st.q || '')) || '';
+              st.view = (urlView !== null ? urlView : (lsView || st.view || 'cards')) || 'cards';
+              st.sort = (urlSort !== null ? urlSort : (lsSort || st.sort || 'title_asc')) || 'title_asc';
+              window.__adminProductsState = st;
+            } catch (e) {
+              console.warn('Failed to restore admin products state:', e);
+            }
+          };
+
+          window.__applyAdminProductsView = function() {
+            try {
+              const st = window.__adminProductsState || {};
+              const cardsWrap = document.getElementById('productsCardsContainer');
+              const tableWrap = document.getElementById('productsTableContainer');
+              const sortWrap = document.getElementById('productsSortWrap');
+              if (cardsWrap && tableWrap) {
+                if (st.view === 'table') {
+                  cardsWrap.style.display = 'none';
+                  tableWrap.style.display = 'block';
+                  if (sortWrap) sortWrap.style.display = 'flex';
+              } else {
+                  tableWrap.style.display = 'none';
+                  cardsWrap.style.display = 'block';
+                  if (sortWrap) sortWrap.style.display = 'none';
+                }
+              }
+              const btnCards = document.getElementById('viewCardsBtn');
+              const btnTable = document.getElementById('viewTableBtn');
+              if (btnCards && btnCards.classList && btnTable && btnTable.classList) {
+                btnCards.classList.toggle('active', st.view !== 'table');
+                btnTable.classList.toggle('active', st.view === 'table');
+              }
+            } catch (e) {
+              console.warn('Failed to apply view:', e);
+            }
+          };
+
+          window.__sortAdminProductsTable = function() {
+            try {
+              const st = window.__adminProductsState || {};
+              const table = document.getElementById('productsTable');
+              if (!table) return;
+              const tbody = table.querySelector('tbody');
+              if (!tbody) return;
+              const rows = Array.from(tbody.querySelectorAll('tr'));
+              const sort = __safeStr(st.sort || 'title_asc');
+              const by = sort.startsWith('category') ? 'category' : 'title';
+              const dir = sort.endsWith('_desc') ? -1 : 1;
+              rows.sort((a, b) => {
+                const av = __norm(a.getAttribute('data-' + by));
+                const bv = __norm(b.getAttribute('data-' + by));
+                if (av < bv) return -1 * dir;
+                if (av > bv) return 1 * dir;
+                return 0;
+              });
+              rows.forEach(r => tbody.appendChild(r));
+            } catch (e) {
+              console.warn('Failed to sort table:', e);
+            }
+          };
+
+          window.__applyAdminProductsFilters = function() {
+            try {
+              const st = window.__adminProductsState || {};
+              const filter = __safeStr(st.filter || 'all');
+              const q = __norm(st.q || '');
+
+              const cards = document.querySelectorAll('.product-card');
+              cards.forEach(card => {
+                const catOk = (filter === 'all' || __safeStr(card.dataset.category) === filter);
+                const title = __norm(card.getAttribute('data-title') || '');
+                const sku = __norm(card.getAttribute('data-sku') || '');
+                const qOk = (!q || title.includes(q) || sku.includes(q));
+                card.style.display = (catOk && qOk) ? 'flex' : 'none';
+              });
+
+              const rows = document.querySelectorAll('#productsTable tbody tr');
+              rows.forEach(row => {
+                const rowCat = __safeStr(row.getAttribute('data-category-id') || '');
+                const catOk = (filter === 'all' || rowCat === filter);
+                const title = __norm(row.getAttribute('data-title') || '');
+                const sku = __norm(row.getAttribute('data-sku') || '');
+                const qOk = (!q || title.includes(q) || sku.includes(q));
+                row.style.display = (catOk && qOk) ? '' : 'none';
+              });
+
+              // active button
+              const buttons = document.querySelectorAll('.filter-btn');
+              buttons.forEach(btn => btn.classList.remove('active'));
+              const activeBtn = document.querySelector('.filter-btn[data-filter="' + filter.replace(/"/g, '\\"') + '"]');
+              if (activeBtn && activeBtn.classList) activeBtn.classList.add('active');
+
+              window.__applyAdminProductsView();
+              window.__sortAdminProductsTable();
+              window.__persistAdminProductsState();
+              window.__setAdminProductsUrl();
+            } catch (e) {
+              console.error('applyAdminProductsFilters error:', e);
+            }
+          };
+
+          window.setAdminProductsView = function(view) {
+            const st = window.__adminProductsState || {};
+            st.view = (view === 'table') ? 'table' : 'cards';
+            window.__adminProductsState = st;
+            window.__applyAdminProductsFilters();
+          };
+
+          window.setAdminProductsSort = function(sort) {
+            const st = window.__adminProductsState || {};
+            st.sort = __safeStr(sort || 'title_asc') || 'title_asc';
+            window.__adminProductsState = st;
+            window.__applyAdminProductsFilters();
+          };
+
+          window.setAdminProductsSearch = function(value) {
+            const st = window.__adminProductsState || {};
+            st.q = __safeStr(value || '');
+            window.__adminProductsState = st;
+            window.__applyAdminProductsFilters();
+          };
+
+          // КРИТИЧНО: фильтры категорий должны работать даже если нижний <script> сломается
+          window.filterProducts = function(button) {
+            try {
+              const filter = button && button.dataset ? button.dataset.filter : 'all';
+              const st = window.__adminProductsState || {};
+              st.filter = __safeStr(filter || 'all') || 'all';
+              window.__adminProductsState = st;
+              window.__applyAdminProductsFilters();
+            } catch (e) {
+              console.error('filterProducts error:', e);
+            }
+          };
+
+          window.reloadAdminProductsPreservingState = function(extraParams) {
+            try {
+              const st = window.__adminProductsState || {};
+              const url = new URL(window.location.href);
+              url.searchParams.set('filter', __safeStr(st.filter || 'all'));
+              url.searchParams.set('q', __safeStr(st.q || ''));
+              url.searchParams.set('view', __safeStr(st.view || 'cards'));
+              url.searchParams.set('sort', __safeStr(st.sort || 'title_asc'));
+              if (extraParams && typeof extraParams === 'object') {
+                Object.keys(extraParams).forEach(k => {
+                  if (extraParams[k] === null || typeof extraParams[k] === 'undefined') return;
+                  url.searchParams.set(k, __safeStr(extraParams[k]));
+                });
+              }
+              window.location.href = url.toString();
+            } catch (e) {
+              console.warn('reloadAdminProductsPreservingState failed, fallback reload:', e);
+              window.location.reload();
+            }
+          };
+
+          // ===== Table thumbnails modal (preview + replace image) =====
+          window.__tableImageModalState = window.__tableImageModalState || { productId: null, title: '' };
+
+          window.openTableImageModal = function(productId, imageUrl, title) {
+            try {
+              const modal = document.getElementById('tableImageModal');
+              const img = document.getElementById('tableImageModalImg');
+              const titleEl = document.getElementById('tableImageModalTitle');
+              const empty = document.getElementById('tableImageModalEmpty');
+              const pid = __safeStr(productId);
+              if (!modal || !img || !titleEl || !pid) return;
+
+              window.__tableImageModalState.productId = pid;
+              window.__tableImageModalState.title = __safeStr(title);
+              titleEl.textContent = __safeStr(title) || 'Фото товара';
+
+              const src = __safeStr(imageUrl);
+              if (src) {
+                img.src = src;
+                img.style.display = 'block';
+                if (empty) empty.style.display = 'none';
+              } else {
+                img.removeAttribute('src');
+                img.style.display = 'none';
+                if (empty) empty.style.display = 'block';
+              }
+
+              modal.style.display = 'flex';
+              modal.onclick = function(e) { if (e && e.target === modal) window.closeTableImageModal(); };
+            } catch (e) {
+              console.error('openTableImageModal error:', e);
+            }
+          };
+
+          window.closeTableImageModal = function() {
+            try {
+              const modal = document.getElementById('tableImageModal');
+              const input = document.getElementById('tableImageFileInput');
+              const img = document.getElementById('tableImageModalImg');
+              const empty = document.getElementById('tableImageModalEmpty');
+              if (modal) modal.style.display = 'none';
+              if (input) input.value = '';
+              if (img) { img.removeAttribute('src'); img.style.display = 'none'; }
+              if (empty) empty.style.display = 'block';
+              window.__tableImageModalState.productId = null;
+              window.__tableImageModalState.title = '';
+            } catch (_) {}
+          };
+
+          window.triggerTableImageReplace = function() {
+            try {
+              const input = document.getElementById('tableImageFileInput');
+              if (input) input.click();
+            } catch (_) {}
+          };
+
+          window.handleTableImageFileSelected = async function(inputEl) {
+            try {
+              const pid = window.__tableImageModalState && window.__tableImageModalState.productId;
+              if (!pid) return;
+              if (!inputEl || !inputEl.files || !inputEl.files[0]) return;
+
+              const btn = document.getElementById('tableImageReplaceBtn');
+              const oldText = btn ? btn.textContent : '';
+              if (btn) { btn.disabled = true; btn.textContent = 'Загрузка...'; }
+
+              const formData = new FormData();
+              formData.append('image', inputEl.files[0]);
+
+              const resp = await fetch('/admin/products/' + encodeURIComponent(pid) + '/upload-image', {
+                method: 'POST',
+                body: formData,
+                credentials: 'include'
+              });
+
+              if (resp && resp.ok) {
+                window.closeTableImageModal();
+                if (typeof window.reloadAdminProductsPreservingState === 'function') {
+                  window.reloadAdminProductsPreservingState({ success: 'image_updated', view: 'table' });
+                } else {
+                  location.reload();
+                }
+              } else {
+                alert('❌ Ошибка загрузки фото (HTTP ' + (resp ? resp.status : '0') + ')');
+              }
+
+              if (btn) { btn.disabled = false; btn.textContent = oldText || 'Заменить фото'; }
+            } catch (e) {
+              console.error('handleTableImageFileSelected error:', e);
+              alert('❌ Ошибка: ' + (e && e.message ? e.message : String(e)));
+              try {
+                const btn = document.getElementById('tableImageReplaceBtn');
+                if (btn) { btn.disabled = false; btn.textContent = 'Заменить фото'; }
+              } catch (_) {}
+            }
+          };
+
+          // КРИТИЧНО: галерея "Выбрать из загруженных" должна работать даже если нижний <script> сломается
+          if (typeof window.closeImageGallery !== 'function') {
+            window.closeImageGallery = function() {
+              const modal = document.getElementById('imageGalleryModal');
+              if (modal) modal.remove();
+              try {
+                const html = document.documentElement;
+                const body = document.body;
+                const prevHtml = html.getAttribute('data-prev-overflow');
+                const prevBody = body.getAttribute('data-prev-overflow');
+                if (prevHtml !== null) html.style.overflow = prevHtml;
+                if (prevBody !== null) body.style.overflow = prevBody;
+                html.removeAttribute('data-prev-overflow');
+                body.removeAttribute('data-prev-overflow');
+              } catch (_) {}
+            };
+          }
+
+          if (typeof window.selectGalleryImage !== 'function') {
+            window.selectGalleryImage = async function(imageUrl, productId) {
+              try {
+                if (!imageUrl || !productId) return;
+                const response = await fetch('/admin/api/products/' + encodeURIComponent(productId) + '/select-image', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({ imageUrl: String(imageUrl).trim() })
+                });
+                const result = await response.json().catch(() => ({}));
+                if (response.ok && result && result.success) {
+                  window.closeImageGallery();
+                  setTimeout(() => location.reload(), 300);
+                } else {
+                  alert('❌ Ошибка: ' + (result.error || ('HTTP ' + response.status)));
+                }
+              } catch (e) {
+                alert('❌ Ошибка: ' + (e instanceof Error ? e.message : String(e)));
+              }
+            };
+          }
+
+          if (typeof window.loadGalleryImages !== 'function') {
+            window.loadGalleryImages = async function(productId) {
+              const galleryContent = document.getElementById('galleryContent');
+              if (!galleryContent) return;
+              const previewImg = document.getElementById('galleryPreviewImg');
+              const openBtn = document.getElementById('galleryOpenBtn');
+              const chooseBtn = document.getElementById('galleryChooseBtn');
+              const modal = document.getElementById('imageGalleryModal');
+              try {
+                const response = await fetch('/admin/api/products/images', { credentials: 'include' });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok || !result.success || !Array.isArray(result.images) || result.images.length === 0) {
+                  galleryContent.innerHTML = '<div style="grid-column: span 999; text-align:center; padding:30px; color:#6b7280;">Нет загруженных изображений</div>';
+                  return;
+                }
+                let html = '';
+                result.images.forEach((imageData) => {
+                  const imageUrl = imageData.url || '';
+                  const escapedUrl = encodeURIComponent(String(imageUrl));
+                  html +=
+                    '<button type="button" class="gallery-item" data-image-url="' + escapedUrl + '" data-product-id="' + String(productId) + '" ' +
+                      'style="border:2px solid #e2e8f0; border-radius:14px; overflow:hidden; cursor:pointer; background:#fff; padding:0; width:160px; height:160px; display:flex; align-items:center; justify-content:center;">' +
+                        '<img src="' + String(imageUrl).replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '" style="width:100%; height:100%; object-fit:contain; display:block; background:#ffffff;" alt="img" data-onerror-hide="true" />' +
+                    '</button>';
+                });
+                galleryContent.innerHTML = html;
+                galleryContent.onclick = function(e) {
+                  const target = e.target;
+                  const el = (target && target.nodeType === 1) ? target : (target && target.parentElement ? target.parentElement : null);
+                  if (!el) return;
+                  const item = el.closest('.gallery-item');
+                  if (!item) return;
+                  const encoded = item.getAttribute('data-image-url') || '';
+                  const imageUrl = encoded ? decodeURIComponent(encoded) : '';
+                  const pid = item.getAttribute('data-product-id') || '';
+                  if (modal) modal.setAttribute('data-selected-url', imageUrl);
+                  if (previewImg) previewImg.src = imageUrl;
+                  if (openBtn) openBtn.disabled = !imageUrl;
+                  if (chooseBtn) chooseBtn.disabled = !imageUrl;
+                  // highlight selection
+                  const all = galleryContent.querySelectorAll('.gallery-item');
+                  all.forEach((b) => { b.style.borderColor = '#e2e8f0'; b.style.boxShadow = 'none'; });
+                  item.style.borderColor = '#6366f1';
+                  item.style.boxShadow = '0 8px 18px rgba(99,102,241,0.20)';
+                };
+
+                // preselect first image for better UX
+                const first = galleryContent.querySelector('.gallery-item');
+                if (first && first.getAttribute) {
+                  const firstEncoded = first.getAttribute('data-image-url') || '';
+                  const firstUrl = firstEncoded ? decodeURIComponent(firstEncoded) : '';
+                  if (modal) modal.setAttribute('data-selected-url', firstUrl);
+                  if (previewImg) previewImg.src = firstUrl;
+                  if (openBtn) openBtn.disabled = !firstUrl;
+                  if (chooseBtn) chooseBtn.disabled = !firstUrl;
+                  first.style.borderColor = '#6366f1';
+                  first.style.boxShadow = '0 8px 18px rgba(99,102,241,0.20)';
+                }
+              } catch (e) {
+                galleryContent.innerHTML = '<div style="grid-column: span 999; text-align:center; padding:30px; color:#dc2626;">Ошибка загрузки галереи</div>';
+              }
+            };
+          }
+
+          if (typeof window.openImageGallery !== 'function') {
+            window.openImageGallery = function(productId) {
+              try {
+                if (!productId) return;
+                // Lock background scroll (desktop-safe)
+                try {
+                  const html = document.documentElement;
+                  const body = document.body;
+                  if (!html.hasAttribute('data-prev-overflow')) html.setAttribute('data-prev-overflow', html.style.overflow || '');
+                  if (!body.hasAttribute('data-prev-overflow')) body.setAttribute('data-prev-overflow', body.style.overflow || '');
+                  html.style.overflow = 'hidden';
+                  body.style.overflow = 'hidden';
+                } catch (_) {}
+                const existingModal = document.getElementById('imageGalleryModal');
+                if (existingModal) existingModal.remove();
+                const modal = document.createElement('div');
+                modal.id = 'imageGalleryModal';
+                modal.className = 'modal-overlay';
+                modal.style.cssText = 'display:flex; z-index:12000;';
+                modal.innerHTML =
+                  '<div class="modal-content" style="max-width:1100px; width:min(1100px, 96vw); height:92vh;">' +
+                    '<div class="modal-header">' +
+                      '<h2 style="margin:0; font-size:18px;">Выбрать изображение</h2>' +
+                      '<button type="button" id="closeGalleryBtn" class="close-btn">&times;</button>' +
+                    '</div>' +
+                    '<div class="modal-body" style="padding:12px; overflow:hidden; flex:1; min-height:0; display:grid; grid-template-columns: minmax(300px, 420px) 1fr; gap:12px;">' +
+                      '<div style="border:1px solid var(--admin-border); border-radius:14px; overflow:hidden; background:#f8fafc; display:flex; flex-direction:column; min-height:0;">' +
+                        '<div style="padding:10px 12px; border-bottom:1px solid var(--admin-border); display:flex; gap:10px; align-items:center; justify-content:space-between;">' +
+                          '<div style="font-weight:900; font-size:13px; color:var(--admin-text);">Предпросмотр</div>' +
+                          '<button type="button" id="galleryOpenBtn" class="btn" disabled style="height:34px; padding:0 12px; border-radius:12px; font-weight:900;">Увеличить</button>' +
+                        '</div>' +
+                        '<div style="flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:10px;">' +
+                          '<img id="galleryPreviewImg" src="" alt="preview" style="max-width:100%; max-height:100%; object-fit:contain; background:#fff; border-radius:12px; border:1px solid var(--admin-border);" />' +
+                        '</div>' +
+                      '</div>' +
+                      '<div id="galleryContent" style="min-height:0; height:100%; overflow:auto; overscroll-behavior: contain; display:grid; grid-template-columns: repeat(auto-fill, 160px); grid-auto-rows:160px; gap:12px; padding:2px; align-content:start; justify-content:start;">' +
+                        '<div style="grid-column: span 999; text-align:center; padding:30px; color:var(--admin-muted);">Загрузка...</div>' +
+                      '</div>' +
+                    '</div>' +
+                    '<div class="modal-footer" style="display:flex; gap:10px; justify-content:flex-end;">' +
+                      '<button type="button" id="galleryCancelBtn" class="btn">Отмена</button>' +
+                      '<button type="button" id="galleryChooseBtn" class="btn btn-success" disabled>Выбрать</button>' +
+                    '</div>' +
+                  '</div>';
+                const shell = document.querySelector('.admin-shell');
+                (shell || document.body).appendChild(modal);
+                modal.onclick = function(e) { if (e.target === modal) window.closeImageGallery(); };
+                // NOTE: do not block wheel/touch events here.
+                // Background scroll is locked via html/body overflow:hidden, and galleryContent has overflow:auto.
+                const closeBtn = document.getElementById('closeGalleryBtn');
+                if (closeBtn) closeBtn.onclick = function() { window.closeImageGallery(); };
+                const cancelBtn = document.getElementById('galleryCancelBtn');
+                if (cancelBtn) cancelBtn.onclick = function() { window.closeImageGallery(); };
+                const openBtn = document.getElementById('galleryOpenBtn');
+                if (openBtn) openBtn.onclick = function() {
+                  const u = modal.getAttribute('data-selected-url') || '';
+                  if (!u) return;
+                  // Large preview as UI-kit modal (no new tab)
+                  const existing = document.getElementById('galleryFullscreen');
+                  if (existing) existing.remove();
+                  const fs = document.createElement('div');
+                  fs.id = 'galleryFullscreen';
+                  fs.className = 'modal-overlay';
+                  fs.style.cssText = 'display:flex; z-index:12001;';
+                  fs.innerHTML =
+                    '<div class="modal-content" style="max-width: 1100px; width:min(1100px, 96vw); max-height: 90vh;">' +
+                      '<div class="modal-header">' +
+                        '<h2 style="margin:0; font-size:16px;">Предпросмотр</h2>' +
+                        '<button type="button" class="close-btn" id="galleryFsClose">&times;</button>' +
+                      '</div>' +
+                      '<div class="modal-body" style="padding:14px; overflow:hidden; display:flex; align-items:center; justify-content:center; min-height: 60vh;">' +
+                        '<img src="' + String(u).replace(/"/g, '&quot;').replace(/'/g, '&#39;') + '" style="max-width:100%; max-height:78vh; object-fit:contain; background:#fff; border-radius:12px; border:1px solid var(--admin-border);" />' +
+                      '</div>' +
+                    '</div>';
+                  const shell2 = document.querySelector('.admin-shell');
+                  (shell2 || document.body).appendChild(fs);
+                  fs.onclick = function(e2){ if (e2 && e2.target === fs) fs.remove(); };
+                  const c = document.getElementById('galleryFsClose');
+                  if (c) c.onclick = function(){ fs.remove(); };
+                };
+                const chooseBtn = document.getElementById('galleryChooseBtn');
+                if (chooseBtn) chooseBtn.onclick = function() {
+                  const u = modal.getAttribute('data-selected-url') || '';
+                  if (u && typeof window.selectGalleryImage === 'function') window.selectGalleryImage(u, productId);
+                };
+                if (typeof window.loadGalleryImages === 'function') window.loadGalleryImages(productId);
+              } catch (e) {
+                alert('❌ Ошибка галереи: ' + (e instanceof Error ? e.message : String(e)));
+              }
+            };
+          }
+
+          // КРИТИЧНО: модалка подтверждения удаления должна работать даже если нижний <script> сломается
+          window.__pendingDeleteForm = null;
+          window.openConfirmDeleteModal = function(deleteForm) {
+            try {
+              const modal = document.getElementById('confirmDeleteModal');
+              const text = document.getElementById('confirmDeleteText');
+              const btn = document.getElementById('confirmDeleteBtn');
+              if (!modal || !text || !btn) {
+                // fallback
+                if (deleteForm && typeof deleteForm.submit === 'function') deleteForm.submit();
+                return;
+              }
+
+              const title = (deleteForm && deleteForm.getAttribute && deleteForm.getAttribute('data-product-title')) || '';
+              text.textContent = title
+                ? ('Вы точно хотите удалить товар: ' + title + '? Это действие нельзя отменить.')
+                : 'Вы точно хотите удалить этот товар? Это действие нельзя отменить.';
+
+              window.__pendingDeleteForm = deleteForm || null;
+              modal.style.display = 'flex';
+              modal.onclick = function(e) {
+                if (e.target === modal) window.closeConfirmDeleteModal();
+              };
+              btn.onclick = function() {
+                const form = window.__pendingDeleteForm;
+                window.closeConfirmDeleteModal();
+                if (form && typeof form.submit === 'function') form.submit();
+              };
+            } catch (e) {
+              console.error('openConfirmDeleteModal error:', e);
+              if (deleteForm && typeof deleteForm.submit === 'function') deleteForm.submit();
+            }
+          };
+
+          window.closeConfirmDeleteModal = function() {
+            const modal = document.getElementById('confirmDeleteModal');
+            if (modal) modal.style.display = 'none';
+            window.__pendingDeleteForm = null;
+          };
+        </script>
       </head>
       <body>
-        <h2>🛍 Управление товарами</h2>
-        <a href="/admin" class="btn">← Назад</a>
+        ${renderAdminShellStart({ title: 'Товары', activePath: '/admin/products', buildMarker })}
+        <div class="admin-page-row">
+          <button type="button" class="btn" onclick="try{ if(typeof window.openAddProductModal==='function'){ window.openAddProductModal(); } else { window.location.href='/admin/products?openAdd=1'; } }catch(e){}">Добавить товар</button>
+          <button type="button" class="btn" onclick="scrapeAllImages()">Собрать фото</button>
+          <button type="button" class="btn" onclick="moveAllToCosmetics()">Переместить в «Косметика»</button>
+        </div>
         
         ${req.query.success === 'image_updated' ? '<div class="alert alert-success">✅ Фото успешно обновлено!</div>' : ''}
-        ${req.query.success === 'product_deleted' ? '<div class="alert alert-success">✅ Товар успешно удален!</div>' : ''}
         ${req.query.error === 'no_image' ? '<div class="alert alert-error">❌ Файл не выбран</div>' : ''}
         ${req.query.error === 'image_upload' ? '<div class="alert alert-error">❌ Ошибка загрузки фото</div>' : ''}
+        ${req.query.error === 'cloudinary_not_configured' ? '<div class="alert alert-error">❌ Загрузка фото недоступна: Cloudinary не настроен (нужны CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET на Railway).</div>' : ''}
         ${req.query.error === 'product_not_found' ? '<div class="alert alert-error">❌ Товар не найден</div>' : ''}
-        ${req.query.error === 'product_delete_failed' ? '<div class="alert alert-error">❌ Ошибка удаления товара</div>' : ''}
+        ${req.query.success === 'images_scraped' ? '<div class="alert alert-success">✅ Фото успешно собраны! Проверьте результаты ниже.</div>' : ''}
+        
+        <div id="scraping-status" style="display: none; margin: 20px 0; padding: 15px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid #2196f3;">
+          <h3 style="margin: 0 0 10px 0; color: #1976d2;">📸 Сбор фотографий...</h3>
+          <div id="scraping-progress" style="color: #666; font-size: 14px;">Инициализация...</div>
+        </div>
 
-        <div class="filters">
-          <button type="button" class="filter-btn active" data-filter="all">Все категории (${allProducts.length})</button>
+        <div class="filters" style="gap: 10px;">
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; width:100%; margin-bottom:10px;">
+            <div style="display:flex; gap:8px; align-items:center; flex:1; min-width:260px;">
+              <input id="adminProductsSearch" type="search" placeholder="Поиск по названию или SKU..." autocomplete="off"
+                style="flex:1; padding:10px 12px; border:1px solid #d1d5db; border-radius:10px; font-size:14px;"
+                oninput="if(typeof window.setAdminProductsSearch==='function'){window.setAdminProductsSearch(this.value);}">
+              <button type="button" class="filter-btn" style="min-width:120px;"
+                id="viewCardsBtn"
+                onclick="if(typeof window.setAdminProductsView==='function'){window.setAdminProductsView('cards');}return false;">Карточки</button>
+              <button type="button" class="filter-btn" style="min-width:120px;"
+                id="viewTableBtn"
+                onclick="if(typeof window.setAdminProductsView==='function'){window.setAdminProductsView('table');}return false;">Таблица</button>
+            </div>
+            <div id="productsSortWrap" style="display:none; gap:8px; align-items:center;">
+              <span style="color:#6b7280; font-size:13px;">Сортировка:</span>
+              <select id="adminProductsSort" style="padding:10px 12px; border:1px solid #d1d5db; border-radius:10px; font-size:14px;"
+                onchange="if(typeof window.setAdminProductsSort==='function'){window.setAdminProductsSort(this.value);}">
+                <option value="title_asc">Название (А-Я)</option>
+                <option value="title_desc">Название (Я-А)</option>
+                <option value="category_asc">Категория (А-Я)</option>
+                <option value="category_desc">Категория (Я-А)</option>
+              </select>
+            </div>
+          </div>
+          <button type="button" class="filter-btn active" onclick="if(typeof window.filterProducts==='function'){window.filterProducts(this);}return false;" data-filter="all">Все категории (${allProducts.length})</button>
     `;
 
     categories.forEach((category) => {
       html += `
-          <button type="button" class="filter-btn" data-filter="${category.id}">${category.name} (${category.products.length})</button>
+          <button type="button" class="filter-btn" onclick="if(typeof window.filterProducts==='function'){window.filterProducts(this);}return false;" data-filter="${category.id}">${category.name} (${category.products.length})</button>
       `;
     });
 
     html += `
+          <button type="button" class="filter-btn add-category-btn" onclick="openAddCategoryModal()" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; border: none;">
+            ➕ Категорию
+          </button>
+          <button type="button" class="filter-btn add-subcategory-btn" onclick="openAddSubcategoryModal()" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); color: white; border: none;">
+            ➕ Подкатегорию
+          </button>
         </div>
 
+        <div id="productsCardsContainer">
         <div class="product-grid">
     `;
 
@@ -5871,462 +7665,1373 @@ router.get('/products', requireAdmin, async (req, res) => {
       `;
       return res.send(html);
     }
+    // Helper function to escape HTML attributes safely
+    // Улучшенная функция экранирования для HTML атрибутов
+    const escapeAttr = (str: string | null | undefined): string => {
+      if (!str) return '';
+      try {
+        // Сначала нормализуем и очищаем строку
+        let result = String(str)
+          .trim()
+          // Удаляем все управляющие символы и null байты
+          .replace(/[\x00-\x1F\x7F-\u009F]/g, '')
+          // Удаляем специальные разделители строк
+          .replace(/\u2028/g, ' ')
+          .replace(/\u2029/g, ' ')
+          // Заменяем все виды переносов строк на пробелы
+          .replace(/[\r\n]+/g, ' ')
+          .replace(/\r/g, ' ')
+          .replace(/\n/g, ' ')
+          // Заменяем табуляцию и множественные пробелы
+          .replace(/\t/g, ' ')
+          .replace(/\s+/g, ' ')
+          // Удаляем потенциально проблемные символы Unicode
+          .replace(/[\u200B-\u200D\uFEFF]/g, '');
+
+        // Затем экранируем специальные символы HTML в правильном порядке
+        result = result
+          .replace(/&/g, '&amp;') // Must be first
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;') // Двойные кавычки
+          .replace(/'/g, '&#39;') // Одинарные кавычки
+          .replace(/`/g, '&#96;'); // Обратные кавычки
+
+        // Ограничиваем длину для предотвращения очень длинных атрибутов
+        if (result.length > 10000) {
+          result = result.substring(0, 10000) + '...';
+        }
+
+        return result;
+      } catch (error) {
+        console.error('Error in escapeAttr:', error);
+        return ''; // В случае ошибки возвращаем пустую строку
+      }
+    };
+
+    // Helper function to escape HTML content safely
+    const escapeHtml = (str: string | null | undefined): string => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    };
+
     allProducts.forEach((product) => {
       const rubPrice = (product.price * 100).toFixed(2);
-      const priceFormatted = `${rubPrice} ₽ / ${product.price.toFixed(2)} PZ`;
+      const priceFormatted = `${rubPrice} руб. / ${product.price.toFixed(2)} PZ`;
       const createdAt = new Date(product.createdAt).toLocaleDateString();
-      const imageSection = product.imageUrl
-        ? `<img src="${product.imageUrl}" alt="${product.title}" class="product-image" loading="lazy">`
+      const imageId = `product-img-${product.id.replace(/[^a-zA-Z0-9]/g, '-')}`;
+      const placeholderId = `product-placeholder-${product.id.replace(/[^a-zA-Z0-9]/g, '-')}`;
+
+      const innerImageSection = product.imageUrl
+        ? `<img id="${imageId}" src="${escapeAttr(product.imageUrl)}" alt="${escapeAttr(product.title)}" class="product-image" loading="lazy" data-onerror-img="${imageId}" data-onerror-placeholder="${placeholderId}">
+           <div id="${placeholderId}" class="product-image-placeholder" style="display: none;">
+             <span class="placeholder-icon">📷</span>
+             <span class="placeholder-text">Нет фото</span>
+           </div>`
         : `<div class="product-image-placeholder">
              <span class="placeholder-icon">📷</span>
              <span class="placeholder-text">Нет фото</span>
            </div>`;
 
+      const imageSection = `
+            <button type="button" class="product-image-btn"
+              data-product-id="${escapeAttr(product.id)}"
+              data-title="${escapeAttr(product.title)}"
+              data-image="${escapeAttr(product.imageUrl)}"
+              aria-label="Открыть фото товара">
+              ${innerImageSection}
+            </button>
+      `;
+
       html += `
-          <div class="product-card" data-category="${product.categoryId}" data-id="${product.id}">
+          <div class="product-card"
+               data-category="${escapeAttr(product.categoryId)}"
+               data-id="${escapeAttr(product.id)}"
+               data-title="${escapeAttr(product.title)}"
+               data-sku="${escapeAttr(((product as any).sku || ''))}">
+            <form method="post" action="/admin/products/${escapeAttr(product.id)}/toggle-active" class="card-toggle-form" title="${product.isActive ? 'Отключить' : 'Включить'}">
+              <button type="submit" class="card-toggle-btn ${product.isActive ? 'is-active' : 'is-inactive'}" aria-label="${product.isActive ? 'Отключить товар' : 'Включить товар'}" onclick="event.stopPropagation();">
+                ${ICONS.power}
+              </button>
+            </form>
             ${imageSection}
             <div class="product-header">
-              <h3 class="product-title">${product.title}</h3>
-              <form method="post" action="/admin/products/${product.id}/toggle-active" style="display: inline;">
-                <button type="submit" class="status-btn ${product.isActive ? 'active' : 'inactive'}" style="border: none; background: none; cursor: pointer; font-size: 12px; padding: 4px 8px; border-radius: 4px;">
-                  ${product.isActive ? '✅ Активен' : '❌ Неактивен'}
-                </button>
-              </form>
+              <h3 class="product-title">
+                ${escapeHtml(product.title)}
+                ${(product.description || '').includes('скопировано') ? ' 📷' : ''}
+              </h3>
+              <span class="badge ${product.isActive ? 'badge-status-active' : 'badge-status-inactive'}">${product.isActive ? 'Активен' : 'Отключен'}</span>
             </div>
-            <span class="badge badge-category">${product.categoryName}</span>
+            ${(product.description || '').includes('скопировано') ? '<div style="margin: 4px 0; font-size: 11px; color: #f59e0b; background: #fef3c7; padding: 4px 8px; border-radius: 4px; display: inline-block;"><strong>📷 Копия фото</strong></div>' : ''}
+            ${(product as any).sku ? `<div style="margin: 4px 0; font-size: 12px; color: #6b7280;"><strong>ID товара (Item):</strong> <span style="color: #1f2937; font-weight: 600;">${escapeHtml((product as any).sku)}</span></div>` : ''}
+            <span class="badge badge-category">${escapeHtml(product.categoryName)}</span>
             <div style="margin: 8px 0;">
               <span style="font-size: 12px; color: #666;">Регионы:</span>
               ${(product as any).availableInRussia ? '<span style="background: #e3f2fd; color: #1976d2; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px;">🇷🇺 Россия</span>' : ''}
               ${(product as any).availableInBali ? '<span style="background: #f3e5f5; color: #7b1fa2; padding: 2px 6px; border-radius: 4px; font-size: 11px;">🇮🇩 Бали</span>' : ''}
             </div>
-            <p class="product-summary">${product.summary}</p>
+            <p class="product-summary">${escapeHtml(product.summary)}</p>
             <div class="product-price">${priceFormatted}</div>
             <div class="product-meta">
               <span>Создан: ${createdAt}</span>
-              <span>ID: ${product.id.slice(0, 8)}...</span>
+              <span>ID: ${escapeHtml(product.id.slice(0, 8))}...</span>
             </div>
             <div class="product-actions">
               <button 
                 type="button" 
-                class="edit-btn"
-                data-id="${product.id}"
-                data-title="${product.title.replace(/"/g, '&quot;')}"
-                data-summary="${(product.summary || '').replace(/"/g, '&quot;')}"
-                data-description="${(product.description || '').replace(/"/g, '&quot;')}"
-                data-instruction="${((product as any).instruction || '').replace(/"/g, '&quot;')}"
+                class="btn-action btn-solid-black edit-btn"
+                data-id="${escapeAttr(product.id)}"
+                data-title="${escapeAttr(product.title)}"
+                data-summary="${escapeAttr(product.summary)}"
+                data-description="${escapeAttr((product.description || '').substring(0, 5000))}"
+                data-instruction="${escapeAttr(((product as any).instruction || '').substring(0, 5000))}"
                 data-price="${product.price}"
-                data-category-id="${product.categoryId}"
+                data-category-id="${escapeAttr(product.categoryId)}"
                 data-active="${product.isActive ? 'true' : 'false'}"
                 data-russia="${(product as any).availableInRussia ? 'true' : 'false'}"
                 data-bali="${(product as any).availableInBali ? 'true' : 'false'}"
-                data-image="${product.imageUrl || ''}"
-                onclick="editProduct(this)"
-              >✏️ Редактировать</button>
-              <form method="post" action="/admin/products/${product.id}/toggle-active">
-                <button type="submit" class="toggle-btn">${product.isActive ? 'Отключить' : 'Включить'}</button>
-              </form>
-              <form method="post" action="/admin/products/${product.id}/upload-image" enctype="multipart/form-data" style="display: inline;">
-                <input type="file" name="image" accept="image/*" style="display: none;" id="image-${product.id}" onchange="this.form.submit()">
-                <button type="button" class="image-btn" onclick="document.getElementById('image-${product.id}').click()">📷 ${product.imageUrl ? 'Изменить фото' : 'Добавить фото'}</button>
-              </form>
-              <button class="instruction-btn" onclick="showInstruction('${product.id}', \`${((product as any).instruction || '').replace(/`/g, '\\`').replace(/'/g, "\\'")}\`)" style="background: #28a745;">📋 Инструкция</button>
-              <form method="post" action="/admin/products/${product.id}/delete" onsubmit="return confirm('Удалить товар «${product.title}»?')">
-                <button type="submit" class="delete-btn">Удалить</button>
+                data-image="${escapeAttr(product.imageUrl)}"
+                onclick="if(typeof window.editProduct==='function'){window.editProduct(this);}else{alert('Ошибка: функция редактирования не загружена. Обновите страницу.');}return false;"
+              ><span class="btn-ico">${ICONS.pencil}</span><span>Редактировать</span></button>
+              <form method="post" action="/admin/products/${escapeAttr(product.id)}/delete" class="delete-product-form" data-product-id="${escapeAttr(product.id)}" data-product-title="${escapeAttr(product.title)}">
+                <button type="button" class="btn-action btn-solid-danger delete-btn"><span class="btn-ico">${ICONS.trash}</span><span>Удалить</span></button>
               </form>
             </div>
           </div>
       `;
     });
     html += `
+          </div>
+        </div>
+
+        <div id="productsTableContainer" style="display:none; margin-top: 14px;">
+          <div style="overflow:auto; background:#fff; border-radius:12px; box-shadow: 0 6px 16px rgba(0,0,0,0.08); border:1px solid #e5e7eb;">
+            <table id="productsTable" style="width:100%; border-collapse: collapse; min-width: 980px;">
+              <thead>
+                <tr style="background:#f9fafb; text-align:left;">
+                  <th style="padding:12px; border-bottom:1px solid #e5e7eb; width:72px;">Фото</th>
+                  <th style="padding:12px; border-bottom:1px solid #e5e7eb;">Название</th>
+                  <th style="padding:12px; border-bottom:1px solid #e5e7eb;">SKU</th>
+                  <th style="padding:12px; border-bottom:1px solid #e5e7eb;">Категория</th>
+                  <th style="padding:12px; border-bottom:1px solid #e5e7eb;">Статус</th>
+                  <th style="padding:12px; border-bottom:1px solid #e5e7eb;">Цена</th>
+                  <th style="padding:12px; border-bottom:1px solid #e5e7eb;">Действия</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${allProducts.map((p) => {
+                  const rubPrice = (p.price * 100).toFixed(2);
+                  const priceFormatted = rubPrice + ' руб. / ' + p.price.toFixed(2) + ' PZ';
+                  const sku = String((p as any).sku || '').trim();
+                  const imgUrl = String((p as any).imageUrl || '').trim();
+                  return (
+                    '<tr ' +
+                      'data-id="' + escapeAttr(p.id) + '" ' +
+                      'data-category-id="' + escapeAttr(p.categoryId) + '" ' +
+                      'data-category="' + escapeAttr(p.categoryName) + '" ' +
+                      'data-title="' + escapeAttr(p.title) + '" ' +
+                      'data-sku="' + escapeAttr(sku) + '">' +
+                      '<td style="padding:10px 12px; border-bottom:1px solid #f1f5f9;">' +
+                        '<button type="button" class="table-thumb" ' +
+                          'data-product-id="' + escapeAttr(p.id) + '" ' +
+                          'data-title="' + escapeAttr(p.title) + '" ' +
+                          'data-image="' + escapeAttr(imgUrl) + '" ' +
+                          'style="width:48px; height:48px; border-radius:10px; overflow:hidden; border:1px solid #e5e7eb; background:#f9fafb; padding:0; cursor:pointer; display:flex; align-items:center; justify-content:center;"' +
+                        '>' +
+                          (imgUrl
+                            ? ('<img src="' + escapeAttr(imgUrl) + '" alt="" style="width:100%; height:100%; object-fit:cover; display:block;" loading="lazy">')
+                            : ('<span style="font-size:16px; color:#9ca3af;">📷</span>')
+                          ) +
+                        '</button>' +
+                      '</td>' +
+                      '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' + escapeHtml(p.title) + '</td>' +
+                      '<td style="padding:12px; border-bottom:1px solid #f1f5f9; color:#6b7280;">' + (sku ? escapeHtml(sku) : '-') + '</td>' +
+                      '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' + escapeHtml(p.categoryName) + '</td>' +
+                      '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' + (p.isActive ? '✅ Активен' : '❌ Неактивен') + '</td>' +
+                      '<td style="padding:12px; border-bottom:1px solid #f1f5f9; white-space:nowrap;">' + priceFormatted + '</td>' +
+                      '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' +
+                        '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
+                          '<button type="button" class="btn-action btn-compact btn-solid-black edit-btn" ' +
+                            'data-id="' + escapeAttr(p.id) + '" ' +
+                            'data-title="' + escapeAttr(p.title) + '" ' +
+                            'data-summary="' + escapeAttr(p.summary) + '" ' +
+                            'data-description="' + escapeAttr((p.description || '').substring(0, 5000)) + '" ' +
+                            'data-instruction="' + escapeAttr((((p as any).instruction || '') as string).substring(0, 5000)) + '" ' +
+                            'data-price="' + (p.price as any) + '" ' +
+                            'data-category-id="' + escapeAttr(p.categoryId) + '" ' +
+                            'data-active="' + (p.isActive ? 'true' : 'false') + '" ' +
+                            'data-russia="' + ((p as any).availableInRussia ? 'true' : 'false') + '" ' +
+                            'data-bali="' + ((p as any).availableInBali ? 'true' : 'false') + '" ' +
+                            'data-image="' + escapeAttr(p.imageUrl) + '" ' +
+                            'onclick="if(typeof window.editProduct===\'function\'){window.editProduct(this);}else{alert(\'Ошибка: функция редактирования не загружена.\');} return false;"' +
+                          '><span class="btn-ico">' + ICONS.pencil + '</span><span>Редактировать</span></button>' +
+                          '<form method="post" action="/admin/products/' + escapeAttr(p.id) + '/toggle-active" style="display:inline;">' +
+                            '<button type="submit" class="btn-action btn-compact btn-outline toggle-btn"><span class="btn-ico">' + ICONS.power + '</span><span>' + (p.isActive ? 'Отключить' : 'Включить') + '</span></button>' +
+                          '</form>' +
+                          '<form method="post" action="/admin/products/' + escapeAttr(p.id) + '/delete" class="delete-product-form" data-product-id="' + escapeAttr(p.id) + '" data-product-title="' + escapeAttr(p.title) + '" style="display:inline;">' +
+                            '<button type="button" class="btn-action btn-compact btn-solid-danger delete-btn"><span class="btn-ico">' + ICONS.trash + '</span><span>Удалить</span></button>' +
+                          '</form>' +
+                        '</div>' +
+                      '</td>' +
+                    '</tr>'
+                  );
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Modal: table image preview + replace -->
+        <div id="tableImageModal" class="modal-overlay" style="display:none; z-index: 12000;">
+          <div class="modal-content" style="max-width: 820px; width: 92%; padding: 0; overflow: hidden;">
+            <div class="modal-header" style="display:flex; align-items:center; justify-content:space-between;">
+              <h2 id="tableImageModalTitle" style="margin:0; font-size:16px;">Фото товара</h2>
+              <button class="close-btn" type="button" onclick="window.closeTableImageModal()">&times;</button>
+            </div>
+            <div style="padding: 16px 18px; background:#fff; display:grid; grid-template-columns: 1fr; gap: 14px;">
+              <div style="display:flex; align-items:center; justify-content:center; background:#f9fafb; border:1px solid #e5e7eb; border-radius:12px; min-height: 360px;">
+                <img id="tableImageModalImg" src="" alt="" style="max-width: 100%; max-height: 520px; object-fit: contain; display:none;">
+                <div id="tableImageModalEmpty" style="color:#9ca3af; font-size:14px;">Нет фото</div>
+              </div>
+              <div style="display:flex; gap:10px; justify-content:flex-end; align-items:center; flex-wrap:wrap;">
+                <button type="button" class="btn-action btn-outline" onclick="try{ if(typeof window.openImageGallery==='function' && window.__tableImageModalState && window.__tableImageModalState.productId){ window.openImageGallery(window.__tableImageModalState.productId);} }catch(e){}"><span class="btn-ico">${ICONS.image}</span><span>Выбрать из загруженных</span></button>
+                <button type="button" class="btn-action btn-outline" id="tableImageReplaceBtn" onclick="window.triggerTableImageReplace()"><span class="btn-ico">${ICONS.camera}</span><span>Заменить фото</span></button>
+                <button type="button" class="btn-action btn-outline" onclick="window.closeTableImageModal()">Закрыть</button>
+              </div>
+              <input id="tableImageFileInput" type="file" accept="image/*" style="display:none" onchange="window.handleTableImageFileSelected(this)">
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal for adding category -->
+        <div id="addCategoryModal" class="modal-overlay" style="display: none;">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2>➕ Добавить категорию</h2>
+              <button class="close-btn" onclick="closeAddCategoryModal()">&times;</button>
+            </div>
+            <form id="addCategoryForm" class="modal-form">
+              <div class="form-group">
+                <label for="categoryName">Название категории</label>
+                <input type="text" id="categoryName" name="name" autocomplete="off" required placeholder="Например: Косметика">
+              </div>
+              <div class="form-group">
+                <label for="categoryDescription">Описание (необязательно)</label>
+                <textarea id="categoryDescription" name="description" rows="3" placeholder="Описание категории"></textarea>
+              </div>
+              <div class="form-actions">
+                <button type="button" onclick="closeAddCategoryModal()">❌ Отмена</button>
+                <button type="submit">✅ Создать категорию</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Modal for adding subcategory -->
+        <div id="addSubcategoryModal" class="modal-overlay" style="display: none;">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2>➕ Добавить подкатегорию</h2>
+              <button class="close-btn" onclick="closeAddSubcategoryModal()">&times;</button>
+            </div>
+            <form id="addSubcategoryForm" class="modal-form">
+              <div class="form-group">
+                <label for="subcategoryName">Название подкатегории</label>
+                <input type="text" id="subcategoryName" name="name" autocomplete="off" required placeholder="Например: Кремы для лица">
+              </div>
+              <div class="form-group">
+                <label for="subcategoryParent">Родительская категория</label>
+                <select id="subcategoryParent" name="parentId" required>
+                  <option value="">Выберите категорию...</option>
+                  ${categories.map(cat => '<option value="' + cat.id + '">' + cat.name + '</option>').join('')}
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="subcategoryDescription">Описание (необязательно)</label>
+                <textarea id="subcategoryDescription" name="description" rows="3" placeholder="Описание подкатегории"></textarea>
+              </div>
+              <div class="form-actions">
+                <button type="button" onclick="closeAddSubcategoryModal()">❌ Отмена</button>
+                <button type="submit">✅ Создать подкатегорию</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Modal: confirm delete product -->
+        <div id="confirmDeleteModal" class="modal-overlay" style="display: none; z-index: 11000;">
+          <div class="modal-content" style="max-width: 520px;">
+            <div class="modal-header">
+              <h2>🗑️ Удалить товар?</h2>
+              <button class="close-btn" type="button" onclick="window.closeConfirmDeleteModal()">&times;</button>
+            </div>
+            <div class="modal-form" style="padding: 20px 28px;">
+              <p id="confirmDeleteText" style="margin: 0; color: #374151; font-size: 14px; line-height: 1.5;">
+                Вы точно хотите удалить этот товар? Это действие нельзя отменить.
+              </p>
+            </div>
+            <div class="form-actions">
+              <button type="button" onclick="window.closeConfirmDeleteModal()">Отмена</button>
+              <button type="button" id="confirmDeleteBtn" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white;">Удалить</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal: create product -->
+        <div id="createProductModal" class="modal-overlay" style="display:none; z-index: 12000;">
+          <div class="modal-content" style="max-width: 920px; width: min(920px, 96vw);">
+            <div class="modal-header">
+              <h2 style="margin:0;">Добавить товар</h2>
+              <button class="close-btn" type="button" onclick="window.closeAddProductModal()">&times;</button>
+            </div>
+            <form id="createProductForm" class="modal-form">
+              <div class="form-group" style="display:grid; grid-template-columns: 1fr 160px 160px; gap:12px;">
+                <div>
+                  <label for="cpName">Название *</label>
+                  <input id="cpName" name="name" type="text" required placeholder="Введите название товара">
+                </div>
+                <div>
+                  <label for="cpPriceRub">Цена (₽) *</label>
+                  <input id="cpPriceRub" type="number" min="0" step="1" required placeholder="0">
+                  <div style="font-size:12px; color:#6b7280; margin-top:6px;">1 PZ = 100 ₽</div>
+                </div>
+                <div>
+                  <label for="cpPricePz">Цена (PZ) *</label>
+                  <input id="cpPricePz" name="price" type="number" min="0" step="0.01" required placeholder="0.00">
+                  <div style="font-size:12px; color:#6b7280; margin-top:6px;">1 PZ = 100 ₽</div>
+                </div>
+              </div>
+
+              <div class="form-group" style="display:grid; grid-template-columns: 1fr 200px 180px; gap:12px;">
+                <div>
+                  <label for="cpCategory">Категория *</label>
+                  <select id="cpCategory" name="categoryId" required>
+                    <option value="">Загрузка...</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="cpStock">Количество на складе</label>
+                  <input id="cpStock" name="stock" type="number" min="0" step="1" placeholder="999">
+                </div>
+                <div style="display:flex; align-items:flex-end; gap:10px;">
+                  <label style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--admin-border-strong); border-radius:12px; background:#fff; width:100%;">
+                    <input id="cpActive" type="checkbox" checked>
+                    <span style="font-weight:700;">Активен</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="cpSku">ID товара (Item / SKU)</label>
+                <input id="cpSku" name="sku" type="text" placeholder="Например: SP0021-230 (если пусто — сгенерируем автоматически)">
+              </div>
+
+              <div class="form-group" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+                <label style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--admin-border-strong); border-radius:12px; background:#fff;">
+                  <input id="cpRussia" type="checkbox" checked>
+                  <span style="font-weight:700;">Россия</span>
+                </label>
+                <label style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--admin-border-strong); border-radius:12px; background:#fff;">
+                  <input id="cpBali" type="checkbox">
+                  <span style="font-weight:700;">Бали</span>
+                </label>
+              </div>
+
+              <div class="form-group">
+                <label for="cpSummary">Краткое описание *</label>
+                <textarea id="cpSummary" name="shortDescription" rows="4" maxlength="200" required placeholder="Краткое описание (до 200 символов)"></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="cpDescription">Полное описание *</label>
+                <textarea id="cpDescription" name="fullDescription" rows="6" required placeholder="Полное описание товара"></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="cpInstruction">Инструкция (опционально)</label>
+                <textarea id="cpInstruction" name="instruction" rows="4" placeholder="Инструкция"></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="cpImage">Фото (опционально)</label>
+                <input id="cpImage" type="file" accept="image/*">
+                <div style="font-size:12px; color:#6b7280; margin-top:6px;">Квадратное фото 1:1, ~800x800px, JPG/PNG</div>
+              </div>
+
+              <div class="form-actions">
+                <button type="button" onclick="window.closeAddProductModal()">Отмена</button>
+                <button type="submit">Создать</button>
+              </div>
+            </form>
+          </div>
         </div>
 
         <script>
-          const filterButtons = document.querySelectorAll('.filter-btn');
-          const cards = document.querySelectorAll('.product-card');
-
-          filterButtons.forEach((button) => {
-            button.addEventListener('click', () => {
-              const filter = button.dataset.filter;
-
-              filterButtons.forEach((btn) => btn.classList.remove('active'));
-              button.classList.add('active');
-
-              cards.forEach((card) => {
-                if (filter === 'all' || card.dataset.category === filter) {
-                  card.style.display = 'flex';
-                } else {
-                  card.style.display = 'none';
-                }
-              });
-            });
-          });
+          // Определяем функции глобально ДО загрузки страницы - сразу, не в IIFE
+          'use strict';
           
-          // Simple function for editing products
-          function editProduct(button) {
-            const productId = button.dataset.id;
-            const title = button.dataset.title;
-            const summary = button.dataset.summary;
-            const description = button.dataset.description;
-            const price = button.dataset.price;
-            const categoryId = button.dataset.categoryId;
-            const isActive = button.dataset.active === 'true';
-            const availableInRussia = button.dataset.russia === 'true';
-            const availableInBali = button.dataset.bali === 'true';
-            const imageUrl = button.dataset.image;
-            
-            // Create modal if it doesn't exist
-            let modal = document.getElementById('editProductModal');
-            if (!modal) {
-              modal = document.createElement('div');
-              modal.id = 'editProductModal';
-              modal.innerHTML = \`
-                <div class="modal-overlay" onclick="closeEditModal()">
-                  <div class="modal-content" onclick="event.stopPropagation()">
-                    <div class="modal-header">
-                      <h2>✏️ Редактировать товар</h2>
-                      <button class="close-btn" onclick="closeEditModal()">&times;</button>
-                    </div>
-                    
-                    <form id="editProductForm" enctype="multipart/form-data" class="modal-form">
-                      <input type="hidden" id="editProductId" name="productId" value="">
-                      
-                      <div class="form-section">
-                        <div class="form-section-title">Основная информация</div>
-                        <div class="form-grid single">
-                          <div class="form-group">
-                            <label for="editProductName">Название товара</label>
-                            <input type="text" id="editProductName" name="title" required placeholder="Введите название товара">
-                          </div>
-                        </div>
-                        
-                        <div class="form-grid">
-                          <div class="form-group">
-                            <label for="editProductPrice">Цена в PZ</label>
-                            <div class="price-input">
-                              <input type="number" id="editProductPrice" name="price" step="0.01" required placeholder="0.00">
-                            </div>
-                          </div>
-                          <div class="form-group">
-                            <label for="editProductPriceRub">Цена в RUB</label>
-                            <div class="price-input rub">
-                              <input type="number" id="editProductPriceRub" name="priceRub" step="0.01" readonly placeholder="0.00">
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div class="form-grid">
-                          <div class="form-group">
-                            <label for="editProductStock">Остаток на складе</label>
-                            <input type="number" id="editProductStock" name="stock" value="999" required placeholder="999">
-                          </div>
-                          <div class="form-group">
-                            <label for="editProductCategory">Категория</label>
-                            <select id="editProductCategory" name="categoryId" required>
-                              <option value="">Загрузка категорий...</option>
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div class="form-section">
-                        <div class="form-section-title">Описание товара</div>
-                        <div class="form-group">
-                          <label for="editProductSummary">Краткое описание</label>
-                          <textarea id="editProductSummary" name="summary" rows="3" placeholder="Краткое описание для карточки товара"></textarea>
-                        </div>
-                        
-                        <div class="form-group">
-                          <label for="editProductDescription">Полное описание</label>
-                          <textarea id="editProductDescription" name="description" rows="5" class="large" placeholder="Подробное описание товара, применение, состав и т.д."></textarea>
-                        </div>
-                      </div>
-                      
-                      <div class="form-section">
-                        <div class="form-section-title">Настройки доставки</div>
-                        <div class="form-group">
-                          <label>Регионы доставки</label>
-                          <div class="regions-grid">
-                            <label class="switch-row">
-                              <input type="checkbox" id="editProductRussia" name="availableInRussia">
-                              <span class="switch-slider"></span>
-                              <span class="switch-label">🇷🇺 Россия</span>
-                            </label>
-                            <label class="switch-row">
-                              <input type="checkbox" id="editProductBali" name="availableInBali">
-                              <span class="switch-slider"></span>
-                              <span class="switch-label">🇮🇩 Бали</span>
-                            </label>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div class="form-section">
-                        <div class="form-section-title">Статус публикации</div>
-                        <div class="status-section">
-                          <label class="status-row">
-                            <input type="checkbox" id="editProductStatus" name="isActive">
-                            <span class="switch-slider"></span>
-                            <span class="status-label">✅ Товар активен и доступен для покупки</span>
-                          </label>
-                        </div>
-                      </div>
-                      
-                      <div class="form-actions">
-                        <button type="button" onclick="closeEditModal()">❌ Отмена</button>
-                        <button type="submit">💾 Обновить товар</button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              \`;
-              document.body.appendChild(modal);
+          // NOTE: window.editProduct, window.closeEditModal, и window.showInstructionSafe уже определены в <head>
+          // Они доступны ДО загрузки HTML, поэтому onclick обработчики будут работать
+
+          // ===== Create product modal (for /admin/products) =====
+          window.openAddProductModal = async function() {
+            try {
+              const modal = document.getElementById('createProductModal');
+              const form = document.getElementById('createProductForm');
+              if (!modal || !form) return;
+
+              // reset
+              try { form.reset(); } catch (_) {}
+              const activeEl = document.getElementById('cpActive');
+              const ruEl = document.getElementById('cpRussia');
+              const baliEl = document.getElementById('cpBali');
+              const stockEl = document.getElementById('cpStock');
+              const skuEl = document.getElementById('cpSku');
+              if (activeEl) activeEl.checked = true;
+              if (ruEl) ruEl.checked = true;
+              if (baliEl) baliEl.checked = false;
+              if (stockEl) stockEl.value = '999';
+              if (skuEl) skuEl.value = '';
+
+              // load categories
+              const select = document.getElementById('cpCategory');
+              if (select) {
+                select.innerHTML = '<option value="">Загрузка...</option>';
+                try {
+                  const resp = await fetch('/admin/api/categories', { credentials: 'include' });
+                  const cats = await resp.json().catch(() => []);
+                  const arr = Array.isArray(cats) ? cats : [];
+                  select.innerHTML = '<option value="">Выберите категорию</option>' +
+                    arr.map(c => '<option value="' + String(c.id).replace(/"/g,'&quot;') + '">' + String(c.name || '').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</option>').join('');
+                } catch (e) {
+                  select.innerHTML = '<option value="">Ошибка загрузки категорий</option>';
+                }
+              }
+
+              modal.style.display = 'flex';
+              modal.onclick = function(e){ if (e && e.target === modal) window.closeAddProductModal(); };
+            } catch (e) {
+              console.error('openAddProductModal error:', e);
+              alert('Ошибка открытия формы добавления товара');
             }
-            
-            // Fill form fields
-            document.getElementById('editProductId').value = productId;
-            document.getElementById('editProductName').value = title;
-            document.getElementById('editProductSummary').value = summary;
-            document.getElementById('editProductDescription').value = description;
-            document.getElementById('editProductPrice').value = price;
-            document.getElementById('editProductPriceRub').value = (price * 100).toFixed(2);
-            document.getElementById('editProductStock').value = '999';
-            document.getElementById('editProductStatus').checked = isActive;
-            document.getElementById('editProductRussia').checked = availableInRussia;
-            document.getElementById('editProductBali').checked = availableInBali;
-            
-            // Load categories
-            fetch('/admin/api/categories', { credentials: 'include' })
-              .then(response => response.json())
-              .then(categories => {
-                const select = document.getElementById('editProductCategory');
-                select.innerHTML = '<option value="">Выберите категорию</option>';
-                categories.forEach(category => {
-                  const option = document.createElement('option');
-                  option.value = category.id;
-                  option.textContent = category.name;
-                  if (category.id === categoryId) {
-                    option.selected = true;
-                  }
-                  select.appendChild(option);
-                });
-              });
-            
-            // Add price conversion functionality
-            document.getElementById('editProductPrice').addEventListener('input', function() {
-              const pzPrice = parseFloat(this.value) || 0;
-              const rubPrice = pzPrice * 100;
-              document.getElementById('editProductPriceRub').value = rubPrice.toFixed(2);
-            });
-            
-            document.getElementById('editProductPriceRub').addEventListener('input', function() {
-              const rubPrice = parseFloat(this.value) || 0;
-              const pzPrice = rubPrice / 100;
-              document.getElementById('editProductPrice').value = pzPrice.toFixed(2);
-            });
-            
-            // Fix checkbox functionality for regions and status
-            const regionCheckboxes = ['editProductRussia', 'editProductBali', 'editProductStatus'];
-            regionCheckboxes.forEach(id => {
-              const checkbox = document.getElementById(id);
-              const switchRow = checkbox.closest('.switch-row') || checkbox.closest('.status-row');
-              
-              if (switchRow) {
-                switchRow.addEventListener('click', function(e) {
-                  e.preventDefault();
-                  checkbox.checked = !checkbox.checked;
-                  checkbox.dispatchEvent(new Event('change'));
-                });
+          };
+
+          window.closeAddProductModal = function() {
+            try {
+              const modal = document.getElementById('createProductModal');
+              const form = document.getElementById('createProductForm');
+              const img = document.getElementById('cpImage');
+              if (modal) modal.style.display = 'none';
+              if (form) { try { form.reset(); } catch (_) {} }
+              if (img) img.value = '';
+            } catch (_) {}
+          };
+
+          (function(){
+            // price sync (RUB <-> PZ)
+            const rub = document.getElementById('cpPriceRub');
+            const pz = document.getElementById('cpPricePz');
+            function syncFromRub(){
+              try{
+                const v = parseFloat(rub.value || '0');
+                if (!isFinite(v)) return;
+                pz.value = (v / 100).toFixed(2);
+              }catch(_){}
+            }
+            function syncFromPz(){
+              try{
+                const v = parseFloat(pz.value || '0');
+                if (!isFinite(v)) return;
+                rub.value = String(Math.round(v * 100));
+              }catch(_){}
+            }
+            if (rub && pz) {
+              rub.addEventListener('input', syncFromRub);
+              pz.addEventListener('input', syncFromPz);
+            }
+
+            // auto-open via ?openAdd=1
+            try{
+              const url = new URL(window.location.href);
+              if (url.searchParams.get('openAdd') === '1') {
+                url.searchParams.delete('openAdd');
+                window.history.replaceState({}, '', url.toString());
+                if (typeof window.openAddProductModal === 'function') window.openAddProductModal();
               }
-            });
-            
-            // Show modal
-            modal.style.display = 'block';
-            
-            // Handle form submission
-            document.getElementById('editProductForm').onsubmit = function(e) {
+            }catch(_){}
+
+            // submit
+            const form = document.getElementById('createProductForm');
+            if (!form) return;
+            form.addEventListener('submit', async function(e){
               e.preventDefault();
-              const formData = new FormData(this);
-              const productId = formData.get('productId');
-              
-              // Ensure checkboxes are properly handled
-              const formDataToSend = new FormData();
-              const editPriceInput = document.getElementById('editProductPrice');
-              const editPriceRubInput = document.getElementById('editProductPriceRub');
-              let editPriceValue = formData.get('price') || '';
-              if ((!editPriceValue || Number(editPriceValue) === 0) && editPriceRubInput) {
-                const rubValue = parseFloat(editPriceRubInput.value) || 0;
-                if (rubValue > 0 && editPriceInput) {
-                  editPriceValue = (rubValue / 100).toFixed(2);
-                  editPriceInput.value = editPriceValue;
-                }
-              }
-              formDataToSend.append('productId', productId);
-              formDataToSend.append('title', formData.get('title') || '');
-              formDataToSend.append('price', editPriceValue || formData.get('price') || '0');
-              formDataToSend.append('summary', formData.get('summary') || '');
-              formDataToSend.append('description', formData.get('description') || '');
-              formDataToSend.append('categoryId', formData.get('categoryId') || '');
-              formDataToSend.append('stock', formData.get('stock') || '999');
-              
-              // Handle checkboxes properly - only send if checked
-              if (document.getElementById('editProductStatus').checked) {
-                formDataToSend.append('isActive', 'true');
-              }
-              if (document.getElementById('editProductRussia').checked) {
-                formDataToSend.append('availableInRussia', 'true');
-              }
-              if (document.getElementById('editProductBali').checked) {
-                formDataToSend.append('availableInBali', 'true');
-              }
-              
-              fetch(\`/admin/products/\${productId}/update\`, {
-                method: 'POST',
-                body: formDataToSend,
-                credentials: 'include'
-              })
-              .then(response => response.json())
-              .then(data => {
-                if (data.success) {
-                  alert('Товар успешно обновлен!');
-                  closeEditModal();
-                  location.reload();
+              const submitBtn = form.querySelector('button[type="submit"]');
+              const oldText = submitBtn ? submitBtn.textContent : '';
+              if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Создание...'; }
+              try{
+                const fd = new FormData();
+                fd.append('name', (document.getElementById('cpName').value || '').trim());
+                fd.append('price', String(document.getElementById('cpPricePz').value || '0'));
+                fd.append('categoryId', String(document.getElementById('cpCategory').value || ''));
+                fd.append('stock', String(document.getElementById('cpStock').value || '0'));
+                fd.append('sku', String(document.getElementById('cpSku').value || '').trim());
+                fd.append('shortDescription', String(document.getElementById('cpSummary').value || ''));
+                fd.append('fullDescription', String(document.getElementById('cpDescription').value || ''));
+                fd.append('instruction', String(document.getElementById('cpInstruction').value || ''));
+                fd.append('active', (document.getElementById('cpActive').checked ? 'true' : 'false'));
+                fd.append('availableInRussia', (document.getElementById('cpRussia').checked ? 'true' : 'false'));
+                fd.append('availableInBali', (document.getElementById('cpBali').checked ? 'true' : 'false'));
+                const img = document.getElementById('cpImage');
+                if (img && img.files && img.files[0]) fd.append('image', img.files[0]);
+
+                const resp = await fetch('/admin/api/products', { method:'POST', body: fd, credentials:'include' });
+                const result = await resp.json().catch(() => ({}));
+                if (resp.ok && result && result.success) {
+                  window.closeAddProductModal();
+                  if (typeof window.reloadAdminProductsPreservingState === 'function') {
+                    window.reloadAdminProductsPreservingState({ success: 'product_created' });
+                  } else {
+                    window.location.reload();
+                  }
                 } else {
-                  alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+                  alert('Ошибка: ' + (result && result.error ? result.error : ('HTTP ' + resp.status)));
                 }
-              })
-              .catch(error => {
-                alert('Ошибка: ' + (error instanceof Error ? error.message : String(error)));
-              });
-            };
-          }
+              }catch(err){
+                console.error('create product error:', err);
+                alert('Ошибка: ' + (err && err.message ? err.message : String(err)));
+              }finally{
+                if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = oldText || 'Создать'; }
+              }
+            });
+          })();
           
-          // Function to close edit modal
-          function closeEditModal() {
-            const modal = document.getElementById('editProductModal');
+          // Category modal functions
+          window.openAddCategoryModal = function() {
+            const modal = document.getElementById('addCategoryModal');
+            if (modal) {
+              modal.style.display = 'flex';
+            }
+          };
+          
+          window.closeAddCategoryModal = function() {
+            const modal = document.getElementById('addCategoryModal');
             if (modal) {
               modal.style.display = 'none';
             }
-          }
-          
-          // Instruction modal functions
-          window.showInstruction = function(productId, instructionText) {
-            const modal = document.createElement('div');
-            modal.className = 'instruction-modal';
-            modal.innerHTML = \`
-              <div class="instruction-overlay" onclick="closeInstruction()">
-                <div class="instruction-content" onclick="event.stopPropagation()">
-                  <div class="instruction-header">
-                    <h3>📋 Инструкция по применению</h3>
-                    <button class="btn-close" onclick="closeInstruction()">×</button>
-                  </div>
-                  <div class="instruction-body">
-                    <div class="instruction-text" id="instructionText" style="display: none;">\${instructionText.replace(/\\n/g, '<br>')}</div>
-                    <div class="instruction-edit" id="instructionEdit" style="display: block;">
-                      <textarea id="instructionTextarea" placeholder="Введите инструкцию по применению товара..." style="width: 100%; height: 200px; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical;">\${instructionText}</textarea>
-                    </div>
-                  </div>
-                  <div class="instruction-footer">
-                    <button class="btn btn-save" onclick="saveInstruction('\${productId}')" style="background: #28a745; margin-right: 8px;">💾 Сохранить</button>
-                    <button class="btn btn-cancel" onclick="cancelInstruction()" style="background: #6c757d; margin-right: 8px;">❌ Отмена</button>
-                    <button class="btn btn-delete" onclick="deleteInstruction('\${productId}')" style="background: #dc3545; margin-right: 8px;">🗑️ Удалить</button>
-                    <button class="btn btn-secondary" onclick="closeInstruction()">Закрыть</button>
-                  </div>
-                </div>
-              </div>
-            \`;
-            
-            document.body.appendChild(modal);
-            
-            // Add animation
-            setTimeout(() => {
-              const content = modal.querySelector('.instruction-content');
-              if (content) {
-                content.style.transform = 'scale(1)';
-              }
-            }, 10);
-          };
-          
-          window.closeInstruction = function() {
-            const modal = document.querySelector('.instruction-modal');
-            if (modal) {
-              const content = modal.querySelector('.instruction-content');
-              if (content) {
-                content.style.transform = 'scale(0.8)';
-              }
-              setTimeout(() => {
-                modal.remove();
-              }, 200);
+            const form = document.getElementById('addCategoryForm');
+            if (form) {
+              form.reset();
             }
           };
           
-          window.editInstruction = function(productId) {
-            // Redirect to product edit page
-            window.location.href = '/admin/products?edit=' + productId;
+          window.openAddSubcategoryModal = function() {
+            const modal = document.getElementById('addSubcategoryModal');
+            if (modal) {
+              modal.style.display = 'flex';
+            }
           };
           
-          window.deleteInstruction = function(productId) {
-            if (confirm('Вы уверены, что хотите удалить инструкцию для этого товара?')) {
-              // Send request to delete instruction
-              fetch('/admin/products/' + productId + '/delete-instruction', {
+          window.closeAddSubcategoryModal = function() {
+            const modal = document.getElementById('addSubcategoryModal');
+            if (modal) {
+              modal.style.display = 'none';
+            }
+            const form = document.getElementById('addSubcategoryForm');
+            if (form) {
+              form.reset();
+            }
+          };
+
+          // Delete confirmation modal is defined in <head> (to survive any errors in this script block)
+          
+          // Function to move all products to "Косметика" category
+          window.moveAllToCosmetics = async function() {
+            if (!confirm('⚠️ Переместить ВСЕ продукты в категорию ' + String.fromCharCode(34) + 'Косметика' + String.fromCharCode(34) + '?\\n\\nЭто действие изменит категорию для всех товаров в базе данных.')) {
+              return;
+            }
+            
+            try {
+              const response = await fetch('/admin/api/move-all-to-cosmetics', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              const result = await response.json();
+              
+              if (result.success) {
+                alert('✅ Успешно!\\n\\nПеремещено продуктов: ' + (result.movedCount || 0) + '\\nКатегория: \"' + (result.categoryName || 'Косметика') + '\"');
+                location.reload();
+              } else {
+                alert('❌ Ошибка: ' + (result.error || 'Не удалось переместить продукты'));
+              }
+            } catch (error) {
+              console.error('Error moving products:', error);
+              alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
+            }
+          };
+
+          // Function to filter products
+          // NOTE: основная реализация уже определена в <head> (с поиском/видом/сортировкой).
+          // Не перезатираем её здесь, чтобы не ломать сохранение состояния.
+          if (typeof window.filterProducts !== 'function') {
+          window.filterProducts = function(button) {
+              try {
+                const filter = button && button.dataset ? button.dataset.filter : 'all';
+            const cards = document.querySelectorAll('.product-card');
+            cards.forEach(card => {
+              if (filter === 'all' || card.dataset.category === filter) {
+                card.style.display = 'flex';
+              } else {
+                card.style.display = 'none';
+              }
+            });
+              } catch (e) {
+                console.error('filterProducts fallback error:', e);
+              }
+            };
+          }
+          
+          // NOTE: window.editProduct and window.closeEditModal already defined at the beginning of script
+          
+          // Handle category form submission
+          document.addEventListener('DOMContentLoaded', function() {
+            // Restore admin products UI state (filter/search/view/sort)
+            try {
+              if (typeof window.__restoreAdminProductsState === 'function') window.__restoreAdminProductsState();
+              const st = window.__adminProductsState || {};
+              const searchInput = document.getElementById('adminProductsSearch');
+              if (searchInput) searchInput.value = String(st.q || '');
+              const sortSelect = document.getElementById('adminProductsSort');
+              if (sortSelect) sortSelect.value = String(st.sort || 'title_asc');
+              // Apply filter button if exists
+              const filterBtn = document.querySelector('.filter-btn[data-filter="' + String(st.filter || 'all').replace(/"/g, '\\"') + '"]');
+              if (filterBtn && typeof window.filterProducts === 'function') {
+                window.filterProducts(filterBtn);
+              } else if (typeof window.__applyAdminProductsFilters === 'function') {
+                window.__applyAdminProductsFilters();
+              }
+            } catch (e) {
+              console.warn('Failed to restore UI state:', e);
+            }
+
+            const categoryForm = document.getElementById('addCategoryForm');
+            if (categoryForm) {
+              categoryForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const name = document.getElementById('categoryName').value.trim();
+                const description = document.getElementById('categoryDescription').value.trim();
+                
+                if (!name) {
+                  alert('Введите название категории');
+                  return;
+                }
+                
+                try {
+                  const response = await fetch('/admin/api/categories', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ name, description })
+                  });
+                  
+                  const result = await response.json();
+                  
+                  if (result.success) {
+                    alert('✅ Категория успешно создана!');
+                    closeAddCategoryModal();
+                    location.reload();
+                  } else {
+                    alert('❌ Ошибка: ' + (result.error || 'Не удалось создать категорию'));
+                  }
+                } catch (error) {
+                  alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
+                }
+              });
+            }
+            
+            // Handle subcategory form submission (creates as regular category for now)
+            const subcategoryForm = document.getElementById('addSubcategoryForm');
+            if (subcategoryForm) {
+              subcategoryForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const name = document.getElementById('subcategoryName').value.trim();
+                const parentId = document.getElementById('subcategoryParent').value;
+                const description = document.getElementById('subcategoryDescription').value.trim();
+                
+                if (!name) {
+                  alert('Введите название подкатегории');
+                  return;
+                }
+                
+                if (!parentId) {
+                  alert('Выберите родительскую категорию');
+                  return;
+                }
+                
+                try {
+                  // For now, create as regular category (parentId support can be added later)
+                  const response = await fetch('/admin/api/categories', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ name, description, parentId })
+                  });
+                  
+                  const result = await response.json();
+                  
+                  if (result.success) {
+                    alert('✅ Подкатегория успешно создана!');
+                    window.closeAddSubcategoryModal();
+                    location.reload();
+                  } else {
+                    alert('❌ Ошибка: ' + (result.error || 'Не удалось создать подкатегорию'));
+                  }
+                } catch (error) {
+                  alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
+                }
+              });
+            }
+          });
+          
+          // Image Gallery Functions - определяем сразу глобально
+          // NOTE: основные реализации вынесены в <head> (устойчиво к SyntaxError ниже).
+          // Здесь оставляем только fallback, чтобы не перетирать уже определенные функции.
+          if (typeof window.openImageGallery !== 'function') window.openImageGallery = function(productId) {
+            console.log('🖼️ Opening image gallery for product:', productId);
+            
+            if (!productId) {
+              console.error('❌ Product ID is required');
+              alert('Ошибка: не указан ID товара');
+              return;
+            }
+
+            // Lock background scroll (desktop-safe)
+            try {
+              const html = document.documentElement;
+              const body = document.body;
+              if (!html.hasAttribute('data-prev-overflow')) html.setAttribute('data-prev-overflow', html.style.overflow || '');
+              if (!body.hasAttribute('data-prev-overflow')) body.setAttribute('data-prev-overflow', body.style.overflow || '');
+              html.style.overflow = 'hidden';
+              body.style.overflow = 'hidden';
+            } catch (_) {}
+            
+            // Закрываем предыдущее модальное окно, если оно открыто
+            const existingModal = document.getElementById('imageGalleryModal');
+            if (existingModal) {
+              console.log('🗑️ Removing existing modal');
+              existingModal.remove();
+            }
+            
+            // Создаем модальное окно
+            const modal = document.createElement('div');
+            modal.id = 'imageGalleryModal';
+            modal.className = 'modal-overlay';
+            modal.style.position = 'fixed';
+            modal.style.top = '0';
+            modal.style.left = '0';
+            modal.style.width = '100%';
+            modal.style.height = '100%';
+            modal.style.background = 'rgba(0,0,0,0.6)';
+            modal.style.zIndex = '10000';
+            modal.style.display = 'flex';
+            modal.style.alignItems = 'center';
+            modal.style.justifyContent = 'center';
+            
+            // Разбиваем длинную innerHTML строку на части для предотвращения SyntaxError
+            modal.innerHTML = 
+              '<div class="modal-content" style="max-width: 90vw; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">' +
+                '<div class="modal-header" style="padding: 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px 12px 0 0;">' +
+                  '<h2 style="margin: 0; font-size: 20px; font-weight: 600; color: white;">🖼️ Выбрать изображение из загруженных</h2>' +
+                  '<button class="close-btn" style="background: rgba(255,255,255,0.2); border: none; font-size: 24px; cursor: pointer; color: white; padding: 0; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center;">&times;</button>' +
+                '</div>' +
+                '<div id="galleryContent" style="padding: 12px; overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height:0; display: grid; grid-template-columns: repeat(auto-fill, 160px); grid-auto-rows:160px; gap: 12px; align-content:start; justify-content:start;">' +
+                  '<div style="grid-column: span 999; text-align: center; padding: 40px;">' +
+                    '<div class="loading-spinner" style="width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px;"></div>' +
+                    '<p style="color: #6b7280;">Загрузка изображений...</p>' +
+                  '</div>' +
+                '</div>' +
+              '</div>';
+            
+            document.body.appendChild(modal);
+            console.log('✅ Modal added to DOM');
+            
+            // Обработчик закрытия по клику на overlay
+            modal.addEventListener('click', function(e) {
+              const target = e.target;
+              if (target === modal || target.classList.contains('close-btn')) {
+                console.log('🔄 Closing gallery');
+                window.closeImageGallery();
+              }
+            });
+            
+            // Предотвращаем закрытие при клике внутри контента
+            const modalContent = modal.querySelector('.modal-content');
+            if (modalContent) {
+              modalContent.addEventListener('click', function(e) {
+                e.stopPropagation();
+              });
+            }
+            
+            // Загружаем изображения
+            console.log('📥 Loading gallery images...');
+            window.loadGalleryImages(productId);
+          };
+          
+          if (typeof window.closeImageGallery !== 'function') window.closeImageGallery = function() {
+            const modal = document.getElementById('imageGalleryModal');
+            if (modal) modal.remove();
+            try {
+              const html = document.documentElement;
+              const body = document.body;
+              const prevHtml = html.getAttribute('data-prev-overflow');
+              const prevBody = body.getAttribute('data-prev-overflow');
+              if (prevHtml !== null) html.style.overflow = prevHtml;
+              if (prevBody !== null) body.style.overflow = prevBody;
+              html.removeAttribute('data-prev-overflow');
+              body.removeAttribute('data-prev-overflow');
+            } catch (_) {}
+          };
+          
+          // Определяем selectGalleryImage глобально, чтобы она была доступна для loadGalleryImages
+          if (typeof window.selectGalleryImage !== 'function') window.selectGalleryImage = async function(imageUrl, productId) {
+            if (!imageUrl || !productId) {
+              console.error('Missing parameters:', { imageUrl, productId });
+              alert('❌ Ошибка: Не указаны параметры изображения или товара');
+              return;
+            }
+            
+            try {
+              console.log('Selecting image:', imageUrl, 'for product:', productId);
+              
+              const response = await fetch('/admin/api/products/' + encodeURIComponent(productId) + '/select-image', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
                 },
-                credentials: 'include'
-              })
-              .then(response => response.json())
-              .then(data => {
-                if (data.success) {
-                  alert('Инструкция успешно удалена!');
-                  closeInstruction();
-                  location.reload();
-                } else {
-                  alert('Ошибка: ' + (data.error || 'Не удалось удалить инструкцию'));
-                }
-              })
-              .catch(error => {
-                alert('Ошибка: ' + (error instanceof Error ? error.message : String(error)));
+                credentials: 'include',
+                body: JSON.stringify({
+                  imageUrl: String(imageUrl).trim()
+                })
               });
+              
+              if (!response.ok) {
+                const errorText = await response.text().catch(() => 'Unknown error');
+                throw new Error('HTTP ' + response.status + ': ' + errorText);
+              }
+              
+              const result = await response.json();
+              
+              if (result.success) {
+                alert('✅ Изображение успешно привязано к товару!');
+                window.closeImageGallery();
+                setTimeout(() => {
+                  location.reload();
+                }, 500);
+              } else {
+                alert('❌ Ошибка: ' + (result.error || 'Не удалось привязать изображение'));
+              }
+            } catch (error) {
+              console.error('Error selecting image:', error);
+              alert('❌ Ошибка: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
             }
           };
           
-          window.saveInstruction = function(productId) {
-            const textarea = document.getElementById('instructionTextarea');
-            const instructionText = textarea.value.trim();
-            
-            if (!instructionText) {
-              alert('Пожалуйста, введите инструкцию');
+          // Определяем loadGalleryImages глобально, чтобы она была доступна
+          if (typeof window.loadGalleryImages !== 'function') window.loadGalleryImages = async function(productId) {
+            const galleryContent = document.getElementById('galleryContent');
+            if (!galleryContent) {
+              console.error('Gallery content element not found');
               return;
             }
             
-            // Send request to save instruction
-            fetch('/admin/products/' + productId + '/save-instruction', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              credentials: 'include',
-              body: JSON.stringify({ instruction: instructionText })
-            })
-            .then(response => response.json())
-            .then(data => {
-              if (data.success) {
-                alert('Инструкция успешно сохранена!');
-                closeInstruction();
-                location.reload();
-              } else {
-                alert('Ошибка: ' + (data.error || 'Не удалось сохранить инструкцию'));
+            galleryContent.dataset.currentProductId = productId;
+            
+            try {
+              console.log('Loading gallery images for product:', productId);
+              const response = await fetch('/admin/api/products/images', {
+                credentials: 'include'
+              });
+              
+              if (!response.ok) {
+                throw new Error('HTTP error! status: ' + response.status);
               }
-            })
-            .catch(error => {
-              alert('Ошибка: ' + (error instanceof Error ? error.message : String(error)));
-            });
+              
+              const result = await response.json();
+              console.log('Gallery images response:', result);
+              
+              if (!result.success || !result.images || result.images.length === 0) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.style.cssText = 'grid-column: span 999; text-align: center; padding: 40px; color: #6b7280;';
+                emptyDiv.innerHTML = '<p style="font-size: 18px; margin-bottom: 8px;">📦 Нет загруженных изображений</p><p style="font-size: 14px;">Сначала загрузите изображения для товаров</p>';
+                galleryContent.innerHTML = '';
+                galleryContent.appendChild(emptyDiv);
+                return;
+              }
+              
+              let html = '';
+              result.images.forEach((imageData) => {
+                const imageUrl = imageData.url;
+                const escapedUrl = imageUrl ? imageUrl.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : '';
+                
+                // Используем одинарные кавычки для JS-строки, чтобы не полагаться на экранирование \" внутри server-rendered шаблона
+                // (иначе легко получить SyntaxError: Unexpected identifier 'gallery')
+                html +=
+                  '<button type="button" class="gallery-item" data-image-url="' + escapedUrl + '" data-product-id="' + productId + '" ' +
+                    'style="border: 2px solid #e2e8f0; border-radius: 14px; overflow: hidden; cursor: pointer; transition: all 0.2s; background: white; padding:0; width:160px; height:160px; display:flex; align-items:center; justify-content:center;">' +
+                      '<img src="' + escapedUrl + '" alt="Product image" class="gallery-image" ' +
+                        'style="width: 100%; height: 100%; object-fit: contain; display:block; background:#fff;" data-onerror-hide="true">' +
+                  '</button>';
+              });
+              
+              galleryContent.innerHTML = html;
+              
+              const newHandler = function(e) {
+                const target = e.target;
+                const galleryItem = target.closest('.gallery-item');
+                if (galleryItem) {
+                  const imageUrl = galleryItem.dataset.imageUrl;
+                  const currentProductId = galleryItem.dataset.productId || galleryContent.dataset.currentProductId;
+                  if (imageUrl && currentProductId && window.selectGalleryImage) {
+                    console.log('Selecting image:', imageUrl, 'for product:', currentProductId);
+                    window.selectGalleryImage(imageUrl, currentProductId);
+                  }
+                }
+              };
+              
+              galleryContent.removeEventListener('click', newHandler);
+              galleryContent.addEventListener('click', newHandler);
+              
+              const galleryItems = galleryContent.querySelectorAll('.gallery-item');
+              galleryItems.forEach((item) => {
+                item.addEventListener('mouseenter', function() {
+                  this.style.borderColor = '#6366f1';
+                  this.style.transform = 'translateY(-4px)';
+                  this.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.2)';
+                });
+                item.addEventListener('mouseleave', function() {
+                  this.style.borderColor = '#e2e8f0';
+                  this.style.transform = 'translateY(0)';
+                  this.style.boxShadow = 'none';
+                });
+              });
+            } catch (error) {
+              console.error('Error loading gallery images:', error);
+              const errorMsg = error instanceof Error ? error.message : 'Попробуйте обновить страницу';
+              const errorDiv = document.createElement('div');
+              errorDiv.style.cssText = 'grid-column: span 999; text-align: center; padding: 40px; color: #dc3545;';
+              errorDiv.innerHTML = '<p style="font-size: 18px; margin-bottom: 8px;">❌ Ошибка загрузки изображений</p><p style="font-size: 14px;">' + (errorMsg || 'Попробуйте обновить страницу') + '</p>';
+              galleryContent.innerHTML = '';
+              galleryContent.appendChild(errorDiv);
+            }
           };
           
-          window.cancelInstruction = function() {
-            closeInstruction();
+
+          
+          // NOTE: window.showInstructionSafe уже определена выше, не дублируем!
+          // NOTE: window.editProduct уже определена выше, не дублируем!
+          
+          // Instruction (инструкция по применению) полностью убрана с этой страницы по требованию,
+          // чтобы исключить проблемы с экранированием/парсингом JS в server-rendered шаблоне.
+          
+          // AI Translation function for product fields
+          window.translateProductField = async function(fieldId, type) {
+            const field = document.getElementById(fieldId);
+            if (!field) {
+              alert('Поле не найдено');
+              return;
+            }
+            
+            const originalText = field.value.trim();
+            if (!originalText) {
+              alert('Введите текст на английском языке для перевода');
+              field.focus();
+              return;
+            }
+            
+            // Show loading state
+            const translateBtn = field.parentElement?.querySelector('.btn-translate');
+            const originalBtnText = translateBtn ? translateBtn.textContent : '🤖 AI';
+            if (translateBtn) {
+              translateBtn.disabled = true;
+              translateBtn.textContent = '⏳...';
+              translateBtn.style.opacity = '0.6';
+              translateBtn.style.cursor = 'not-allowed';
+            }
+            
+            try {
+              const productName = document.getElementById('productName')?.value || '';
+              
+              const response = await fetch('/admin/api/products/translate', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                  text: originalText,
+                  type: type,
+                  productName: productName,
+                  productType: 'cosmetic'
+                })
+              });
+              
+              const result = await response.json();
+              
+              if (result.success && result.translated) {
+                field.value = result.translated;
+                
+                // Update character count if it's summary field
+                if (fieldId === 'productShortDescription') {
+                  const charCount = document.getElementById('shortDescCount');
+                  if (charCount) {
+                    charCount.textContent = result.translated.length + '/200';
+                  }
+                }
+                
+                // Trigger input event to update any listeners
+                field.dispatchEvent(new Event('input', { bubbles: true }));
+                
+                // Show success message
+                const successMsg = document.createElement('div');
+                successMsg.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #28a745; color: white; padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 10000; font-size: 14px;';
+                successMsg.textContent = '✅ Перевод выполнен успешно!';
+                document.body.appendChild(successMsg);
+                setTimeout(() => {
+                  successMsg.style.transition = 'opacity 0.3s';
+                  successMsg.style.opacity = '0';
+                  setTimeout(() => successMsg.remove(), 300);
+                }, 3000);
+              } else {
+                throw new Error(result.error || 'Ошибка при переводе');
+              }
+            } catch (error) {
+              console.error('Translation error:', error);
+              const errorMsg = (error instanceof Error && error.message)
+                ? error.message
+                : 'Неизвестная ошибка. Убедитесь, что OPENAI_API_KEY настроен в переменных окружения.';
+              alert('Ошибка при переводе: ' + errorMsg);
+            } finally {
+              // Restore button state
+              if (translateBtn) {
+                translateBtn.disabled = false;
+                translateBtn.textContent = originalBtnText;
+                translateBtn.style.opacity = '1';
+                translateBtn.style.cursor = 'pointer';
+              }
+            }
           };
+          
+          // Импорт продуктов уже обработан в начале скрипта выше
+          
+          // Функция для сбора всех недостающих фотографий
+          async function scrapeAllImages() {
+            const statusDiv = document.getElementById('scraping-status');
+            const progressDiv = document.getElementById('scraping-progress');
+            
+            if (statusDiv) statusDiv.style.display = 'block';
+            
+            try {
+              if (progressDiv) progressDiv.textContent = '🚀 Запуск сбора фотографий...';
+              
+              const response = await fetch('/admin/api/scrape-all-images', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              });
+              
+              if (!response.ok) {
+                throw new Error('Ошибка запуска сбора фотографий');
+              }
+              
+              // Открываем новую вкладку с логами или показываем статус
+              if (progressDiv) progressDiv.innerHTML = '✅ Сбор фотографий запущен! Проверьте логи в консоли сервера или подождите завершения...';
+              
+              // Через 5 секунд перезагружаем страницу для проверки результатов
+              setTimeout(() => {
+                window.location.href = '/admin/products?success=images_scraped';
+              }, 5000);
+              
+            } catch (error) {
+              console.error('Error scraping images:', error);
+              if (progressDiv) progressDiv.innerHTML = '❌ Ошибка: ' + (error instanceof Error ? error.message : String(error));
+              setTimeout(() => {
+                if (statusDiv) statusDiv.style.display = 'none';
+              }, 5000);
+            }
+          }
+          
+          // Image Gallery Functions - все функции уже определены в начале скрипта в IIFE
+          // openImageGallery, loadGalleryImages, selectGalleryImage, closeImageGallery
+          // доступны глобально через window.*
+          
+          // Event delegation для кнопок - работает сразу, без DOMContentLoaded
+          (function() {
+            let eventHandlerAttached = false;
+            
+            // Убеждаемся, что все функции определены
+            if (typeof window.closeEditModal === 'undefined') {
+              window.closeEditModal = function() {
+                const modal = document.getElementById('editProductModal');
+                if (modal) {
+                  modal.style.display = 'none';
+                }
+              };
+            }
+            
+            // КРИТИЧНО: Убеждаемся, что window.editProduct определена ДО инициализации обработчиков
+            // Если функция не определена, ждем её определения
+            function waitForEditProductFunction(maxAttempts = 50, attempt = 0) {
+              if (typeof window.editProduct === 'function') {
+                console.log('✅ window.editProduct is defined:', typeof window.editProduct);
+                return true;
+              }
+              
+              if (attempt >= maxAttempts) {
+                console.error('❌ CRITICAL: window.editProduct is not defined after', maxAttempts, 'attempts!');
+                console.error('❌ Available window properties:', Object.keys(window).filter(k => k.toLowerCase().includes('edit')));
+                // Не показываем alert здесь, так как это может быть вызвано до загрузки страницы
+                return false;
+              }
+              
+              // Ждем и проверяем снова
+              setTimeout(() => {
+                waitForEditProductFunction(maxAttempts, attempt + 1);
+              }, 50);
+              
+              return false;
+            }
+            
+            // Устанавливаем обработчик сразу, но он сработает только после загрузки DOM
+            function initEventDelegation() {
+              if (eventHandlerAttached) {
+                console.log('⚠️ Event handler already attached, skipping');
+                return;
+              }
+              
+              console.log('✅ Initializing event delegation for product buttons');
+              
+              // Проверяем функции перед установкой обработчика
+              if (typeof window.editProduct !== 'function') {
+                console.warn('⚠️ window.editProduct not yet defined, waiting...');
+                // Ждем определения функции с несколькими попытками
+                let attempts = 0;
+                const checkInterval = setInterval(() => {
+                  attempts++;
+                  if (typeof window.editProduct === 'function') {
+                    clearInterval(checkInterval);
+                    console.log('✅ window.editProduct is now defined, initializing event delegation');
+                    initEventDelegation();
+                  } else if (attempts >= 20) {
+                    clearInterval(checkInterval);
+                    console.error('❌ Cannot initialize event delegation: window.editProduct is not defined after 1 second');
+                    // Не показываем alert здесь, так как onclick обработчик покажет свою ошибку
+                  }
+                }, 50);
+                return;
+              }
+              
+              console.log('✅ window.openImageGallery:', typeof window.openImageGallery);
+              console.log('✅ window.showInstructionSafe:', typeof window.showInstructionSafe);
+              eventHandlerAttached = true;
+              
+              document.addEventListener('click', function(event) {
+                // event.target может быть Text node — тогда .closest не существует и весь обработчик падает,
+                // из‑за чего клики по кнопкам (фото/фильтры) перестают работать.
+                const target = event.target;
+                const el = (target && target.nodeType === 1) ? target : (target && target.parentElement ? target.parentElement : null);
+                if (!el) return;
+                
+                // Обработка кнопки редактирования товара (проверяем первой, так как она самая важная)
+                // Ищем кнопку через closest, так как клик может быть на дочернем элементе (текст, иконка)
+                const editBtn = el.closest('.edit-btn') || (el.classList && el.classList.contains('edit-btn') ? el : null);
+                
+                if (editBtn) {
+                  // Проверяем, что это действительно кнопка редактирования
+                  const isEditButton = editBtn.classList.contains('edit-btn') && 
+                                      (editBtn.type === 'button' || !editBtn.type || editBtn.tagName === 'BUTTON');
+                  
+                  if (isEditButton) {
+                    console.log('🔵 Edit button clicked', editBtn);
+                    console.log('🔵 Button data:', {
+                      id: editBtn.dataset.id,
+                      title: editBtn.dataset.title?.substring(0, 30),
+                      hasEditProduct: typeof window.editProduct
+                    });
+                    
+                    event.preventDefault();
+                    event.stopPropagation();
+                    event.stopImmediatePropagation();
+                    
+                    try {
+                      if (typeof window.editProduct === 'function') {
+                        window.editProduct(editBtn);
+                      } else {
+                        console.error('❌ window.editProduct is not defined');
+                        console.error('❌ Available window functions:', Object.keys(window).filter(k => k.includes('edit')));
+                        alert('Ошибка: функция редактирования не доступна. Пожалуйста, обновите страницу.');
+                      }
+                    } catch (error) {
+                      console.error('❌ Error in editProduct:', error);
+                      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack');
+                      alert('Ошибка при открытии формы редактирования: ' + (error instanceof Error ? error.message : String(error)));
+                    }
+                    return false;
+                  }
+                }
+
+                // Миниатюры в табличном виде (клик -> модалка с большим фото + замена)
+                const tableThumb = el.closest('.table-thumb');
+                if (tableThumb) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  try {
+                    const pid = tableThumb.getAttribute('data-product-id') || '';
+                    const img = tableThumb.getAttribute('data-image') || '';
+                    const title = tableThumb.getAttribute('data-title') || '';
+                    if (typeof window.openTableImageModal === 'function') {
+                      window.openTableImageModal(pid, img, title);
+                    }
+                  } catch (e) {
+                    console.error('Table thumb click error:', e);
+                  }
+                  return;
+                }
+
+                // Фото в карточках (клик -> модалка с большим фото + замена / выбор из загруженных)
+                const cardImageBtn = el.closest('.product-image-btn');
+                if (cardImageBtn) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  try {
+                    const pid = cardImageBtn.getAttribute('data-product-id') || '';
+                    const img = cardImageBtn.getAttribute('data-image') || '';
+                    const title = cardImageBtn.getAttribute('data-title') || '';
+                    if (typeof window.openTableImageModal === 'function') {
+                      window.openTableImageModal(pid, img, title);
+                    }
+                  } catch (e) {
+                    console.error('Card image click error:', e);
+                  }
+                  return;
+                }
+                
+                // Фильтры категорий (дублируем inline onclick, чтобы работало даже если он сломан/перекрыт)
+                // Важно: не перехватываем кнопки вида "Карточки/Таблица" — у них нет data-filter.
+                const filterBtn = el.closest('.filter-btn[data-filter]');
+                if (filterBtn && typeof window.filterProducts === 'function') {
+                  console.log('🔵 Filter button clicked', filterBtn);
+                  event.preventDefault();
+                  event.stopPropagation();
+                  try {
+                    window.filterProducts(filterBtn);
+                  } catch (error) {
+                    console.error('❌ Error in filterProducts:', error);
+                  }
+                  return;
+                }
+                
+                // Обработка кнопки "Выбрать из загруженных"
+                const selectImageBtn = el.closest('.select-image-btn');
+                if (selectImageBtn) {
+                  console.log('🔵 Select image button clicked');
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const productId = selectImageBtn.getAttribute('data-product-id');
+                  if (productId && typeof window.openImageGallery === 'function') {
+                    window.openImageGallery(productId);
+                  } else {
+                    console.error('❌ Product ID not found or openImageGallery not defined:', { 
+                      productId, 
+                      hasFunction: typeof window.openImageGallery
+                    });
+                    alert('Ошибка: функция выбора изображения не доступна. Пожалуйста, обновите страницу.');
+                  }
+                  return;
+                }
+                
+                // Обработка кнопки загрузки изображения через data-атрибут
+                const imageBtn = el.closest('.image-btn[data-image-input-id]');
+                if (imageBtn) {
+                  console.log('🔵 Image upload button clicked');
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const inputId = imageBtn.getAttribute('data-image-input-id');
+                  const fileInput = document.getElementById(inputId);
+                  if (fileInput) {
+                    fileInput.click();
+                  } else {
+                    console.error('❌ File input not found:', inputId);
+                  }
+                  return;
+                }
+                
+                // Обработка формы удаления товара (кнопка внутри формы)
+                const deleteBtn = el.closest('.delete-btn');
+                if (deleteBtn) {
+                  const deleteForm = deleteBtn.closest('.delete-product-form');
+                  if (deleteForm) {
+                    console.log('🔵 Delete button clicked');
+                  event.preventDefault();
+                    event.stopPropagation();
+                    if (typeof window.openConfirmDeleteModal === 'function') {
+                      window.openConfirmDeleteModal(deleteForm);
+                  } else {
+                      if (confirm('Удалить товар?')) deleteForm.submit();
+                  }
+                  return;
+                }
+                }
+              }, true); // Используем capture phase для раннего перехвата
+              
+              // Обработка загрузки изображений
+              document.addEventListener('change', function(event) {
+                const target = event.target;
+                if (target && target.classList && target.classList.contains('product-image-input')) {
+                  const form = target.closest('.upload-image-form');
+                  if (form && target.files && target.files.length > 0) {
+                    form.submit();
+                  }
+                }
+              });
+              
+              // Обработка ошибок загрузки изображений
+              document.addEventListener('error', function(event) {
+                const target = event.target;
+                if (target && target.tagName === 'IMG') {
+                  if (target.hasAttribute('data-onerror-img') || target.hasAttribute('data-onerror-hide')) {
+                    target.style.display = 'none';
+                  }
+                  if (target.hasAttribute('data-onerror-img')) {
+                    const placeholderId = target.getAttribute('data-onerror-placeholder');
+                    if (placeholderId) {
+                      const placeholder = document.getElementById(placeholderId);
+                      if (placeholder) {
+                        placeholder.style.display = 'flex';
+                      }
+                    }
+                  }
+                }
+              }, true);
+            }
+            
+            // Инициализируем сразу, если DOM уже загружен
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', initEventDelegation);
+            } else {
+              initEventDelegation();
+            }
+          })();
         </script>
+        ${renderAdminShellEnd()}
       </body>
       </html>
     `;
@@ -6338,28 +9043,1291 @@ router.get('/products', requireAdmin, async (req, res) => {
   }
 });
 
+// Product2 module - управление товарами через веб-интерфейс
+router.get('/product2', requireAdmin, async (req, res) => {
+  try {
+    const categories = await prisma.category.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Подсчитываем количество товаров для каждой категории
+    const categoriesWithCounts = await Promise.all(
+      categories.map(async (cat) => {
+        const productCount = await prisma.product.count({
+          where: { categoryId: cat.id },
+        });
+        return { ...cat, productCount };
+      })
+    );
+
+    const products = await prisma.product.findMany({
+      where: { imageUrl: { not: null }, isActive: true },
+      select: { id: true, title: true, imageUrl: true },
+      take: 50,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Товар 2 - Управление товарами</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          ${ADMIN_UI_CSS}
+          body{ margin:0; padding:0; background: var(--admin-bg); }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+          }
+          .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 30px; }
+          .header { margin-bottom: 30px; border-bottom: 2px solid #e9ecef; padding-bottom: 20px; }
+          .header h1 { color: #9c27b0; font-size: 28px; margin-bottom: 10px; }
+          .header p { color: #6c757d; }
+          .back-link { display: inline-block; margin-bottom: 20px; color: #667eea; text-decoration: none; font-weight: 600; }
+          .back-link:hover { text-decoration: underline; }
+          .actions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+          .action-card { 
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border: 2px solid #dee2e6;
+            border-radius: 12px;
+            padding: 25px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+          }
+          .action-card:hover { 
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            border-color: #9c27b0;
+          }
+          .action-card h3 { color: #333; margin-bottom: 10px; font-size: 20px; }
+          .action-card p { color: #6c757d; font-size: 14px; }
+          .action-icon { font-size: 48px; margin-bottom: 15px; }
+          .modal-overlay { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); 
+            z-index: 1000; display: none; align-items: center; justify-content: center; 
+          }
+          .modal-overlay.active { display: flex; }
+          .modal-content { 
+            background: white; border-radius: 16px; padding: 0; max-width: 600px; width: 90%; 
+            max-height: 90vh; overflow-y: auto; box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+          }
+          .modal-header { 
+            background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%);
+            color: white; padding: 20px 25px; border-radius: 16px 16px 0 0;
+            display: flex; justify-content: space-between; align-items: center;
+          }
+          .modal-header h2 { margin: 0; font-size: 22px; }
+          .close-btn { background: rgba(255,255,255,0.2); border: none; color: white; font-size: 24px; cursor: pointer; width: 32px; height: 32px; border-radius: 6px; }
+          .close-btn:hover { background: rgba(255,255,255,0.3); }
+          .modal-body { padding: 25px; }
+          .form-group { margin-bottom: 20px; }
+          .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #333; }
+          .form-group input, .form-group select, .form-group textarea { 
+            width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; 
+            font-size: 14px; transition: all 0.2s;
+          }
+          .form-group input:focus, .form-group select:focus, .form-group textarea:focus { 
+            outline: none; border-color: #9c27b0; box-shadow: 0 0 0 3px rgba(156,39,176,0.1);
+          }
+          .form-group textarea { min-height: 100px; resize: vertical; }
+          .form-actions { 
+            display: flex; gap: 12px; justify-content: flex-end; 
+            padding: 20px 25px; border-top: 1px solid #e9ecef;
+          }
+          .btn { 
+            padding: 12px 24px; border: none; border-radius: 8px; 
+            font-weight: 600; cursor: pointer; transition: all 0.2s;
+          }
+          .btn-primary { background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%); color: white; }
+          .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(156,39,176,0.4); }
+          .btn-secondary { background: #e9ecef; color: #333; }
+          .btn-secondary:hover { background: #dee2e6; }
+          .alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; }
+          .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+          .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+          .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; margin-top: 15px; max-height: 400px; overflow-y: auto; }
+          .image-item { 
+            border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden; cursor: pointer;
+            transition: all 0.2s;
+          }
+          .image-item:hover { border-color: #9c27b0; transform: scale(1.05); }
+          .image-item.selected { border-color: #9c27b0; box-shadow: 0 0 0 3px rgba(156,39,176,0.3); }
+          .image-item img { width: 100%; height: 150px; object-fit: cover; }
+          .image-item-title { padding: 8px; font-size: 12px; text-align: center; color: #333; }
+          .spinner { 
+            border: 4px solid #f3f3f3; 
+            border-top: 4px solid #9c27b0; 
+            border-radius: 50%; 
+            width: 40px; 
+            height: 40px; 
+            animation: spin 1s linear infinite; 
+            margin: 0 auto; 
+          }
+          @keyframes spin { 
+            0% { transform: rotate(0deg); } 
+            100% { transform: rotate(360deg); } 
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <a href="/admin" class="back-link">← Вернуться в админ панель</a>
+          <div class="header">
+            <h1>🛍️ Товар 2 - Управление товарами</h1>
+            <p>Добавление категорий, подкатегорий и товаров с фото</p>
+          </div>
+          
+          <div id="alertContainer"></div>
+          
+          <!-- Categories List -->
+          <div style="margin-bottom: 30px; background: #f8f9fa; padding: 20px; border-radius: 12px;">
+            <h3 style="margin-bottom: 15px; color: #333;">📂 Созданные категории (${categoriesWithCounts.length})</h3>
+            ${categoriesWithCounts.length > 0 ? `
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px;">
+                ${categoriesWithCounts.map(cat => `
+                  <div style="background: white; padding: 15px; border-radius: 8px; border: 2px solid #e9ecef; cursor: pointer; transition: all 0.2s;" 
+                       onclick="showCategoryProducts('${cat.id}', '${cat.name.replace(/'/g, "\\'")}')"
+                       onmouseover="this.style.borderColor='#9c27b0'; this.style.boxShadow='0 4px 12px rgba(156,39,176,0.2)'"
+                       onmouseout="this.style.borderColor='#e9ecef'; this.style.boxShadow='none'">
+                    <div style="font-weight: 600; color: #333; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
+                      <span>${cat.name}</span>
+                      <span style="font-size: 10px; color: #6c757d;">📦</span>
+                    </div>
+                    <div style="font-size: 12px; color: #6c757d;">Слаг: ${cat.slug}</div>
+                    <div style="font-size: 12px; color: ${cat.isActive ? '#28a745' : '#dc3545'}; margin-top: 5px;">
+                      ${cat.isActive ? '✅ Активна' : '❌ Неактивна'}
+                    </div>
+                    <div style="margin-top: 8px; padding: 6px 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 6px; text-align: center; font-weight: 700; font-size: 18px;">
+                      ${cat.productCount} товаров
+                    </div>
+                    <div style="margin-top: 10px; display: flex; gap: 8px;">
+                      <button onclick="event.stopPropagation(); openMoveToSubcategoryModal('${cat.id}', '${cat.name.replace(/'/g, "\\'")}')" 
+                              style="flex: 1; padding: 6px 12px; background: #9c27b0; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">
+                        📁 В подкатегорию
+                      </button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            ` : `
+              <p style="color: #6c757d; text-align: center; padding: 20px;">Категории пока не созданы. Создайте первую категорию!</p>
+            `}
+          </div>
+          
+          <div class="actions-grid">
+            <div class="action-card" onclick="openAddCategoryModal()">
+              <div class="action-icon">📂</div>
+              <h3>Добавить категорию</h3>
+              <p>Создать новую категорию товаров</p>
+            </div>
+            <div class="action-card" onclick="openAddSubcategoryModal()">
+              <div class="action-icon">📁</div>
+              <h3>Добавить подкатегорию</h3>
+              <p>Создать подкатегорию в существующей категории</p>
+            </div>
+            <div class="action-card" onclick="openAddProductModal()">
+              <div class="action-icon">➕</div>
+              <h3>Добавить товар</h3>
+              <p>Создать новый товар с фото</p>
+            </div>
+            <div class="action-card" onclick="fetchSiamImages()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+              <div class="action-icon">📷</div>
+              <h3>Загрузить фото с Siam Botanicals</h3>
+              <p>Обновить изображения товаров с сайта</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Add Category Modal -->
+        <div id="categoryModal" class="modal-overlay">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2>📂 Добавить категорию</h2>
+              <button class="close-btn" onclick="closeModal('categoryModal')">&times;</button>
+            </div>
+            <form id="categoryForm" class="modal-body">
+              <div class="form-group">
+                <label>Название категории *</label>
+                <input type="text" id="categoryName" required placeholder="Введите название категории">
+              </div>
+              <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('categoryModal')">Отмена</button>
+                <button type="submit" class="btn btn-primary">Создать категорию</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Add Subcategory Modal -->
+        <div id="subcategoryModal" class="modal-overlay">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2>📁 Добавить подкатегорию</h2>
+              <button class="close-btn" onclick="closeModal('subcategoryModal')">&times;</button>
+            </div>
+            <form id="subcategoryForm" class="modal-body">
+              <div class="form-group">
+                <label>Родительская категория *</label>
+                <select id="parentCategory" required>
+                  <option value="">Выберите категорию</option>
+                  ${categoriesWithCounts.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Название подкатегории *</label>
+                <input type="text" id="subcategoryName" required placeholder="Введите название подкатегории">
+              </div>
+              <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('subcategoryModal')">Отмена</button>
+                <button type="submit" class="btn btn-primary">Создать подкатегорию</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Add Product Modal -->
+        <div id="productModal" class="modal-overlay">
+          <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+              <h2>➕ Добавить товар</h2>
+              <button class="close-btn" onclick="closeModal('productModal')">&times;</button>
+            </div>
+            <form id="productForm" class="modal-body" enctype="multipart/form-data">
+              <div class="form-group">
+                <label>Категория *</label>
+                <select id="productCategory" required>
+                  <option value="">Выберите категорию</option>
+                  ${categories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Название товара *</label>
+                <input type="text" id="productName" required placeholder="Введите название товара">
+              </div>
+              <div class="form-group">
+                <label>Краткое описание *</label>
+                <textarea id="productSummary" required placeholder="Краткое описание товара"></textarea>
+              </div>
+              <div class="form-group">
+                <label>Цена в PZ *</label>
+                <input type="number" id="productPrice" step="0.01" required placeholder="0.00">
+              </div>
+              <div class="form-group">
+                <label>Фото товара</label>
+                <input type="file" id="productImage" accept="image/*">
+                <button type="button" class="btn btn-secondary" onclick="openImageSelector()" style="margin-top: 10px;">📂 Выбрать из загруженных</button>
+              </div>
+              <input type="hidden" id="selectedImageUrl" value="">
+              <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('productModal')">Отмена</button>
+                <button type="submit" class="btn btn-primary">Создать товар</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Image Selector Modal -->
+        <div id="imageSelectorModal" class="modal-overlay">
+          <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+              <h2>📷 Выбрать фото</h2>
+              <button class="close-btn" onclick="closeModal('imageSelectorModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+              <div class="image-grid" id="imageGrid">
+                ${products.map(p => `
+                  <div class="image-item" onclick="selectImage('${p.imageUrl}', '${p.id}')">
+                    <img src="${p.imageUrl}" alt="${p.title}">
+                    <div class="image-item-title">${p.title}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Move to Subcategory Modal -->
+        <div id="moveToSubcategoryModal" class="modal-overlay">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2>📁 Перенести в подкатегорию</h2>
+              <button class="close-btn" onclick="closeModal('moveToSubcategoryModal')">&times;</button>
+            </div>
+            <form id="moveToSubcategoryForm" class="modal-body">
+              <input type="hidden" id="moveCategoryId" value="">
+              <div class="form-group">
+                <label>Родительская категория *</label>
+                <select id="moveParentCategory" required>
+                  <option value="">Выберите родительскую категорию</option>
+                  ${categories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('moveToSubcategoryModal')">Отмена</button>
+                <button type="submit" class="btn btn-primary">Перенести</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Category Products Modal -->
+        <div id="categoryProductsModal" class="modal-overlay">
+          <div class="modal-content" style="max-width: 1000px;">
+            <div class="modal-header">
+              <h2 id="categoryProductsTitle">📦 Товары категории</h2>
+              <button class="close-btn" onclick="closeModal('categoryProductsModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+              <div id="categoryProductsList" style="min-height: 200px;">
+                <div style="text-align: center; padding: 40px; color: #6c757d;">
+                  <div class="spinner" style="margin: 0 auto 20px;"></div>
+                  <p>Загрузка товаров...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <script>
+          function showAlert(message, type = 'success') {
+            const container = document.getElementById('alertContainer');
+            container.innerHTML = \`<div class="alert alert-\${type}">\${message}</div>\`;
+            setTimeout(() => container.innerHTML = '', 5000);
+          }
+
+          function openModal(modalId) {
+            document.getElementById(modalId).classList.add('active');
+          }
+
+          function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+          }
+
+          function openAddCategoryModal() {
+            document.getElementById('categoryForm').reset();
+            openModal('categoryModal');
+          }
+
+          function openAddSubcategoryModal() {
+            document.getElementById('subcategoryForm').reset();
+            openModal('subcategoryModal');
+          }
+
+          function openAddProductModal() {
+            document.getElementById('productForm').reset();
+            document.getElementById('selectedImageUrl').value = '';
+            openModal('productModal');
+          }
+
+          function openImageSelector() {
+            openModal('imageSelectorModal');
+          }
+
+          function selectImage(imageUrl, productId) {
+            // Check if selecting for edit modal
+            const imageSelectorModal = document.getElementById('imageSelectorModal');
+            if (imageSelectorModal && imageSelectorModal.dataset.forEdit === 'true') {
+              const editSelectedImageUrl = document.getElementById('editSelectedImageUrl2');
+              const previewImg = document.getElementById('editProductImagePreviewImg2');
+              if (editSelectedImageUrl) {
+                editSelectedImageUrl.value = imageUrl;
+              }
+              if (previewImg) {
+                previewImg.src = imageUrl;
+                previewImg.style.display = 'block';
+              }
+              const editImageInput = document.getElementById('editProductImage2');
+              if (editImageInput) {
+                editImageInput.value = '';
+              }
+              imageSelectorModal.dataset.forEdit = 'false';
+              closeModal('imageSelectorModal');
+              showAlert('Фото выбрано');
+              return;
+            }
+            
+            // Original behavior for product creation
+            const selectedImageUrlEl = document.getElementById('selectedImageUrl');
+            const productImageEl = document.getElementById('productImage');
+            if (selectedImageUrlEl) {
+              selectedImageUrlEl.value = imageUrl;
+            }
+            if (productImageEl) {
+              productImageEl.value = '';
+            }
+            closeModal('imageSelectorModal');
+            const imageItem = document.querySelector(\`[onclick*="'\${productId}'"]\`);
+            if (imageItem) {
+              const titleElement = imageItem.querySelector('.image-item-title');
+              if (titleElement) {
+                showAlert('Фото выбрано: ' + titleElement.textContent);
+              } else {
+                showAlert('Фото выбрано');
+              }
+            } else {
+              showAlert('Фото выбрано');
+            }
+          }
+
+          function openMoveToSubcategoryModal(categoryId, categoryName) {
+            document.getElementById('moveCategoryId').value = categoryId;
+            document.getElementById('moveParentCategory').value = '';
+            // Исключаем текущую категорию из списка родительских
+            const select = document.getElementById('moveParentCategory');
+            Array.from(select.options).forEach(option => {
+              if (option.value === categoryId) {
+                option.style.display = 'none';
+              } else {
+                option.style.display = 'block';
+              }
+            });
+            openModal('moveToSubcategoryModal');
+          }
+
+          async function showCategoryProducts(categoryId, categoryName) {
+            document.getElementById('categoryProductsTitle').textContent = \`📦 Товары категории: \${categoryName}\`;
+            const listContainer = document.getElementById('categoryProductsList');
+            const modal = document.getElementById('categoryProductsModal');
+            if (modal) {
+              modal.dataset.categoryId = categoryId;
+              modal.dataset.categoryName = categoryName;
+            }
+            listContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #6c757d;"><div class="spinner" style="margin: 0 auto 20px;"></div><p>Загрузка товаров...</p></div>';
+            openModal('categoryProductsModal');
+            
+            try {
+              const res = await fetch(\`/admin/api/product2/category/\${categoryId}/products\`, {
+                credentials: 'include'
+              });
+              
+              const data = await res.json();
+              if (data.success && data.products) {
+                if (data.products.length === 0) {
+                  listContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #6c757d;"><p>В этой категории пока нет товаров</p></div>';
+                } else {
+                  listContainer.innerHTML = \`
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;">
+                      \${data.products.map(product => {
+                        const rubPrice = (product.price * 100).toFixed(2);
+                        const stock = product.stock || 0;
+                        const hasCopiedImage = (product.description || '').indexOf('скопировано') !== -1;
+                        return \`
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; position: relative;">
+                          \${product.imageUrl ? \`<img src="\${product.imageUrl}" alt="\${product.title}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 6px; margin-bottom: 10px;">\` : '<div style="width: 100%; height: 150px; background: #e9ecef; border-radius: 6px; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; color: #6c757d;">📷 Нет фото</div>'}
+                          <div style="font-weight: 600; color: #333; margin-bottom: 5px;">
+                            \${product.title}
+                            \${hasCopiedImage ? ' 📷' : ''}
+                          </div>
+                          \${product.sku ? \`<div style="font-size: 11px; color: #6b7280; margin-bottom: 5px;"><strong>ID товара (Item):</strong> <span style="color: #1f2937; font-weight: 600;">\${product.sku}</span></div>\` : ''}
+                          \${hasCopiedImage ? '<div style="font-size: 10px; color: #f59e0b; background: #fef3c7; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-bottom: 5px;"><strong>📷 Копия фото</strong></div>' : ''}
+                          <div style="font-size: 12px; color: #6c757d; margin-bottom: 5px;">\${product.summary || 'Нет описания'}</div>
+                          <div style="font-size: 14px; font-weight: 600; color: #28a745; margin-bottom: 5px;">
+                            \${rubPrice} руб. / \${product.price.toFixed(2)} PZ
+                          </div>
+                          <div style="font-size: 12px; color: #6c757d; margin-bottom: 5px;">
+                            Остаток: <strong style="color: \${stock > 0 ? stock <= 3 ? '#ffc107' : '#28a745' : '#dc3545'}">\${stock} шт.</strong>
+                          </div>
+                          <div style="font-size: 11px; color: #6c757d; margin-bottom: 10px;">
+                            Статус: \${product.isActive ? '✅ Активен' : '❌ Неактивен'}
+                          </div>
+                          <button onclick="editProductFromList('\${product.id}', '\${product.title.replace(/'/g, "\\'")}', '\${(product.summary || '').replace(/'/g, "\\'")}', '\${(product.description || '').replace(/'/g, "\\'")}', \${product.price}, '\${product.categoryId}', \${product.isActive}, \${product.availableInRussia || false}, \${product.availableInBali || false}, '\${product.imageUrl || ''}', \${stock}, '\${(product.sku || '').replace(/'/g, "\\'")}')" 
+                                  style="width: 100%; padding: 8px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            ✏️ Редактировать
+                          </button>
+                        </div>
+                      \`;
+                      }).join('')}
+                    </div>
+                  \`;
+                }
+              } else {
+                listContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #dc3545;"><p>Ошибка загрузки товаров</p></div>';
+              }
+            } catch (error) {
+              listContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #dc3545;"><p>Ошибка: ' + error.message + '</p></div>';
+            }
+          }
+
+          // Category Form
+          document.getElementById('categoryForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('categoryName').value;
+            
+            try {
+              const res = await fetch('/admin/api/product2/category', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ name })
+              });
+              
+              const data = await res.json();
+              if (data.success) {
+                showAlert('✅ Категория успешно создана!');
+                closeModal('categoryModal');
+                setTimeout(() => location.reload(), 1000);
+              } else {
+                showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+              }
+            } catch (error) {
+              showAlert('❌ Ошибка: ' + error.message, 'error');
+            }
+          };
+
+          // Subcategory Form
+          document.getElementById('subcategoryForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const categoryId = document.getElementById('parentCategory').value;
+            const name = document.getElementById('subcategoryName').value;
+            
+            try {
+              const res = await fetch('/admin/api/product2/subcategory', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ categoryId, name })
+              });
+              
+              const data = await res.json();
+              if (data.success) {
+                showAlert('✅ Подкатегория успешно создана!');
+                closeModal('subcategoryModal');
+                setTimeout(() => location.reload(), 1000);
+              } else {
+                showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+              }
+            } catch (error) {
+              showAlert('❌ Ошибка: ' + error.message, 'error');
+            }
+          };
+
+          // Product Form
+          document.getElementById('productForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('categoryId', document.getElementById('productCategory').value);
+            formData.append('name', document.getElementById('productName').value);
+            formData.append('summary', document.getElementById('productSummary').value);
+            formData.append('price', document.getElementById('productPrice').value);
+            
+            const imageFile = document.getElementById('productImage').files[0];
+            const selectedImageUrl = document.getElementById('selectedImageUrl').value;
+            
+            if (imageFile) {
+              formData.append('image', imageFile);
+            } else if (selectedImageUrl) {
+              formData.append('imageUrl', selectedImageUrl);
+            }
+            
+            try {
+              const res = await fetch('/admin/api/product2/product', {
+                method: 'POST',
+                credentials: 'include',
+                body: formData
+              });
+              
+              const data = await res.json();
+              if (data.success) {
+                showAlert('✅ Товар успешно создан!');
+                closeModal('productModal');
+                setTimeout(() => location.reload(), 1000);
+              } else {
+                showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+              }
+            } catch (error) {
+              showAlert('❌ Ошибка: ' + error.message, 'error');
+            }
+          };
+
+          // Move to Subcategory Form
+          document.getElementById('moveToSubcategoryForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const categoryId = document.getElementById('moveCategoryId').value;
+            const parentCategoryId = document.getElementById('moveParentCategory').value;
+            
+            if (!parentCategoryId) {
+              showAlert('❌ Выберите родительскую категорию', 'error');
+              return;
+            }
+            
+            try {
+              const res = await fetch('/admin/api/product2/category/move', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ categoryId, parentCategoryId })
+              });
+              
+              const data = await res.json();
+              if (data.success) {
+                showAlert('✅ Категория успешно перенесена в подкатегорию!');
+                closeModal('moveToSubcategoryModal');
+                setTimeout(() => location.reload(), 1000);
+              } else {
+                showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+              }
+            } catch (error) {
+              showAlert('❌ Ошибка: ' + error.message, 'error');
+            }
+          };
+
+          // Edit product from list
+          function editProductFromList(productId, title, summary, description, price, categoryId, isActive, availableInRussia, availableInBali, imageUrl, stock, sku) {
+            console.log('🔵 editProductFromList called', { productId, title: title.substring(0, 30) });
+            
+            // Удаляем старое модальное окно если оно есть, чтобы пересоздать его заново
+            let editModal = document.getElementById('editProductModal2');
+            if (editModal) {
+              console.log('🗑️ Removing existing modal');
+              editModal.remove();
+            }
+            
+            // Создаем новое модальное окно каждый раз
+              editModal = document.createElement('div');
+              editModal.id = 'editProductModal2';
+              editModal.className = 'modal-overlay';
+              editModal.innerHTML = \`
+                <div class="modal-content" style="max-width: 800px;">
+                  <div class="modal-header">
+                    <h2>✏️ Редактировать товар</h2>
+                    <button class="close-btn" onclick="closeEditProductModal2()">&times;</button>
+                  </div>
+                  <form id="editProductForm2" class="modal-body" enctype="multipart/form-data">
+                    <input type="hidden" id="editProductId2" name="productId">
+                    <div class="form-group">
+                      <label>ID товара (Item/SKU)</label>
+                      <input type="text" id="editProductSku2" placeholder="Например: FS1002-24">
+                    </div>
+                    <div class="form-group">
+                      <label>Название товара *</label>
+                      <input type="text" id="editProductName2" required>
+                    </div>
+                    <div class="form-group">
+                      <label>Краткое описание *</label>
+                      <textarea id="editProductSummary2" required></textarea>
+                    </div>
+                    <div class="form-group">
+                      <label>Полное описание</label>
+                      <textarea id="editProductDescription2" rows="4"></textarea>
+                    </div>
+                    <div class="form-group">
+                      <label>Цена в PZ *</label>
+                      <input type="number" id="editProductPrice2" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                      <label>Цена в рублях</label>
+                      <input type="number" id="editProductPriceRub2" step="0.01" readonly>
+                    </div>
+                    <div class="form-group">
+                      <label>Остаток на складе *</label>
+                      <input type="number" id="editProductStock2" required>
+                    </div>
+                    <div class="form-group">
+                      <label>Категория *</label>
+                      <select id="editProductCategory2" required>
+                        <option value="">Загрузка категорий...</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label>Фото товара</label>
+                      <div id="editProductImagePreview2" style="margin-bottom: 10px;">
+                        <img id="editProductImagePreviewImg2" src="" style="max-width: 200px; max-height: 200px; display: none; border-radius: 8px;">
+                      </div>
+                      <input type="file" id="editProductImage2" accept="image/*">
+                      <button type="button" onclick="openImageSelectorForEdit()" style="margin-top: 10px; padding: 8px 16px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                        📂 Выбрать из загруженных
+                      </button>
+                      <input type="hidden" id="editSelectedImageUrl2" value="">
+                    </div>
+                    <div class="form-group">
+                      <label>
+                        <input type="checkbox" id="editProductActive2"> Товар активен
+                      </label>
+                    </div>
+                    <div class="form-group">
+                      <label>
+                        <input type="checkbox" id="editProductRussia2"> Доступен в России
+                      </label>
+                    </div>
+                    <div class="form-group">
+                      <label>
+                        <input type="checkbox" id="editProductBali2"> Доступен на Бали
+                      </label>
+                    </div>
+                    <div class="form-actions">
+                      <button type="button" class="btn btn-secondary" onclick="closeEditProductModal2()">Отмена</button>
+                      <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                    </div>
+                  </form>
+                </div>
+              \`;
+              document.body.appendChild(editModal);
+            }
+            
+            // ВАЖНО: Устанавливаем обработчик формы КАЖДЫЙ РАЗ при открытии модального окна
+            // Удаляем старый обработчик если есть
+            const editForm = document.getElementById('editProductForm2');
+            if (editForm) {
+              // Удаляем все старые обработчики
+              const newForm = editForm.cloneNode(true);
+              editForm.parentNode.replaceChild(newForm, editForm);
+              
+              // Устанавливаем новый обработчик формы
+              document.getElementById('editProductForm2').onsubmit = async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                console.log('📤 Submitting edit form for product:', productId);
+                
+                const formData = new FormData();
+                formData.append('productId', document.getElementById('editProductId2').value);
+                formData.append('sku', document.getElementById('editProductSku2').value || '');
+                formData.append('title', document.getElementById('editProductName2').value);
+                formData.append('summary', document.getElementById('editProductSummary2').value);
+                formData.append('description', document.getElementById('editProductDescription2').value);
+                formData.append('price', document.getElementById('editProductPrice2').value);
+                formData.append('stock', document.getElementById('editProductStock2').value);
+                formData.append('categoryId', document.getElementById('editProductCategory2').value);
+                formData.append('isActive', document.getElementById('editProductActive2').checked ? 'true' : 'false');
+                formData.append('availableInRussia', document.getElementById('editProductRussia2').checked ? 'true' : 'false');
+                formData.append('availableInBali', document.getElementById('editProductBali2').checked ? 'true' : 'false');
+                
+                const imageFile = document.getElementById('editProductImage2').files[0];
+                const selectedImageUrl = document.getElementById('editSelectedImageUrl2').value;
+                
+                if (imageFile) {
+                  formData.append('image', imageFile);
+                } else if (selectedImageUrl) {
+                  formData.append('imageUrl', selectedImageUrl);
+                }
+                
+                try {
+                  const res = await fetch('/admin/api/product2/product/update', {
+                    method: 'POST',
+                    credentials: 'include',
+                    body: formData
+                  });
+                  
+                  const data = await res.json();
+                  if (data.success) {
+                    showAlert('✅ Товар успешно обновлен!');
+                    closeEditProductModal2();
+                    // Reload category products if modal is open
+                    const categoryModal = document.getElementById('categoryProductsModal');
+                    if (categoryModal && categoryModal.classList.contains('active')) {
+                      const currentCategoryId = categoryModal.dataset.categoryId;
+                      const currentCategoryName = categoryModal.dataset.categoryName;
+                      if (currentCategoryId) {
+                        showCategoryProducts(currentCategoryId, currentCategoryName);
+                      }
+                    }
+                  } else {
+                    showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+                  }
+                } catch (error) {
+                  console.error('❌ Update error:', error);
+                  showAlert('❌ Ошибка: ' + (error instanceof Error ? error.message : String(error)), 'error');
+                }
+              };
+              
+              // Price conversion - устанавливаем каждый раз
+              const priceInput = document.getElementById('editProductPrice2');
+              if (priceInput) {
+                // Удаляем старые обработчики
+                const newPriceInput = priceInput.cloneNode(true);
+                priceInput.parentNode.replaceChild(newPriceInput, priceInput);
+                
+                // Устанавливаем новый обработчик
+              document.getElementById('editProductPrice2').addEventListener('input', function() {
+                const pzPrice = parseFloat(this.value) || 0;
+                  const rubInput = document.getElementById('editProductPriceRub2');
+                  if (rubInput) {
+                    rubInput.value = (pzPrice * 100).toFixed(2);
+                  }
+              });
+              }
+            }
+            
+            // Fill form
+            document.getElementById('editProductId2').value = productId;
+            document.getElementById('editProductSku2').value = sku || '';
+            document.getElementById('editProductName2').value = title;
+            document.getElementById('editProductSummary2').value = summary;
+            document.getElementById('editProductDescription2').value = description;
+            document.getElementById('editProductPrice2').value = price;
+            document.getElementById('editProductPriceRub2').value = (price * 100).toFixed(2);
+            document.getElementById('editProductStock2').value = stock;
+            document.getElementById('editProductActive2').checked = isActive;
+            document.getElementById('editProductRussia2').checked = availableInRussia;
+            document.getElementById('editProductBali2').checked = availableInBali;
+            
+            if (imageUrl) {
+              document.getElementById('editProductImagePreviewImg2').src = imageUrl;
+              document.getElementById('editProductImagePreviewImg2').style.display = 'block';
+            } else {
+              document.getElementById('editProductImagePreviewImg2').style.display = 'none';
+            }
+            
+            // Load categories
+            fetch('/admin/api/categories', { credentials: 'include' })
+              .then(res => res.json())
+              .then(categories => {
+                const select = document.getElementById('editProductCategory2');
+                select.innerHTML = '<option value="">Выберите категорию</option>';
+                categories.forEach(cat => {
+                  const option = document.createElement('option');
+                  option.value = cat.id;
+                  option.textContent = cat.name;
+                  if (cat.id === categoryId) option.selected = true;
+                  select.appendChild(option);
+                });
+              });
+            
+            editModal.classList.add('active');
+          }
+          
+          function closeEditProductModal2() {
+            const modal = document.getElementById('editProductModal2');
+            if (modal) {
+              modal.classList.remove('active');
+              // НЕ удаляем модальное окно, чтобы оно могло быть использовано снова
+              // Но сбрасываем форму
+              const form = document.getElementById('editProductForm2');
+              if (form) {
+                form.reset();
+              }
+            }
+          }
+          
+          function openImageSelectorForEdit() {
+            openModal('imageSelectorModal');
+            // Store that we're selecting for edit
+            document.getElementById('imageSelectorModal').dataset.forEdit = 'true';
+          }
+          
+          // Fetch images from Siam Botanicals
+          async function fetchSiamImages() {
+            if (!confirm('Загрузить изображения товаров с сайта Siam Botanicals? Это может занять несколько минут.')) {
+              return;
+            }
+            
+            showAlert('🔄 Загрузка изображений начата... Это может занять несколько минут.', 'success');
+            
+            try {
+              const res = await fetch('/admin/api/product2/fetch-siam-images', {
+                method: 'POST',
+                credentials: 'include'
+              });
+              
+              const data = await res.json();
+              if (data.success) {
+                showAlert(\`✅ \${data.message || 'Загрузка запущена'}\`, 'success');
+                setTimeout(() => location.reload(), 3000);
+              } else {
+                showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+              }
+            } catch (error) {
+              showAlert('❌ Ошибка: ' + error.message, 'error');
+            }
+          }
+          
+          // Update selectImage to handle edit mode
+          const originalSelectImage = window.selectImage || selectImage;
+          window.selectImage = function(imageUrl, productId) {
+            // Check if selecting for edit modal
+            const imageSelectorModal = document.getElementById('imageSelectorModal');
+            if (imageSelectorModal && imageSelectorModal.dataset.forEdit === 'true') {
+              document.getElementById('editSelectedImageUrl2').value = imageUrl;
+              const previewImg = document.getElementById('editProductImagePreviewImg2');
+              if (previewImg) {
+                previewImg.src = imageUrl;
+                previewImg.style.display = 'block';
+              }
+              document.getElementById('editProductImage2').value = '';
+              imageSelectorModal.dataset.forEdit = 'false';
+              closeModal('imageSelectorModal');
+              showAlert('Фото выбрано');
+              return;
+            }
+            
+            // Original behavior for product creation
+            if (document.getElementById('selectedImageUrl')) {
+              document.getElementById('selectedImageUrl').value = imageUrl;
+            }
+            if (document.getElementById('productImage')) {
+              document.getElementById('productImage').value = '';
+            }
+            closeModal('imageSelectorModal');
+            const imageItem = document.querySelector(\`[onclick*="'\${productId}'"]\`);
+            if (imageItem) {
+              const titleElement = imageItem.querySelector('.image-item-title');
+              if (titleElement) {
+                showAlert('Фото выбрано: ' + titleElement.textContent);
+              } else {
+                showAlert('Фото выбрано');
+              }
+            } else {
+              showAlert('Фото выбрано');
+            }
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    res.send(html);
+  } catch (error) {
+    console.error('Product2 page error:', error);
+    res.status(500).send('Ошибка загрузки страницы Товар 2');
+  }
+});
+
+// API routes for Product2
+router.post('/api/product2/category', requireAdmin, async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) {
+      return res.status(400).json({ success: false, error: 'Название категории обязательно' });
+    }
+
+    const slug = name.toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .substring(0, 50) || `category-${Date.now()}`;
+
+    const category = await prisma.category.create({
+      data: {
+        name,
+        slug,
+        isActive: true,
+      },
+    });
+
+    res.json({ success: true, category });
+  } catch (error: any) {
+    console.error('Create category error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Ошибка создания категории' });
+  }
+});
+
+router.post('/api/product2/subcategory', requireAdmin, async (req, res) => {
+  try {
+    const { categoryId, name } = req.body;
+    if (!categoryId || !name) {
+      return res.status(400).json({ success: false, error: 'Категория и название обязательны' });
+    }
+
+    const parentCategory = await prisma.category.findUnique({
+      where: { id: categoryId },
+    });
+
+    if (!parentCategory) {
+      return res.status(404).json({ success: false, error: 'Родительская категория не найдена' });
+    }
+
+    const slug = `${parentCategory.slug}-${name.toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .substring(0, 30)}` || `subcategory-${Date.now()}`;
+
+    const subcategory = await prisma.category.create({
+      data: {
+        name: `${parentCategory.name} > ${name}`,
+        slug,
+        isActive: true,
+      },
+    });
+
+    res.json({ success: true, subcategory });
+  } catch (error: any) {
+    console.error('Create subcategory error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Ошибка создания подкатегории' });
+  }
+});
+
+router.post('/api/product2/product', requireAdmin, upload.single('image'), async (req, res) => {
+  try {
+    const { categoryId, name, summary, price, imageUrl } = req.body;
+
+    if (!categoryId || !name || !summary || !price) {
+      return res.status(400).json({ success: false, error: 'Все поля обязательны' });
+    }
+
+    let finalImageUrl = imageUrl || null;
+
+    // Если загружено новое фото
+    if (req.file) {
+      const uploadResult = await uploadImage(req.file.buffer, {
+        folder: 'plazma/products',
+        publicId: `product-${Date.now()}`,
+        resourceType: 'image',
+      });
+      finalImageUrl = uploadResult.secureUrl;
+    }
+
+    const product = await prisma.product.create({
+      data: {
+        title: name,
+        summary,
+        price: parseFloat(price),
+        imageUrl: finalImageUrl,
+        categoryId,
+        isActive: true,
+        stock: 999,
+        availableInRussia: true,
+        availableInBali: true,
+      },
+    });
+
+    res.json({ success: true, product });
+  } catch (error: any) {
+    console.error('Create product error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Ошибка создания товара' });
+  }
+});
+
+// Update product for Product2
+router.post('/api/product2/product/update', requireAdmin, upload.single('image'), async (req, res) => {
+  try {
+    const { productId, title, summary, description, price, stock, categoryId, isActive, availableInRussia, availableInBali, imageUrl, sku } = req.body;
+
+    if (!productId || !title || !summary || !price || !stock) {
+      return res.status(400).json({ success: false, error: 'Все обязательные поля должны быть заполнены' });
+    }
+
+    let finalImageUrl = imageUrl || undefined;
+
+    // Если загружено новое фото
+    if (req.file) {
+      const uploadResult = await uploadImage(req.file.buffer, {
+        folder: 'plazma/products',
+        publicId: `product-${Date.now()}`,
+        resourceType: 'image',
+      });
+      finalImageUrl = uploadResult.secureUrl;
+    }
+
+    const updateData: any = {
+      title,
+      summary,
+      description: description || null,
+      price: parseFloat(price),
+      stock: parseInt(stock),
+      categoryId,
+      isActive: isActive === 'true' || isActive === true,
+      availableInRussia: availableInRussia === 'true' || availableInRussia === true,
+      availableInBali: availableInBali === 'true' || availableInBali === true,
+    };
+
+    if (sku !== undefined) {
+      updateData.sku = sku || null;
+    }
+
+    if (finalImageUrl !== undefined) {
+      updateData.imageUrl = finalImageUrl;
+    }
+
+    const product = await prisma.product.update({
+      where: { id: productId },
+      data: updateData,
+    });
+
+    res.json({ success: true, product });
+  } catch (error: any) {
+    console.error('Update product error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Ошибка обновления товара' });
+  }
+});
+
+// Get products by category
+router.get('/api/product2/category/:categoryId/products', requireAdmin, async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+
+    const products = await prisma.product.findMany({
+      where: { categoryId },
+      select: {
+        id: true,
+        title: true,
+        summary: true,
+        description: true,
+        price: true,
+        stock: true,
+        imageUrl: true,
+        isActive: true,
+        availableInRussia: true,
+        availableInBali: true,
+        categoryId: true,
+        sku: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({ success: true, products });
+  } catch (error: any) {
+    console.error('Get category products error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Ошибка загрузки товаров' });
+  }
+});
+
+// Fetch images from Siam Botanicals
+router.post('/api/product2/fetch-siam-images', requireAdmin, async (req, res) => {
+  try {
+    // Запускаем скрипт в фоне
+    const { spawn } = await import('child_process');
+    const scriptPath = process.cwd() + '/scripts/fetch-images-from-siam.ts';
+
+    const child = spawn('npx', ['ts-node', '--esm', scriptPath], {
+      cwd: process.cwd(),
+      detached: true,
+      stdio: 'ignore'
+    });
+
+    child.unref();
+
+    res.json({
+      success: true,
+      message: 'Загрузка изображений запущена в фоновом режиме. Проверьте логи через несколько минут.'
+    });
+  } catch (error: any) {
+    console.error('Error starting image fetch:', error);
+    res.status(500).json({ success: false, error: error.message || 'Ошибка запуска загрузки изображений' });
+  }
+});
+
+// Fetch images from Siam Botanicals
+router.post('/api/product2/fetch-siam-images', requireAdmin, async (req, res) => {
+  try {
+    // Запускаем скрипт в фоне
+    const { spawn } = await import('child_process');
+    const scriptPath = process.cwd() + '/scripts/fetch-images-from-siam.ts';
+
+    const child = spawn('npx', ['ts-node', '--esm', scriptPath], {
+      cwd: process.cwd(),
+      detached: true,
+      stdio: 'ignore'
+    });
+
+    child.unref();
+
+    res.json({
+      success: true,
+      message: 'Загрузка изображений запущена в фоновом режиме. Проверьте логи через несколько минут.'
+    });
+  } catch (error: any) {
+    console.error('Error starting image fetch:', error);
+    res.status(500).json({ success: false, error: error.message || 'Ошибка запуска загрузки изображений' });
+  }
+});
+
+// Move category to subcategory
+router.post('/api/product2/category/move', requireAdmin, async (req, res) => {
+  try {
+    const { categoryId, parentCategoryId } = req.body;
+
+    if (!categoryId || !parentCategoryId) {
+      return res.status(400).json({ success: false, error: 'Категория и родительская категория обязательны' });
+    }
+
+    if (categoryId === parentCategoryId) {
+      return res.status(400).json({ success: false, error: 'Нельзя перенести категорию в саму себя' });
+    }
+
+    const category = await prisma.category.findUnique({
+      where: { id: categoryId },
+    });
+
+    const parentCategory = await prisma.category.findUnique({
+      where: { id: parentCategoryId },
+    });
+
+    if (!category || !parentCategory) {
+      return res.status(404).json({ success: false, error: 'Категория не найдена' });
+    }
+
+    // Обновляем название и slug категории, чтобы она стала подкатегорией
+    const newSlug = `${parentCategory.slug}-${category.slug}`;
+    const newName = `${parentCategory.name} > ${category.name}`;
+
+    const updatedCategory = await prisma.category.update({
+      where: { id: categoryId },
+      data: {
+        name: newName,
+        slug: newSlug,
+      },
+    });
+
+    res.json({ success: true, category: updatedCategory });
+  } catch (error: any) {
+    console.error('Move category error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Ошибка переноса категории' });
+  }
+});
+
 // Handle product toggle active status
 router.post('/products/:id/toggle-active', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const product = await prisma.product.findUnique({ where: { id } });
-    
+
     if (!product) {
-      const fallback = req.get('referer') || '/admin/products';
-      return res.redirect(`${fallback}?error=product_not_found`);
+      return res.redirect('/admin/products?error=product_not_found');
+    }
+
+    // Ensure "Отключенные" category exists (slug: disabled)
+    let disabledCategory = await prisma.category.findFirst({
+      where: {
+        OR: [{ name: 'Отключенные' }, { slug: 'disabled' }],
+      },
+    });
+
+    if (!disabledCategory) {
+      disabledCategory = await prisma.category.create({
+        data: {
+          name: 'Отключенные',
+          slug: 'disabled',
+          description: 'Автоматическая категория для отключенных товаров',
+          isActive: true,
+        },
+      });
+    }
+
+    // Cosmetics category (for returning when enabling from disabled)
+    const cosmeticsCategory = await prisma.category.findFirst({
+      where: {
+        OR: [{ name: 'Косметика' }, { slug: 'kosmetika' }],
+      },
+    });
+
+    const willDisable = product.isActive === true;
+    const willEnable = product.isActive === false;
+
+    const updateData: any = { isActive: !product.isActive };
+    if (willDisable) {
+      // When disabling: move to "Отключенные"
+      updateData.categoryId = disabledCategory.id;
+    } else if (willEnable) {
+      // When enabling: if currently in "Отключенные" — move back to cosmetics (if exists)
+      if (String(product.categoryId) === String(disabledCategory.id) && cosmeticsCategory) {
+        updateData.categoryId = cosmeticsCategory.id;
+      }
     }
 
     await prisma.product.update({
       where: { id },
-      data: { isActive: !product.isActive }
+      data: updateData,
     });
 
-    const redirectUrl = req.get('referer') || '/admin/products';
-    res.redirect(redirectUrl);
+    res.redirect('/admin/products?success=product_updated');
   } catch (error) {
     console.error('Product toggle error:', error);
-    const fallback = req.get('referer') || '/admin/products';
-    res.redirect(`${fallback}?error=product_toggle`);
+    res.redirect('/admin/products?error=product_toggle');
   }
 });
 
@@ -6368,66 +10336,19 @@ router.post('/products/:id/delete', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const product = await prisma.product.findUnique({ where: { id } });
-    
+
     if (!product) {
-      const fallback = req.get('referer') || '/admin/products';
-      return res.redirect(`${fallback}?error=product_not_found`);
+      return res.redirect('/admin/products?error=product_not_found');
     }
 
     await prisma.product.delete({
       where: { id }
     });
 
-    const redirectUrl = req.get('referer') || '/admin/products';
-    res.redirect(`${redirectUrl}?success=product_deleted`);
+    res.redirect('/admin/products?success=product_deleted');
   } catch (error) {
     console.error('Product delete error:', error);
-    const fallback = req.get('referer') || '/admin/products';
-    res.redirect(`${fallback}?error=product_delete_failed`);
-  }
-});
-
-// Upload product image
-router.post('/products/:id/upload-image', requireAdmin, upload.single('image'), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const product = await prisma.product.findUnique({ where: { id } });
-    
-    if (!product) {
-      const fallback = req.get('referer') || '/admin/products';
-      return res.redirect(`${fallback}?error=product_not_found`);
-    }
-
-    if (!req.file) {
-      const fallback = req.get('referer') || '/admin/products';
-      return res.redirect(`${fallback}?error=no_image`);
-    }
-
-    // Upload to Cloudinary
-    const result = await new Promise((resolve, reject) => {
-      cloudinary.uploader.upload_stream(
-        { resource_type: 'auto', folder: 'plazma-bot/products' },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      ).end(req.file!.buffer);
-    });
-
-    const imageUrl = (result as any).secure_url;
-
-    // Update product with new image
-    await prisma.product.update({
-      where: { id },
-      data: { imageUrl }
-    });
-
-    const redirectUrl = req.get('referer') || '/admin/products';
-    res.redirect(`${redirectUrl}?success=image_updated`);
-  } catch (error) {
-    console.error('Image upload error:', error);
-    const fallback = req.get('referer') || '/admin/products';
-    res.redirect(`${fallback}?error=image_upload`);
+    res.redirect('/admin/products?error=product_delete');
   }
 });
 
@@ -6435,57 +10356,551 @@ router.post('/products/:id/upload-image', requireAdmin, upload.single('image'), 
 router.post('/products/:productId/update', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const { productId } = req.params;
-    const { title, price, summary, description, instruction, isActive, categoryId, stock, availableInRussia, availableInBali } = req.body as any;
     
-    console.log('Update product request:', {
+    // Правильно обрабатываем данные из FormData
+    const title = String(req.body.title || '').trim();
+    const price = parseFloat(String(req.body.price || '0'));
+    const summary = String(req.body.summary || '').trim();
+    const description = String(req.body.description || '').trim();
+    const instruction = String(req.body.instruction || '').trim() || null;
+    const categoryId = String(req.body.categoryId || '').trim();
+    const stock = parseInt(String(req.body.stock || '999'), 10);
+    const isActive = String(req.body.isActive || 'false').toLowerCase() === 'true';
+    const availableInRussia = String(req.body.availableInRussia || 'false').toLowerCase() === 'true';
+    const availableInBali = String(req.body.availableInBali || 'false').toLowerCase() === 'true';
+
+    console.log('📥 Update product request:', {
       productId,
-      body: req.body,
+      title: title.substring(0, 50),
+      price,
+      categoryId,
+      isActive,
+      availableInRussia,
+      availableInBali,
+      stock,
       file: req.file ? 'file present' : 'no file'
     });
     
-    let imageUrl = undefined;
-    if (req.file) {
-      const result = await new Promise((resolve, reject) => {
-        cloudinary.uploader.upload_stream(
-          { resource_type: 'auto', folder: 'plazma-bot/products' },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
-          }
-        ).end(req.file!.buffer);
-      });
-      imageUrl = (result as any).secure_url;
+    // Валидация
+    if (!title) {
+      return res.status(400).json({ success: false, error: 'Название товара обязательно' });
+    }
+    if (!price || price <= 0) {
+      return res.status(400).json({ success: false, error: 'Цена должна быть больше 0' });
+    }
+    if (!categoryId) {
+      return res.status(400).json({ success: false, error: 'Категория обязательна' });
     }
 
-    const updateData: any = {};
-    if (title) updateData.title = title.trim();
-    if (price) updateData.price = parseFloat(price);
-    if (summary) updateData.summary = summary.trim();
-    if (description) updateData.description = description.trim();
-    if (instruction !== undefined) updateData.instruction = instruction?.trim() || null;
-    if (categoryId) updateData.categoryId = categoryId;
-    if (stock !== undefined) updateData.stock = parseInt(stock);
-    if (isActive !== undefined) updateData.isActive = isActive === 'true';
-    if (availableInRussia !== undefined) updateData.availableInRussia = availableInRussia === 'true';
-    if (availableInBali !== undefined) updateData.availableInBali = availableInBali === 'true';
-    if (imageUrl) updateData.imageUrl = imageUrl;
+    let imageUrl = undefined;
+    if (req.file) {
+      try {
+        if (!isCloudinaryConfigured()) {
+          return res.status(500).json({ success: false, error: 'Cloudinary не настроен' });
+        }
+
+        const result = await uploadImage(req.file.buffer, {
+          folder: 'vital/products',
+          publicId: `product-${productId}`,
+          resourceType: 'image',
+        });
+
+        imageUrl = result.secureUrl;
+        console.log('✅ Product image updated:', imageUrl);
+      } catch (error: any) {
+        console.error('Image upload error:', error);
+        return res.status(500).json({ success: false, error: `Ошибка загрузки изображения: ${error.message || 'Неизвестная ошибка'}` });
+      }
+    }
+
+    // Проверяем существование товара
+    const existingProduct = await prisma.product.findUnique({
+      where: { id: productId }
+    });
+    
+    if (!existingProduct) {
+      return res.status(404).json({ success: false, error: 'Товар не найден' });
+    }
+    
+    // Проверяем существование категории
+    if (categoryId) {
+      const category = await prisma.category.findUnique({
+        where: { id: categoryId }
+      });
+      if (!category) {
+        return res.status(400).json({ success: false, error: 'Категория не найдена' });
+      }
+    }
+
+    const updateData: any = {
+      title: title,
+      price: price,
+      summary: summary,
+      description: description,
+      instruction: instruction,
+      categoryId: categoryId,
+      stock: stock,
+      isActive: isActive,
+      availableInRussia: availableInRussia,
+      availableInBali: availableInBali
+    };
+    
+    if (imageUrl) {
+      updateData.imageUrl = imageUrl;
+    }
+
+    console.log('💾 Updating product with data:', {
+      productId,
+      title: title.substring(0, 30),
+      price,
+      isActive,
+      availableInRussia,
+      availableInBali
+    });
 
     const product = await prisma.product.update({
       where: { id: productId },
       data: updateData,
     });
-    
+
+    console.log('✅ Product updated successfully:', product.id);
     res.json({ success: true, product });
   } catch (error) {
     console.error('Update product error:', error);
     res.status(500).json({ success: false, error: 'Ошибка обновления товара' });
   }
 });
+
+// Upload product image
+router.post('/products/:productId/upload-image', requireAdmin, upload.single('image'), async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    if (!req.file) {
+      return res.redirect(`/admin/products?error=no_image`);
+    }
+
+    if (!isCloudinaryConfigured()) {
+      return res.redirect(`/admin/products?error=cloudinary_not_configured`);
+    }
+
+    try {
+      const result = await uploadImage(req.file.buffer, {
+        folder: 'vital/products',
+        publicId: `product-${productId}`,
+        resourceType: 'image',
+      });
+
+      await prisma.product.update({
+        where: { id: productId },
+        data: { imageUrl: result.secureUrl },
+      });
+
+      console.log('✅ Product image uploaded:', result.secureUrl);
+      res.redirect(`/admin/products?success=image_updated`);
+    } catch (error: any) {
+      console.error('Image upload error:', error);
+      res.redirect(`/admin/products?error=image_upload`);
+    }
+  } catch (error) {
+    console.error('Upload product image error:', error);
+    res.redirect(`/admin/products?error=image_upload`);
+  }
+});
+// Import Siam Botanicals products endpoint
+router.post('/api/import-siam-products', requireAdmin, async (req, res) => {
+  try {
+    console.log('🚀 Запрос на импорт продуктов из Siam Botanicals получен');
+    console.log('📋 Request headers:', req.headers);
+    console.log('📋 Request body:', req.body);
+
+    // Запускаем импорт в фоне и возвращаем результат
+    import('../services/siam-import-service.js')
+      .then(({ importSiamProducts }) => {
+        console.log('✅ Модуль импорта загружен, запускаю импорт...');
+        return importSiamProducts();
+      })
+      .then(result => {
+        console.log(`✅ Импорт завершён! Успешно: ${result.success}, Ошибок: ${result.errors}, Всего: ${result.total}`);
+      })
+      .catch(error => {
+        console.error('❌ Ошибка импорта продуктов:', error);
+        console.error('❌ Error stack:', error?.stack);
+        console.error('❌ Error details:', {
+          message: error?.message,
+          name: error?.name,
+          code: error?.code
+        });
+      });
+
+    // Возвращаем ответ немедленно
+    console.log('✅ Отправляю ответ клиенту об успешном запуске импорта');
+    res.json({
+      success: true,
+      message: 'Импорт продуктов запущен. Проверьте логи сервера для прогресса.'
+    });
+  } catch (error: any) {
+    console.error('❌ Import endpoint error:', error);
+    console.error('❌ Error stack:', error?.stack);
+    console.error('❌ Error details:', {
+      message: error?.message,
+      name: error?.name,
+      code: error?.code
+    });
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Ошибка запуска импорта'
+    });
+  }
+});
+
+// Endpoint для получения всех загруженных изображений товаров
+router.get('/api/products/images', requireAdmin, async (req, res) => {
+  try {
+    const products = await prisma.product.findMany({
+      where: {
+        imageUrl: {
+          not: null
+        }
+      },
+      select: {
+        id: true,
+        title: true,
+        imageUrl: true
+      },
+      orderBy: {
+        updatedAt: 'desc'
+      }
+    });
+
+    // Группируем по URL изображения (убираем дубликаты)
+    const uniqueImages = new Map<string, { url: string; products: Array<{ id: string; title: string }> }>();
+
+    products.forEach(product => {
+      if (product.imageUrl) {
+        if (!uniqueImages.has(product.imageUrl)) {
+          uniqueImages.set(product.imageUrl, {
+            url: product.imageUrl,
+            products: []
+          });
+        }
+        uniqueImages.get(product.imageUrl)!.products.push({
+          id: product.id,
+          title: product.title
+        });
+      }
+    });
+
+    const images = Array.from(uniqueImages.values());
+
+    res.json({
+      success: true,
+      images: images
+    });
+  } catch (error: any) {
+    console.error('❌ Error fetching product images:', error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Ошибка получения изображений'
+    });
+  }
+});
+
+// Endpoint для привязки существующего изображения к товару
+router.post('/api/products/:productId/select-image', requireAdmin, async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { imageUrl } = req.body as { imageUrl: string };
+
+    if (!imageUrl || !imageUrl.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'URL изображения не предоставлен'
+      });
+    }
+
+    // Проверяем существование товара
+    const product = await prisma.product.findUnique({
+      where: { id: productId }
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        error: 'Товар не найден'
+      });
+    }
+
+    // Обновляем товар
+    await prisma.product.update({
+      where: { id: productId },
+      data: { imageUrl: imageUrl.trim() }
+    });
+
+    console.log(`✅ Изображение привязано к товару: ${product.title}`);
+
+    return res.json({
+      success: true,
+      message: 'Изображение успешно привязано к товару',
+      imageUrl: imageUrl.trim()
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error selecting product image:', error);
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Ошибка привязки изображения'
+    });
+  }
+});
+
+// Endpoint для загрузки изображения товара по URL
+router.post('/api/products/:productId/upload-image-url', requireAdmin, async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { imageUrl } = req.body as { imageUrl: string };
+
+    if (!imageUrl || !imageUrl.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'URL изображения не предоставлен'
+      });
+    }
+
+    if (!isCloudinaryConfigured()) {
+      return res.status(503).json({
+        success: false,
+        error: 'Cloudinary не настроен'
+      });
+    }
+
+    // Проверяем существование товара
+    const product = await prisma.product.findUnique({
+      where: { id: productId }
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        error: 'Товар не найден'
+      });
+    }
+
+    console.log(`📥 Загружаю изображение для товара: ${product.title}`);
+    console.log(`   URL: ${imageUrl}`);
+
+    // Скачиваем изображение
+    const response = await fetch(imageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      signal: AbortSignal.timeout(15000)
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.startsWith('image/')) {
+      throw new Error(`URL не является изображением: ${contentType}`);
+    }
+
+    const imageBuffer = Buffer.from(await response.arrayBuffer());
+
+    if (imageBuffer.length === 0) {
+      throw new Error('Изображение пустое');
+    }
+
+    console.log(`   ✅ Изображение скачано (${(imageBuffer.length / 1024).toFixed(2)} KB)`);
+
+    // Загружаем на Cloudinary
+    console.log(`☁️  Загружаю на Cloudinary...`);
+    const uploadResult = await uploadImage(imageBuffer, {
+      folder: 'vital/products',
+      publicId: `siam-${productId}`,
+      resourceType: 'image'
+    });
+
+    console.log(`   ✅ Изображение загружено на Cloudinary: ${uploadResult.secureUrl}`);
+
+    // Обновляем товар в базе данных
+    await prisma.product.update({
+      where: { id: productId },
+      data: { imageUrl: uploadResult.secureUrl }
+    });
+
+    console.log(`   ✅ Товар обновлен: ${product.title}`);
+
+    return res.json({
+      success: true,
+      message: 'Изображение успешно загружено и прикреплено к товару',
+      imageUrl: uploadResult.secureUrl
+    });
+
+  } catch (error: any) {
+    console.error('❌ Upload product image URL error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Ошибка загрузки изображения'
+    });
+  }
+});
+
+// AI Translation endpoint for products
+router.post('/api/products/translate', requireAdmin, async (req, res) => {
+  try {
+    const { text, type, productName, productType } = req.body as {
+      text: string;
+      type: 'title' | 'summary' | 'description';
+      productName?: string;
+      productType?: string;
+    };
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Текст для перевода не предоставлен'
+      });
+    }
+
+    const { aiTranslationService } = await import('../services/ai-translation-service.js');
+
+    if (!aiTranslationService.isEnabled()) {
+      return res.status(503).json({
+        success: false,
+        error: 'AI Translation Service не настроен. Добавьте OPENAI_API_KEY в переменные окружения.'
+      });
+    }
+
+    let translatedText: string;
+
+    try {
+      if (type === 'title') {
+        translatedText = await aiTranslationService.translateTitle(text);
+      } else if (type === 'summary') {
+        translatedText = await aiTranslationService.translateSummary(text, productName || '');
+      } else {
+        // description
+        translatedText = await aiTranslationService.translateProductDescription(
+          text,
+          productType || 'cosmetic',
+          {
+            preserveStyle: true,
+            targetAudience: 'natural',
+            enhanceDescription: true
+          }
+        );
+      }
+
+      return res.json({
+        success: true,
+        translated: translatedText
+      });
+    } catch (error: any) {
+      console.error('AI Translation error:', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message || 'Ошибка при переводе текста'
+      });
+    }
+  } catch (error) {
+    console.error('Translation endpoint error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Внутренняя ошибка сервера'
+    });
+  }
+});
+
+// Upload review image
+router.post('/reviews/:reviewId/upload-image', requireAdmin, upload.single('image'), async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+
+    if (!req.file) {
+      return res.redirect(`/admin/reviews?error=no_image`);
+    }
+
+    if (!isCloudinaryConfigured()) {
+      return res.redirect(`/admin/reviews?error=cloudinary_not_configured`);
+    }
+
+    try {
+      const result = await uploadImage(req.file.buffer, {
+        folder: 'vital/reviews',
+        publicId: `review-${reviewId}`,
+        resourceType: 'image',
+      });
+
+      await prisma.review.update({
+        where: { id: reviewId },
+        data: { photoUrl: result.secureUrl },
+      });
+
+      console.log('✅ Review image uploaded:', result.secureUrl);
+      res.redirect(`/admin/reviews?success=image_updated`);
+    } catch (error: any) {
+      console.error('Image upload error:', error);
+      res.redirect(`/admin/reviews?error=image_upload`);
+    }
+  } catch (error) {
+    console.error('Upload review image error:', error);
+    res.redirect(`/admin/reviews?error=image_upload`);
+  }
+});
+
 router.get('/reviews', requireAdmin, async (req, res) => {
   try {
     const reviews = await prisma.review.findMany({
       orderBy: { createdAt: 'desc' }
     });
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
+
+    // Helper functions for escaping
+    const escapeAttr = (str: string | null | undefined): string => {
+      if (!str) return '';
+      try {
+        let result = String(str)
+          .replace(/[\x00-\x1F\x7F-\u009F]/g, '')
+          .replace(/\u2028/g, ' ')
+          .replace(/\u2029/g, ' ')
+          .replace(/[\r\n]+/g, ' ')
+          .replace(/\t/g, ' ')
+          .replace(/\s+/g, ' ')
+          .replace(/[\u200B-\u200D\uFEFF]/g, '');
+        result = result
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;')
+          .replace(/`/g, '&#96;');
+        if (result.length > 10000) {
+          result = result.substring(0, 10000) + '...';
+        }
+        return result;
+      } catch (error) {
+        console.error('Error in escapeAttr:', error);
+        return '';
+      }
+    };
+
+    const escapeHtml = (str: string | null | undefined): string => {
+      if (!str) return '';
+      try {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;')
+          .replace(/`/g, '&#96;');
+      } catch (error) {
+        console.error('Error in escapeHtml:', error);
+        return '';
+      }
+    };
 
     let html = `
       <!DOCTYPE html>
@@ -6494,7 +10909,8 @@ router.get('/reviews', requireAdmin, async (req, res) => {
         <title>Управление отзывами</title>
         <meta charset="utf-8">
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+          ${ADMIN_UI_CSS}
+          body { margin: 0; padding: 0; background: var(--admin-bg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
           .btn { display: inline-block; padding: 12px 24px; background: #007bff; color: white; text-decoration: none; border-radius: 6px; margin-bottom: 20px; }
           .btn:hover { background: #0056b3; }
           .review-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; margin-top: 20px; }
@@ -6542,20 +10958,25 @@ router.get('/reviews', requireAdmin, async (req, res) => {
         </style>
       </head>
       <body>
-        <h2>⭐ Управление отзывами</h2>
-        <a href="/admin" class="btn">← Назад</a>
+        ${renderAdminShellStart({ title: 'Отзывы', activePath: '/admin/reviews', buildMarker })}
         
         ${req.query.success === 'image_updated' ? '<div class="alert alert-success">✅ Фото успешно обновлено!</div>' : ''}
         ${req.query.error === 'no_image' ? '<div class="alert alert-error">❌ Файл не выбран</div>' : ''}
         ${req.query.error === 'image_upload' ? '<div class="alert alert-error">❌ Ошибка загрузки фото</div>' : ''}
+        ${req.query.error === 'cloudinary_not_configured' ? '<div class="alert alert-error">❌ Загрузка фото недоступна: Cloudinary не настроен (нужны CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET на Railway).</div>' : ''}
         ${req.query.error === 'review_not_found' ? '<div class="alert alert-error">❌ Отзыв не найден</div>' : ''}
         
         <div class="review-grid">
     `;
 
     reviews.forEach(review => {
+      const safeId = escapeAttr(review.id);
+      const safeName = escapeHtml(review.name || '');
+      const safeContent = escapeHtml(review.content || '');
+      const safePhotoUrl = escapeAttr(review.photoUrl || '');
+
       const imageSection = review.photoUrl
-        ? `<img src="${review.photoUrl}" alt="${review.name}" class="review-image" loading="lazy">`
+        ? `<img src="${safePhotoUrl}" alt="${safeName}" class="review-image" loading="lazy">`
         : `<div class="review-image-placeholder">
              <span class="placeholder-icon">👤</span>
              <span class="placeholder-text">Нет фото</span>
@@ -6565,8 +10986,8 @@ router.get('/reviews', requireAdmin, async (req, res) => {
         <div class="review-card">
           ${imageSection}
           <div class="review-header">
-            <h3 class="review-name">${review.name}</h3>
-            <form method="post" action="/admin/reviews/${review.id}/toggle-active" style="display: inline;">
+            <h3 class="review-name">${safeName}</h3>
+            <form method="post" action="/admin/reviews/${safeId}/toggle-active" style="display: inline;">
               <button type="submit" class="status-btn ${review.isActive ? 'active' : 'inactive'}" style="border: none; background: none; cursor: pointer; font-size: 12px; padding: 4px 8px; border-radius: 4px;">
                 ${review.isActive ? '✅ Активен' : '❌ Неактивен'}
               </button>
@@ -6575,20 +10996,20 @@ router.get('/reviews', requireAdmin, async (req, res) => {
           <div class="review-badges">
             <span class="badge ${review.isPinned ? 'badge-pinned' : 'badge-not-pinned'}">${review.isPinned ? '📌 Закреплён' : '❌ Не закреплён'}</span>
           </div>
-          <p class="review-content">${review.content}</p>
+          <p class="review-content">${safeContent}</p>
           <div class="review-meta">
             <span>Создан: ${new Date(review.createdAt).toLocaleDateString()}</span>
-            <span>ID: ${review.id.slice(0, 8)}...</span>
+            <span>ID: ${escapeHtml(review.id.slice(0, 8))}...</span>
           </div>
           <div class="review-actions">
-            <form method="post" action="/admin/reviews/${review.id}/toggle-pinned">
+            <form method="post" action="/admin/reviews/${safeId}/toggle-pinned">
               <button type="submit" class="toggle-btn">${review.isPinned ? 'Открепить' : 'Закрепить'}</button>
             </form>
-            <form method="post" action="/admin/reviews/${review.id}/upload-image" enctype="multipart/form-data" style="display: inline;">
-              <input type="file" name="image" accept="image/*" style="display: none;" id="review-image-${review.id}" onchange="this.form.submit()">
-              <button type="button" class="image-btn" onclick="document.getElementById('review-image-${review.id}').click()">📷 ${review.photoUrl ? 'Изменить фото' : 'Добавить фото'}</button>
+            <form method="post" action="/admin/reviews/${safeId}/upload-image" enctype="multipart/form-data" style="display: inline;">
+              <input type="file" name="image" accept="image/*" id="review-image-${safeId}" class="product-image-input" onchange="this.form.submit()">
+              <label for="review-image-${safeId}" class="image-btn file-label-btn">📷 ${review.photoUrl ? 'Изменить фото' : 'Добавить фото'}</label>
             </form>
-            <form method="post" action="/admin/reviews/${review.id}/delete" onsubmit="return confirm('Удалить отзыв от «${review.name}»?')">
+            <form method="post" action="/admin/reviews/${safeId}/delete" onsubmit="return confirm('Удалить отзыв от «${safeName}»?')">
               <button type="submit" class="delete-btn">Удалить</button>
             </form>
           </div>
@@ -6598,6 +11019,7 @@ router.get('/reviews', requireAdmin, async (req, res) => {
 
     html += `
         </div>
+        ${renderAdminShellEnd()}
       </body>
       </html>
     `;
@@ -6611,7 +11033,7 @@ router.get('/reviews', requireAdmin, async (req, res) => {
 router.get('/orders', requireAdmin, async (req, res) => {
   try {
     const orders = await prisma.orderRequest.findMany({
-      include: { 
+      include: {
         user: {
           include: {
             partner: true
@@ -6620,6 +11042,7 @@ router.get('/orders', requireAdmin, async (req, res) => {
       },
       orderBy: { createdAt: 'desc' }
     });
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
 
     let html = `
       <!DOCTYPE html>
@@ -6628,7 +11051,8 @@ router.get('/orders', requireAdmin, async (req, res) => {
         <title>Управление заказами</title>
         <meta charset="utf-8">
         <style>
-          body { font-family: Arial, sans-serif; max-width: 1000px; margin: 20px auto; padding: 20px; }
+          ${ADMIN_UI_CSS}
+          body { margin: 0; padding: 0; background: var(--admin-bg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
           .btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; margin: 5px; }
           .btn:hover { background: #0056b3; }
           table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -6637,9 +11061,7 @@ router.get('/orders', requireAdmin, async (req, res) => {
         </style>
       </head>
       <body>
-        <h2>📦 Управление заказами v2.0</h2>
-        <p style="color: #666; font-size: 12px; margin: 5px 0;">Версия: 2.0 | ${new Date().toLocaleString()}</p>
-        <a href="/admin" class="btn">← Назад</a>
+        ${renderAdminShellStart({ title: 'Заказы', activePath: '/admin/orders', buildMarker })}
         
         ${req.query.success === 'order_updated' ? '<div class="alert alert-success">✅ Статус заказа обновлен</div>' : ''}
         ${req.query.error === 'order_update' ? '<div class="alert alert-error">❌ Ошибка при обновлении статуса заказа</div>' : ''}
@@ -6721,6 +11143,1036 @@ router.get('/orders', requireAdmin, async (req, res) => {
   }
 });
 
+// Certificates admin (types + issue codes)
+router.get('/certificates', requireAdmin, async (req, res) => {
+  try {
+    const buildMarker = (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.BUILD_MARKER || '').toString().slice(0, 7);
+    const p: any = prisma as any;
+    const types = await p.certificateType.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }] });
+    const issued = await p.giftCertificate.findMany({ orderBy: [{ createdAt: 'desc' }], take: 50 });
+
+    res.send(`
+      <!doctype html>
+      <html lang="ru">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Сертификаты</title>
+        <style>${ADMIN_UI_CSS}</style>
+      </head>
+      <body>
+        ${renderAdminShellStart({ title: 'Сертификаты', activePath: '/admin/certificates', buildMarker })}
+          <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px;">
+              <div style="font-weight:800; font-size:18px;">Типы сертификатов</div>
+              <button class="btn btn-success" onclick="openTypeModal()">+ Добавить тип</button>
+            </div>
+            <div style="overflow:auto;">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Название</th>
+                    <th>Цена (₽)</th>
+                    <th>Номинал (₽)</th>
+                    <th>Активен</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${types.map((t: any) => `
+                    <tr>
+                      <td>${escapeHtml(t.title)}</td>
+                      <td>${Number(t.priceRub || 0)}</td>
+                      <td>${Number(t.valueRub || 0)}</td>
+                      <td>${t.isActive ? 'Да' : 'Нет'}</td>
+                      <td style="text-align:right; white-space:nowrap;">
+                        <button class="action-btn" onclick='editType(${JSON.stringify(t).replace(/</g,'\\u003c')})'>Редактировать</button>
+                        <button class="action-btn" onclick='toggleType("${t.id}", ${t.isActive ? 'false' : 'true'})'>${t.isActive ? 'Выключить' : 'Включить'}</button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px;">
+              <div style="font-weight:800; font-size:18px;">Выданные коды (последние 50)</div>
+              <button class="btn" onclick="openIssueModal()">+ Выдать код</button>
+            </div>
+            <div style="overflow:auto;">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Код</th>
+                    <th>Остаток (PZ)</th>
+                    <th>Статус</th>
+                    <th>Пользователь</th>
+                    <th>Дата</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${issued.map((c: any) => `
+                    <tr>
+                      <td style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace;">${escapeHtml(c.code)}</td>
+                      <td>${Number(c.remainingPz || 0).toFixed(2)}</td>
+                      <td>${escapeHtml(c.status)}</td>
+                      <td>${c.userId ? escapeHtml(String(c.userId)) : '<span class="muted">—</span>'}</td>
+                      <td>${new Date(c.createdAt).toLocaleString('ru-RU')}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            <div class="muted" style="margin-top:8px;">Для применения в клиенте вводится код в форме оформления заказа.</div>
+          </div>
+
+          <div class="modal" id="typeModal" style="display:none;">
+            <div class="modal-card" style="max-width:720px;">
+              <div class="row" style="justify-content:space-between; align-items:center;">
+                <div style="font-weight:900; font-size:18px;">Тип сертификата</div>
+                <button class="action-btn" onclick="closeTypeModal()">×</button>
+              </div>
+              <div class="grid" style="margin-top:12px;">
+                <div>
+                  <div class="muted">Название *</div>
+                  <input id="ct_title" placeholder="Подарочный сертификат" />
+                </div>
+                <div>
+                  <div class="muted">Цена (₽) *</div>
+                  <input id="ct_priceRub" type="number" min="0" step="1" placeholder="1000" />
+                </div>
+                <div>
+                  <div class="muted">Номинал (₽) *</div>
+                  <input id="ct_valueRub" type="number" min="0" step="1" placeholder="1000" />
+                </div>
+                <div>
+                  <div class="muted">Сортировка</div>
+                  <input id="ct_sortOrder" type="number" step="1" value="0" />
+                </div>
+              </div>
+              <div style="margin-top:12px;">
+                <div class="muted">Описание</div>
+                <textarea id="ct_description" rows="3" placeholder="Короткое описание"></textarea>
+              </div>
+              <div style="margin-top:12px;">
+                <div class="muted">Обложка (файл)</div>
+                <input id="ct_image" type="file" accept="image/*" />
+                <div class="muted" style="margin-top:6px;">Если Cloudinary не настроен — можно оставить пустым.</div>
+              </div>
+              <div style="margin-top:12px;">
+                <label style="display:flex; gap:8px; align-items:center;">
+                  <input id="ct_isActive" type="checkbox" checked />
+                  <span>Активен</span>
+                </label>
+              </div>
+              <div id="ct_error" class="muted" style="margin-top:10px; color: var(--admin-danger); display:none;"></div>
+              <div class="row" style="justify-content:flex-end; gap:10px; margin-top:14px;">
+                <button class="btn btn-secondary" onclick="closeTypeModal()">Отмена</button>
+                <button class="btn btn-success" onclick="saveType()">Сохранить</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal" id="issueModal" style="display:none;">
+            <div class="modal-card" style="max-width:640px;">
+              <div class="row" style="justify-content:space-between; align-items:center;">
+                <div style="font-weight:900; font-size:18px;">Выдать код сертификата</div>
+                <button class="action-btn" onclick="closeIssueModal()">×</button>
+              </div>
+              <div class="grid" style="margin-top:12px;">
+                <div>
+                  <div class="muted">Номинал (₽) *</div>
+                  <input id="ci_valueRub" type="number" min="0" step="1" placeholder="1000" />
+                </div>
+                <div>
+                  <div class="muted">Telegram ID пользователя (опционально)</div>
+                  <input id="ci_telegramId" type="text" placeholder="123456789" />
+                </div>
+              </div>
+              <div class="muted" style="margin-top:8px;">Если Telegram ID не указан — код будет “непривязан”, привяжется при первом использовании.</div>
+              <div id="ci_error" class="muted" style="margin-top:10px; color: var(--admin-danger); display:none;"></div>
+              <div class="row" style="justify-content:flex-end; gap:10px; margin-top:14px;">
+                <button class="btn btn-secondary" onclick="closeIssueModal()">Отмена</button>
+                <button class="btn" onclick="issueCode()">Выдать</button>
+              </div>
+            </div>
+          </div>
+
+          <script>
+            function qs(id){ return document.getElementById(id); }
+            function showErr(id, msg){ const el = qs(id); if(!el) return; el.style.display = msg ? 'block' : 'none'; el.textContent = msg || ''; }
+
+            let editingTypeId = null;
+            function openTypeModal(){ editingTypeId = null; fillTypeForm({title:'', priceRub: '', valueRub:'', sortOrder:0, description:'', isActive:true}); qs('typeModal').style.display='flex'; document.body.classList.add('modal-open'); }
+            function closeTypeModal(){ qs('typeModal').style.display='none'; document.body.classList.remove('modal-open'); showErr('ct_error',''); if(qs('ct_image')) qs('ct_image').value=''; }
+            function fillTypeForm(t){
+              qs('ct_title').value = t.title || '';
+              qs('ct_priceRub').value = (t.priceRub ?? '');
+              qs('ct_valueRub').value = (t.valueRub ?? '');
+              qs('ct_sortOrder').value = (t.sortOrder ?? 0);
+              qs('ct_description').value = t.description || '';
+              qs('ct_isActive').checked = !!t.isActive;
+            }
+            function editType(t){ editingTypeId = t.id; fillTypeForm(t); qs('typeModal').style.display='flex'; document.body.classList.add('modal-open'); }
+            async function toggleType(id, next){
+              const res = await fetch('/admin/api/certificate-types/' + id, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ isActive: !!next }) });
+              if(!res.ok){ alert('Ошибка'); return; }
+              location.reload();
+            }
+            async function saveType(){
+              showErr('ct_error','');
+              const fd = new FormData();
+              fd.set('title', qs('ct_title').value.trim());
+              fd.set('priceRub', qs('ct_priceRub').value);
+              fd.set('valueRub', qs('ct_valueRub').value);
+              fd.set('sortOrder', qs('ct_sortOrder').value || '0');
+              fd.set('description', qs('ct_description').value || '');
+              fd.set('isActive', qs('ct_isActive').checked ? '1' : '0');
+              const f = qs('ct_image').files && qs('ct_image').files[0];
+              if (f) fd.set('image', f);
+              const url = editingTypeId ? ('/admin/api/certificate-types/' + editingTypeId) : '/admin/api/certificate-types';
+              const method = editingTypeId ? 'PUT' : 'POST';
+              const res = await fetch(url, { method, body: fd });
+              const data = await res.json().catch(()=>({}));
+              if(!res.ok){ showErr('ct_error', (data && (data.error || data.message)) ? (data.error || data.message) : ('HTTP ' + res.status)); return; }
+              location.reload();
+            }
+
+            function openIssueModal(){ qs('issueModal').style.display='flex'; document.body.classList.add('modal-open'); showErr('ci_error',''); qs('ci_valueRub').value=''; qs('ci_telegramId').value=''; }
+            function closeIssueModal(){ qs('issueModal').style.display='none'; document.body.classList.remove('modal-open'); showErr('ci_error',''); }
+            async function issueCode(){
+              showErr('ci_error','');
+              const valueRub = Number(qs('ci_valueRub').value || 0);
+              if(!valueRub){ showErr('ci_error','Укажите номинал'); return; }
+              const telegramId = qs('ci_telegramId').value.trim();
+              const res = await fetch('/admin/api/certificates/issue', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ valueRub, telegramId: telegramId || null }) });
+              const data = await res.json().catch(()=>({}));
+              if(!res.ok){ showErr('ci_error', data.error || ('HTTP ' + res.status)); return; }
+              alert('Код: ' + data.code);
+              location.reload();
+            }
+          </script>
+
+        ${renderAdminShellEnd()}
+      </body>
+      </html>
+    `);
+  } catch (e: any) {
+    console.error('Certificates admin page error:', e);
+    res.status(500).send('Ошибка загрузки страницы сертификатов');
+  }
+});
+
+router.post('/api/certificate-types', requireAdmin, upload.single('image'), async (req, res) => {
+  try {
+    const title = String(req.body?.title || '').trim();
+    const priceRub = Number(req.body?.priceRub || 0) || 0;
+    const valueRub = Number(req.body?.valueRub || 0) || 0;
+    const sortOrder = Number(req.body?.sortOrder || 0) || 0;
+    const description = String(req.body?.description || '').trim() || null;
+    const isActive = String(req.body?.isActive || '1') === '1';
+    if (!title) return res.status(400).json({ error: 'Название обязательно' });
+    if (priceRub <= 0 || valueRub <= 0) return res.status(400).json({ error: 'Цена и номинал должны быть больше 0' });
+
+    let imageUrl: string | null = null;
+    if (req.file) {
+      if (!isCloudinaryConfigured()) {
+        return res.status(400).json({ error: 'Cloudinary не настроен — загрузка обложки недоступна' });
+      }
+      const up = await uploadImage(req.file.buffer, { folder: 'certificates' });
+      imageUrl = up.secureUrl;
+    }
+
+    const created = await (prisma as any).certificateType.create({
+      data: { title, priceRub, valueRub, sortOrder, description, isActive, imageUrl }
+    });
+    res.json({ success: true, type: created });
+  } catch (e: any) {
+    console.error('Create certificate type error:', e);
+    res.status(500).json({ error: e?.message || 'Ошибка создания' });
+  }
+});
+
+router.put('/api/certificate-types/:id', requireAdmin, upload.single('image'), async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ error: 'id is required' });
+
+    const data: any = {};
+    if (req.body?.title !== undefined) data.title = String(req.body.title || '').trim();
+    if (req.body?.priceRub !== undefined) data.priceRub = Number(req.body.priceRub || 0) || 0;
+    if (req.body?.valueRub !== undefined) data.valueRub = Number(req.body.valueRub || 0) || 0;
+    if (req.body?.sortOrder !== undefined) data.sortOrder = Number(req.body.sortOrder || 0) || 0;
+    if (req.body?.description !== undefined) data.description = String(req.body.description || '').trim() || null;
+    if (req.body?.isActive !== undefined) data.isActive = String(req.body.isActive) === '1' || String(req.body.isActive) === 'true';
+
+    if (req.file) {
+      if (!isCloudinaryConfigured()) {
+        return res.status(400).json({ error: 'Cloudinary не настроен — загрузка обложки недоступна' });
+      }
+      const up = await uploadImage(req.file.buffer, { folder: 'certificates' });
+      data.imageUrl = up.secureUrl;
+    }
+
+    const updated = await (prisma as any).certificateType.update({ where: { id }, data });
+    res.json({ success: true, type: updated });
+  } catch (e: any) {
+    console.error('Update certificate type error:', e);
+    res.status(500).json({ error: e?.message || 'Ошибка обновления' });
+  }
+});
+
+function genCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const part = (n: number) => Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+  return `VTL-${part(4)}-${part(4)}`;
+}
+
+router.post('/api/certificates/issue', requireAdmin, async (req, res) => {
+  try {
+    const valueRub = Number(req.body?.valueRub || 0) || 0;
+    const telegramId = String(req.body?.telegramId || '').trim();
+    if (valueRub <= 0) return res.status(400).json({ error: 'Номинал должен быть больше 0' });
+
+    let userId: string | null = null;
+    if (telegramId) {
+      const u = await prisma.user.findUnique({ where: { telegramId } });
+      if (!u) return res.status(404).json({ error: 'Пользователь с таким Telegram ID не найден' });
+      userId = u.id;
+    }
+
+    const valuePz = valueRub / 100;
+    let created: any = null;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const code = genCode();
+      try {
+        created = await (prisma as any).giftCertificate.create({
+          data: { code, userId: userId || null, initialPz: valuePz, remainingPz: valuePz, status: 'ACTIVE' }
+        });
+        break;
+      } catch (e: any) {
+        if (e?.code === 'P2002') continue;
+        throw e;
+      }
+    }
+    if (!created) return res.status(500).json({ error: 'Не удалось сгенерировать код' });
+    res.json({ success: true, code: created.code, id: created.id });
+  } catch (e: any) {
+    console.error('Issue certificate error:', e);
+    res.status(500).json({ error: e?.message || 'Ошибка выдачи' });
+  }
+});
+
+// Support chats (WebApp) - view all user dialogs and reply
+router.get('/chats', requireAdmin, async (req, res) => {
+  try {
+    const escapeHtml = (str: any) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    };
+
+    const histories = await prisma.userHistory.findMany({
+      where: { action: 'support:webapp' },
+      include: { user: true },
+      orderBy: { createdAt: 'desc' },
+      take: 2000
+    });
+
+    type ChatRow = {
+      userId: string;
+      telegramId: string;
+      name: string;
+      username: string;
+      lastText: string;
+      lastAt: Date;
+      count: number;
+    };
+
+    const map = new Map<string, ChatRow>();
+    for (const h of histories as any[]) {
+      const user = h.user;
+      if (!user?.telegramId) continue;
+      const key = String(user.telegramId);
+      const payload = (h.payload || {}) as any;
+      const text = (payload.text || '').toString();
+
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, {
+          userId: user.id,
+          telegramId: String(user.telegramId),
+          name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Пользователь',
+          username: user.username ? `@${user.username}` : '',
+          lastText: text,
+          lastAt: h.createdAt,
+          count: 1,
+        });
+      } else {
+        existing.count += 1;
+      }
+    }
+
+    const chats = Array.from(map.values()).sort((a, b) => b.lastAt.getTime() - a.lastAt.getTime());
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
+
+    let html = `
+      <!DOCTYPE html>
+      <html lang="ru">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Чаты поддержки</title>
+        <style>
+          ${ADMIN_UI_CSS}
+          body { margin: 0; padding: 0; background: var(--admin-bg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+          .btn { display: inline-block; padding: 10px 16px; background: #111827; color: white; text-decoration: none; border-radius: 10px; margin-bottom: 14px; }
+          .card { background: white; border-radius: 14px; box-shadow: 0 8px 22px rgba(0,0,0,0.08); overflow: hidden; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { padding: 12px 14px; border-bottom: 1px solid #eef2f7; text-align: left; vertical-align: top; }
+          th { background: #f9fafb; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; }
+          tr:hover td { background: #fafafa; }
+          .muted { color: #6b7280; font-size: 12px; }
+          .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; background: #eef2ff; color: #3730a3; }
+          .link { color: #111827; text-decoration: none; font-weight: 600; }
+          .link:hover { text-decoration: underline; }
+          .snippet { color: #111827; opacity: .85; }
+        </style>
+      </head>
+      <body>
+        ${renderAdminShellStart({ title: 'Чаты', activePath: '/admin/chats', buildMarker })}
+        <h2 style="margin: 0 0 10px 0;">Чаты поддержки</h2>
+        <p class="muted" style="margin: 0 0 16px 0;">Диалоги собираются из событий <code>support:webapp</code> в истории пользователя.</p>
+
+        <div class="card">
+          <table>
+            <thead>
+              <tr>
+                <th>Пользователь</th>
+                <th>Telegram</th>
+                <th>Последнее</th>
+                <th>Сообщений</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+    if (chats.length === 0) {
+      html += `
+        <tr>
+          <td colspan="4" class="muted" style="padding: 22px;">Пока нет сообщений в поддержку из WebApp.</td>
+        </tr>
+      `;
+    } else {
+      for (const c of chats) {
+        const when = new Date(c.lastAt).toLocaleString('ru-RU');
+        const snippet = (c.lastText || '').slice(0, 160);
+        html += `
+          <tr>
+            <td>
+              <a class="link" href="/admin/chats/${encodeURIComponent(c.telegramId)}">${escapeHtml(c.name)}</a>
+              ${c.username ? `<div class="muted">${escapeHtml(c.username)}</div>` : ''}
+            </td>
+            <td class="muted">${escapeHtml(c.telegramId)}</td>
+            <td>
+              <div class="snippet">${escapeHtml(snippet)}${c.lastText && c.lastText.length > 160 ? '…' : ''}</div>
+              <div class="muted">${escapeHtml(when)}</div>
+            </td>
+            <td><span class="badge">${c.count}</span></td>
+          </tr>
+        `;
+      }
+    }
+
+    html += `
+            </tbody>
+          </table>
+        </div>
+        ${renderAdminShellEnd()}
+      </body>
+      </html>
+    `;
+
+    res.send(html);
+  } catch (error) {
+    console.error('Chats page error:', error);
+    res.status(500).send('Ошибка загрузки чатов');
+  }
+});
+
+router.get('/chats/:telegramId', requireAdmin, async (req, res) => {
+  try {
+    const escapeHtml = (str: any) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    };
+
+    const telegramId = String(req.params.telegramId || '').trim();
+    const user = await prisma.user.findUnique({
+      where: { telegramId },
+    });
+
+    if (!user) {
+      return res.status(404).send('Пользователь не найден');
+    }
+
+    const histories = await prisma.userHistory.findMany({
+      where: { userId: user.id, action: 'support:webapp' },
+      orderBy: { createdAt: 'asc' },
+      take: 2000
+    });
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
+
+    let html = `
+      <!DOCTYPE html>
+      <html lang="ru">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Чат: ${escapeHtml(user.firstName || '')}</title>
+        <style>
+          ${ADMIN_UI_CSS}
+          body { margin: 0; padding: 0; background: var(--admin-bg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+          .top { display:flex; justify-content: space-between; align-items:center; gap: 12px; margin-bottom: 12px; }
+          .btn { display: inline-block; padding: 10px 16px; background: #111827; color: white; text-decoration: none; border-radius: 10px; }
+          .card { background: white; border-radius: 14px; box-shadow: 0 8px 22px rgba(0,0,0,0.08); overflow: hidden; }
+          .meta { padding: 14px 16px; border-bottom: 1px solid #eef2f7; }
+          .muted { color: #6b7280; font-size: 12px; }
+          .chat { padding: 16px; display:flex; flex-direction:column; gap: 10px; background: #fbfbfb; max-height: 65vh; overflow-y:auto; }
+          .msg-row { display:flex; }
+          .msg { max-width: 78%; padding: 10px 12px; border-radius: 14px; line-height: 1.35; white-space: pre-wrap; word-break: break-word; }
+          .user { justify-content:flex-end; }
+          .user .msg { background:#111827; color:#fff; border-top-right-radius: 8px; }
+          .admin { justify-content:flex-start; }
+          .admin .msg { background:#f3f4f6; color:#111827; border-top-left-radius: 8px; }
+          .time { margin-top: 6px; font-size: 11px; opacity: .7; text-align:right; }
+          form { padding: 14px 16px; border-top: 1px solid #eef2f7; background: white; display:grid; gap: 10px; }
+          textarea { width: 100%; min-height: 90px; padding: 12px 14px; border: 1px solid #e5e7eb; border-radius: 12px; font-family: inherit; resize: vertical; }
+          button { width: 100%; padding: 12px 14px; border: none; border-radius: 12px; background: #111827; color:#fff; font-weight: 700; cursor:pointer; }
+          button:hover { filter: brightness(1.05); }
+          .alert { padding: 10px 12px; border-radius: 12px; background:#dcfce7; color:#166534; margin-top: 10px; border: 1px solid #bbf7d0; }
+        </style>
+      </head>
+      <body>
+        ${renderAdminShellStart({ title: 'Чат', activePath: '/admin/chats', buildMarker })}
+        <div class="top">
+          <a class="btn" href="/admin/chats">Все чаты</a>
+          <div class="muted">Telegram ID: <code>${escapeHtml(telegramId)}</code></div>
+        </div>
+
+        <div class="card">
+          <div class="meta">
+            <div style="font-weight:700;">${escapeHtml(`${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Пользователь')}</div>
+            ${user.username ? `<div class="muted">@${escapeHtml(user.username)}</div>` : ''}
+            ${req.query.success === 'sent' ? `<div class="alert">✅ Ответ отправлен</div>` : ''}
+          </div>
+          <div class="chat" id="chatBox">
+    `;
+
+    if (histories.length === 0) {
+      html += `<div class="muted">Сообщений пока нет.</div>`;
+    } else {
+      for (const h of histories as any[]) {
+        const payload = (h.payload || {}) as any;
+        const direction = payload.direction === 'admin' ? 'admin' : 'user';
+        const text = (payload.text || '').toString();
+        const when = new Date(h.createdAt).toLocaleString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        html += `
+          <div class="msg-row ${direction}">
+            <div class="msg">
+              ${escapeHtml(text)}
+              <div class="time">${escapeHtml(when)}</div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    html += `
+          </div>
+          <form method="post" action="/admin/chats/${encodeURIComponent(telegramId)}/reply">
+            <textarea name="text" placeholder="Написать пользователю..." required></textarea>
+            <button type="submit">Отправить</button>
+            <div class="muted">Сообщение уйдёт пользователю в Telegram и запишется в историю (для WebApp-чата).</div>
+          </form>
+        </div>
+
+        <script>
+          // scroll to bottom
+          try {
+            const el = document.getElementById('chatBox');
+            if (el) el.scrollTop = el.scrollHeight;
+          } catch (e) {}
+        </script>
+        ${renderAdminShellEnd()}
+      </body>
+      </html>
+    `;
+
+    res.send(html);
+  } catch (error) {
+    console.error('Chat thread error:', error);
+    res.status(500).send('Ошибка загрузки чата');
+  }
+});
+
+router.post('/chats/:telegramId/reply', requireAdmin, express.urlencoded({ extended: true }), async (req, res) => {
+  try {
+    const telegramId = String(req.params.telegramId || '').trim();
+    const textRaw = (req.body?.text ?? '').toString();
+    const text = textRaw.trim();
+    if (!text) {
+      return res.redirect(`/admin/chats/${encodeURIComponent(telegramId)}`);
+    }
+
+    const user = await prisma.user.findUnique({ where: { telegramId } });
+    if (!user) {
+      return res.status(404).send('Пользователь не найден');
+    }
+
+    // Send via bot
+    try {
+      const { getBotInstance } = await import('../lib/bot-instance.js');
+      const bot = await getBotInstance();
+      if (bot) {
+        const escapeTelegramHtml = (s: string) => s
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        await bot.telegram.sendMessage(
+          telegramId,
+          `💬 <b>Ответ службы поддержки:</b>\n\n${escapeTelegramHtml(text)}`,
+          { parse_mode: 'HTML' }
+        );
+      }
+    } catch (sendErr) {
+      console.error('Failed to send admin chat reply:', sendErr);
+      // Continue to log anyway
+    }
+
+    // Log to history for WebApp chat UI
+    await prisma.userHistory.create({
+      data: {
+        userId: user.id,
+        action: 'support:webapp',
+        payload: { direction: 'admin', text }
+      }
+    });
+
+    res.redirect(`/admin/chats/${encodeURIComponent(telegramId)}?success=sent`);
+  } catch (error) {
+    console.error('Chat reply error:', error);
+    res.status(500).send('Ошибка отправки сообщения');
+  }
+});
+
+// Siam PDF sync (run on server where DB + Cloudinary are available)
+router.get('/sync-siam-pdf', requireAdmin, async (req, res) => {
+  res.send(`
+    <!doctype html>
+    <html lang="ru">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Синхронизация Siam из PDF</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 20px auto; padding: 20px; background:#f5f5f5; }
+        .card { background:white; border-radius:14px; padding:18px; box-shadow:0 8px 22px rgba(0,0,0,.08); }
+        .btn { display:inline-block; padding:12px 16px; border-radius:12px; border:none; cursor:pointer; font-weight:800; }
+        .btn-primary { background:#111827; color:white; }
+        .btn-secondary { background:#e5e7eb; color:#111827; }
+        .row { display:flex; gap:12px; flex-wrap:wrap; margin-top:14px; }
+        pre { white-space: pre-wrap; background:#0b1020; color:#e5e7eb; padding:14px; border-radius:12px; overflow:auto; }
+        .muted { color:#6b7280; font-size:12px; }
+        label { display:flex; align-items:center; gap:10px; margin-top:12px; }
+      </style>
+    </head>
+    <body>
+      <a class="btn btn-secondary" href="/admin">← Назад</a>
+      <div class="card">
+        <h2 style="margin:0 0 8px 0;">📄 Синхронизация товаров Siam из PDF</h2>
+        <div class="muted" style="margin:0 0 10px 0;">build: ${String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local'}</div>
+        <p class="muted" style="margin:0 0 14px 0;">
+          Обновляет товары строго по SKU из PDF: <b>title/summary/description</b>. Товары, которых нет в PDF — не трогаем.
+          Опционально обновляет <b>фото</b> из встроенных картинок PDF (нужно Cloudinary).
+        </p>
+
+        <label>
+          <input type="checkbox" id="withImages" />
+          Обновить фото 1:1 из PDF (Cloudinary)
+        </label>
+
+        <div style="margin-top:12px;">
+          <div class="muted" style="margin-bottom:6px;">PDF по ссылке (если на сервере нет файла):</div>
+          <input id="pdfUrl" placeholder="Вставь прямую ссылку на PDF (https://...)"
+                 style="width:100%; border-radius:12px; border:1px solid #e5e7eb; padding:12px; font-size:13px;" />
+          <div class="muted" style="margin-top:6px;">
+            Если заполнено — сервер скачает PDF и выполнит синхронизацию.
+          </div>
+        </div>
+
+        <label>
+          <input type="checkbox" id="translateTitles" checked />
+          Перевести оставшиеся английские названия на русский
+        </label>
+
+        <div class="row">
+          <button class="btn btn-primary" onclick="runSync()">Запустить синхронизацию</button>
+        </div>
+
+        <div style="margin-top:14px;">
+          <pre id="out">Готово к запуску.</pre>
+        </div>
+      </div>
+
+      <script>
+        async function runSync() {
+          const out = document.getElementById('out');
+          out.textContent = '⏳ Запуск...';
+          const withImages = document.getElementById('withImages').checked;
+          const pdfUrl = (document.getElementById('pdfUrl').value || '').trim();
+          const translateTitles = document.getElementById('translateTitles').checked;
+          try {
+            const res = await fetch('/admin/api/sync-siam-pdf', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ withImages, translateTitles, pdfUrl })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              out.textContent = '❌ Ошибка: ' + (data.error || ('HTTP ' + res.status));
+              return;
+            }
+            out.textContent = JSON.stringify(data, null, 2);
+          } catch (e) {
+            out.textContent = '❌ Ошибка запуска: ' + (e && e.message ? e.message : String(e));
+          }
+        }
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+router.post('/api/sync-siam-pdf', requireAdmin, express.json(), async (req, res) => {
+  try {
+    const withImages = !!req.body?.withImages;
+    const translateTitles = req.body?.translateTitles !== false; // default true
+    const pdfUrl = String(req.body?.pdfUrl || '').trim();
+    const { syncSiamFromPdfOnServer, translateRemainingTitlesToRussianOnServer } = await import('../services/siam-pdf-sync-service.js');
+    const result = await syncSiamFromPdfOnServer({ updateImages: withImages, pdfUrl });
+
+    let translation = null;
+    if (translateTitles) {
+      translation = await translateRemainingTitlesToRussianOnServer({ limit: 2000 });
+    }
+
+    res.json({ success: true, ...result, translation });
+  } catch (error) {
+    console.error('sync-siam-pdf error:', error);
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+// Siam JSON sync (paste JSON extracted from PDF / tools; prices stay untouched)
+router.get('/sync-siam-json', requireAdmin, async (req, res) => {
+  res.send(`
+    <!doctype html>
+    <html lang="ru">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Siam: синк из JSON</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 1100px; margin: 20px auto; padding: 20px; background:#f5f5f5; }
+        .card { background:white; border-radius:14px; padding:18px; box-shadow:0 8px 22px rgba(0,0,0,.08); }
+        .btn { display:inline-block; padding:12px 16px; border-radius:12px; border:none; cursor:pointer; font-weight:800; }
+        .btn-primary { background:#111827; color:white; }
+        .btn-secondary { background:#e5e7eb; color:#111827; }
+        .btn-danger { background:#b91c1c; color:white; }
+        .row { display:flex; gap:12px; flex-wrap:wrap; margin-top:14px; align-items:center; }
+        pre { white-space: pre-wrap; background:#0b1020; color:#e5e7eb; padding:14px; border-radius:12px; overflow:auto; }
+        .muted { color:#6b7280; font-size:12px; }
+        label { display:flex; align-items:center; gap:10px; margin-top:12px; }
+        textarea { width:100%; min-height: 260px; border-radius:12px; border:1px solid #e5e7eb; padding:12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <a class="btn btn-secondary" href="/admin">← Назад</a>
+      <div class="card" style="margin-top:12px;">
+        <h2 style="margin:0 0 8px 0;">🧾 Siam: синхронизация из JSON</h2>
+        <div class="muted" style="margin:0 0 10px 0;">build: ${String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local'}</div>
+        <p class="muted" style="margin:0 0 14px 0;">
+          Вставь массив объектов JSON (как ты прислал). Мы обновим <b>title/summary/description</b> строго по SKU.
+          <b>Цены не трогаем.</b> Поля <b>ingredients/volume</b> при желании добавим в конец description.
+        </p>
+
+        <label>
+          <input type="checkbox" id="includeMeta" checked />
+          Добавлять ingredients/volume в description
+        </label>
+
+        <div style="margin-top:12px;">
+          <div class="muted" style="margin-bottom:6px;">Ссылка на JSON (опционально, удобнее чем вставлять большой массив):</div>
+          <input id="jsonUrl" placeholder="Напр.: https://raw.githubusercontent.com/.../siam.json"
+                 style="width:100%; border-radius:12px; border:1px solid #e5e7eb; padding:12px; font-size:13px;" />
+          <div class="muted" style="margin-top:6px;">
+            Если заполнено — сервер скачает JSON по ссылке. Иначе используем поле ниже.
+          </div>
+        </div>
+
+        <label>
+          <input type="checkbox" id="apply" />
+          Применить изменения (иначе — только отчёт)
+        </label>
+
+        <div style="margin-top:12px;">
+          <textarea id="jsonInput" placeholder='Вставь сюда JSON-массив: [ { \"title\": \"...\", \"sku\": \"...\" }, ... ]'></textarea>
+        </div>
+
+        <div class="row">
+          <button class="btn btn-primary" onclick="run(false)">Проверить (dry-run)</button>
+          <button class="btn btn-danger" onclick="run(true)">Применить</button>
+        </div>
+
+        <div class="row" style="margin-top:10px;">
+          <button class="btn btn-secondary" onclick="runBundled(false)">Проверить встроенный JSON</button>
+          <button class="btn btn-secondary" style="background:#d1d5db; color:#111827;" onclick="runBundled(true)">Применить встроенный JSON</button>
+        </div>
+
+        <div class="row" style="margin-top:10px;">
+          <button class="btn btn-secondary" onclick="translateTitles()">Перевести оставшиеся английские названия</button>
+          <button class="btn btn-secondary" onclick="normalizeTitles(false)">Проверить нормализацию названий</button>
+          <button class="btn btn-secondary" style="background:#111827; color:white;" onclick="normalizeTitles(true)">Применить нормализацию названий</button>
+        </div>
+
+        <div style="margin-top:14px;">
+          <pre id="out">Готово. Вставь JSON и нажми «Проверить».</pre>
+        </div>
+      </div>
+
+      <script>
+        async function run(forceApply) {
+          const out = document.getElementById('out');
+          const text = document.getElementById('jsonInput').value || '';
+          const jsonUrl = (document.getElementById('jsonUrl').value || '').trim();
+          const includeMeta = document.getElementById('includeMeta').checked;
+          const applyChecked = document.getElementById('apply').checked;
+          const apply = !!forceApply || !!applyChecked;
+
+          if (!jsonUrl && !text.trim()) {
+            out.textContent = '❌ Вставь JSON в поле или укажи ссылку на JSON.';
+            return;
+          }
+
+          out.textContent = '⏳ Запуск...';
+          try {
+            const res = await fetch('/admin/api/sync-siam-json', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jsonText: text, jsonUrl, includeMeta, apply })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              out.textContent = '❌ Ошибка: ' + (data.error || ('HTTP ' + res.status));
+              return;
+            }
+            out.textContent = JSON.stringify(data, null, 2);
+          } catch (e) {
+            out.textContent = '❌ Ошибка запуска: ' + (e && e.message ? e.message : String(e));
+          }
+        }
+
+        async function runBundled(forceApply) {
+          const out = document.getElementById('out');
+          const includeMeta = document.getElementById('includeMeta').checked;
+          const applyChecked = document.getElementById('apply').checked;
+          const apply = !!forceApply || !!applyChecked;
+          out.textContent = '⏳ Запуск встроенного JSON...';
+          try {
+            const res = await fetch('/admin/api/sync-siam-json-bundled', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ includeMeta, apply })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              out.textContent = '❌ Ошибка: ' + (data.error || ('HTTP ' + res.status));
+              return;
+            }
+            out.textContent = JSON.stringify(data, null, 2);
+          } catch (e) {
+            out.textContent = '❌ Ошибка запуска: ' + (e && e.message ? e.message : String(e));
+          }
+        }
+
+        async function translateTitles() {
+          const out = document.getElementById('out');
+          out.textContent = '⏳ Перевод оставшихся английских названий...';
+          try {
+            const res = await fetch('/admin/api/translate-titles-ru', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ limit: 2000 })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              out.textContent = '❌ Ошибка: ' + (data.error || ('HTTP ' + res.status));
+              return;
+            }
+            out.textContent = JSON.stringify(data, null, 2);
+          } catch (e) {
+            out.textContent = '❌ Ошибка запуска: ' + (e && e.message ? e.message : String(e));
+          }
+        }
+
+        async function normalizeTitles(apply) {
+          const out = document.getElementById('out');
+          out.textContent = (apply ? '⏳ Применение нормализации...' : '⏳ Проверка нормализации...');
+          try {
+            const res = await fetch('/admin/api/normalize-titles-ru', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ apply: !!apply, limit: 3000 })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              out.textContent = '❌ Ошибка: ' + (data.error || ('HTTP ' + res.status));
+              return;
+            }
+            out.textContent = JSON.stringify(data, null, 2);
+          } catch (e) {
+            out.textContent = '❌ Ошибка запуска: ' + (e && e.message ? e.message : String(e));
+          }
+        }
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+router.post('/api/sync-siam-json', requireAdmin, express.json({ limit: '6mb' }), async (req, res) => {
+  try {
+    const jsonText = String(req.body?.jsonText || '');
+    const jsonUrl = String(req.body?.jsonUrl || '').trim();
+    const includeMeta = req.body?.includeMeta !== false; // default true
+    const apply = !!req.body?.apply;
+
+    let parsed: any;
+    if (jsonUrl) {
+      if (!/^https?:\/\//i.test(jsonUrl)) {
+        res.status(400).json({ success: false, error: 'jsonUrl must start with http(s)://' });
+        return;
+      }
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 15000);
+      try {
+        const r = await fetch(jsonUrl, { signal: controller.signal });
+        const body = await r.text().catch(() => '');
+        if (!r.ok) {
+          res.status(400).json({ success: false, error: `Failed to fetch jsonUrl: HTTP ${r.status}` });
+          return;
+        }
+        if (body.length > 6_000_000) {
+          res.status(400).json({ success: false, error: 'JSON слишком большой (> ~6MB). Разбей файл или сожми поля.' });
+          return;
+        }
+        parsed = JSON.parse(body);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        res.status(400).json({ success: false, error: 'Failed to fetch/parse jsonUrl: ' + msg });
+        return;
+      } finally {
+        clearTimeout(t);
+      }
+    } else {
+      if (!jsonText.trim()) {
+        res.status(400).json({ success: false, error: 'jsonText is empty (or provide jsonUrl)' });
+        return;
+      }
+      try {
+        parsed = JSON.parse(jsonText);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        res.status(400).json({ success: false, error: 'Invalid JSON: ' + msg });
+        return;
+      }
+    }
+
+    if (!Array.isArray(parsed)) {
+      res.status(400).json({ success: false, error: 'JSON must be an array of entries' });
+      return;
+    }
+
+    const { syncProductsFromSiamJsonOnServer } = await import('../services/siam-json-sync-service.js');
+    const report = await syncProductsFromSiamJsonOnServer({
+      entries: parsed,
+      apply,
+      includeMetaInDescription: includeMeta,
+      limit: 20000,
+    });
+    res.json({ success: true, source: jsonUrl ? { type: 'url', url: jsonUrl } : { type: 'text' }, ...report });
+  } catch (error) {
+    console.error('sync-siam-json error:', error);
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+router.post('/api/sync-siam-json-bundled', requireAdmin, express.json({ limit: '1mb' }), async (req, res) => {
+  try {
+    const includeMeta = req.body?.includeMeta !== false; // default true
+    const apply = !!req.body?.apply;
+    const { SIAM_JSON_ENTRIES } = await import('../services/siam-json-dataset.js');
+    const { syncProductsFromSiamJsonOnServer } = await import('../services/siam-json-sync-service.js');
+    const report = await syncProductsFromSiamJsonOnServer({
+      entries: SIAM_JSON_ENTRIES,
+      apply,
+      includeMetaInDescription: includeMeta,
+      limit: 20000,
+    });
+    res.json({ success: true, source: { type: 'bundled' }, ...report });
+  } catch (error) {
+    console.error('sync-siam-json-bundled error:', error);
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+// Translate remaining English titles to Russian (no PDF needed)
+router.post('/api/translate-titles-ru', requireAdmin, express.json({ limit: '256kb' }), async (req, res) => {
+  try {
+    const limit = Number(req.body?.limit || 2000);
+    const { translateRemainingTitlesToRussianOnServer } = await import('../services/siam-pdf-sync-service.js');
+    const result = await translateRemainingTitlesToRussianOnServer({ limit });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('translate-titles-ru error:', error);
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+// Normalize product titles to a consistent Russian style (no quotes)
+router.post('/api/normalize-titles-ru', requireAdmin, express.json({ limit: '256kb' }), async (req, res) => {
+  try {
+    const apply = !!req.body?.apply;
+    const limit = Number(req.body?.limit || 3000);
+    const { normalizeProductTitlesOnServer } = await import('../services/siam-title-normalizer.js');
+    const result = await normalizeProductTitlesOnServer({ apply, limit });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('normalize-titles-ru error:', error);
+    res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
 // Logout
 // Страница с инструкциями
 router.get('/instructions', requireAdmin, (req, res) => {
@@ -6730,7 +12182,7 @@ router.get('/instructions', requireAdmin, (req, res) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Инструкции - Plazma Water Admin</title>
+      <title>Инструкции - Vital Admin</title>
       <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
         .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
@@ -6755,13 +12207,16 @@ router.get('/instructions', requireAdmin, (req, res) => {
         .btn:hover { background: #5a6fd8; transform: translateY(-2px); }
         .btn-secondary { background: #6c757d; }
         .btn-secondary:hover { background: #5a6268; }
+
+        /* Shared admin UI baseline */
+        ${ADMIN_UI_CSS}
       </style>
     </head>
     <body>
       <div class="container">
         <div class="header">
           <h1>📋 Инструкции по работе с админ панелью</h1>
-          <p>Полное руководство по управлению Plazma Water</p>
+          <p>Полное руководство по управлению Vital</p>
           <a href="/admin" class="back-btn">← Назад к панели</a>
         </div>
         
@@ -6771,8 +12226,8 @@ router.get('/instructions', requireAdmin, (req, res) => {
             <div class="grid">
               <div class="card">
                 <h4>🔐 Доступ к админ панели</h4>
-                <p><strong>URL:</strong> <code>https://plazma-production.up.railway.app/admin</code></p>
-                <p><strong>Логин:</strong> admin@plazma.com</p>
+                <p><strong>URL:</strong> <code>https://vital-production.up.railway.app/admin</code></p>
+                <p><strong>Логин:</strong> admin@vital.com</p>
                 <p><strong>Пароль:</strong> admin123</p>
               </div>
               <div class="card">
@@ -6794,7 +12249,7 @@ router.get('/instructions', requireAdmin, (req, res) => {
               <div class="card">
                 <h4>📊 Список пользователей</h4>
                 <p>Просмотр всех пользователей с возможностью фильтрации и сортировки</p>
-                <a href="/admin/resources/users" class="btn">Перейти к пользователям</a>
+                <a href="/admin/users" class="btn">Перейти к пользователям</a>
               </div>
               <div class="card">
                 <h4>🔍 Детальная информация</h4>
@@ -6817,7 +12272,7 @@ router.get('/instructions', requireAdmin, (req, res) => {
               <div class="card">
                 <h4>📦 Каталог товаров</h4>
                 <p>Управление всеми товарами в системе</p>
-                <a href="/admin/resources/products" class="btn">Перейти к товарам</a>
+                <a href="/admin/products" class="btn">Перейти к товарам</a>
               </div>
               <div class="card">
                 <h4>📂 Категории</h4>
@@ -6840,7 +12295,7 @@ router.get('/instructions', requireAdmin, (req, res) => {
               <div class="card">
                 <h4>📋 Список заказов</h4>
                 <p>Все заказы с фильтрацией по статусу</p>
-                <a href="/admin/resources/order-requests" class="btn">Перейти к заказам</a>
+                <a href="/admin/orders" class="btn">Перейти к заказам</a>
               </div>
               <div class="card">
                 <h4>📊 Статусы заказов</h4>
@@ -6879,12 +12334,12 @@ router.get('/instructions', requireAdmin, (req, res) => {
           </div>
 
           <div class="section">
-            <h2>📝 Контент бота</h2>
+            <h2>📝 Контент и каталог</h2>
             <div class="grid">
               <div class="card">
-                <h4>✏️ Редактирование текстов</h4>
-                <p>Все сообщения бота можно редактировать</p>
-                <a href="/admin/resources/bot-content" class="btn">Редактировать контент</a>
+                <h4>📦 Управление контентом</h4>
+                <p>Категории, товары, чаты поддержки, отзывы и заказы</p>
+                <a href="/admin?tab=content" class="btn">Открыть вкладку «Контент»</a>
               </div>
               <div class="card">
                 <h4>🌍 Многоязычность</h4>
@@ -6934,7 +12389,7 @@ router.get('/instructions', requireAdmin, (req, res) => {
               <div class="card">
                 <h4>📞 Контакты поддержки</h4>
                 <p><strong>Telegram:</strong> @diglukhov</p>
-                <p><strong>Email:</strong> support@plazma.com</p>
+                <p><strong>Email:</strong> support@vital.com</p>
                 <p><strong>Документация:</strong> Этот файл</p>
               </div>
             </div>
@@ -6972,31 +12427,31 @@ router.get('/logout', (req, res) => {
 router.post('/recalculate-bonuses', requireAdmin, async (req, res) => {
   try {
     console.log('🔄 Starting bonus recalculation...');
-    
+
     // Get all partner profiles
     const profiles = await prisma.partnerProfile.findMany();
-    
+
     for (const profile of profiles) {
       console.log(`📊 Processing profile ${profile.id}...`);
-      
+
       // Calculate total bonus from transactions
       const transactions = await prisma.partnerTransaction.findMany({
         where: { profileId: profile.id }
       });
-      
+
       const totalBonus = transactions.reduce((sum, tx) => {
         return sum + (tx.type === 'CREDIT' ? tx.amount : -tx.amount);
       }, 0);
-      
+
       // Update profile bonus
       await prisma.partnerProfile.update({
         where: { id: profile.id },
         data: { bonus: totalBonus }
       });
-      
+
       console.log(`✅ Updated profile ${profile.id}: ${totalBonus} PZ bonus`);
     }
-    
+
     console.log('🎉 Bonus recalculation completed!');
     res.redirect('/admin/partners?success=bonuses_recalculated');
   } catch (error) {
@@ -7008,7 +12463,7 @@ router.post('/recalculate-bonuses', requireAdmin, async (req, res) => {
 router.post('/cleanup-duplicates', requireAdmin, async (req, res) => {
   try {
     console.log('🧹 Starting cleanup of duplicate data...');
-    
+
     // Find all partner profiles
     const profiles = await prisma.partnerProfile.findMany({
       include: {
@@ -7016,13 +12471,13 @@ router.post('/cleanup-duplicates', requireAdmin, async (req, res) => {
         transactions: true
       }
     });
-    
+
     let totalReferralsDeleted = 0;
     let totalTransactionsDeleted = 0;
-    
+
     for (const profile of profiles) {
       console.log(`\n📊 Processing profile ${profile.id}...`);
-      
+
       // Group referrals by referredId to find duplicates
       const referralGroups = new Map();
       profile.referrals.forEach(ref => {
@@ -7033,15 +12488,15 @@ router.post('/cleanup-duplicates', requireAdmin, async (req, res) => {
           referralGroups.get(ref.referredId).push(ref);
         }
       });
-      
+
       // Remove duplicate referrals, keeping only the first one
       for (const [referredId, referrals] of referralGroups) {
         if (referrals.length > 1) {
           console.log(`  🔄 Found ${referrals.length} duplicates for user ${referredId}`);
-          
+
           // Sort by createdAt to keep the earliest
           referrals.sort((a: any, b: any) => a.createdAt.getTime() - b.createdAt.getTime());
-          
+
           // Keep the first one, delete the rest
           const toDelete = referrals.slice(1);
           for (const duplicate of toDelete) {
@@ -7053,7 +12508,7 @@ router.post('/cleanup-duplicates', requireAdmin, async (req, res) => {
           }
         }
       }
-      
+
       // Group transactions by description to find duplicates
       const transactionGroups = new Map();
       profile.transactions.forEach(tx => {
@@ -7063,15 +12518,15 @@ router.post('/cleanup-duplicates', requireAdmin, async (req, res) => {
         }
         transactionGroups.get(key).push(tx);
       });
-      
+
       // Remove duplicate transactions, keeping only the first one
       for (const [key, transactions] of transactionGroups) {
         if (transactions.length > 1) {
           console.log(`  🔄 Found ${transactions.length} duplicate transactions: ${key}`);
-          
+
           // Sort by createdAt to keep the earliest
           transactions.sort((a: any, b: any) => a.createdAt.getTime() - b.createdAt.getTime());
-          
+
           // Keep the first one, delete the rest
           const toDelete = transactions.slice(1);
           for (const duplicate of toDelete) {
@@ -7083,25 +12538,25 @@ router.post('/cleanup-duplicates', requireAdmin, async (req, res) => {
           }
         }
       }
-      
+
       // Recalculate bonus from remaining transactions
       const remainingTransactions = await prisma.partnerTransaction.findMany({
         where: { profileId: profile.id }
       });
-      
+
       const totalBonus = remainingTransactions.reduce((sum, tx) => {
         return sum + (tx.type === 'CREDIT' ? tx.amount : -tx.amount);
       }, 0);
-      
+
       // Update profile bonus
       await prisma.partnerProfile.update({
         where: { id: profile.id },
         data: { bonus: totalBonus }
       });
-      
+
       console.log(`  ✅ Updated profile ${profile.id}: ${totalBonus} PZ bonus`);
     }
-    
+
     console.log(`\n🎉 Cleanup completed! Deleted ${totalReferralsDeleted} duplicate referrals and ${totalTransactionsDeleted} duplicate transactions.`);
     res.redirect(`/admin/partners?success=duplicates_cleaned&referrals=${totalReferralsDeleted}&transactions=${totalTransactionsDeleted}`);
   } catch (error) {
@@ -7114,19 +12569,19 @@ router.post('/cleanup-duplicates', requireAdmin, async (req, res) => {
 router.get('/test-referral-links', requireAdmin, async (req, res) => {
   try {
     const { buildReferralLink } = await import('../services/partner-service.js');
-    
+
     // Get a sample partner profile
     const profile = await prisma.partnerProfile.findFirst({
       include: { user: true }
     });
-    
+
     if (!profile) {
       return res.send('❌ No partner profiles found for testing');
     }
-    
+
     const directLink = buildReferralLink(profile.referralCode, 'DIRECT').main;
     const multiLink = buildReferralLink(profile.referralCode, 'MULTI_LEVEL').main;
-    
+
     const html = `
       <!DOCTYPE html>
       <html>
@@ -7189,7 +12644,7 @@ router.get('/test-referral-links', requireAdmin, async (req, res) => {
       </body>
       </html>
     `;
-    
+
     res.send(html);
   } catch (error) {
     console.error('Test referral links error:', error);
@@ -7201,19 +12656,19 @@ router.get('/test-referral-links', requireAdmin, async (req, res) => {
 router.post('/recalculate-all-balances', requireAdmin, async (req, res) => {
   try {
     console.log('🔄 Starting full balance recalculation...');
-    
+
     // Get all partner profiles
     const profiles = await prisma.partnerProfile.findMany();
-    
+
     for (const profile of profiles) {
       console.log(`📊 Processing profile ${profile.id}...`);
-      
+
       // Use the centralized bonus recalculation function
       const totalBonus = await recalculatePartnerBonuses(profile.id);
-      
+
       console.log(`✅ Updated profile ${profile.id}: ${totalBonus} PZ bonus`);
     }
-    
+
     console.log('🎉 Full balance recalculation completed!');
     res.redirect('/admin/partners?success=all_balances_recalculated');
   } catch (error) {
@@ -7268,7 +12723,7 @@ router.get('/debug-partners', requireAdmin, async (req, res) => {
       const referralsCount = partner.referrals.length;
       const directReferrals = partner.referrals.filter(r => r.level === 1).length;
       const multiReferrals = partner.referrals.filter(r => r.level === 2).length;
-      
+
       html += `
         <div class="partner-card">
           <div class="partner-header">
@@ -7334,13 +12789,13 @@ router.get('/debug-partners', requireAdmin, async (req, res) => {
 router.post('/cleanup-referral-duplicates', requireAdmin, async (req, res) => {
   try {
     console.log('🧹 Starting referral duplicates cleanup...');
-    
+
     // Find all referrals
     const allReferrals = await prisma.partnerReferral.findMany({
       where: { referredId: { not: null } },
       orderBy: { createdAt: 'asc' }
     });
-    
+
     // Group by profileId + referredId combination
     const grouped = new Map<string, any[]>();
     for (const ref of allReferrals) {
@@ -7350,9 +12805,9 @@ router.post('/cleanup-referral-duplicates', requireAdmin, async (req, res) => {
       }
       grouped.get(key)!.push(ref);
     }
-    
+
     let deletedCount = 0;
-    
+
     // Process duplicates
     for (const [key, referrals] of grouped) {
       if (referrals.length > 1) {
@@ -7366,16 +12821,16 @@ router.post('/cleanup-referral-duplicates', requireAdmin, async (req, res) => {
         }
       }
     }
-    
+
     console.log(`✅ Cleaned up ${deletedCount} duplicate referrals`);
-    
+
     // Recalculate all bonuses after cleanup
     console.log('🔄 Recalculating all bonuses after referral cleanup...');
     const profiles = await prisma.partnerProfile.findMany();
     for (const profile of profiles) {
       await recalculatePartnerBonuses(profile.id);
     }
-    
+
     res.redirect('/admin/partners?success=referral_duplicates_cleaned&count=' + deletedCount);
   } catch (error) {
     console.error('❌ Referral duplicates cleanup error:', error);
@@ -7387,19 +12842,19 @@ router.post('/cleanup-referral-duplicates', requireAdmin, async (req, res) => {
 router.post('/force-recalculate-bonuses', requireAdmin, async (req, res) => {
   try {
     console.log('🔄 Starting forced bonus recalculation...');
-    
+
     // Get all partner profiles
     const profiles = await prisma.partnerProfile.findMany();
-    
+
     for (const profile of profiles) {
       console.log(`📊 Recalculating bonuses for profile ${profile.id}...`);
-      
+
       // Use the centralized bonus recalculation function
       const totalBonus = await recalculatePartnerBonuses(profile.id);
-      
+
       console.log(`✅ Updated profile ${profile.id}: ${totalBonus} PZ bonus`);
     }
-    
+
     console.log('🎉 Forced bonus recalculation completed!');
     res.redirect('/admin/partners?success=bonuses_force_recalculated');
   } catch (error) {
@@ -7413,9 +12868,9 @@ router.post('/recalculate-partner-bonuses/:profileId', requireAdmin, async (req,
   try {
     const { profileId } = req.params;
     console.log(`🔄 Force recalculating bonuses for profile ${profileId}...`);
-    
+
     const totalBonus = await recalculatePartnerBonuses(profileId);
-    
+
     console.log(`✅ Force recalculated bonuses for profile ${profileId}: ${totalBonus} PZ`);
     res.redirect(`/admin/partners?success=partner_bonuses_recalculated&bonus=${totalBonus}`);
   } catch (error) {
@@ -7428,26 +12883,26 @@ router.post('/recalculate-partner-bonuses/:profileId', requireAdmin, async (req,
 router.post('/cleanup-duplicate-bonuses', requireAdmin, async (req, res) => {
   try {
     console.log('🧹 Starting duplicate bonuses cleanup...');
-    
+
     // Get all partner profiles
     const profiles = await prisma.partnerProfile.findMany();
     let totalDeleted = 0;
-    
+
     for (const profile of profiles) {
       console.log(`📊 Processing profile ${profile.id}...`);
-      
+
       // Get all transactions for this profile
       const transactions = await prisma.partnerTransaction.findMany({
-        where: { 
+        where: {
           profileId: profile.id,
           description: { contains: 'Бонус за приглашение друга' }
         },
         orderBy: { createdAt: 'asc' }
       });
-      
+
       // Group by user ID (extract from description) or by amount+description for old format
       const bonusGroups = new Map<string, any[]>();
-      
+
       for (const tx of transactions) {
         // Extract user ID from description like "Бонус за приглашение друга (user_id)"
         const match = tx.description.match(/Бонус за приглашение друга \((.+?)\)/);
@@ -7466,7 +12921,7 @@ router.post('/cleanup-duplicate-bonuses', requireAdmin, async (req, res) => {
           bonusGroups.get(key)!.push(tx);
         }
       }
-      
+
       // Delete duplicates (keep only the first one)
       for (const [key, group] of bonusGroups) {
         if (group.length > 1) {
@@ -7481,26 +12936,66 @@ router.post('/cleanup-duplicate-bonuses', requireAdmin, async (req, res) => {
         }
       }
     }
-    
+
     console.log(`✅ Cleaned up ${totalDeleted} duplicate bonus transactions`);
-    
+
     // Recalculate all bonuses after cleanup
     console.log('🔄 Recalculating all bonuses after cleanup...');
     for (const profile of profiles) {
       await recalculatePartnerBonuses(profile.id);
     }
-    
+
     res.redirect(`/admin/partners?success=duplicate_bonuses_cleaned&count=${totalDeleted}`);
   } catch (error) {
     console.error('❌ Duplicate bonuses cleanup error:', error);
     res.redirect('/admin/partners?error=duplicate_bonuses_cleanup_failed');
   }
 });
+
+// Reset all partners - удалить все партнерские профили
+router.post('/reset-all-partners', requireAdmin, async (req, res) => {
+  try {
+    console.log('🗑️ Starting reset all partners...');
+
+    // Сначала посчитаем количество партнеров
+    const partnerCount = await prisma.partnerProfile.count();
+    console.log(`📊 Found ${partnerCount} partner profiles to delete`);
+
+    if (partnerCount === 0) {
+      return res.redirect('/admin/partners?success=all_partners_reset&count=0');
+    }
+
+    // Удаляем все PartnerTransaction (они каскадно удалятся при удалении PartnerProfile, но для ясности удаляем явно)
+    const transactionCount = await prisma.partnerTransaction.count();
+    console.log(`📊 Found ${transactionCount} transactions to delete`);
+    await prisma.partnerTransaction.deleteMany({});
+    console.log(`✅ Deleted ${transactionCount} partner transactions`);
+
+    // Удаляем все PartnerReferral (они каскадно удалятся при удалении PartnerProfile, но для ясности удаляем явно)
+    const referralCount = await prisma.partnerReferral.count();
+    console.log(`📊 Found ${referralCount} referrals to delete`);
+    await prisma.partnerReferral.deleteMany({});
+    console.log(`✅ Deleted ${referralCount} partner referrals`);
+
+    // Удаляем все PartnerProfile
+    await prisma.partnerProfile.deleteMany({});
+    console.log(`✅ Deleted ${partnerCount} partner profiles`);
+
+    console.log(`\n🎉 Reset all partners completed! Deleted ${partnerCount} profiles, ${referralCount} referrals, ${transactionCount} transactions.`);
+
+    res.redirect(`/admin/partners?success=all_partners_reset&count=${partnerCount}`);
+  } catch (error: any) {
+    console.error('❌ Reset all partners error:', error);
+    console.error('❌ Error stack:', error?.stack);
+    res.redirect('/admin/partners?error=reset_partners_failed');
+  }
+});
+
 // Fix Roman Arctur bonuses specifically
 router.post('/fix-roman-bonuses', requireAdmin, async (req, res) => {
   try {
     console.log('🔧 Fixing Roman Arctur bonuses...');
-    
+
     // Find Roman Arctur's profile
     const romanProfile = await prisma.partnerProfile.findFirst({
       where: {
@@ -7509,40 +13004,40 @@ router.post('/fix-roman-bonuses', requireAdmin, async (req, res) => {
         }
       }
     });
-    
+
     if (!romanProfile) {
       console.log('❌ Roman Arctur profile not found');
       res.redirect('/admin/partners?error=roman_profile_not_found');
       return;
     }
-    
+
     console.log(`📊 Found Roman Arctur profile: ${romanProfile.id}`);
-    
+
     // Get all transactions for Roman
     const transactions = await prisma.partnerTransaction.findMany({
       where: { profileId: romanProfile.id }
     });
-    
+
     console.log(`📊 Roman has ${transactions.length} transactions:`);
     transactions.forEach(tx => {
       console.log(`  - ${tx.type} ${tx.amount} PZ: ${tx.description} (${tx.createdAt})`);
     });
-    
+
     // Check current bonus before recalculation
     const currentProfile = await prisma.partnerProfile.findUnique({
       where: { id: romanProfile.id }
     });
     console.log(`💰 Current bonus before recalculation: ${currentProfile?.bonus} PZ`);
-    
+
     // Recalculate bonuses
     const totalBonus = await recalculatePartnerBonuses(romanProfile.id);
-    
+
     // Check bonus after recalculation
     const updatedProfile = await prisma.partnerProfile.findUnique({
       where: { id: romanProfile.id }
     });
     console.log(`💰 Bonus after recalculation: ${updatedProfile?.bonus} PZ`);
-    
+
     console.log(`✅ Roman Arctur bonuses fixed: ${totalBonus} PZ`);
     res.redirect(`/admin/partners?success=roman_bonuses_fixed&bonus=${totalBonus}`);
   } catch (error) {
@@ -7554,17 +13049,17 @@ router.post('/fix-roman-bonuses', requireAdmin, async (req, res) => {
 router.get('/users/:userId/partners-page', requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
-    
+
     // Get user info
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { partner: true }
     });
-    
+
     if (!user) {
       return res.status(404).send('Пользователь не найден');
     }
-    
+
     // Get user's partner profile
     const partnerProfile = await prisma.partnerProfile.findUnique({
       where: { userId },
@@ -7581,7 +13076,7 @@ router.get('/users/:userId/partners-page', requireAdmin, async (req, res) => {
         }
       }
     });
-    
+
     if (!partnerProfile) {
       return res.send(`
         <!DOCTYPE html>
@@ -7608,18 +13103,18 @@ router.get('/users/:userId/partners-page', requireAdmin, async (req, res) => {
         </html>
       `);
     }
-    
+
     // Get actual referred users
     const referredUserIds = partnerProfile.referrals.map(ref => ref.referredId).filter((id): id is string => Boolean(id));
     const referredUsers = await prisma.user.findMany({
       where: { id: { in: referredUserIds } },
       select: { id: true, firstName: true, lastName: true, username: true, telegramId: true, createdAt: true }
     });
-    
+
     // Group referrals by level
     const directPartners = partnerProfile.referrals.filter(ref => ref.level === 1);
     const multiPartners = partnerProfile.referrals.filter(ref => ref.level > 1);
-    
+
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -7694,8 +13189,8 @@ router.get('/users/:userId/partners-page', requireAdmin, async (req, res) => {
                 <h3 class="section-title">🎯 Прямые партнеры (уровень 1)</h3>
                 <div class="partners-list">
                   ${directPartners.map(ref => {
-                    const referredUser = referredUsers.find(u => u.id === ref.referredId);
-                    return referredUser ? `
+      const referredUser = referredUsers.find(u => u.id === ref.referredId);
+      return referredUser ? `
                       <div class="partner-card">
                         <div class="partner-info">
                           <div class="partner-avatar">${(referredUser.firstName || 'U')[0].toUpperCase()}</div>
@@ -7710,7 +13205,7 @@ router.get('/users/:userId/partners-page', requireAdmin, async (req, res) => {
                         </div>
                       </div>
                     ` : '';
-                  }).join('')}
+    }).join('')}
                 </div>
               </div>
             ` : ''}
@@ -7720,8 +13215,8 @@ router.get('/users/:userId/partners-page', requireAdmin, async (req, res) => {
                 <h3 class="section-title">🌐 Мульти-партнеры (уровень 2+)</h3>
                 <div class="partners-list">
                   ${multiPartners.map(ref => {
-                    const referredUser = referredUsers.find(u => u.id === ref.referredId);
-                    return referredUser ? `
+      const referredUser = referredUsers.find(u => u.id === ref.referredId);
+      return referredUser ? `
                       <div class="partner-card">
                         <div class="partner-info">
                           <div class="partner-avatar">${(referredUser.firstName || 'U')[0].toUpperCase()}</div>
@@ -7736,7 +13231,7 @@ router.get('/users/:userId/partners-page', requireAdmin, async (req, res) => {
                         </div>
                       </div>
                     ` : '';
-                  }).join('')}
+    }).join('')}
                 </div>
               </div>
             ` : ''}
@@ -7763,18 +13258,18 @@ router.post('/users/:userId/delivery-address', requireAdmin, async (req, res) =>
   try {
     const { userId } = req.params;
     const { addressType, address } = req.body;
-    
+
     if (!addressType || !address) {
       return res.status(400).json({ error: 'Тип адреса и адрес обязательны' });
     }
-    
+
     const fullAddress = `${addressType}: ${address}`;
-    
+
     await prisma.user.update({
       where: { id: userId },
       data: { deliveryAddress: fullAddress } as any
     });
-    
+
     res.json({ success: true });
   } catch (error) {
     console.error('Error updating delivery address:', error);
@@ -7787,23 +13282,23 @@ router.post('/users/:userId/toggle-partner-program', requireAdmin, async (req, r
   try {
     const { userId } = req.params;
     const { isActive } = req.body;
-    
+
     console.log('🔄 Toggle partner program request:', { userId, isActive });
-    
+
     if (typeof isActive !== 'boolean') {
       return res.json({ success: false, error: 'Неверный параметр isActive' });
     }
-    
+
     // Get user
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { partner: true }
     });
-    
+
     if (!user) {
       return res.json({ success: false, error: 'Пользователь не найден' });
     }
-    
+
     // Если у пользователя нет партнерского профиля, создаем его
     if (!user.partner) {
       // Генерируем уникальный referral code
@@ -7818,83 +13313,33 @@ router.post('/users/:userId/toggle-partner-program', requireAdmin, async (req, r
           isUnique = true;
         }
       }
-      
-      const now = new Date();
-      const expiresAt = isActive ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) : null; // 1 месяц при активации
-      
-      const newProfile = await prisma.partnerProfile.create({
+
+      await prisma.partnerProfile.create({
         data: {
           userId: user.id,
           isActive: isActive,
-          activatedAt: isActive ? now : null,
-          expiresAt: expiresAt,
+          activatedAt: isActive ? new Date() : null,
           activationType: 'ADMIN',
           referralCode: referralCode,
           programType: 'DIRECT'
         }
       });
-      
-      // Log activation history
-      if (isActive) {
-        await prisma.partnerActivationHistory.create({
-          data: {
-            profileId: newProfile.id,
-            action: 'ACTIVATED',
-            activationType: 'ADMIN',
-            reason: 'Активация администратором',
-            expiresAt: expiresAt,
-            adminId: (req as any).user?.id,
-          },
-        });
-      }
-      
+
       console.log(`✅ Partner profile created and ${isActive ? 'activated' : 'deactivated'}: ${userId}`);
     } else {
-      const wasActive = user.partner.isActive;
-      
       // Обновляем существующий профиль
-      const updateData: any = {
-        isActive: isActive,
-        activationType: 'ADMIN'
-      };
-      
-      if (isActive) {
-        // При активации устанавливаем activatedAt, если его нет
-        if (!user.partner.activatedAt) {
-          updateData.activatedAt = new Date();
-        }
-        // Если expiresAt не установлен или истек, устанавливаем новый срок (1 месяц)
-        if (!user.partner.expiresAt || new Date(user.partner.expiresAt) < new Date()) {
-          const now = new Date();
-          updateData.expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 1 месяц
-        }
-      } else {
-        // При деактивации сохраняем expiresAt для истории
-        updateData.activatedAt = user.partner.activatedAt;
-      }
-      
       await prisma.partnerProfile.update({
         where: { userId: user.id },
-        data: updateData
+        data: {
+          isActive: isActive,
+          activatedAt: isActive && !user.partner.activatedAt ? new Date() : user.partner.activatedAt,
+          activationType: 'ADMIN'
+        }
       });
-      
-      // Log activation/deactivation history only if status changed
-      if (wasActive !== isActive) {
-        await prisma.partnerActivationHistory.create({
-          data: {
-            profileId: user.partner.id,
-            action: isActive ? 'ACTIVATED' : 'DEACTIVATED',
-            activationType: 'ADMIN',
-            reason: isActive ? 'Активация администратором' : 'Деактивация администратором',
-            expiresAt: updateData.expiresAt || user.partner.expiresAt,
-            adminId: (req as any).user?.id,
-          },
-        });
-      }
-      
+
       console.log(`✅ Partner program ${isActive ? 'activated' : 'deactivated'}: ${userId}`);
     }
-    
+
     return res.json({ success: true, isActive: isActive });
   } catch (error: any) {
     console.error('❌ Error toggling partner program:', error);
@@ -7906,30 +13351,30 @@ router.post('/users/:userId/update-balance', requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
     const { operation, amount, comment } = req.body;
-    
+
     console.log('💰 Balance update request:', { userId, operation, amount, comment });
-    
+
     if (!operation || !amount || amount <= 0) {
       return res.json({ success: false, error: 'Неверные параметры' });
     }
-    
+
     if (!comment || comment.trim().length === 0) {
       return res.json({ success: false, error: 'Комментарий обязателен' });
     }
-    
+
     // Get user
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { partner: true }
     });
-    
+
     if (!user) {
       return res.json({ success: false, error: 'Пользователь не найден' });
     }
-    
+
     const currentBalance = user.balance;
     let newBalance;
-    
+
     if (operation === 'add') {
       newBalance = currentBalance + amount;
     } else if (operation === 'subtract') {
@@ -7940,15 +13385,15 @@ router.post('/users/:userId/update-balance', requireAdmin, async (req, res) => {
     } else {
       return res.json({ success: false, error: 'Неверная операция' });
     }
-    
+
     // Update user balance
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: { balance: newBalance }
     });
-    
+
     console.log(`✅ User balance updated: ${userId} from ${currentBalance} to ${updatedUser.balance}`);
-    
+
     // If user has partner profile, update it too, otherwise create one
     if (user.partner) {
       const updatedProfile = await prisma.partnerProfile.update({
@@ -7969,7 +13414,7 @@ router.post('/users/:userId/update-balance', requireAdmin, async (req, res) => {
       });
       console.log(`✅ Partner profile created: ${newProfile.id} with balance ${newBalance}`);
     }
-    
+
     // Log the transaction
     await prisma.userHistory.create({
       data: {
@@ -7984,15 +13429,15 @@ router.post('/users/:userId/update-balance', requireAdmin, async (req, res) => {
         }
       }
     });
-    
+
     console.log(`✅ Balance updated: ${userId} ${operation} ${amount} PZ (${currentBalance} -> ${newBalance})`);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       newBalance,
       message: `Баланс успешно ${operation === 'add' ? 'пополнен' : 'списан'} на ${amount} PZ`
     });
-    
+
   } catch (error) {
     console.error('❌ Balance update error:', error);
     res.json({ success: false, error: 'Ошибка обновления баланса' });
@@ -8001,11 +13446,11 @@ router.post('/users/:userId/update-balance', requireAdmin, async (req, res) => {
 // Helper functions for user orders page
 function createUserOrderCard(order: any, user: any) {
   // Handle both string and object types for itemsJson
-  const items = typeof order.itemsJson === 'string' 
-    ? JSON.parse(order.itemsJson || '[]') 
+  const items = typeof order.itemsJson === 'string'
+    ? JSON.parse(order.itemsJson || '[]')
     : (order.itemsJson || []);
   const totalAmount = items.reduce((sum: number, item: any) => sum + (item.price || 0) * (item.quantity || 1), 0);
-  
+
   return `
     <div class="order-card ${order.status.toLowerCase()}">
       <div class="order-header">
@@ -8072,12 +13517,12 @@ function createUserOrderCard(order: any, user: any) {
         </div>
         
         <div class="order-edit-actions">
-          ${order.status !== 'COMPLETED' && order.status !== 'CANCELLED' ? 
-            '<button class="edit-btn" onclick="openEditOrderModal(\'' + order.id + '\')">✏️ Редактировать</button>' 
-            : ''}
-          ${order.status !== 'COMPLETED' && order.status !== 'CANCELLED' ? 
-            '<button class="pay-btn" onclick="payFromBalance(\'' + order.id + '\', ' + totalAmount + ')">💳 Оплатить с баланса</button>' 
-            : ''}
+          ${order.status !== 'COMPLETED' && order.status !== 'CANCELLED' ?
+      '<button class="edit-btn" onclick="openEditOrderModal(\'' + order.id + '\')">✏️ Редактировать</button>'
+      : ''}
+          ${order.status !== 'COMPLETED' && order.status !== 'CANCELLED' ?
+      '<button class="pay-btn" onclick="payFromBalance(\'' + order.id + '\', ' + totalAmount + ')">💳 Оплатить с баланса</button>'
+      : ''}
         </div>
       </div>
     </div>
@@ -8094,134 +13539,196 @@ function getStatusDisplayName(status: string) {
   return names[status as keyof typeof names] || status;
 }
 // Show user orders page
-  // Test route for debugging
-  router.get('/debug-user/:userId', requireAdmin, async (req, res) => {
-    try {
-      const { userId } = req.params;
-      console.log(`🔍 DEBUG: Testing user ID: ${userId}`);
-      
-      const user = await prisma.user.findUnique({
-        where: { id: userId }
-      });
-      
-      console.log(`🔍 DEBUG: User found:`, user ? 'YES' : 'NO');
-      
-      res.json({
-        success: true,
-        userId,
-        userExists: !!user,
-        userData: user ? {
-          id: user.id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          username: user.username
-        } : null
-      });
-    } catch (error) {
-      console.error('🔍 DEBUG Error:', error);
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : String(error)
-      });
-    }
-  });
+// Test route for debugging
+router.get('/debug-user/:userId', requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log(`🔍 DEBUG: Testing user ID: ${userId}`);
 
-  // Detailed test route for debugging card issues
-  router.get('/debug-user-full/:userId', requireAdmin, async (req, res) => {
-    try {
-      const { userId } = req.params;
-      console.log(`🔍 DEBUG FULL: Testing user ID: ${userId}`);
-      
-      // Test basic user query
-      const user = await prisma.user.findUnique({
-        where: { id: userId }
-      });
-      console.log(`🔍 DEBUG FULL: Basic user query - success`);
-      
-      // Test user with orders
-      const userWithOrders = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    console.log(`🔍 DEBUG: User found:`, user ? 'YES' : 'NO');
+
+    res.json({
+      success: true,
+      userId,
+      userExists: !!user,
+      userData: user ? {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        username: user.username
+      } : null
+    });
+  } catch (error) {
+    console.error('🔍 DEBUG Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Detailed test route for debugging card issues
+router.get('/debug-user-full/:userId', requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log(`🔍 DEBUG FULL: Testing user ID: ${userId}`);
+
+    // Test basic user query
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+    console.log(`🔍 DEBUG FULL: Basic user query - success`);
+
+    // Test user with orders
+    const userWithOrders = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        orders: {
+          orderBy: { createdAt: 'desc' }
+        }
+      }
+    }) as any;
+    console.log(`🔍 DEBUG FULL: User with orders query - success`);
+    console.log(`🔍 DEBUG FULL: Orders count:`, userWithOrders?.orders?.length || 0);
+
+    // Test partner profile
+    const partnerProfile = await prisma.partnerProfile.findUnique({
+      where: { userId }
+    });
+    console.log(`🔍 DEBUG FULL: Partner profile query - success`);
+
+    // Test user history
+    const userHistory = await prisma.userHistory.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    console.log(`🔍 DEBUG FULL: User history query - success`);
+    console.log(`🔍 DEBUG FULL: History count:`, userHistory?.length || 0);
+
+    // Test calculations
+    const totalOrders = userWithOrders?.orders?.length || 0;
+    const completedOrders = userWithOrders?.orders?.filter((o: any) => o.status === 'COMPLETED').length || 0;
+    const totalSpent = userWithOrders?.orders
+      ?.filter((o: any) => o.status === 'COMPLETED')
+      .reduce((sum: number, order: any) => sum + (order.totalAmount || 0), 0) || 0;
+
+    console.log(`🔍 DEBUG FULL: Calculations - success`);
+    console.log(`🔍 DEBUG FULL: Total orders: ${totalOrders}, Completed: ${completedOrders}, Spent: ${totalSpent}`);
+
+    res.json({
+      success: true,
+      userId,
+      userExists: !!user,
+      userData: user ? {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        username: user.username
+      } : null,
+      ordersCount: totalOrders,
+      completedOrdersCount: completedOrders,
+      totalSpent: totalSpent,
+      partnerProfileExists: !!partnerProfile,
+      historyCount: userHistory?.length || 0,
+      allQueriesSuccessful: true
+    });
+  } catch (error) {
+    console.error('🔍 DEBUG FULL Error:', error);
+    console.error('🔍 DEBUG FULL Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: req.params.userId
+    });
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+      userId: req.params.userId
+    });
+  }
+});
+
+// Get user card with transaction history (simplified version)
+router.get('/users/:userId/card', requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    console.log(`🔍 Loading user card for ID: ${userId}`);
+
+    // Get user with basic data only (no include to avoid complex queries)
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    console.log(`👤 User found:`, user ? `${user.firstName} ${user.lastName}` : 'null');
+
+    if (!user) {
+      return res.status(404).send(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Пользователь не найден</title>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+              .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
+              .back-btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-bottom: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <a href="/admin" class="back-btn">← Назад к админ-панели</a>
+              <h2>❌ Пользователь не найден</h2>
+              <p>Пользователь с ID ${userId} не существует</p>
+            </div>
+          </body>
+          </html>
+        `);
+    }
+
+    // Sync balance between User and PartnerProfile
+    const partnerProfile = await prisma.partnerProfile.findUnique({
+      where: { userId }
+    });
+
+    if (partnerProfile && partnerProfile.balance !== user.balance) {
+      console.log(`🔄 Syncing balance: User=${user.balance} PZ, PartnerProfile=${partnerProfile.balance} PZ`);
+      // Use PartnerProfile balance as source of truth
+      await prisma.user.update({
         where: { id: userId },
-        include: {
-          orders: {
-            orderBy: { createdAt: 'desc' }
-          }
-        }
-      }) as any;
-      console.log(`🔍 DEBUG FULL: User with orders query - success`);
-      console.log(`🔍 DEBUG FULL: Orders count:`, userWithOrders?.orders?.length || 0);
-      
-      // Test partner profile
-      const partnerProfile = await prisma.partnerProfile.findUnique({
-        where: { userId }
+        data: { balance: partnerProfile.balance }
       });
-      console.log(`🔍 DEBUG FULL: Partner profile query - success`);
-      
-      // Test user history
-      const userHistory = await prisma.userHistory.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        take: 50
-      });
-      console.log(`🔍 DEBUG FULL: User history query - success`);
-      console.log(`🔍 DEBUG FULL: History count:`, userHistory?.length || 0);
-      
-      // Test calculations
-      const totalOrders = userWithOrders?.orders?.length || 0;
-      const completedOrders = userWithOrders?.orders?.filter((o: any) => o.status === 'COMPLETED').length || 0;
-      const totalSpent = userWithOrders?.orders
-        ?.filter((o: any) => o.status === 'COMPLETED')
-        .reduce((sum: number, order: any) => sum + (order.totalAmount || 0), 0) || 0;
-      
-      console.log(`🔍 DEBUG FULL: Calculations - success`);
-      console.log(`🔍 DEBUG FULL: Total orders: ${totalOrders}, Completed: ${completedOrders}, Spent: ${totalSpent}`);
-      
-      res.json({
-        success: true,
-        userId,
-        userExists: !!user,
-        userData: user ? {
-          id: user.id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          username: user.username
-        } : null,
-        ordersCount: totalOrders,
-        completedOrdersCount: completedOrders,
-        totalSpent: totalSpent,
-        partnerProfileExists: !!partnerProfile,
-        historyCount: userHistory?.length || 0,
-        allQueriesSuccessful: true
-      });
-    } catch (error) {
-      console.error('🔍 DEBUG FULL Error:', error);
-      console.error('🔍 DEBUG FULL Error details:', {
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        userId: req.params.userId
-      });
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        userId: req.params.userId
-      });
+      user.balance = partnerProfile.balance;
+      console.log(`✅ Balance synced to ${user.balance} PZ`);
     }
-  });
 
-  // Get user card with transaction history (simplified version)
-  router.get('/users/:userId/card', requireAdmin, async (req, res) => {
-    try {
-      const { userId } = req.params;
-      console.log(`🔍 Loading user card for ID: ${userId}`);
-      
-      // Get user with basic data only (no include to avoid complex queries)
-      const user = await prisma.user.findUnique({
-        where: { id: userId }
-      });
-      
-      console.log(`👤 User found:`, user ? `${user.firstName} ${user.lastName}` : 'null');
+    // Get data separately to avoid complex queries
+    console.log(`📦 Getting orders for user: ${userId}`);
+    const orders = await prisma.orderRequest.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' }
+    });
+    console.log(`📦 Orders count:`, orders?.length || 0);
 
-      if (!user) {
-        return res.status(404).send(`
+    console.log(`🤝 Partner profile found:`, partnerProfile ? 'yes' : 'no');
+
+    // Проверяем статус активации
+    const isActive = partnerProfile ? await checkPartnerActivation(userId) : false;
+    console.log(`🤝 Partner profile is active:`, isActive);
+
+    console.log(`📊 Getting user history for user: ${userId}`);
+    const userHistory = await prisma.userHistory.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 20 // Limit to 20 records to avoid issues
+    });
+    console.log(`📊 User history count:`, userHistory?.length || 0);
+
+    if (!user) {
+      return res.status(404).send(`
           <!DOCTYPE html>
           <html>
           <head>
@@ -8242,147 +13749,85 @@ function getStatusDisplayName(status: string) {
           </body>
           </html>
         `);
-      }
+    }
 
-      // Sync balance between User and PartnerProfile
-      const partnerProfile = await prisma.partnerProfile.findUnique({
-        where: { userId }
-      });
-      
-      if (partnerProfile && partnerProfile.balance !== user.balance) {
-        console.log(`🔄 Syncing balance: User=${user.balance} PZ, PartnerProfile=${partnerProfile.balance} PZ`);
-        // Use PartnerProfile balance as source of truth
-        await prisma.user.update({
-          where: { id: userId },
-          data: { balance: partnerProfile.balance }
-        });
-        user.balance = partnerProfile.balance;
-        console.log(`✅ Balance synced to ${user.balance} PZ`);
-      }
+    // Calculate statistics with safe handling
+    const totalOrders = orders?.length || 0;
+    const completedOrders = orders?.filter((o: any) => o && o.status === 'COMPLETED').length || 0;
+    const totalSpent = orders
+      ?.filter((o: any) => o && o.status === 'COMPLETED')
+      .reduce((sum: number, order: any) => {
+        const amount = order?.totalAmount || 0;
+        return sum + (typeof amount === 'number' ? amount : 0);
+      }, 0) || 0;
 
-      // Get data separately to avoid complex queries
-      console.log(`📦 Getting orders for user: ${userId}`);
-      const orders = await prisma.orderRequest.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' }
-      });
-      console.log(`📦 Orders count:`, orders?.length || 0);
+    const totalPartners = 0; // Simplified for now
+    const activePartners = 0; // Simplified for now
 
-      console.log(`🤝 Partner profile found:`, partnerProfile ? 'yes' : 'no');
-      
-      // Проверяем статус активации
-      const isActive = partnerProfile ? await checkPartnerActivation(userId) : false;
-      console.log(`🤝 Partner profile is active:`, isActive);
-
-      console.log(`📊 Getting user history for user: ${userId}`);
-      const userHistory = await prisma.userHistory.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        take: 20 // Limit to 20 records to avoid issues
-      });
-      console.log(`📊 User history count:`, userHistory?.length || 0);
-
-      if (!user) {
-        return res.status(404).send(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>Пользователь не найден</title>
-            <meta charset="utf-8">
-            <style>
-              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-              .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
-              .back-btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; margin-bottom: 20px; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <a href="/admin" class="back-btn">← Назад к админ-панели</a>
-              <h2>❌ Пользователь не найден</h2>
-              <p>Пользователь с ID ${userId} не существует</p>
-            </div>
-          </body>
-          </html>
-        `);
-      }
-
-      // Calculate statistics with safe handling
-      const totalOrders = orders?.length || 0;
-      const completedOrders = orders?.filter((o: any) => o && o.status === 'COMPLETED').length || 0;
-      const totalSpent = orders
-        ?.filter((o: any) => o && o.status === 'COMPLETED')
-        .reduce((sum: number, order: any) => {
-          const amount = order?.totalAmount || 0;
-          return sum + (typeof amount === 'number' ? amount : 0);
-        }, 0) || 0;
-      
-      const totalPartners = 0; // Simplified for now
-      const activePartners = 0; // Simplified for now
-
-      // Group transactions by date with safe handling
-      const transactionsByDate: { [key: string]: any[] } = {};
-      userHistory?.forEach((tx: any) => {
-        if (tx && tx.createdAt) {
-          try {
-            const date = tx.createdAt.toISOString().split('T')[0];
-            if (!transactionsByDate[date]) {
-              transactionsByDate[date] = [];
-            }
-            transactionsByDate[date].push(tx);
-          } catch (error) {
-            console.error('Error processing transaction date:', error, tx);
+    // Group transactions by date with safe handling
+    const transactionsByDate: { [key: string]: any[] } = {};
+    userHistory?.forEach((tx: any) => {
+      if (tx && tx.createdAt) {
+        try {
+          const date = tx.createdAt.toISOString().split('T')[0];
+          if (!transactionsByDate[date]) {
+            transactionsByDate[date] = [];
           }
-        }
-      });
-
-      // Серверные функции для преобразования названий операций
-      function getBalanceActionNameServer(action: string): string {
-        const actionNames: { [key: string]: string } = {
-          'balance_updated': '💰 Изменение баланса',
-          'REFERRAL_BONUS': '🎯 Реферальный бонус',
-          'ORDER_PAYMENT': '💳 Оплата заказа',
-          'BALANCE_ADD': '➕ Пополнение баланса',
-          'BALANCE_SUBTRACT': '➖ Списание с баланса'
-        };
-        return actionNames[action] || action;
-      }
-
-      function getExpirationStatusColorServer(expiresAt: Date): string {
-        const now = new Date();
-        const expiration = new Date(expiresAt);
-        const daysLeft = Math.ceil((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        
-        if (daysLeft < 0) {
-          return '#dc3545'; // Красный - истекла
-        } else if (daysLeft <= 3) {
-          return '#ffc107'; // Желтый - скоро истекает
-        } else if (daysLeft <= 7) {
-          return '#fd7e14'; // Оранжевый - неделя
-        } else {
-          return '#28a745'; // Зеленый - много времени
+          transactionsByDate[date].push(tx);
+        } catch (error) {
+          console.error('Error processing transaction date:', error, tx);
         }
       }
+    });
 
-      function getExpirationStatusTextServer(expiresAt: Date): string {
-        const now = new Date();
-        const expiration = new Date(expiresAt);
-        const daysLeft = Math.ceil((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        
-        if (daysLeft < 0) {
-          return '❌ Активация истекла';
-        } else if (daysLeft === 0) {
-          return '⚠️ Истекает сегодня';
-        } else if (daysLeft === 1) {
-          return '⚠️ Истекает завтра';
-        } else if (daysLeft <= 3) {
-          return `⚠️ Истекает через ${daysLeft} дня`;
-        } else if (daysLeft <= 7) {
-          return `🟡 Истекает через ${daysLeft} дней`;
-        } else {
-          return `✅ Действует еще ${daysLeft} дней`;
-        }
+    // Серверные функции для преобразования названий операций
+    function getBalanceActionNameServer(action: string): string {
+      const actionNames: { [key: string]: string } = {
+        'balance_updated': '💰 Изменение баланса',
+        'REFERRAL_BONUS': '🎯 Реферальный бонус',
+        'ORDER_PAYMENT': '💳 Оплата заказа',
+        'BALANCE_ADD': '➕ Пополнение баланса',
+        'BALANCE_SUBTRACT': '➖ Списание с баланса'
+      };
+      return actionNames[action] || action;
+    }
+
+    function getExpirationStatusColorServer(expiresAt: Date): string {
+      const now = new Date();
+      const expiration = new Date(expiresAt);
+      const daysLeft = Math.ceil((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysLeft < 0) {
+        return '#dc3545'; // Красный - истекла
+      } else if (daysLeft <= 3) {
+        return '#ffc107'; // Желтый - скоро истекает
+      } else if (daysLeft <= 7) {
+        return '#fd7e14'; // Оранжевый - неделя
+      } else {
+        return '#28a745'; // Зеленый - много времени
       }
-      const html = `
+    }
+
+    function getExpirationStatusTextServer(expiresAt: Date): string {
+      const now = new Date();
+      const expiration = new Date(expiresAt);
+      const daysLeft = Math.ceil((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysLeft < 0) {
+        return '❌ Активация истекла';
+      } else if (daysLeft === 0) {
+        return '⚠️ Истекает сегодня';
+      } else if (daysLeft === 1) {
+        return '⚠️ Истекает завтра';
+      } else if (daysLeft <= 3) {
+        return `⚠️ Истекает через ${daysLeft} дня`;
+      } else if (daysLeft <= 7) {
+        return `🟡 Истекает через ${daysLeft} дней`;
+      } else {
+        return `✅ Действует еще ${daysLeft} дней`;
+      }
+    }
+    const html = `
         <!DOCTYPE html>
         <html>
         <head>
@@ -8532,17 +13977,17 @@ function getStatusDisplayName(status: string) {
               <div id="balance" class="tab-content active">
                 <h2>💰 История изменений баланса</h2>
                 <p style="color: #6c757d; margin-bottom: 20px;">Кликните на изменение баланса для просмотра деталей</p>
-                ${Object.keys(transactionsByDate).length === 0 ? 
-                  '<p style="text-align: center; color: #6c757d; padding: 40px;">Нет изменений баланса</p>' :
-                  Object.keys(transactionsByDate).map(date => `
+                ${Object.keys(transactionsByDate).length === 0 ?
+        '<p style="text-align: center; color: #6c757d; padding: 40px;">Нет изменений баланса</p>' :
+        Object.keys(transactionsByDate).map(date => `
                     <h3 style="color: #6c757d; margin: 20px 0 10px 0; font-size: 16px;">${new Date(date).toLocaleDateString('ru-RU')}</h3>
                     ${transactionsByDate[date]
-                      .filter(tx => {
-                        // Показываем только финансовые операции
-                        const financialActions = ['balance_updated', 'REFERRAL_BONUS', 'ORDER_PAYMENT', 'BALANCE_ADD', 'BALANCE_SUBTRACT'];
-                        return financialActions.includes(tx.action) && tx.amount !== 0;
-                      })
-                      .map(tx => `
+            .filter(tx => {
+              // Показываем только финансовые операции
+              const financialActions = ['balance_updated', 'REFERRAL_BONUS', 'ORDER_PAYMENT', 'BALANCE_ADD', 'BALANCE_SUBTRACT'];
+              return financialActions.includes(tx.action) && tx.amount !== 0;
+            })
+            .map(tx => `
                       <div class="transaction-item balance-item" onclick="showBalanceDetails('${tx.id}', '${tx.action}', ${tx.amount || 0}, '${tx.createdAt.toLocaleString('ru-RU')}')">
                         <div class="transaction-details">
                           <div><strong>${getBalanceActionNameServer(tx.action)}</strong></div>
@@ -8554,14 +13999,14 @@ function getStatusDisplayName(status: string) {
                       </div>
                     `).join('')}
                   `).join('')
-                }
+      }
               </div>
 
               <div id="transactions" class="tab-content">
                 <h2>📊 История транзакций</h2>
-                ${Object.keys(transactionsByDate).length === 0 ? 
-                  '<p style="text-align: center; color: #6c757d; padding: 40px;">Нет транзакций</p>' :
-                  Object.keys(transactionsByDate).map(date => `
+                ${Object.keys(transactionsByDate).length === 0 ?
+        '<p style="text-align: center; color: #6c757d; padding: 40px;">Нет транзакций</p>' :
+        Object.keys(transactionsByDate).map(date => `
                     <h3 style="color: #6c757d; margin: 20px 0 10px 0; font-size: 16px;">${new Date(date).toLocaleDateString('ru-RU')}</h3>
                     ${transactionsByDate[date].map(tx => `
                       <div class="transaction-item">
@@ -8575,7 +14020,7 @@ function getStatusDisplayName(status: string) {
                       </div>
                     `).join('')}
                   `).join('')
-                }
+      }
               </div>
 
               <div id="partners" class="tab-content">
@@ -8602,9 +14047,9 @@ function getStatusDisplayName(status: string) {
 
               <div id="orders" class="tab-content">
                 <h2>📦 Заказы</h2>
-                ${(orders?.length || 0) === 0 ? 
-                  '<p style="text-align: center; color: #6c757d; padding: 40px;">Нет заказов</p>' :
-                  orders?.map((order: any) => `
+                ${(orders?.length || 0) === 0 ?
+        '<p style="text-align: center; color: #6c757d; padding: 40px;">Нет заказов</p>' :
+        orders?.map((order: any) => `
                     <div class="transaction-item">
                       <div class="transaction-details">
                         <div><strong>Заказ #${order.id}</strong></div>
@@ -8620,7 +14065,7 @@ function getStatusDisplayName(status: string) {
                       </div>
                     </div>
                   `).join('')
-                }
+      }
               </div>
             </div>
           </div>
@@ -8753,86 +14198,86 @@ function getStatusDisplayName(status: string) {
         </html>
       `;
 
-      res.send(html);
-    } catch (error) {
-      console.error('❌ Error loading user card:', error);
-      console.error('❌ Error details:', {
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        userId: req.params.userId
-      });
-      res.status(500).send('Ошибка загрузки карточки пользователя');
-    }
-  });
+    res.send(html);
+  } catch (error) {
+    console.error('❌ Error loading user card:', error);
+    console.error('❌ Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: req.params.userId
+    });
+    res.status(500).send('Ошибка загрузки карточки пользователя');
+  }
+});
 
-  // Activate referral program for user
-  router.post('/users/:userId/activate-referral', requireAdmin, async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const { months, programType } = req.body;
-      
-      const user = await prisma.user.findUnique({
-        where: { id: userId }
-      });
-
-      if (!user) {
-        return res.status(404).send('Пользователь не найден');
-      }
-
-      // Check if user already has partner profile
-      const existingProfile = await prisma.partnerProfile.findUnique({
-        where: { userId }
-      });
-
-      if (existingProfile) {
-        // Update existing profile
-        await prisma.partnerProfile.update({
-          where: { userId },
-          data: {
-            programType: 'MULTI_LEVEL' // Always use MULTI_LEVEL for dual system
-          }
-        });
-      } else {
-        // Create new partner profile
-        const referralCode = `REF${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
-        
-        await prisma.partnerProfile.create({
-          data: {
-            userId,
-            programType: 'MULTI_LEVEL', // Always use MULTI_LEVEL for dual system
-            referralCode,
-            balance: 0,
-            bonus: 0
-          }
-        });
-      }
-
-      // Активируем партнерский профиль через админку
-      await activatePartnerProfile(userId, 'ADMIN', parseInt(months));
-
-      console.log(`✅ Referral program activated for user ${userId} for ${months} months`);
-
-      res.redirect(`/admin/users/${userId}/card?success=referral_activated`);
-    } catch (error) {
-      console.error('❌ Error activating referral program:', error);
-      res.status(500).send('Ошибка активации реферальной программы');
-    }
-  });
-  // Get user orders
-  router.get('/users/:userId/orders', requireAdmin, async (req, res) => {
-    try {
+// Activate referral program for user
+router.post('/users/:userId/activate-referral', requireAdmin, async (req, res) => {
+  try {
     const { userId } = req.params;
-    
+    const { months, programType } = req.body;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      return res.status(404).send('Пользователь не найден');
+    }
+
+    // Check if user already has partner profile
+    const existingProfile = await prisma.partnerProfile.findUnique({
+      where: { userId }
+    });
+
+    if (existingProfile) {
+      // Update existing profile
+      await prisma.partnerProfile.update({
+        where: { userId },
+        data: {
+          programType: 'MULTI_LEVEL' // Always use MULTI_LEVEL for dual system
+        }
+      });
+    } else {
+      // Create new partner profile
+      const referralCode = `REF${Date.now()}${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+
+      await prisma.partnerProfile.create({
+        data: {
+          userId,
+          programType: 'MULTI_LEVEL', // Always use MULTI_LEVEL for dual system
+          referralCode,
+          balance: 0,
+          bonus: 0
+        }
+      });
+    }
+
+    // Активируем партнерский профиль через админку
+    await activatePartnerProfile(userId, 'ADMIN', parseInt(months));
+
+    console.log(`✅ Referral program activated for user ${userId} for ${months} months`);
+
+    res.redirect(`/admin/users/${userId}/card?success=referral_activated`);
+  } catch (error) {
+    console.error('❌ Error activating referral program:', error);
+    res.status(500).send('Ошибка активации реферальной программы');
+  }
+});
+// Get user orders
+router.get('/users/:userId/orders', requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
     // Get user info
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { firstName: true, lastName: true, username: true, balance: true, deliveryAddress: true }
     });
-    
+
     if (!user) {
       return res.status(404).send('Пользователь не найден');
     }
-    
+
     // Get user's orders
     const orders = await prisma.orderRequest.findMany({
       where: { userId },
@@ -8841,7 +14286,7 @@ function getStatusDisplayName(status: string) {
         { createdAt: 'desc' }
       ]
     });
-    
+
     // Group orders by status
     const ordersByStatus = {
       NEW: orders.filter(order => order.status === 'NEW'),
@@ -8849,11 +14294,11 @@ function getStatusDisplayName(status: string) {
       COMPLETED: orders.filter(order => order.status === 'COMPLETED'),
       CANCELLED: orders.filter(order => order.status === 'CANCELLED')
     };
-    
+
     const escapeHtmlAttr = (value = '') => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
     const defaultContact = user.deliveryAddress || (user.username ? `@${user.username}` : user.firstName || '');
     const defaultMessage = 'Заказ создан администратором';
-    
+
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -10102,65 +15547,65 @@ function getStatusDisplayName(status: string) {
   }
 });
 
-  router.post('/users/:userId/orders', requireAdmin, async (req, res) => {
-    const { userId } = req.params;
-    const { contact, message, status, items } = req.body;
-    
-    const allowedStatuses = ['NEW', 'PROCESSING', 'COMPLETED', 'CANCELLED'];
-    const targetStatus = allowedStatuses.includes((status || '').toUpperCase()) ? status.toUpperCase() : 'NEW';
-    
-    try {
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (!user) {
-        return res.redirect(`/admin/users/${userId}/orders?error=order_create_failed`);
-      }
-      
-      let parsedItems: any[] = [];
-      try {
-        parsedItems = JSON.parse(items || '[]');
-      } catch (error) {
-        console.error('❌ Failed to parse items JSON:', error);
-      }
-      
-      if (!Array.isArray(parsedItems) || parsedItems.length === 0) {
-        return res.redirect(`/admin/users/${userId}/orders?error=order_no_items`);
-      }
-      
-      const sanitizedItems = parsedItems.map((item) => {
-        const quantity = Math.max(1, parseInt(item.quantity, 10) || 1);
-        const price = Math.max(0, parseFloat(item.price) || 0);
-        return {
-          productId: item.productId || null,
-          title: (item.title || 'Товар').toString().trim() || 'Товар',
-          quantity,
-          price,
-          total: Number((price * quantity).toFixed(2))
-        };
-      });
-      
-      await prisma.orderRequest.create({
-        data: {
-          userId,
-          contact: contact?.toString().trim() || null,
-          message: message?.toString().trim() || 'Заказ создан администратором',
-          itemsJson: sanitizedItems,
-          status: targetStatus
-        }
-      });
-      
-      res.redirect(`/admin/users/${userId}/orders?success=order_created`);
-    } catch (error) {
-      console.error('❌ Error creating manual order:', error);
-      res.redirect(`/admin/users/${userId}/orders?error=order_create_failed`);
+router.post('/users/:userId/orders', requireAdmin, async (req, res) => {
+  const { userId } = req.params;
+  const { contact, message, status, items } = req.body;
+
+  const allowedStatuses = ['NEW', 'PROCESSING', 'COMPLETED', 'CANCELLED'];
+  const targetStatus = allowedStatuses.includes((status || '').toUpperCase()) ? status.toUpperCase() : 'NEW';
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.redirect(`/admin/users/${userId}/orders?error=order_create_failed`);
     }
-  });
+
+    let parsedItems: any[] = [];
+    try {
+      parsedItems = JSON.parse(items || '[]');
+    } catch (error) {
+      console.error('❌ Failed to parse items JSON:', error);
+    }
+
+    if (!Array.isArray(parsedItems) || parsedItems.length === 0) {
+      return res.redirect(`/admin/users/${userId}/orders?error=order_no_items`);
+    }
+
+    const sanitizedItems = parsedItems.map((item) => {
+      const quantity = Math.max(1, parseInt(item.quantity, 10) || 1);
+      const price = Math.max(0, parseFloat(item.price) || 0);
+      return {
+        productId: item.productId || null,
+        title: (item.title || 'Товар').toString().trim() || 'Товар',
+        quantity,
+        price,
+        total: Number((price * quantity).toFixed(2))
+      };
+    });
+
+    await prisma.orderRequest.create({
+      data: {
+        userId,
+        contact: contact?.toString().trim() || null,
+        message: message?.toString().trim() || 'Заказ создан администратором',
+        itemsJson: sanitizedItems,
+        status: targetStatus
+      }
+    });
+
+    res.redirect(`/admin/users/${userId}/orders?success=order_created`);
+  } catch (error) {
+    console.error('❌ Error creating manual order:', error);
+    res.redirect(`/admin/users/${userId}/orders?error=order_create_failed`);
+  }
+});
 
 // Маршрут для получения списка партнеров пользователя
 router.get('/users/:userId/partners', requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
     const { level } = req.query;
-    
+
     // Получаем пользователя с его партнерским профилем
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -10177,11 +15622,11 @@ router.get('/users/:userId/partners', requireAdmin, async (req, res) => {
         }
       }
     });
-    
+
     if (!user) {
       return res.status(404).json({ error: 'Пользователь не найден' });
     }
-    
+
     let partners: any[] = [];
     if (user.partner && user.partner.referrals) {
       // Получаем пользователей, которые были приглашены
@@ -10189,9 +15634,9 @@ router.get('/users/:userId/partners', requireAdmin, async (req, res) => {
         .filter(ref => ref.referred) // Фильтруем только тех, у кого есть referred пользователь
         .map((ref: any) => ref.referred);
     }
-    
+
     res.json(partners);
-    
+
   } catch (error) {
     console.error('Error fetching partners:', error);
     res.status(500).json({ error: 'Ошибка получения списка партнеров' });
@@ -10201,133 +15646,86 @@ router.get('/users/:userId/partners', requireAdmin, async (req, res) => {
 // Маршрут для отправки сообщений пользователям
 router.post('/messages/send', requireAdmin, async (req, res) => {
   try {
-    const { userIds, subject, text, photoUrl, buttons, saveAsTemplate, templateName } = req.body;
-    
+    const { userIds, subject, text, saveAsTemplate } = req.body;
+
     if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
       return res.status(400).json({ error: 'Не указаны получатели' });
     }
-    
+
     if (!subject || !text) {
       return res.status(400).json({ error: 'Не указаны тема или текст сообщения' });
     }
-    
+
     let successCount = 0;
     const errors = [];
-    
+
     // Отправляем сообщения каждому пользователю
     console.log(`📤 Начинаем отправку сообщений ${userIds.length} пользователям:`, userIds);
-    
+
     for (const userId of userIds) {
       try {
         console.log(`📤 Обрабатываем пользователя: ${userId}`);
-        
+
         // Получаем пользователя
         const user = await prisma.user.findUnique({
           where: { id: userId }
         });
-        
+
         if (!user) {
           console.log(`❌ Пользователь ${userId} не найден в базе данных`);
           errors.push(`Пользователь ${userId} не найден`);
           continue;
         }
-        
+
         console.log(`✅ Пользователь найден: ${user.firstName} (telegramId: ${user.telegramId})`);
-        
+
         // Проверяем, есть ли telegramId у пользователя
         if (!user.telegramId || user.telegramId === 'null' || user.telegramId === 'undefined') {
           console.log(`❌ У пользователя ${user.firstName} отсутствует или неверный telegramId: ${user.telegramId}`);
           errors.push(`${user.firstName} (@${user.username || 'без username'}): отсутствует telegramId`);
           continue;
         }
-        
+
         // Отправляем сообщение через Telegram Bot API
         try {
           const { getBotInstance } = await import('../lib/bot-instance.js');
           const bot = await getBotInstance();
-          
+
           // Формируем сообщение с экранированием Markdown символов
           const escapeMarkdown = (text: string) => {
-            // Экранируем только специальные символы Markdown, но не дефис, не слэш и не точку
-            // Точка не является специальным символом в Markdown в обычном контексте
-            return text.replace(/([_*\[\]()~`>#+=|{}!])/g, '\\$1');
+            return text.replace(/([_*\[\]()~`>#+=|{}.!-])/g, '\\$1');
           };
-          
+
           const messageText = `📧 ${escapeMarkdown(subject)}\n\n${escapeMarkdown(text)}`;
-          const plainText = `📧 ${subject}\n\n${text}`;
-          
+
           console.log(`📤 Отправка сообщения пользователю ${user.firstName} (ID: ${user.telegramId}):`, messageText);
-          
-          // Формируем клавиатуру с кнопками, если они есть
-          let replyMarkup: { inline_keyboard: Array<Array<any>> } | undefined = undefined;
-          if (buttons && Array.isArray(buttons) && buttons.length > 0) {
-            const inlineKeyboard: Array<Array<any>> = [];
-            buttons.forEach(button => {
-              if (button.type === 'url' && button.text && button.url) {
-                inlineKeyboard.push([{ text: button.text, url: button.url }]);
-              } else if (button.type === 'product' && button.productId) {
-                const PRODUCT_CART_PREFIX = 'shop:prod:cart:';
-                const PRODUCT_BUY_PREFIX = 'shop:prod:buy:';
-                const callbackData = button.action === 'cart' 
-                  ? `${PRODUCT_CART_PREFIX}${button.productId}`
-                  : `${PRODUCT_BUY_PREFIX}${button.productId}`;
-                const buttonText = button.action === 'cart' ? '🛒 В корзину' : '💳 Купить';
-                inlineKeyboard.push([{ text: buttonText, callback_data: callbackData }]);
-              }
-            });
-            if (inlineKeyboard.length > 0) {
-              replyMarkup = { inline_keyboard: inlineKeyboard };
-            }
-          }
-          
+
           // Отправляем сообщение
           let result;
-          
-          // Если есть фото, отправляем фото с текстом как caption
-          if (photoUrl && photoUrl.trim()) {
-            try {
-              result = await bot.telegram.sendPhoto(user.telegramId, photoUrl, {
-                caption: messageText,
-                parse_mode: 'Markdown',
-                reply_markup: replyMarkup
-              });
-            } catch (markdownError) {
-              console.log(`⚠️ Markdown отправка фото не удалась, пробуем без Markdown: ${markdownError instanceof Error ? markdownError.message : String(markdownError)}`);
-              // Если Markdown не работает, отправляем без форматирования
-              result = await bot.telegram.sendPhoto(user.telegramId, photoUrl, {
-                caption: plainText,
-                reply_markup: replyMarkup
-              });
-            }
-          } else {
-            // Если фото нет, отправляем обычное текстовое сообщение
-            try {
-              result = await bot.telegram.sendMessage(user.telegramId, messageText, {
-                parse_mode: 'Markdown',
-                reply_markup: replyMarkup
-              });
-            } catch (markdownError) {
-              console.log(`⚠️ Markdown отправка не удалась, пробуем без Markdown: ${markdownError instanceof Error ? markdownError.message : String(markdownError)}`);
-              // Если Markdown не работает, отправляем без форматирования
-              result = await bot.telegram.sendMessage(user.telegramId, plainText, {
-                reply_markup: replyMarkup
-              });
-            }
+          try {
+            result = await bot.telegram.sendMessage(user.telegramId, messageText, {
+              parse_mode: 'Markdown'
+            });
+          } catch (markdownError) {
+            console.log(`⚠️ Markdown отправка не удалась, пробуем без Markdown: ${markdownError instanceof Error ? markdownError.message : String(markdownError)}`);
+            // Если Markdown не работает, отправляем без форматирования
+            const plainText = `📧 ${subject}\n\n${text}`;
+            result = await bot.telegram.sendMessage(user.telegramId, plainText);
           }
-          
+
           console.log(`✅ Сообщение успешно отправлено пользователю ${user.firstName} (@${user.username || 'без username'}), message_id: ${result.message_id}`);
           successCount++;
-          
+
         } catch (telegramError) {
           console.error(`❌ Ошибка отправки сообщения пользователю ${user.firstName} (@${user.username || 'без username'}) (ID: ${user.telegramId}):`, telegramError);
-          
+
           // Добавляем ошибку в список для отчета
           const errorMessage = telegramError instanceof Error ? telegramError.message : String(telegramError);
           errors.push(`${user.firstName} (@${user.username || 'без username'}): ${errorMessage}`);
-          
+
           // Продолжаем обработку других пользователей даже при ошибке
         }
-        
+
         // Сохраняем в историю
         await prisma.userHistory.create({
           data: {
@@ -10336,76 +15734,47 @@ router.post('/messages/send', requireAdmin, async (req, res) => {
             payload: {
               subject,
               text,
-              photoUrl: photoUrl || null,
               sentBy: 'admin'
             }
           }
         });
-        
+
       } catch (error) {
-          console.error(`Error sending message to user ${userId}:`, error);
-          errors.push(`Ошибка отправки пользователю ${userId}: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
-        }
+        console.error(`Error sending message to user ${userId}:`, error);
+        errors.push(`Ошибка отправки пользователю ${userId}: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+      }
     }
-    
+
     // Сохраняем шаблон если нужно
-    if (saveAsTemplate && templateName) {
+    if (saveAsTemplate) {
       try {
-        await prisma.messageTemplate.create({
+        await prisma.userHistory.create({
           data: {
-            name: templateName,
-            subject,
-            text,
-            photoUrl: photoUrl || null,
-            buttons: buttons && buttons.length > 0 ? buttons : null
+            userId: userIds[0], // Используем первого пользователя для шаблона
+            action: 'MESSAGE_TEMPLATE_SAVED',
+            payload: {
+              subject,
+              text,
+              savedBy: 'admin'
+            }
           }
         });
-        console.log('✅ Шаблон сохранен:', templateName);
       } catch (error) {
         console.error('Error saving template:', error);
       }
     }
-    
+
     console.log(`📊 Итоговые результаты отправки: успешно ${successCount}/${userIds.length}, ошибок: ${errors.length}`);
-    
+
     res.json({
       successCount,
       totalCount: userIds.length,
       errors: errors.length > 0 ? errors : undefined
     });
-    
+
   } catch (error) {
     console.error('Error sending messages:', error);
     res.status(500).json({ error: 'Ошибка отправки сообщений' });
-  }
-});
-
-// API для получения списка шаблонов
-router.get('/messages/templates', requireAdmin, async (req, res) => {
-  try {
-    const templates = await prisma.messageTemplate.findMany({
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json(templates);
-  } catch (error) {
-    console.error('Error loading templates:', error);
-    res.status(500).json({ error: 'Ошибка загрузки шаблонов' });
-  }
-});
-
-// API для получения одного шаблона
-router.get('/messages/templates/:id', requireAdmin, async (req, res) => {
-  try {
-    const template = await prisma.messageTemplate.findUnique({
-      where: { id: req.params.id }
-    });
-    if (!template) {
-      return res.status(404).json({ error: 'Шаблон не найден' });
-    }
-    res.json(template);
-  } catch (error) {
-    console.error('Error loading template:', error);
-    res.status(500).json({ error: 'Ошибка загрузки шаблона' });
   }
 });
 
@@ -10414,22 +15783,22 @@ router.post('/users/:userId/balance', requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
     const { amount, operation } = req.body;
-    
+
     if (!amount || amount <= 0) {
       return res.json({ success: false, error: 'Некорректная сумма' });
     }
-    
+
     const user = await prisma.user.findUnique({
       where: { id: userId }
     });
-    
+
     if (!user) {
       return res.json({ success: false, error: 'Пользователь не найден' });
     }
-    
+
     const currentBalance = user.balance || 0;
     let newBalance;
-    
+
     if (operation === 'add') {
       newBalance = currentBalance + amount;
     } else if (operation === 'subtract') {
@@ -10440,12 +15809,12 @@ router.post('/users/:userId/balance', requireAdmin, async (req, res) => {
     } else {
       return res.json({ success: false, error: 'Некорректная операция' });
     }
-    
+
     await prisma.user.update({
       where: { id: userId },
       data: { balance: newBalance }
     });
-    
+
     // Записываем в историю пользователя
     await prisma.userHistory.create({
       data: {
@@ -10459,13 +15828,13 @@ router.post('/users/:userId/balance', requireAdmin, async (req, res) => {
         }
       }
     });
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: `Баланс успешно ${operation === 'add' ? 'пополнен' : 'списан'}`,
       newBalance: newBalance
     });
-    
+
   } catch (error) {
     console.error('❌ Balance update error:', error);
     res.json({ success: false, error: 'Ошибка обновления баланса' });
@@ -10477,19 +15846,19 @@ router.post('/orders/:orderId/status', requireAdmin, async (req, res) => {
   try {
     const { orderId } = req.params;
     const { status } = req.body;
-    
+
     // Validate status
     const validStatuses = ['NEW', 'PROCESSING', 'COMPLETED', 'CANCELLED'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ success: false, error: 'Неверный статус заказа' });
     }
-    
+
     // Update order status
     await prisma.orderRequest.update({
       where: { id: orderId },
       data: { status }
     });
-    
+
     res.json({ success: true, message: 'Статус заказа обновлен' });
   } catch (error) {
     console.error('❌ Update order status error:', error);
@@ -10500,7 +15869,7 @@ router.post('/orders/:orderId/status', requireAdmin, async (req, res) => {
 router.post('/orders/:orderId/pay', requireAdmin, async (req, res) => {
   try {
     const { orderId } = req.params;
-    
+
     // Get order with user info
     const order = await prisma.orderRequest.findUnique({
       where: { id: orderId },
@@ -10510,97 +15879,65 @@ router.post('/orders/:orderId/pay', requireAdmin, async (req, res) => {
         }
       }
     });
-    
+
     if (!order) {
       return res.status(404).json({ success: false, error: 'Заказ не найден' });
     }
-    
+
     if (!order.user) {
       return res.status(400).json({ success: false, error: 'Пользователь не найден' });
     }
-    
+
     if (order.status === 'COMPLETED') {
       return res.status(400).json({ success: false, error: 'Заказ уже оплачен' });
     }
-    
+
     if (order.status === 'CANCELLED') {
       return res.status(400).json({ success: false, error: 'Нельзя оплатить отмененный заказ' });
     }
-    
+
     // Calculate order total
-    const items = typeof order.itemsJson === 'string' 
-      ? JSON.parse(order.itemsJson || '[]') 
+    const items = typeof order.itemsJson === 'string'
+      ? JSON.parse(order.itemsJson || '[]')
       : (order.itemsJson || []);
     const totalAmount = items.reduce((sum: number, item: any) => sum + (item.price || 0) * (item.quantity || 1), 0);
-    
+
     // Check if user has enough balance
     if (order.user.balance < totalAmount) {
-      return res.status(400).json({ 
-        success: false, 
-        error: `Недостаточно средств. Требуется: ${totalAmount.toFixed(2)} PZ, доступно: ${order.user.balance.toFixed(2)} PZ` 
+      return res.status(400).json({
+        success: false,
+        error: `Недостаточно средств. Требуется: ${totalAmount.toFixed(2)} PZ, доступно: ${order.user.balance.toFixed(2)} PZ`
       });
     }
-    
-    // Start transaction (fallback to individual operations if transactions not supported)
-    try {
-      await prisma.$transaction(async (tx) => {
-        // Deduct amount from user balance
-        await tx.user.update({
-          where: { id: order.user!.id },
-          data: { balance: { decrement: totalAmount } }
-        });
-        
-        // Update order status to COMPLETED
-        await tx.orderRequest.update({
-          where: { id: orderId },
-          data: { status: 'COMPLETED' }
-        });
-        
-        // Create transaction record
-        await tx.userHistory.create({
-          data: {
-            userId: order.user!.id,
-            action: 'ORDER_PAYMENT',
-            payload: {
-              orderId: orderId,
-              amount: -totalAmount,
-              description: `Оплата заказа #${orderId.slice(-8)}`
-            }
-          }
-        });
+
+    // Start transaction
+    await prisma.$transaction(async (tx) => {
+      // Deduct amount from user balance
+      await tx.user.update({
+        where: { id: order.user!.id },
+        data: { balance: { decrement: totalAmount } }
       });
-    } catch (error: any) {
-      // Fallback if transactions are not supported (MongoDB Atlas free tier)
-      const errorMessage = error.message || error.meta?.message || '';
-      if (errorMessage.includes('Transactions are not supported')) {
-        console.warn('Transactions not supported, using individual operations');
-        // Perform operations individually without transaction
-        await prisma.user.update({
-          where: { id: order.user!.id },
-          data: { balance: { decrement: totalAmount } }
-        });
-        
-        await prisma.orderRequest.update({
-          where: { id: orderId },
-          data: { status: 'COMPLETED' }
-        });
-        
-        await prisma.userHistory.create({
-          data: {
-            userId: order.user!.id,
-            action: 'ORDER_PAYMENT',
-            payload: {
-              orderId: orderId,
-              amount: -totalAmount,
-              description: `Оплата заказа #${orderId.slice(-8)}`
-            }
+
+      // Update order status to COMPLETED
+      await tx.orderRequest.update({
+        where: { id: orderId },
+        data: { status: 'COMPLETED' }
+      });
+
+      // Create transaction record
+      await tx.userHistory.create({
+        data: {
+          userId: order.user!.id,
+          action: 'ORDER_PAYMENT',
+          payload: {
+            orderId: orderId,
+            amount: -totalAmount,
+            description: `Оплата заказа #${orderId.slice(-8)}`
           }
-        });
-      } else {
-        throw error; // Re-throw if it's a different error
-      }
-    }
-    
+        }
+      });
+    });
+
     // Check if this purchase qualifies for referral program activation (120 PZ)
     if (totalAmount >= 120) {
       try {
@@ -10624,10 +15961,10 @@ router.post('/orders/:orderId/pay', requireAdmin, async (req, res) => {
       // Don't fail the payment if bonus distribution fails
     }
     */
-    
-    res.json({ 
-      success: true, 
-      message: `Заказ оплачен на сумму ${totalAmount.toFixed(2)} PZ. Статус изменен на "Готово".` 
+
+    res.json({
+      success: true,
+      message: `Заказ оплачен на сумму ${totalAmount.toFixed(2)} PZ. Статус изменен на "Готово".`
     });
   } catch (error) {
     console.error('❌ Pay order error:', error);
@@ -10638,7 +15975,7 @@ router.post('/orders/:orderId/pay', requireAdmin, async (req, res) => {
 router.get('/orders/:orderId', requireAdmin, async (req, res) => {
   try {
     const { orderId } = req.params;
-    
+
     const order = await prisma.orderRequest.findUnique({
       where: { id: orderId },
       include: {
@@ -10647,16 +15984,16 @@ router.get('/orders/:orderId', requireAdmin, async (req, res) => {
         }
       }
     });
-    
+
     if (!order) {
       return res.status(404).json({ success: false, error: 'Заказ не найден' });
     }
-    
+
     // Parse items from JSON
-    const items = typeof order.itemsJson === 'string' 
-      ? JSON.parse(order.itemsJson || '[]') 
+    const items = typeof order.itemsJson === 'string'
+      ? JSON.parse(order.itemsJson || '[]')
       : (order.itemsJson || []);
-    
+
     res.json({
       success: true,
       data: {
@@ -10669,9 +16006,9 @@ router.get('/orders/:orderId', requireAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Get order error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : String(error) 
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 });
@@ -10681,11 +16018,11 @@ router.put('/orders/:orderId/items', requireAdmin, async (req, res) => {
   try {
     const { orderId } = req.params;
     const { items } = req.body;
-    
+
     if (!items || !Array.isArray(items)) {
       return res.status(400).json({ success: false, error: 'Неверный формат товаров' });
     }
-    
+
     // Validate items
     for (const item of items) {
       if (!item.title || !item.price || !item.quantity) {
@@ -10695,16 +16032,16 @@ router.put('/orders/:orderId/items', requireAdmin, async (req, res) => {
         return res.status(400).json({ success: false, error: 'Неверные значения цены или количества' });
       }
     }
-    
+
     // Check if order exists
     const existingOrder = await prisma.orderRequest.findUnique({
       where: { id: orderId }
     });
-    
+
     if (!existingOrder) {
       return res.status(404).json({ success: false, error: 'Заказ не найден' });
     }
-    
+
     // Update order items
     await prisma.orderRequest.update({
       where: { id: orderId },
@@ -10712,20 +16049,49 @@ router.put('/orders/:orderId/items', requireAdmin, async (req, res) => {
         itemsJson: JSON.stringify(items)
       }
     });
-    
+
     console.log(`✅ Order ${orderId} items updated: ${items.length} items`);
-    
+
     res.json({
       success: true,
       message: 'Товары заказа обновлены'
     });
   } catch (error) {
     console.error('❌ Update order items error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : String(error) 
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
     });
   }
+});
+
+// API endpoint to scrape all missing images
+router.post('/api/scrape-all-images', requireAdmin, async (req, res) => {
+  // Возвращаем ответ сразу и запускаем в фоне
+  res.json({
+    success: true,
+    message: 'Сбор фотографий запущен. Проверьте логи сервера для деталей.'
+  });
+
+  // Запускаем в фоне
+  (async () => {
+    try {
+      console.log('🚀 Запуск сбора недостающих фотографий продуктов...');
+
+      const { scrapeAllMissingImages } = await import('../services/scrape-images-service.js');
+      const result = await scrapeAllMissingImages();
+
+      console.log('\n✅ Сбор фотографий завершен!');
+      console.log(`   ✅ Обновлено: ${result.updated}`);
+      console.log(`   ⏭️  Пропущено (уже есть): ${result.skipped}`);
+      console.log(`   ❌ Не удалось: ${result.failed}`);
+      console.log(`   🔍 Не найдено в БД: ${result.notFound}`);
+      console.log(`   📦 Всего обработано: ${result.total}`);
+    } catch (error: any) {
+      console.error('❌ Ошибка сбора фотографий:', error.message || error);
+      console.error('Stack:', error.stack);
+    }
+  })();
 });
 
 // Get all products for dropdown
@@ -10747,16 +16113,16 @@ router.get('/api/products', requireAdmin, async (req, res) => {
         { title: 'asc' }
       ]
     });
-    
+
     res.json({
       success: true,
       data: products
     });
   } catch (error) {
     console.error('❌ Get products error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : String(error) 
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 });
@@ -10775,15 +16141,15 @@ async function distributeReferralBonuses(userId: string, orderAmount: number) {
         }
       }
     });
-    
+
     if (!referralRecord?.profile) {
       return; // No inviter found
     }
-    
+
     const inviterProfile = referralRecord.profile;
     const bonusRate = 0.1; // 10% bonus
     const bonusAmount = orderAmount * bonusRate;
-    
+
     // Create bonus transaction
     await prisma.partnerTransaction.create({
       data: {
@@ -10793,22 +16159,22 @@ async function distributeReferralBonuses(userId: string, orderAmount: number) {
         description: `Бонус за заказ реферала (${orderAmount.toFixed(2)} PZ)`
       }
     });
-    
+
     // Update inviter's balance
     await prisma.user.update({
       where: { id: inviterProfile.userId },
       data: { balance: { increment: bonusAmount } }
     });
-    
+
     // Update partner profile balance
     await prisma.partnerProfile.update({
       where: { id: inviterProfile.id },
-      data: { 
+      data: {
         balance: { increment: bonusAmount },
         bonus: { increment: bonusAmount }
       }
     });
-    
+
     console.log(`✅ Referral bonus distributed: ${bonusAmount.toFixed(2)} PZ to user ${inviterProfile.userId}`);
   } catch (error) {
     console.error('❌ Error distributing referral bonuses:', error);
@@ -10816,7 +16182,7 @@ async function distributeReferralBonuses(userId: string, orderAmount: number) {
   }
 }
 // Audio files management routes
-router.get('/admin/audio', requireAdmin, async (req, res) => {
+router.get('/audio', requireAdmin, async (req, res) => {
   try {
     const audioFiles = await prisma.audioFile.findMany({
       orderBy: { createdAt: 'desc' }
@@ -10850,7 +16216,7 @@ router.get('/admin/audio', requireAdmin, async (req, res) => {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Управление аудиофайлами - Plazma Bot Admin Panel</title>
+        <title>Управление аудиофайлами - Vital Bot Admin Panel</title>
         <meta charset="utf-8">
         <style>
           body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
@@ -10930,7 +16296,7 @@ router.get('/admin/audio', requireAdmin, async (req, res) => {
 router.post('/admin/audio/toggle', requireAdmin, async (req, res) => {
   try {
     const { fileId } = req.body;
-    
+
     const audioFile = await prisma.audioFile.findUnique({
       where: { id: fileId }
     });
@@ -10955,7 +16321,7 @@ router.post('/admin/audio/toggle', requireAdmin, async (req, res) => {
 router.post('/admin/audio/delete', requireAdmin, async (req, res) => {
   try {
     const { fileId } = req.body;
-    
+
     await prisma.audioFile.delete({
       where: { id: fileId }
     });
@@ -10974,17 +16340,17 @@ router.post('/admin/audio/delete', requireAdmin, async (req, res) => {
 router.post('/products/:productId/delete-instruction', requireAdmin, async (req, res) => {
   try {
     const { productId } = req.params;
-    
+
     const product = await prisma.product.findUnique({ where: { id: productId } });
     if (!product) {
       return res.status(404).json({ success: false, error: 'Товар не найден' });
     }
-    
+
     await prisma.product.update({
       where: { id: productId },
       data: { instruction: null }
     });
-    
+
     res.json({ success: true, message: 'Инструкция успешно удалена' });
   } catch (error) {
     console.error('Delete instruction error:', error);
@@ -10997,21 +16363,21 @@ router.post('/products/:productId/save-instruction', requireAdmin, async (req, r
   try {
     const { productId } = req.params;
     const { instruction } = req.body;
-    
+
     if (!instruction || !instruction.trim()) {
       return res.status(400).json({ success: false, error: 'Инструкция не может быть пустой' });
     }
-    
+
     const product = await prisma.product.findUnique({ where: { id: productId } });
     if (!product) {
       return res.status(404).json({ success: false, error: 'Товар не найден' });
     }
-    
+
     await prisma.product.update({
       where: { id: productId },
       data: { instruction: instruction.trim() }
     });
-    
+
     res.json({ success: true, message: 'Инструкция успешно сохранена' });
   } catch (error) {
     console.error('Save instruction error:', error);
@@ -11019,895 +16385,1660 @@ router.post('/products/:productId/save-instruction', requireAdmin, async (req, r
   }
 });
 
-// Media files management routes
-router.get('/media', requireAdmin, async (req, res) => {
-  try {
-    const mediaFiles = await prisma.mediaFile.findMany({
-      orderBy: { createdAt: 'desc' }
-    });
+// ========== Invoice Import Routes ==========
+// Import invoice import routes from separate module
+import invoiceImportRouter from './invoice-import.js';
+// adminWebRouter already mounted at /admin in src/server.ts,
+// so we mount invoice routes at the root here to get /admin/api/...
+router.use('/', invoiceImportRouter);
 
-    const mediaFilesHtml = mediaFiles.map(file => {
-      const fileSizeKB = file.fileSize ? Math.round(file.fileSize / 1024) : 0;
-      const fileSizeMB = fileSizeKB > 1024 ? (fileSizeKB / 1024).toFixed(2) + ' MB' : fileSizeKB + ' KB';
-      const dateStr = new Date(file.createdAt).toLocaleDateString('ru-RU', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-      
-      return `
-      <div class="media-file-card">
-        <div class="media-file-header">
-          <h3 style="font-size: 16px; margin: 0;">${file.type === 'photo' ? '📷' : '🎥'} ${file.title}</h3>
-          <div class="media-file-status ${file.isActive ? 'active' : 'inactive'}" style="font-size: 12px; padding: 4px 8px; border-radius: 4px; background: ${file.isActive ? '#dcfce7' : '#fee2e2'};">
-            ${file.isActive ? '✅ Активен' : '❌ Неактивен'}
-          </div>
-        </div>
-        <div class="media-file-preview" style="background: #f8f9fa; padding: 10px; border-radius: 8px; margin: 15px 0;">
-          ${file.type === 'photo' 
-            ? `<img src="${file.url}" alt="${file.title}" class="media-preview-image" style="cursor: pointer;" onclick="window.open('${file.url}', '_blank')">`
-            : `<video src="${file.url}" controls class="media-preview-video" style="cursor: pointer;"></video>`
-          }
-        </div>
-        <div class="media-file-info" style="font-size: 13px;">
-          ${file.description ? `<p style="margin: 8px 0;"><strong>📝 Описание:</strong> ${file.description}</p>` : ''}
-          <p style="margin: 8px 0;"><strong>🏷️ Тип:</strong> ${file.type === 'photo' ? 'Фото' : 'Видео'}</p>
-          ${file.category ? `<p style="margin: 8px 0;"><strong>📁 Категория:</strong> ${file.category}</p>` : ''}
-          <p style="margin: 8px 0;"><strong>💾 Размер:</strong> ${fileSizeMB}</p>
-          <p style="margin: 8px 0;"><strong>📅 Загружен:</strong> ${dateStr}</p>
-          <p style="margin: 8px 0;">
-            <strong>🔗 URL:</strong> 
-            <a href="${file.url}" target="_blank" style="color: #007bff; word-break: break-all; font-size: 11px;">${file.url.substring(0, 40)}...</a>
-            <button onclick="navigator.clipboard.writeText('${file.url}'); alert('URL скопирован!');" style="margin-left: 5px; padding: 2px 6px; background: #6c757d; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 10px;">📋</button>
-          </p>
-        </div>
-        <div class="media-file-actions" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e9ecef; display: flex; flex-direction: column; gap: 10px;">
-          <div style="display: flex; gap: 10px;">
-            <button onclick="toggleMediaStatus('${file.id}')" class="toggle-btn ${file.isActive ? 'deactivate' : 'activate'}" style="flex: 1;">
-              ${file.isActive ? '❌ Деактивировать' : '✅ Активировать'}
-            </button>
-            <button onclick="deleteMediaFile('${file.id}')" class="delete-btn" style="flex: 1;">🗑️ Удалить</button>
-          </div>
-          ${file.type === 'photo' ? `
-          <button onclick="usePhotoInMessage('${file.url}', '${file.title}')" class="use-photo-btn" style="width: 100%; padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold;">
-            📤 Использовать в сообщении
-          </button>
-          ` : ''}
-        </div>
-      </div>
-    `;
-    }).join('');
+// GET: Settings page
+router.get('/invoice-settings', requireAdmin, async (req, res) => {
+  try {
+    const { getImportSettings } = await import('../services/invoice-import-service.js');
+    const settings = await getImportSettings();
 
     res.send(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Управление медиафайлами - Plazma Bot Admin Panel</title>
+        <title>Настройки импорта инвойса - Админ панель</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
-          body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-          .header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-          .upload-section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-          .upload-form { display: grid; gap: 15px; }
-          .form-group { display: flex; flex-direction: column; }
-          .form-group label { margin-bottom: 5px; font-weight: bold; color: #333; }
-          .form-group input, .form-group textarea, .form-group select { padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
-          .form-group textarea { min-height: 80px; resize: vertical; }
-          .upload-btn { padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; }
-          .upload-btn:hover { background: #0056b3; }
-          .media-file-card { background: white; padding: 20px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-          .media-file-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-          .media-file-header h3 { margin: 0; color: #333; }
-          .media-file-status.active { color: #28a745; font-weight: bold; }
-          .media-file-status.inactive { color: #dc3545; font-weight: bold; }
-          .media-file-preview { margin: 15px 0; text-align: center; }
-          .media-preview-image { max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-          .media-preview-video { max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-          .media-file-info { margin: 15px 0; }
-          #filePreview { margin-top: 15px; }
-          #previewContent img { max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-          #previewContent video { max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-          .upload-progress { display: none; margin-top: 15px; padding: 15px; background: #e7f3ff; border-radius: 8px; }
-          .progress-bar { width: 100%; height: 20px; background: #dee2e6; border-radius: 10px; overflow: hidden; margin-top: 10px; }
-          .progress-fill { height: 100%; background: linear-gradient(90deg, #007bff, #0056b3); width: 0%; transition: width 0.3s ease; }
-          .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin-top: 20px; }
-          .media-file-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-          .media-file-card:hover { transform: translateY(-5px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-          .media-file-info p { margin: 5px 0; color: #666; }
-          .media-file-info a { color: #007bff; text-decoration: none; }
-          .media-file-info a:hover { text-decoration: underline; }
-          .media-file-actions { display: flex; gap: 10px; margin-top: 15px; }
-          .toggle-btn, .delete-btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
-          .toggle-btn.activate { background: #28a745; color: white; }
-          .toggle-btn.deactivate { background: #ffc107; color: black; }
-          .delete-btn { background: #dc3545; color: white; }
-          .toggle-btn:hover, .delete-btn:hover { opacity: 0.8; }
-          .use-photo-btn { transition: all 0.2s ease; }
-          .use-photo-btn:hover { background: #218838 !important; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3); }
-          .back-btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; margin-bottom: 20px; }
-          .back-btn:hover { background: #0056b3; }
-          .alert { padding: 12px 16px; margin: 16px 0; border-radius: 8px; font-weight: 500; }
-          .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-          .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
+          .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
+          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; }
+          .header h1 { font-size: 24px; margin-bottom: 10px; }
+          .content { padding: 30px; }
+          .form-group { margin-bottom: 20px; }
+          .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #333; }
+          .form-group input { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 16px; }
+          .form-group input:focus { outline: none; border-color: #667eea; }
+          .form-help { margin-top: 5px; font-size: 14px; color: #666; }
+          .btn { background: #667eea; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: 600; }
+          .btn:hover { background: #5568d3; }
+          .btn-secondary { background: #6c757d; }
+          .btn-secondary:hover { background: #5a6268; }
+          .back-link { display: inline-block; margin-bottom: 20px; color: #667eea; text-decoration: none; }
+          .alert { padding: 12px; border-radius: 6px; margin-bottom: 20px; }
+          .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+          .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+          .price-preview { background: #f8f9fa; padding: 15px; border-radius: 6px; margin-top: 15px; }
+          .price-preview h4 { margin-bottom: 10px; color: #333; }
         </style>
       </head>
       <body>
-        <a href="/admin" class="back-btn">← Назад в админ-панель</a>
-        <div class="header">
-          <h1>📸🎥 Управление медиафайлами</h1>
-          <p>Здесь вы можете загружать и управлять фото и видео для отображения в боте</p>
-        </div>
-        
-        <div class="upload-section">
-          <h2>📤 Загрузить новый файл</h2>
-          <form class="upload-form" action="/admin/media/upload" method="post" enctype="multipart/form-data">
-            <div class="form-group">
-              <label>Тип файла:</label>
-              <select name="type" required>
-                <option value="photo">📷 Фото</option>
-                <option value="video">🎥 Видео</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Название:</label>
-              <input type="text" name="title" required placeholder="Введите название файла">
-            </div>
-            <div class="form-group">
-              <label>Описание (необязательно):</label>
-              <textarea name="description" placeholder="Введите описание файла"></textarea>
-            </div>
-            <div class="form-group">
-              <label>Категория (необязательно):</label>
-              <input type="text" name="category" placeholder="Например: welcome, promo, etc.">
-            </div>
-            <div class="form-group">
-              <label>Файл:</label>
-              <input type="file" name="file" id="mediaFileInput" accept="image/*,video/*" required onchange="previewMediaFile(this)">
-              <div id="filePreview" style="margin-top: 15px; display: none;">
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 2px dashed #dee2e6;">
-                  <p style="margin: 0 0 10px 0; font-weight: bold; color: #495057;">📎 Выбранный файл:</p>
-                  <div id="previewContent" style="text-align: center;"></div>
-                  <p id="fileInfo" style="margin: 10px 0 0 0; font-size: 12px; color: #6c757d;"></p>
-                </div>
-              </div>
-            </div>
-            <button type="submit" class="upload-btn" id="uploadBtn">📤 Загрузить файл</button>
-          </form>
-        </div>
-        
-        ${req.query.success === 'uploaded' ? '<div class="alert alert-success">✅ Файл успешно загружен!</div>' : ''}
-        ${req.query.error === 'upload_failed' ? '<div class="alert alert-error">❌ Ошибка при загрузке файла</div>' : ''}
-        
-        <div class="header">
-          <h2>📋 Загруженные файлы (${mediaFiles.length})</h2>
-        </div>
-        <div class="media-grid">
-          ${mediaFilesHtml || '<p style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #6c757d;">Пока нет загруженных медиафайлов. Загрузите первый файл выше.</p>'}
-        </div>
-        
-        <div class="upload-progress" id="uploadProgress">
-          <p style="margin: 0 0 10px 0; font-weight: bold; color: #007bff;">⏳ Загрузка файла...</p>
-          <div class="progress-bar">
-            <div class="progress-fill" id="progressFill"></div>
+        <div class="container">
+          <div class="header">
+            <h1>⚙️ Настройки импорта инвойса</h1>
+            <p>Настройте курс валюты и мультипликатор для расчета продажных цен</p>
           </div>
-          <p id="progressText" style="margin: 10px 0 0 0; font-size: 12px; color: #6c757d;">0%</p>
+          <div class="content">
+            <a href="/admin" class="back-link">← Вернуться в админ панель</a>
+            
+            <div id="alertContainer"></div>
+            
+            <form id="settingsForm">
+              <div class="form-group">
+                <label for="exchangeRate">Курс обмена (БАТ → Рубль)</label>
+                <input type="number" id="exchangeRate" name="exchangeRate" step="0.01" value="${settings.exchangeRate}" required>
+                <div class="form-help">Текущий курс обмена тайского бата в российские рубли</div>
+              </div>
+              
+              <div class="form-group">
+                <label for="priceMultiplier">Мультипликатор цены</label>
+                <input type="number" id="priceMultiplier" name="priceMultiplier" step="0.01" value="${settings.priceMultiplier}" required>
+                <div class="form-help">Мультипликатор для расчета продажной цены из закупочной</div>
+              </div>
+              
+              <div class="price-preview" id="pricePreview" style="display: none;">
+                <h4>Пример расчета:</h4>
+                <div id="previewContent"></div>
+              </div>
+              
+              <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button type="submit" class="btn">💾 Сохранить настройки</button>
+                <a href="/admin/invoice-import" class="btn btn-secondary">📥 Импорт инвойса</a>
+              </div>
+            </form>
+          </div>
         </div>
         
         <script>
-          function previewMediaFile(input) {
-            const preview = document.getElementById('filePreview');
-            const previewContent = document.getElementById('previewContent');
-            const fileInfo = document.getElementById('fileInfo');
-            
-            if (input.files && input.files[0]) {
-              const file = input.files[0];
-              const fileSize = (file.size / 1024 / 1024).toFixed(2);
-              const fileType = file.type;
-              
-              preview.style.display = 'block';
-              fileInfo.textContent = \`Размер: \${fileSize} MB | Тип: \${fileType}\`;
-              
-              if (fileType.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                  previewContent.innerHTML = \`<img src="\${e.target.result}" alt="Превью" style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">\`;
-                };
-                reader.readAsDataURL(file);
-              } else if (fileType.startsWith('video/')) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                  previewContent.innerHTML = \`<video src="\${e.target.result}" controls style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></video>\`;
-                };
-                reader.readAsDataURL(file);
-              } else {
-                previewContent.innerHTML = \`<p style="padding: 20px; color: #6c757d;">📄 Файл: \${file.name}</p>\`;
-              }
-            } else {
-              preview.style.display = 'none';
-            }
-          }
+          const form = document.getElementById('settingsForm');
+          const alertContainer = document.getElementById('alertContainer');
+          const exchangeRateInput = document.getElementById('exchangeRate');
+          const multiplierInput = document.getElementById('priceMultiplier');
+          const pricePreview = document.getElementById('pricePreview');
+          const previewContent = document.getElementById('previewContent');
           
-          // Показываем прогресс загрузки
-          document.querySelector('.upload-form').addEventListener('submit', function(e) {
-            const uploadBtn = document.getElementById('uploadBtn');
-            const progressDiv = document.getElementById('uploadProgress');
-            const progressFill = document.getElementById('progressFill');
-            const progressText = document.getElementById('progressText');
-            
-            uploadBtn.disabled = true;
-            uploadBtn.textContent = '⏳ Загрузка...';
-            progressDiv.style.display = 'block';
-            
-            // Симуляция прогресса (реальный прогресс будет через XMLHttpRequest)
-            let progress = 0;
-            const interval = setInterval(() => {
-              progress += Math.random() * 15;
-              if (progress > 90) progress = 90;
-              progressFill.style.width = progress + '%';
-              progressText.textContent = Math.round(progress) + '%';
-            }, 200);
-            
-            // Очистка интервала после отправки формы
+          function showAlert(message, type = 'success') {
+            alertContainer.innerHTML = '<div class="alert alert-' + type + '">' + message + '</div>';
             setTimeout(() => {
-              clearInterval(interval);
+              alertContainer.innerHTML = '';
             }, 5000);
-          });
+          }
           
-          async function toggleMediaStatus(fileId) {
-            if (confirm('Вы уверены, что хотите изменить статус файла?')) {
-              try {
-                const response = await fetch('/admin/media/toggle', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ fileId })
-                });
-                if (response.ok) {
-                  location.reload();
-                } else {
-                  alert('Ошибка при изменении статуса файла');
-                }
-              } catch (error) {
-                alert('Ошибка при изменении статуса файла');
-              }
-            }
-          }
-
-          async function deleteMediaFile(fileId) {
-            if (confirm('Вы уверены, что хотите удалить этот файл? Это действие нельзя отменить.')) {
-              try {
-                const response = await fetch('/admin/media/delete', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ fileId })
-                });
-                if (response.ok) {
-                  location.reload();
-                } else {
-                  alert('Ошибка при удалении файла');
-                }
-              } catch (error) {
-                alert('Ошибка при удалении файла');
-              }
-            }
-          }
-
-          function usePhotoInMessage(photoUrl, photoTitle) {
-            // Копируем URL в буфер обмена
-            navigator.clipboard.writeText(photoUrl).then(() => {
-              // Показываем модальное окно с инструкцией
-              const modal = document.createElement('div');
-              modal.className = 'photo-usage-modal';
-              modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center;';
-              
-              modal.innerHTML = \`
-                <div style="background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
-                  <h2 style="margin: 0 0 20px 0; color: #333; display: flex; align-items: center; gap: 10px;">
-                    📤 Использовать фото в сообщении
-                  </h2>
-                  <div style="margin-bottom: 20px;">
-                    <p style="margin: 0 0 10px 0; color: #666;"><strong>Фото:</strong> \${photoTitle}</p>
-                    <p style="margin: 0 0 15px 0; color: #28a745; font-weight: bold;">✅ URL скопирован в буфер обмена!</p>
-                    <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin: 15px 0; word-break: break-all; font-size: 12px; color: #495057;">
-                      \${photoUrl}
-                    </div>
-                  </div>
-                  <div style="background: #e7f3ff; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
-                    <p style="margin: 0 0 10px 0; font-weight: bold; color: #1976d2;">📝 Как использовать:</p>
-                    <ol style="margin: 0; padding-left: 20px; color: #495057; line-height: 1.8;">
-                      <li>Перейдите в раздел <strong>"📝 Контент бота"</strong></li>
-                      <li>Создайте или отредактируйте сообщение</li>
-                      <li>Вставьте URL фото в текст (Ctrl+V)</li>
-                      <li>Или используйте URL в коде бота для отправки фото</li>
-                    </ol>
-                  </div>
-                  <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                    <button onclick="this.closest('.photo-usage-modal').remove()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
-                      Закрыть
-                    </button>
-                    <button onclick="window.location.href='/admin/content'" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold;">
-                      Перейти к контенту →
-                    </button>
-                  </div>
-                </div>
+          function updatePreview() {
+            const rate = parseFloat(exchangeRateInput.value) || 0;
+            const mult = parseFloat(multiplierInput.value) || 0;
+            const testPrice = 100; // Тестовая цена 100 БАТ
+            
+            if (rate > 0 && mult > 0) {
+              // Формула: цена_закупки * 2.45 * 8 = цена в рублях, округляем до 10, затем / 100 для PZ
+              const priceInRubles = testPrice * rate * mult;
+              const roundedPriceRub = Math.round(priceInRubles / 10) * 10;
+              const sellingPrice = roundedPriceRub / 100; // Конвертируем в PZ (1 PZ = 100 руб)
+              previewContent.innerHTML = \`
+                <p><strong>Закупочная цена:</strong> \${testPrice} БАТ</p>
+                <p><strong>Продажная цена:</strong> \${sellingPrice.toFixed(2)} PZ (\${roundedPriceRub} руб.)</p>
+                <p><small>Формула: \${testPrice} × \${rate} × \${mult} = \${priceInRubles.toFixed(2)} руб. → округлено до \${roundedPriceRub} руб. = \${sellingPrice.toFixed(2)} PZ</small></p>
               \`;
-              
-              document.body.appendChild(modal);
-              
-              // Закрытие по клику вне модального окна
-              modal.addEventListener('click', (e) => {
-                if (e.target === modal) {
-                  modal.remove();
-                }
-              });
-            }).catch(err => {
-              alert('Ошибка при копировании URL. Скопируйте вручную: ' + photoUrl);
-            });
+              pricePreview.style.display = 'block';
+            } else {
+              pricePreview.style.display = 'none';
+            }
           }
+          
+          exchangeRateInput.addEventListener('input', updatePreview);
+          multiplierInput.addEventListener('input', updatePreview);
+          updatePreview();
+          
+          form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+              exchangeRate: parseFloat(exchangeRateInput.value),
+              priceMultiplier: parseFloat(multiplierInput.value)
+            };
+            
+            if (formData.exchangeRate <= 0 || formData.priceMultiplier <= 0) {
+              showAlert('Курс и мультипликатор должны быть положительными числами', 'error');
+              return;
+            }
+            
+            try {
+              const response = await fetch('/admin/api/import-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+              });
+              
+              const data = await response.json();
+              
+              if (data.success) {
+                showAlert('✅ Настройки успешно сохранены!', 'success');
+                updatePreview();
+              } else {
+                showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+              }
+            } catch (error) {
+              showAlert('❌ Ошибка при сохранении настроек', 'error');
+              console.error(error);
+            }
+          });
         </script>
       </body>
       </html>
     `);
-  } catch (error) {
-    console.error('Error loading media files:', error);
-    res.status(500).send('Ошибка загрузки медиафайлов');
+  } catch (error: any) {
+    console.error('Error loading invoice settings page:', error);
+    res.status(500).send('Ошибка загрузки страницы настроек');
   }
 });
 
-// Upload media file
-router.post('/media/upload', requireAdmin, upload.single('file'), async (req, res) => {
+// ========== Delivery Settings (Admin) ==========
+async function getSettingOrDefault(key: string, defaultValue: string): Promise<string> {
+  const s = await prisma.settings.findUnique({ where: { key } });
+  return s?.value ?? defaultValue;
+}
+
+async function upsertSetting(key: string, value: string, description: string) {
+  await prisma.settings.upsert({
+    where: { key },
+    update: { value, description },
+    create: { key, value, description }
+  });
+}
+
+router.get('/api/delivery-settings', requireAdmin, async (_req, res) => {
   try {
-    if (!req.file) {
-      return res.redirect('/admin/media?error=upload_failed');
-    }
+    const pickupEnabled = (await getSettingOrDefault('delivery_pickup_enabled', '1')) === '1';
+    const courierEnabled = (await getSettingOrDefault('delivery_courier_enabled', '1')) === '1';
+    const pickupPriceRub = Number(await getSettingOrDefault('delivery_pickup_price_rub', '620')) || 620;
+    const courierPriceRub = Number(await getSettingOrDefault('delivery_courier_price_rub', '875')) || 875;
+    const provider = await getSettingOrDefault('delivery_provider', 'stub'); // stub | cdek | yandex
 
-    const { title, description, category, type } = req.body;
+    const cdekClientId = await getSettingOrDefault('delivery_cdek_client_id', '');
+    const cdekClientSecret = await getSettingOrDefault('delivery_cdek_client_secret', '');
+    const yandexToken = await getSettingOrDefault('delivery_yandex_token', '');
 
-    if (!title || !type) {
-      return res.redirect('/admin/media?error=upload_failed');
-    }
+    const originCity = await getSettingOrDefault('delivery_origin_city', 'Москва');
+    const defaultWeightGrams = Number(await getSettingOrDefault('delivery_default_weight_g', '500')) || 500;
 
-    // Validate file type
-    const isPhoto = type === 'photo';
-    const isVideo = type === 'video';
-    const fileMimeType = req.file.mimetype;
-
-    if (isPhoto && !fileMimeType.startsWith('image/')) {
-      return res.redirect('/admin/media?error=upload_failed');
-    }
-    if (isVideo && !fileMimeType.startsWith('video/')) {
-      return res.redirect('/admin/media?error=upload_failed');
-    }
-
-    // Upload to Cloudinary
-    const result = await new Promise((resolve, reject) => {
-      const folder = isPhoto ? 'plazma-bot/photos' : 'plazma-bot/videos';
-      cloudinary.uploader.upload_stream(
-        { 
-          resource_type: isVideo ? 'video' : 'image',
-          folder: folder,
-          allowed_formats: isPhoto ? ['jpg', 'jpeg', 'png', 'gif', 'webp'] : ['mp4', 'mov', 'avi', 'webm']
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      ).end(req.file!.buffer);
-    });
-
-    const mediaUrl = (result as any).secure_url;
-
-    // Save to database
-    await prisma.mediaFile.create({
-      data: {
-        title: title.trim(),
-        description: description?.trim() || null,
-        category: category?.trim() || null,
-        type: type,
-        url: mediaUrl,
-        fileSize: req.file.size,
-        mimeType: req.file.mimetype,
-        isActive: true
+    res.json({
+      success: true,
+      settings: {
+        pickupEnabled,
+        courierEnabled,
+        pickupPriceRub,
+        courierPriceRub,
+        provider,
+        cdekClientId,
+        cdekClientSecret,
+        yandexToken,
+        originCity,
+        defaultWeightGrams
       }
     });
-
-    res.redirect('/admin/media?success=uploaded');
-  } catch (error) {
-    console.error('Error uploading media file:', error);
-    res.redirect('/admin/media?error=upload_failed');
+  } catch (error: any) {
+    console.error('Delivery settings get error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка получения настроек доставки' });
   }
 });
 
-// Toggle media file status
-router.post('/media/toggle', requireAdmin, async (req, res) => {
+router.post('/api/delivery-settings', requireAdmin, async (req, res) => {
   try {
-    const { fileId } = req.body;
-    
-    const mediaFile = await prisma.mediaFile.findUnique({
-      where: { id: fileId }
-    });
+    const body = req.body || {};
+    const pickupEnabled = body.pickupEnabled ? '1' : '0';
+    const courierEnabled = body.courierEnabled ? '1' : '0';
+    const pickupPriceRub = String(Math.max(0, Number(body.pickupPriceRub || 0) || 0));
+    const courierPriceRub = String(Math.max(0, Number(body.courierPriceRub || 0) || 0));
+    const provider = String(body.provider || 'stub').trim();
 
-    if (!mediaFile) {
-      return res.status(404).json({ error: 'Медиафайл не найден' });
-    }
+    const cdekClientId = String(body.cdekClientId || '').trim();
+    const cdekClientSecret = String(body.cdekClientSecret || '').trim();
+    const yandexToken = String(body.yandexToken || '').trim();
+    const originCity = String(body.originCity || 'Москва').trim();
+    const defaultWeightGrams = String(Math.max(1, Number(body.defaultWeightGrams || 500) || 500));
 
-    await prisma.mediaFile.update({
-      where: { id: fileId },
-      data: { isActive: !mediaFile.isActive }
-    });
+    await upsertSetting('delivery_pickup_enabled', pickupEnabled, 'Доставка: включить ПВЗ');
+    await upsertSetting('delivery_courier_enabled', courierEnabled, 'Доставка: включить курьера');
+    await upsertSetting('delivery_pickup_price_rub', pickupPriceRub, 'Доставка: базовая цена ПВЗ (₽) для режима stub');
+    await upsertSetting('delivery_courier_price_rub', courierPriceRub, 'Доставка: базовая цена курьер (₽) для режима stub');
+    await upsertSetting('delivery_provider', provider, 'Доставка: провайдер тарифов (stub/cdek/yandex)');
+
+    await upsertSetting('delivery_cdek_client_id', cdekClientId, 'CDEK: client_id (OAuth)');
+    await upsertSetting('delivery_cdek_client_secret', cdekClientSecret, 'CDEK: client_secret (OAuth)');
+    await upsertSetting('delivery_yandex_token', yandexToken, 'Yandex: API token');
+
+    await upsertSetting('delivery_origin_city', originCity, 'Доставка: город отправления (склад)');
+    await upsertSetting('delivery_default_weight_g', defaultWeightGrams, 'Доставка: вес посылки по умолчанию (г)');
 
     res.json({ success: true });
-  } catch (error) {
-    console.error('Error toggling media file status:', error);
-    res.status(500).json({ error: 'Ошибка изменения статуса файла' });
+  } catch (error: any) {
+    console.error('Delivery settings save error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка сохранения настроек доставки' });
   }
 });
 
-// Delete media file
-router.post('/media/delete', requireAdmin, async (req, res) => {
+router.get('/delivery-settings', requireAdmin, async (_req, res) => {
   try {
-    const { fileId } = req.body;
-    
-    const mediaFile = await prisma.mediaFile.findUnique({
-      where: { id: fileId }
-    });
-
-    if (!mediaFile) {
-      return res.status(404).json({ error: 'Медиафайл не найден' });
-    }
-
-    await prisma.mediaFile.delete({
-      where: { id: fileId }
-    });
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting media file:', error);
-    res.status(500).json({ error: 'Ошибка удаления файла' });
-  }
-});
-
-// Get active photos for message composer
-router.get('/media/photos', requireAdmin, async (req, res) => {
-  try {
-    const photos = await prisma.mediaFile.findMany({
-      where: {
-        type: 'photo',
-        isActive: true
-      },
-      select: {
-        id: true,
-        title: true,
-        url: true,
-        description: true
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json(photos);
-  } catch (error) {
-    console.error('Error fetching photos:', error);
-    res.status(500).json({ error: 'Ошибка загрузки фото' });
-  }
-});
-
-// Bot content management page
-router.get('/content', requireAdmin, async (req, res) => {
-  try {
-    const { getAllBotContents } = await import('../services/bot-content-service.js');
-    const contents = await getAllBotContents();
-    
-    // Group by category
-    const contentsByCategory: Record<string, typeof contents> = {};
-    contents.forEach((content: typeof contents[0]) => {
-      const category = content.category || 'other';
-      if (!contentsByCategory[category]) {
-        contentsByCategory[category] = [];
-      }
-      contentsByCategory[category].push(content);
-    });
-
-    const contentsHtml = Object.entries(contentsByCategory).map(([category, items]: [string, typeof contents]) => {
-      const itemsHtml = items.map((content: typeof contents[0]) => `
-        <div class="content-card" data-key="${content.key}">
-          <div class="content-header">
-            <h3>${content.title}</h3>
-            <div class="content-badges">
-              <span class="badge badge-key">${content.key}</span>
-              <span class="badge badge-language">${content.language}</span>
-              <span class="badge badge-status ${content.isActive ? 'active' : 'inactive'}">
-                ${content.isActive ? '✅ Активен' : '❌ Неактивен'}
-              </span>
-            </div>
-          </div>
-          ${content.description ? `<p class="content-description">${content.description}</p>` : ''}
-          <div class="content-preview">
-            <strong>Контент:</strong>
-            <div class="content-text">${content.content.substring(0, 150)}${content.content.length > 150 ? '...' : ''}</div>
-          </div>
-          <div class="content-meta">
-            <span>Обновлен: ${content.updatedAt ? new Date(content.updatedAt).toLocaleDateString() : 'Неизвестно'}</span>
-          </div>
-          <div class="content-actions">
-            <button class="btn-edit" onclick="editContent('${content.key}')">✏️ Редактировать</button>
-            <form method="post" action="/admin/content/toggle" style="display: inline;">
-              <input type="hidden" name="key" value="${content.key}">
-              <button type="submit" class="btn-toggle ${content.isActive ? 'deactivate' : 'activate'}">
-                ${content.isActive ? '⏸️ Деактивировать' : '▶️ Активировать'}
-              </button>
-            </form>
-            <form method="post" action="/admin/content/delete" onsubmit="return confirm('Удалить контент «${content.title}»?')" style="display: inline;">
-              <input type="hidden" name="key" value="${content.key}">
-              <button type="submit" class="btn-delete">🗑️ Удалить</button>
-            </form>
-          </div>
-        </div>
-      `).join('');
-
-      return `
-        <div class="category-section">
-          <h2 class="category-title">${category === 'other' ? '📝 Другое' : `📁 ${category}`}</h2>
-          <div class="content-grid">
-            ${itemsHtml}
-          </div>
-        </div>
-      `;
-    }).join('');
-
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
     res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Управление контентом бота - Plazma Bot Admin Panel</title>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>
-          body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-          .header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-          .upload-section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-          .upload-form { display: grid; gap: 15px; }
-          .form-group { display: flex; flex-direction: column; }
-          .form-group label { margin-bottom: 5px; font-weight: bold; color: #333; }
-          .form-group input, .form-group textarea, .form-group select { padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
-          .form-group textarea { min-height: 120px; resize: vertical; }
-          .upload-btn { padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; }
-          .upload-btn:hover { background: #0056b3; }
-          .back-btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; margin-bottom: 20px; }
-          .back-btn:hover { background: #0056b3; }
-          .alert { padding: 12px 16px; margin: 16px 0; border-radius: 8px; font-weight: 500; }
-          .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-          .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
-          .category-section { margin-bottom: 30px; }
-          .category-title { color: #333; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #007bff; }
-          .content-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; }
-          .content-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.2s ease, box-shadow 0.2s ease; }
-          .content-card:hover { transform: translateY(-5px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-          .content-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-          .content-header h3 { margin: 0; color: #333; font-size: 18px; }
-          .content-badges { display: flex; gap: 8px; flex-wrap: wrap; }
-          .badge { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-          .badge-key { background: #e3f2fd; color: #1976d2; }
-          .badge-language { background: #f3e5f5; color: #7b1fa2; }
-          .badge-status.active { background: #dcfce7; color: #166534; }
-          .badge-status.inactive { background: #fee2e2; color: #991b1b; }
-          .content-description { color: #666; font-size: 14px; margin: 10px 0; }
-          .content-preview { margin: 15px 0; padding: 10px; background: #f8f9fa; border-radius: 4px; }
-          .content-preview strong { display: block; margin-bottom: 5px; color: #333; }
-          .content-text { color: #555; font-size: 13px; line-height: 1.5; }
-          .content-meta { font-size: 12px; color: #999; margin: 10px 0; }
-          .content-actions { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
-          .btn-edit, .btn-toggle, .btn-delete { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
-          .btn-edit { background: #007bff; color: white; }
-          .btn-edit:hover { background: #0056b3; }
-          .btn-toggle.activate { background: #28a745; color: white; }
-          .btn-toggle.deactivate { background: #ffc107; color: black; }
-          .btn-toggle:hover { opacity: 0.8; }
-          .btn-delete { background: #dc3545; color: white; }
-          .btn-delete:hover { background: #c82333; }
-          .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: center; justify-content: center; }
-          .modal-content { background: white; border-radius: 8px; padding: 0; max-width: 700px; width: 95%; max-height: 90vh; overflow-y: auto; }
-          .modal-header { padding: 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
-          .modal-header h2 { margin: 0; color: #333; }
-          .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #999; }
-          .close-btn:hover { color: #333; }
-          .modal-form { padding: 20px; }
-          .modal-footer { padding: 20px; border-top: 1px solid #ddd; display: flex; justify-content: flex-end; gap: 10px; }
-        </style>
-      </head>
-      <body>
-        <a href="/admin" class="back-btn">← Назад в админ-панель</a>
-        <div class="header">
-          <h1>📝 Управление контентом бота</h1>
-          <p>Здесь вы можете создавать и редактировать текстовый контент бота</p>
-        </div>
-        
-        <div class="upload-section">
-          <h2>➕ Создать новый контент</h2>
-          <form class="upload-form" action="/admin/content/create" method="post">
-            <div class="form-group">
-              <label>Ключ (уникальный идентификатор) *</label>
-              <input type="text" name="key" required placeholder="например: welcome_message" pattern="[a-z0-9_]+" title="Только строчные буквы, цифры и подчеркивания">
-              <small style="color: #666; font-size: 12px; margin-top: 5px;">Только строчные буквы, цифры и подчеркивания. Например: welcome_message, about_text</small>
-            </div>
-            <div class="form-group">
-              <label>Название (для админки) *</label>
-              <input type="text" name="title" required placeholder="Например: Приветственное сообщение">
-            </div>
-            <div class="form-group">
-              <label>Описание (для админки)</label>
-              <textarea name="description" placeholder="Описание контента"></textarea>
-            </div>
-            <div class="form-group">
-              <label>Категория</label>
-              <select name="category">
-                <option value="">Без категории</option>
-                <option value="messages">Сообщения</option>
-                <option value="descriptions">Описания</option>
-                <option value="buttons">Кнопки</option>
-                <option value="errors">Ошибки</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Язык *</label>
-              <select name="language" required>
-                <option value="ru">Русский</option>
-                <option value="en">English</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Контент *</label>
-              <textarea name="content" required placeholder="Введите текст контента"></textarea>
-            </div>
-            <div class="form-group">
-              <label>
-                <input type="checkbox" name="isActive" checked> Контент активен
+      ${renderAdminShellStart({ title: 'Доставка', activePath: '/admin/delivery-settings', buildMarker })}
+        <div class="card" style="padding:16px;">
+          <h2 style="margin:0 0 6px 0;">Настройки доставки</h2>
+          <div class="muted" style="margin-bottom: 14px;">
+            Сейчас доставка в webapp берётся из настроек ниже. Режим <b>stub</b> — фиксированные тарифы.
+            CDEK/Яндекс подключим через API по этим ключам (если ключи пустые — будет использоваться stub).
+          </div>
+
+          <div id="deliveryAlert" style="margin-bottom: 12px;"></div>
+
+          <form id="deliverySettingsForm" style="display:grid; gap: 12px; max-width: 720px;">
+            <div style="display:flex; gap: 16px; flex-wrap:wrap;">
+              <label style="display:flex; align-items:center; gap: 8px;">
+                <input type="checkbox" id="pickupEnabled" />
+                <span>ПВЗ доступен</span>
+              </label>
+              <label style="display:flex; align-items:center; gap: 8px;">
+                <input type="checkbox" id="courierEnabled" />
+                <span>Курьер доступен</span>
               </label>
             </div>
-            <button type="submit" class="upload-btn">💾 Создать контент</button>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label class="muted">Цена ПВЗ (₽) — для режима stub</label>
+                <input class="input" type="number" id="pickupPriceRub" min="0" step="1" />
+              </div>
+              <div>
+                <label class="muted">Цена Курьер (₽) — для режима stub</label>
+                <input class="input" type="number" id="courierPriceRub" min="0" step="1" />
+              </div>
+            </div>
+
+            <div>
+              <label class="muted">Провайдер тарифов</label>
+              <select class="input" id="provider">
+                <option value="stub">stub (фиксированные тарифы)</option>
+                <option value="cdek">CDEK (API)</option>
+                <option value="yandex">Yandex Delivery (API)</option>
+              </select>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label class="muted">Город отправления (склад)</label>
+                <input class="input" type="text" id="originCity" />
+              </div>
+              <div>
+                <label class="muted">Вес по умолчанию (г)</label>
+                <input class="input" type="number" id="defaultWeightGrams" min="1" step="1" />
+              </div>
+            </div>
+
+            <details style="border:1px solid var(--admin-border); border-radius: 12px; padding: 10px;">
+              <summary style="cursor:pointer; font-weight:600;">Ключи API (опционально)</summary>
+              <div style="margin-top: 10px; display:grid; gap: 10px;">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                  <div>
+                    <label class="muted">CDEK client_id</label>
+                    <input class="input" type="text" id="cdekClientId" />
+                  </div>
+                  <div>
+                    <label class="muted">CDEK client_secret</label>
+                    <input class="input" type="password" id="cdekClientSecret" />
+                  </div>
+                </div>
+                <div>
+                  <label class="muted">Yandex token</label>
+                  <input class="input" type="password" id="yandexToken" />
+                </div>
+              </div>
+            </details>
+
+            <div style="display:flex; gap: 10px; justify-content:flex-end; margin-top: 6px;">
+              <button type="button" class="btn" onclick="window.location.href='/admin'">Назад</button>
+              <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
           </form>
         </div>
-        
-        ${req.query.success === 'created' ? '<div class="alert alert-success">✅ Контент успешно создан!</div>' : ''}
-        ${req.query.success === 'updated' ? '<div class="alert alert-success">✅ Контент успешно обновлен!</div>' : ''}
-        ${req.query.success === 'deleted' ? '<div class="alert alert-success">✅ Контент успешно удален!</div>' : ''}
-        ${req.query.error === 'duplicate_key' ? '<div class="alert alert-error">❌ Контент с таким ключом уже существует</div>' : ''}
-        ${req.query.error === 'not_found' ? '<div class="alert alert-error">❌ Контент не найден</div>' : ''}
-        ${req.query.error === 'invalid_key' ? '<div class="alert alert-error">❌ Неверный формат ключа. Используйте только строчные буквы, цифры и подчеркивания</div>' : ''}
-        
-        <div class="header">
-          <h2>📋 Существующий контент (${contents.length})</h2>
+
+        <script>
+          const alertEl = document.getElementById('deliveryAlert');
+          function showAlert(msg, type) {
+            const bg = type === 'error' ? '#fef2f2' : '#ecfdf5';
+            const border = type === 'error' ? '#fecaca' : '#a7f3d0';
+            const color = type === 'error' ? '#991b1b' : '#065f46';
+            alertEl.innerHTML = '<div style="padding:10px 12px; border-radius: 10px; border:1px solid ' + border + '; background:' + bg + '; color:' + color + ';">' + msg + '</div>';
+          }
+
+          async function loadSettings() {
+            const resp = await fetch('/admin/api/delivery-settings');
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || !data.success) throw new Error(data.error || 'Не удалось загрузить настройки');
+            const s = data.settings || {};
+            document.getElementById('pickupEnabled').checked = !!s.pickupEnabled;
+            document.getElementById('courierEnabled').checked = !!s.courierEnabled;
+            document.getElementById('pickupPriceRub').value = String(s.pickupPriceRub ?? 0);
+            document.getElementById('courierPriceRub').value = String(s.courierPriceRub ?? 0);
+            document.getElementById('provider').value = String(s.provider || 'stub');
+            document.getElementById('cdekClientId').value = String(s.cdekClientId || '');
+            document.getElementById('cdekClientSecret').value = String(s.cdekClientSecret || '');
+            document.getElementById('yandexToken').value = String(s.yandexToken || '');
+            document.getElementById('originCity').value = String(s.originCity || 'Москва');
+            document.getElementById('defaultWeightGrams').value = String(s.defaultWeightGrams || 500);
+          }
+
+          document.getElementById('deliverySettingsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+              const payload = {
+                pickupEnabled: document.getElementById('pickupEnabled').checked,
+                courierEnabled: document.getElementById('courierEnabled').checked,
+                pickupPriceRub: Number(document.getElementById('pickupPriceRub').value || 0),
+                courierPriceRub: Number(document.getElementById('courierPriceRub').value || 0),
+                provider: document.getElementById('provider').value,
+                cdekClientId: document.getElementById('cdekClientId').value,
+                cdekClientSecret: document.getElementById('cdekClientSecret').value,
+                yandexToken: document.getElementById('yandexToken').value,
+                originCity: document.getElementById('originCity').value,
+                defaultWeightGrams: Number(document.getElementById('defaultWeightGrams').value || 500),
+              };
+              const resp = await fetch('/admin/api/delivery-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+              const data = await resp.json().catch(() => ({}));
+              if (!resp.ok || !data.success) throw new Error(data.error || 'Не удалось сохранить');
+              showAlert('✅ Сохранено', 'success');
+            } catch (err) {
+              showAlert('❌ ' + (err && err.message ? err.message : String(err)), 'error');
+            }
+          });
+
+          loadSettings().catch(err => showAlert('❌ ' + (err && err.message ? err.message : String(err)), 'error'));
+        </script>
+      ${renderAdminShellEnd()}
+    `);
+  } catch (error: any) {
+    console.error('Delivery settings page error:', error);
+    res.status(500).send('Ошибка страницы настроек доставки');
+  }
+});
+
+// ========== Balance Top-ups (Admin) ==========
+router.post('/api/balance-topup-text', requireAdmin, async (req, res) => {
+  try {
+    const text = String(req.body?.text || '').trim();
+    await upsertSetting('balance_topup_text', text, 'Текст реквизитов пополнения (webapp)');
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Balance topup text save error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка сохранения текста' });
+  }
+});
+
+router.post('/api/balance-topups/:id/approve', requireAdmin, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    const amountRub = Math.round(Number(req.body?.amountRub || 0));
+    if (!id) return res.status(400).json({ success: false, error: 'id_required' });
+    if (!Number.isFinite(amountRub) || amountRub <= 0) {
+      return res.status(400).json({ success: false, error: 'Некорректная сумма' });
+    }
+
+    const request = await (prisma as any).balanceTopUpRequest.findUnique({ where: { id } });
+    if (!request) return res.status(404).json({ success: false, error: 'Запрос не найден' });
+    if (String(request.status) !== 'PENDING') {
+      return res.status(400).json({ success: false, error: 'Запрос уже обработан' });
+    }
+
+    await (prisma as any).balanceTopUpRequest.update({
+      where: { id },
+      data: { status: 'APPROVED', amountRub }
+    });
+
+    await prisma.user.update({
+      where: { id: request.userId },
+      data: { balance: { increment: amountRub } }
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Approve topup error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка подтверждения' });
+  }
+});
+
+router.post('/api/balance-topups/:id/reject', requireAdmin, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ success: false, error: 'id_required' });
+    const request = await (prisma as any).balanceTopUpRequest.findUnique({ where: { id } });
+    if (!request) return res.status(404).json({ success: false, error: 'Запрос не найден' });
+    if (String(request.status) !== 'PENDING') {
+      return res.status(400).json({ success: false, error: 'Запрос уже обработан' });
+    }
+    await (prisma as any).balanceTopUpRequest.update({
+      where: { id },
+      data: { status: 'REJECTED' }
+    });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Reject topup error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка отклонения' });
+  }
+});
+
+router.get('/balance-topups', requireAdmin, async (_req, res) => {
+  try {
+    const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
+    const text = await getSettingOrDefault('balance_topup_text', '');
+    const requests = await (prisma as any).balanceTopUpRequest.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { user: true }
+    });
+    const escapeHtml = (str: any) => String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+    const escapeAttr = (str: any) => escapeHtml(str).replace(/'/g, '&#39;');
+
+    res.send(`
+      ${renderAdminShellStart({ title: 'Пополнения баланса', activePath: '/admin/balance-topups', buildMarker })}
+        <div class="card" style="padding:16px; margin-bottom: 16px;">
+          <h2 style="margin:0 0 8px 0;">Текст страницы пополнения</h2>
+          <div class="muted" style="margin-bottom: 10px;">Этот текст виден на странице баланса в клиенте.</div>
+          <form id="topupTextForm" style="display:grid; gap: 10px; max-width: 720px;">
+            <textarea id="topupText" rows="6" style="width:100%; padding:10px; border:1px solid var(--admin-border); border-radius:12px;">${escapeHtml(text)}</textarea>
+            <button class="btn" type="submit" style="width: 200px;">Сохранить</button>
+          </form>
+          <div id="topupTextAlert" style="margin-top: 10px;"></div>
         </div>
-        
-        ${contents.length === 0 ? '<p style="text-align: center; padding: 40px; color: #6c757d;">Пока нет созданного контента. Создайте первый контент выше.</p>' : contentsHtml}
-        
-        <!-- Edit Modal -->
-        <div id="editModal" class="modal-overlay" style="display: none;" onclick="if(event.target === this) closeEditModal()">
-          <div class="modal-content" onclick="event.stopPropagation()">
-            <div class="modal-header">
-              <h2>✏️ Редактировать контент</h2>
-              <button class="close-btn" onclick="closeEditModal()">&times;</button>
+
+        <div class="card" style="padding:16px;">
+          <h2 style="margin:0 0 10px 0;">Чеки на пополнение</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Пользователь</th>
+                <th>Сумма (₽)</th>
+                <th>Чек</th>
+                <th>Статус</th>
+                <th>Дата</th>
+                <th style="text-align:right;">Действия</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${requests.map((r: any) => `
+                <tr>
+                  <td>${escapeHtml(r.user?.firstName || '')} ${escapeHtml(r.user?.lastName || '')}<div class="muted">${escapeHtml(r.user?.telegramId || '')}</div></td>
+                  <td>
+                    <input type="number" min="1" step="1" class="topup-amount" data-id="${escapeAttr(r.id)}" value="${Number(r.amountRub || 0)}" style="width:120px; padding:6px 8px; border:1px solid var(--admin-border); border-radius:10px;">
+                  </td>
+                  <td>${r.receiptUrl ? `<a href="${escapeAttr(r.receiptUrl)}" target="_blank">Открыть</a>` : '—'}</td>
+                  <td>${escapeHtml(r.status)}</td>
+                  <td>${new Date(r.createdAt).toLocaleString('ru-RU')}</td>
+                  <td style="text-align:right;">
+                    ${String(r.status) === 'PENDING' ? `
+                      <button class="btn-mini approve-topup" data-id="${escapeAttr(r.id)}">Подтвердить</button>
+                      <button class="btn-mini danger reject-topup" data-id="${escapeAttr(r.id)}">Отклонить</button>
+                    ` : '—'}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <script>
+          const alertBox = (msg, ok) => {
+            const el = document.getElementById('topupTextAlert');
+            if (!el) return;
+            el.innerHTML = '<div class="alert ' + (ok ? 'alert-success' : 'alert-error') + '">' + msg + '</div>';
+          };
+          document.getElementById('topupTextForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = document.getElementById('topupText').value || '';
+            const resp = await fetch('/admin/api/balance-topup-text', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ text })
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok) return alertBox('Ошибка: ' + (data.error || 'HTTP ' + resp.status), false);
+            alertBox('Сохранено', true);
+          });
+
+          document.addEventListener('click', async (e) => {
+            const t = e.target;
+            const el = (t && t.nodeType === 1) ? t : (t && t.parentElement ? t.parentElement : null);
+            if (!el) return;
+            const approve = el.closest('.approve-topup');
+            const reject = el.closest('.reject-topup');
+            if (approve) {
+              const id = approve.getAttribute('data-id');
+              const amountInput = document.querySelector('.topup-amount[data-id="' + id + '"]');
+              const amountRub = amountInput ? Number(amountInput.value || 0) : 0;
+              const resp = await fetch('/admin/api/balance-topups/' + encodeURIComponent(id) + '/approve', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ amountRub })
+              });
+              const data = await resp.json().catch(() => ({}));
+              if (!resp.ok) return alert('Ошибка: ' + (data.error || 'HTTP ' + resp.status));
+              window.location.reload();
+              return;
+            }
+            if (reject) {
+              const id = reject.getAttribute('data-id');
+              const resp = await fetch('/admin/api/balance-topups/' + encodeURIComponent(id) + '/reject', {
+                method: 'POST',
+                credentials: 'include'
+              });
+              const data = await resp.json().catch(() => ({}));
+              if (!resp.ok) return alert('Ошибка: ' + (data.error || 'HTTP ' + resp.status));
+              window.location.reload();
+              return;
+            }
+          }, true);
+        </script>
+
+      ${renderAdminShellEnd()}
+    `);
+  } catch (error: any) {
+    console.error('Balance topups page error:', error);
+    res.status(500).send('Ошибка загрузки страницы пополнений');
+  }
+});
+
+// GET: Invoice import page
+router.get('/invoice-import', requireAdmin, async (req, res) => {
+  try {
+    const { getImportSettings } = await import('../services/invoice-import-service.js');
+    const settings = await getImportSettings();
+
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Импорт инвойса - Админ панель</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
+          .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }
+          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; }
+          .header h1 { font-size: 24px; margin-bottom: 10px; }
+          .content { padding: 30px; }
+          .form-group { margin-bottom: 20px; }
+          .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #333; }
+          .form-group textarea { width: 100%; min-height: 400px; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; font-family: monospace; }
+          .form-group textarea:focus { outline: none; border-color: #667eea; }
+          .form-help { margin-top: 5px; font-size: 14px; color: #666; }
+          .btn { background: #667eea; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: 600; margin-right: 10px; }
+          .btn:hover { background: #5568d3; }
+          .btn-secondary { background: #6c757d; }
+          .btn-secondary:hover { background: #5a6268; }
+          .btn-success { background: #28a745; }
+          .btn-success:hover { background: #218838; }
+          .back-link { display: inline-block; margin-bottom: 20px; color: #667eea; text-decoration: none; }
+          .alert { padding: 12px; border-radius: 6px; margin-bottom: 20px; }
+          .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+          .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+          .alert-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+          .settings-info { background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
+          .settings-info h4 { margin-bottom: 10px; color: #333; }
+          #resultContainer { margin-top: 20px; }
+          .result-item { padding: 10px; margin: 5px 0; border-radius: 4px; }
+          .result-item.success { background: #d4edda; color: #155724; }
+          .result-item.error { background: #f8d7da; color: #721c24; }
+          .result-item.warning { background: #fff3cd; color: #856404; }
+          .loading { display: none; text-align: center; padding: 20px; }
+          .loading.active { display: block; }
+          .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto; }
+          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>📥 Импорт инвойса</h1>
+            <p>Импортируйте данные товаров из инвойса. Формат: SKU|Description|Qty|Rate|Amount</p>
+          </div>
+          <div class="content">
+            <div style="margin-bottom: 20px;">
+              <a href="/admin" class="back-link">← Вернуться в админ панель</a>
+              <a href="/admin/invoice-settings" class="back-link" style="margin-left: 10px;">⚙️ Настройки импорта</a>
             </div>
-            <form id="editForm" class="modal-form" method="post" action="/admin/content/update">
-              <input type="hidden" id="editKey" name="key" value="">
-              <div class="form-group">
-                <label>Название (для админки) *</label>
-                <input type="text" id="editTitle" name="title" required>
+            
+            <div class="settings-info">
+              <h4>Текущие настройки:</h4>
+              <p>Курс обмена: <strong>${settings.exchangeRate}</strong> БАТ/Рубль</p>
+              <p>Мультипликатор: <strong>${settings.priceMultiplier}</strong></p>
+              <p><small>Формула расчета цены: Цена в БАТ × ${settings.exchangeRate} × ${settings.priceMultiplier} = цена в рублях → округление до 10 → ÷ 100 = Цена в PZ</small></p>
+              <p><small>Пример: 100 БАТ × ${settings.exchangeRate} × ${settings.priceMultiplier} = ${(100 * settings.exchangeRate * settings.priceMultiplier).toFixed(2)} руб. → округлено до ${(Math.round((100 * settings.exchangeRate * settings.priceMultiplier) / 10) * 10)} руб. = ${((Math.round((100 * settings.exchangeRate * settings.priceMultiplier) / 10) * 10) / 100).toFixed(2)} PZ</small></p>
+            </div>
+
+            <div class="settings-info">
+              <h4>✅ Рекомендуемый способ (CSV):</h4>
+              <ol style="margin-left: 18px; color:#333;">
+                <li>Скачайте шаблон CSV</li>
+                <li>Заполните по инвойсу колонки <code>invoiceRateTHB</code> и <code>invoiceQty</code> (только для нужных строк)</li>
+                <li>Сначала нажмите “Проверить CSV” (dry-run), затем “Применить CSV”</li>
+              </ol>
+              <div style="margin-top: 12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <a class="btn" href="/admin/api/invoice-csv-template" target="_blank">⬇️ Скачать CSV шаблон</a>
+                <input type="file" id="csvFile" accept=".csv,text/csv" />
+                <button type="button" class="btn" id="csvDryRunBtn">🔎 Проверить CSV</button>
+                <button type="button" class="btn btn-success" id="csvApplyBtn">✅ Применить CSV</button>
               </div>
-              <div class="form-group">
-                <label>Описание (для админки)</label>
-                <textarea id="editDescription" name="description"></textarea>
+              <div class="form-help" style="margin-top:8px;">
+                Импорт CSV работает строго: если найдена любая ошибка — ничего не обновится.
               </div>
+            </div>
+            
+            <div id="alertContainer"></div>
+            
+            <form id="importForm">
               <div class="form-group">
-                <label>Категория</label>
-                <select id="editCategory" name="category">
-                  <option value="">Без категории</option>
-                  <option value="messages">Сообщения</option>
-                  <option value="descriptions">Описания</option>
-                  <option value="buttons">Кнопки</option>
-                  <option value="errors">Ошибки</option>
-                </select>
+                <label for="invoiceText">Текст инвойса</label>
+                <textarea id="invoiceText" name="invoiceText" placeholder="FS1002-24|Rudis Oleum Botanical Face Care Night Formula 24 G -COSMOS Organic|20|453.86|9077.20
+FS0001-24|Natural Balance Face Serum 24 G -COSMOS Natural|6|348.72|2092.32
+..."></textarea>
+                <div class="form-help">
+                  Вставьте данные из инвойса. Формат: SKU|Описание|Количество|Цена в БАТ|Сумма<br>
+                  Каждый товар на новой строке. Товары с одинаковым SKU будут объединены.
+                </div>
               </div>
-              <div class="form-group">
-                <label>Язык *</label>
-                <select id="editLanguage" name="language" required>
-                  <option value="ru">Русский</option>
-                  <option value="en">English</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label>Контент *</label>
-                <textarea id="editContent" name="content" required></textarea>
-              </div>
-              <div class="form-group">
-                <label>
-                  <input type="checkbox" id="editIsActive" name="isActive"> Контент активен
-                </label>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn-toggle" onclick="closeEditModal()" style="background: #6c757d; color: white;">Отмена</button>
-                <button type="submit" class="upload-btn">💾 Сохранить изменения</button>
+              
+              <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button type="submit" class="btn btn-success">📥 Импортировать (синхронно)</button>
+                <button type="button" id="asyncImportBtn" class="btn">🚀 Импортировать (фоновый режим)</button>
+                <button type="button" id="clearBtn" class="btn btn-secondary">🗑️ Очистить</button>
               </div>
             </form>
+            
+            <div class="loading" id="loadingIndicator">
+              <div class="spinner"></div>
+              <p style="margin-top: 10px;">Импорт в процессе...</p>
+            </div>
+            
+            <div id="resultContainer"></div>
           </div>
         </div>
         
         <script>
-          const contents = ${JSON.stringify(contents)};
+          const form = document.getElementById('importForm');
+          const alertContainer = document.getElementById('alertContainer');
+          const invoiceTextArea = document.getElementById('invoiceText');
+          const resultContainer = document.getElementById('resultContainer');
+          const loadingIndicator = document.getElementById('loadingIndicator');
+          const asyncImportBtn = document.getElementById('asyncImportBtn');
+          const clearBtn = document.getElementById('clearBtn');
+          const csvFileInput = document.getElementById('csvFile');
+          const csvDryRunBtn = document.getElementById('csvDryRunBtn');
+          const csvApplyBtn = document.getElementById('csvApplyBtn');
           
-          function editContent(key) {
-            const content = contents.find(c => c.key === key);
-            if (!content) return;
-            
-            document.getElementById('editKey').value = content.key;
-            document.getElementById('editTitle').value = content.title;
-            document.getElementById('editDescription').value = content.description || '';
-            document.getElementById('editCategory').value = content.category || '';
-            document.getElementById('editLanguage').value = content.language || 'ru';
-            document.getElementById('editContent').value = content.content;
-            document.getElementById('editIsActive').checked = content.isActive;
-            
-            document.getElementById('editModal').style.display = 'flex';
+          function showAlert(message, type = 'success') {
+            alertContainer.innerHTML = '<div class="alert alert-' + type + '">' + message + '</div>';
           }
           
-          function closeEditModal() {
-            document.getElementById('editModal').style.display = 'none';
+          function showResult(result) {
+            let html = '<h3>Результаты импорта:</h3>';
+            html += '<p><strong>Всего товаров:</strong> ' + result.total + '</p>';
+            html += '<p><strong>Обновлено:</strong> ' + result.updated + '</p>';
+            html += '<p><strong>Создано:</strong> ' + result.created + '</p>';
+            html += '<p><strong>Ошибок:</strong> ' + result.failed + '</p>';
+            
+            if (result.lowStockWarnings && result.lowStockWarnings.length > 0) {
+              html += '<div class="result-item warning"><strong>⚠️ Низкий остаток:</strong><ul>';
+              result.lowStockWarnings.slice(0, 10).forEach(w => {
+                html += '<li>' + w + '</li>';
+              });
+              if (result.lowStockWarnings.length > 10) {
+                html += '<li>... и еще ' + (result.lowStockWarnings.length - 10) + ' товаров</li>';
+              }
+              html += '</ul></div>';
+            }
+            
+            if (result.outOfStock && result.outOfStock.length > 0) {
+              html += '<div class="result-item error"><strong>🛑 Товары закончились:</strong><ul>';
+              result.outOfStock.slice(0, 10).forEach(w => {
+                html += '<li>' + w + '</li>';
+              });
+              if (result.outOfStock.length > 10) {
+                html += '<li>... и еще ' + (result.outOfStock.length - 10) + ' товаров</li>';
+              }
+              html += '</ul></div>';
+            }
+            
+            if (result.errors && result.errors.length > 0) {
+              html += '<div class="result-item error"><strong>❌ Ошибки:</strong><ul>';
+              result.errors.slice(0, 10).forEach(e => {
+                html += '<li>' + e + '</li>';
+              });
+              if (result.errors.length > 10) {
+                html += '<li>... и еще ' + (result.errors.length - 10) + ' ошибок</li>';
+              }
+              html += '</ul></div>';
+            }
+            
+            resultContainer.innerHTML = html;
           }
+
+          function showCsvResult(payload) {
+            let html = '<h3>Результаты CSV:</h3>';
+            html += '<p><strong>Режим:</strong> ' + (payload.applied ? 'ПРИМЕНЕНО' : 'ПРОВЕРКА (dry-run)') + '</p>';
+            html += '<p><strong>Строк в файле:</strong> ' + (payload.summary?.rowsTotal ?? '-') + '</p>';
+            html += '<p><strong>К обновлению:</strong> ' + (payload.summary?.rowsToUpdate ?? '-') + '</p>';
+            if (Array.isArray(payload.updates) && payload.updates.length) {
+              html += '<div class="result-item success"><strong>Первые изменения:</strong><ul>';
+              payload.updates.slice(0, 10).forEach(u => {
+                const oldRub = Math.round((u.oldPricePz || 0) * 100);
+                const newRub = Math.round((u.newPricePz || 0) * 100);
+                html += '<li>' + (u.sku || '') + ' — ' + (u.title || '') +
+                  ' | цена: ' + oldRub + '→' + newRub + ' ₽' +
+                  ' | остаток: ' + (u.oldStock ?? '-') + '→' + (u.newStock ?? '-') + '</li>';
+              });
+              if (payload.updates.length > 10) html += '<li>... и еще ' + (payload.updates.length - 10) + '</li>';
+              html += '</ul></div>';
+            }
+            resultContainer.innerHTML = html;
+          }
+
+          async function runCsvImport(apply) {
+            const file = csvFileInput && csvFileInput.files ? csvFileInput.files[0] : null;
+            if (!file) {
+              showAlert('Выберите CSV файл', 'error');
+              return;
+            }
+            loadingIndicator.classList.add('active');
+            resultContainer.innerHTML = '';
+            try {
+              const fd = new FormData();
+              fd.append('file', file);
+              fd.append('apply', apply ? '1' : '0');
+              const resp = await fetch('/admin/api/import-invoice-csv-sync', { method: 'POST', body: fd });
+              const data = await resp.json().catch(() => ({}));
+              loadingIndicator.classList.remove('active');
+              if (!resp.ok || !data.success) {
+                const errs = Array.isArray(data.errors) ? data.errors.join('<br>') : (data.error || 'Неизвестная ошибка');
+                showAlert('❌ Ошибка CSV: ' + errs, 'error');
+                return;
+              }
+              showAlert(apply ? '✅ CSV применён!' : '✅ CSV проверен (dry-run)!', 'success');
+              showCsvResult(data);
+            } catch (e) {
+              loadingIndicator.classList.remove('active');
+              showAlert('❌ Ошибка при импорте CSV', 'error');
+              console.error(e);
+            }
+          }
+
+          csvDryRunBtn.addEventListener('click', () => runCsvImport(false));
+          csvApplyBtn.addEventListener('click', () => runCsvImport(true));
+          
+          form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const invoiceText = invoiceTextArea.value.trim();
+            if (!invoiceText) {
+              showAlert('Введите текст инвойса', 'error');
+              return;
+            }
+            
+            loadingIndicator.classList.add('active');
+            resultContainer.innerHTML = '';
+            
+            try {
+              const response = await fetch('/admin/api/import-invoice-sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ invoiceText })
+              });
+              
+              const data = await response.json();
+              loadingIndicator.classList.remove('active');
+              
+              if (data.success) {
+                showAlert('✅ Импорт завершен!', 'success');
+                showResult(data.result);
+              } else {
+                showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+              }
+            } catch (error) {
+              loadingIndicator.classList.remove('active');
+              showAlert('❌ Ошибка при импорте', 'error');
+              console.error(error);
+            }
+          });
+          
+          asyncImportBtn.addEventListener('click', async () => {
+            const invoiceText = invoiceTextArea.value.trim();
+            if (!invoiceText) {
+              showAlert('Введите текст инвойса', 'error');
+              return;
+            }
+            
+            showAlert('🚀 Импорт запущен в фоновом режиме. Результат будет отправлен в Telegram.', 'info');
+            
+            try {
+              const response = await fetch('/admin/api/import-invoice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ invoiceText })
+              });
+              
+              const data = await response.json();
+              
+              if (data.success) {
+                showAlert('✅ Импорт запущен! Обрабатывается ' + data.itemsCount + ' товаров.', 'success');
+              } else {
+                showAlert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+              }
+            } catch (error) {
+              showAlert('❌ Ошибка при запуске импорта', 'error');
+              console.error(error);
+            }
+          });
+          
+          clearBtn.addEventListener('click', () => {
+            invoiceTextArea.value = '';
+            resultContainer.innerHTML = '';
+            alertContainer.innerHTML = '';
+          });
         </script>
       </body>
       </html>
     `);
-  } catch (error) {
-    console.error('Error loading content page:', error);
-    res.status(500).send('Ошибка загрузки страницы контента');
+  } catch (error: any) {
+    console.error('Error loading invoice import page:', error);
+    res.status(500).send('Ошибка загрузки страницы импорта');
   }
 });
 
-// Create content
-router.post('/content/create', requireAdmin, async (req, res) => {
+// ========== Specialists (Admin) ==========
+router.get('/specialists', requireAdmin, async (_req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Специалисты - Админ панель</title>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        *{ box-sizing:border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#f5f5f5; padding: 20px; }
+        body.modal-open { overflow: hidden; }
+        .container { max-width: 1100px; margin: 0 auto; background:#fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); overflow:hidden; }
+        .header { background: linear-gradient(135deg, #111827 0%, #374151 100%); color:#fff; padding: 26px; }
+        .header h1 { margin:0; font-size: 22px; }
+        .content { padding: 22px; }
+        .btn { background:#111827; color:#fff; padding: 10px 14px; border:none; border-radius: 10px; cursor:pointer; font-weight:700; text-decoration:none; display:inline-block; }
+        .btn.secondary { background:#6b7280; }
+        .btn.danger { background:#b91c1c; }
+        .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+        input, textarea, select { width: 100%; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 14px; }
+        textarea { min-height: 100px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; }
+        .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px; background:#fff; }
+        .table { width: 100%; border-collapse: collapse; }
+        .table th, .table td { padding: 10px 8px; border-bottom: 1px solid #e5e7eb; text-align: left; font-size: 14px; vertical-align: top; }
+        .muted { color:#6b7280; font-size: 12px; }
+        .pill { display:inline-block; padding: 4px 10px; border-radius: 999px; background:#f3f4f6; font-size: 12px; }
+        .modal { position: fixed; inset: 0; display:none; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 6vh 16px; }
+        .modal.open { display:block; }
+        .overlay { position: fixed; inset:0; background: rgba(0,0,0,0.35); }
+        .modal-body { position: relative; z-index: 1; max-width: 920px; margin: 0 auto; background:#fff; border-radius: 14px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
+        @media (max-width: 640px) {
+          body { padding: 12px; }
+          .container { border-radius: 12px; }
+          .modal { padding: 12px; }
+          .modal-body { padding: 14px; border-radius: 12px; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>👩‍⚕️ Специалисты</h1>
+          <div class="muted" style="margin-top:6px;">Каталог специалистов для раздела WebApp “Специалисты”.</div>
+        </div>
+        <div class="content">
+          <div class="row" style="justify-content: space-between; margin-bottom: 14px;">
+            <a href="/admin" class="btn secondary">← Назад</a>
+            <div class="row">
+              <button class="btn secondary" onclick="openTaxonomyModal('categories')">Категории</button>
+              <button class="btn secondary" onclick="openTaxonomyModal('specialties')">Специальности</button>
+              <button class="btn" onclick="openModal()">+ Добавить специалиста</button>
+            </div>
+          </div>
+
+          <div id="alert"></div>
+          <div class="card">
+            <table class="table" id="specTable">
+              <thead>
+                <tr>
+                  <th>Имя</th>
+                  <th>Категория</th>
+                  <th>Специальность</th>
+                  <th>Активен</th>
+                  <th>Сортировка</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal" id="modal">
+        <div class="overlay" onclick="closeModal()"></div>
+        <div class="modal-body">
+          <div class="row" style="justify-content: space-between; margin-bottom: 10px;">
+            <div style="font-weight:900;">Редактор специалиста</div>
+            <button class="btn secondary" onclick="closeModal()">Закрыть</button>
+          </div>
+
+          <div class="grid">
+            <div>
+              <div class="muted">Имя *</div>
+              <input id="f_name" placeholder="Имя Фамилия" />
+            </div>
+            <div>
+              <div class="muted">Категория *</div>
+              <select id="f_categoryId"></select>
+            </div>
+            <div>
+              <div class="muted">Фото</div>
+              <input id="f_photoFile" type="file" accept="image/*" />
+              <div class="muted" id="photoHelp" style="margin-top:6px;">Загрузите файл (ссылка не нужна).</div>
+              <div id="photoPreviewWrap" style="margin-top:10px; display:none;">
+                <img id="photoPreview" src="" alt="" style="width: 100%; max-height: 160px; object-fit: cover; border-radius: 12px; border:1px solid #e5e7eb;">
+              </div>
+            </div>
+            <div>
+              <div class="muted">Профиль (коротко)</div>
+              <input id="f_profile" placeholder="Опыт, регалии, роль..." />
+            </div>
+          </div>
+
+          <div style="margin-top: 12px;">
+            <div class="grid">
+              <div>
+                <div class="muted">Специальность *</div>
+                <select id="f_specialtyId"></select>
+              </div>
+              <div>
+                <div class="muted">Ссылка для записи (мессенджер)</div>
+                <input id="f_messengerUrl" placeholder="https://t.me/username или ссылка WhatsApp/Instagram" />
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top: 12px;">
+            <div class="muted">Описание</div>
+            <textarea id="f_about" placeholder="Текст о специалисте"></textarea>
+          </div>
+
+          <div class="card" style="margin-top: 12px;">
+            <div class="row" style="justify-content: space-between; margin-bottom: 10px;">
+              <div style="font-weight:900;">Услуги</div>
+              <button class="btn secondary" type="button" onclick="addServiceRow()">+ Добавить услугу</button>
+            </div>
+            <div class="muted" style="margin-bottom: 10px;">Добавляй услуги кнопками (без JSON).</div>
+            <div id="servicesList" style="display:grid; gap:10px;"></div>
+          </div>
+
+          <div class="grid" style="margin-top: 12px;">
+            <div>
+              <div class="muted">Сортировка (sortOrder)</div>
+              <input id="f_sortOrder" type="number" value="0" />
+            </div>
+            <div></div>
+          </div>
+
+          <div class="row" style="margin-top: 12px; align-items:center;">
+            <label style="display:flex; gap:8px; align-items:center;">
+              <input type="checkbox" id="f_isActive" checked />
+              <span>Активен</span>
+            </label>
+          </div>
+
+          <div class="row" style="margin-top: 14px; justify-content: flex-end;">
+            <button class="btn danger" id="deleteBtn" style="display:none;" onclick="deleteSpec()">Удалить</button>
+            <button class="btn" onclick="saveSpec()">Сохранить</button>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        let currentId = null;
+
+        function showAlert(msg, type='ok') {
+          const el = document.getElementById('alert');
+          el.innerHTML = '<div class="card" style="border-color:' + (type==='err' ? '#fecaca' : '#d1fae5') + '; background:' + (type==='err' ? '#fef2f2' : '#ecfdf5') + '">' + msg + '</div>';
+          setTimeout(() => { el.innerHTML = ''; }, 4500);
+        }
+
+        function escapeHtml(str) {
+          return String(str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+        }
+
+        let categories = [];
+        let specialtiesByCategory = new Map();
+        let taxonomyMode = null; // 'categories' | 'specialties'
+        let taxonomyEditing = null; // { type, id }
+
+        async function loadTaxonomy() {
+          const c = await fetch('/admin/api/specialist-categories').then(r => r.json()).catch(() => ({}));
+          categories = Array.isArray(c.categories) ? c.categories : [];
+          const select = document.getElementById('f_categoryId');
+          if (select) {
+            select.innerHTML = categories.filter(x => x.isActive !== false).map(cat => '<option value="' + cat.id + '">' + escapeHtml(cat.name) + '</option>').join('');
+          }
+          await refreshSpecialtiesForSelectedCategory();
+        }
+
+        async function refreshSpecialtiesForSelectedCategory() {
+          const catId = document.getElementById('f_categoryId')?.value || '';
+          if (!catId) return;
+          const s = await fetch('/admin/api/specialist-specialties?categoryId=' + encodeURIComponent(catId)).then(r => r.json()).catch(() => ({}));
+          const list = Array.isArray(s.specialties) ? s.specialties : [];
+          specialtiesByCategory.set(catId, list);
+          const select = document.getElementById('f_specialtyId');
+          if (select) {
+            select.innerHTML = list.filter(x => x.isActive !== false).map(sp => '<option value="' + sp.id + '">' + escapeHtml(sp.name) + '</option>').join('');
+          }
+        }
+
+        async function load() {
+          const resp = await fetch('/admin/api/specialists');
+          const data = await resp.json().catch(() => ({}));
+          const tbody = document.querySelector('#specTable tbody');
+          tbody.innerHTML = '';
+          (data.specialists || []).forEach(s => {
+            const tr = document.createElement('tr');
+            const cat = s.category?.name || '';
+            const spName = s.specialtyRef?.name || s.specialty || '';
+            tr.innerHTML = \`
+              <td><strong>\${escapeHtml(s.name || '')}</strong><div class="muted">\${escapeHtml(s.profile || '')}</div></td>
+              <td><span class="pill">\${escapeHtml(cat)}</span></td>
+              <td><span class="pill">\${escapeHtml(spName)}</span></td>
+              <td>\${s.isActive ? '✅' : '—'}</td>
+              <td>\${Number(s.sortOrder || 0)}</td>
+              <td><button class="btn secondary" onclick="edit('\${s.id}')">Редактировать</button></td>
+            \`;
+            tbody.appendChild(tr);
+          });
+        }
+
+        function openModal() {
+          currentId = null;
+          document.getElementById('deleteBtn').style.display = 'none';
+          setForm({ name:'', categoryId:'', specialtyId:'', photoUrl:'', profile:'', about:'', messengerUrl:'', isActive:true, sortOrder:0, services: [] });
+          document.getElementById('modal').classList.add('open');
+          try { document.body.classList.add('modal-open'); } catch (_) {}
+        }
+        function closeModal() {
+          document.getElementById('modal').classList.remove('open');
+          try { document.body.classList.remove('modal-open'); } catch (_) {}
+        }
+
+        function setForm(s) {
+          document.getElementById('f_name').value = s.name || '';
+          // Reset file input and preview
+          const fileInput = document.getElementById('f_photoFile');
+          if (fileInput) fileInput.value = '';
+          const previewWrap = document.getElementById('photoPreviewWrap');
+          const preview = document.getElementById('photoPreview');
+          if (previewWrap && preview) {
+            if (s.photoUrl) {
+              preview.src = s.photoUrl;
+              previewWrap.style.display = 'block';
+            } else {
+              preview.src = '';
+              previewWrap.style.display = 'none';
+            }
+          }
+          document.getElementById('f_profile').value = s.profile || '';
+          document.getElementById('f_about').value = s.about || '';
+          document.getElementById('f_messengerUrl').value = s.messengerUrl || '';
+          document.getElementById('f_isActive').checked = !!s.isActive;
+          document.getElementById('f_sortOrder').value = Number(s.sortOrder || 0);
+
+          // Category & specialty
+          if (s.categoryId && document.getElementById('f_categoryId')) {
+            document.getElementById('f_categoryId').value = s.categoryId;
+          }
+          // rebuild specialties for category then set selected
+          refreshSpecialtiesForSelectedCategory().then(() => {
+            if (s.specialtyId && document.getElementById('f_specialtyId')) {
+              document.getElementById('f_specialtyId').value = s.specialtyId;
+            }
+          });
+
+          // Services UI
+          const list = document.getElementById('servicesList');
+          if (list) list.innerHTML = '';
+          const services = Array.isArray(s.services) ? s.services : [];
+          services.forEach(svc => addServiceRow(svc));
+        }
+
+        async function edit(id) {
+          const resp = await fetch('/admin/api/specialists/' + encodeURIComponent(id));
+          const data = await resp.json().catch(() => ({}));
+          if (!data.success) return showAlert(data.error || 'Ошибка', 'err');
+          currentId = id;
+          document.getElementById('deleteBtn').style.display = 'inline-block';
+          setForm(data.specialist);
+          document.getElementById('modal').classList.add('open');
+          try { document.body.classList.add('modal-open'); } catch (_) {}
+        }
+
+        function getServicesFromUi() {
+          const rows = Array.from(document.querySelectorAll('[data-service-row="1"]'));
+          const out = [];
+          rows.forEach((row, idx) => {
+            const title = row.querySelector('[data-service-title]')?.value?.trim() || '';
+            const desc = row.querySelector('[data-service-desc]')?.value?.trim() || '';
+            const format = row.querySelector('[data-service-format]')?.value?.trim() || '';
+            const durationMin = Number(row.querySelector('[data-service-duration]')?.value || 0);
+            const detailsUrl = row.querySelector('[data-service-details]')?.value?.trim() || '';
+            const price = Number(row.querySelector('[data-service-price]')?.value || 0);
+            if (!title) return;
+            out.push({
+              title,
+              description: desc || null,
+              format: format || null,
+              durationMin: durationMin > 0 ? Math.round(durationMin) : null,
+              detailsUrl: detailsUrl || null,
+              priceRub: Math.round(price),
+              sortOrder: idx
+            });
+          });
+          return out;
+        }
+
+        function getPayload() {
+          const name = document.getElementById('f_name').value.trim();
+          const categoryId = document.getElementById('f_categoryId')?.value || '';
+          const specialtyId = document.getElementById('f_specialtyId')?.value || '';
+          const profile = document.getElementById('f_profile').value.trim();
+          const about = document.getElementById('f_about').value.trim();
+          const messengerUrl = document.getElementById('f_messengerUrl').value.trim();
+          const isActive = document.getElementById('f_isActive').checked;
+          const sortOrder = Number(document.getElementById('f_sortOrder').value || 0);
+          if (!name) throw new Error('Укажите имя');
+          if (!categoryId) throw new Error('Выберите категорию');
+          if (!specialtyId) throw new Error('Выберите специальность');
+          const services = getServicesFromUi();
+          return { name, categoryId, specialtyId, profile: profile || null, about: about || null, messengerUrl: messengerUrl || null, isActive, sortOrder, services };
+        }
+
+        async function saveSpec() {
+          try {
+            const payload = getPayload();
+            const resp = await fetch(currentId ? ('/admin/api/specialists/' + encodeURIComponent(currentId)) : '/admin/api/specialists', {
+              method: currentId ? 'PUT' : 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            const rawText = await resp.text().catch(() => '');
+            let data = {};
+            try { data = rawText ? JSON.parse(rawText) : {}; } catch (_) {}
+            if (!resp.ok || !data.success) {
+              console.error('Specialist save failed:', { status: resp.status, rawText, data });
+              const errMsg = (data && data.error) ? String(data.error) : (rawText || 'Ошибка сохранения');
+              return showAlert('HTTP ' + resp.status + ': ' + errMsg, 'err');
+            }
+            // Upload photo if provided
+            const savedId = (data && data.specialist && data.specialist.id) ? String(data.specialist.id) : (currentId ? String(currentId) : '');
+            const photoFile = document.getElementById('f_photoFile')?.files?.[0] || null;
+            if (photoFile && savedId) {
+              try {
+                showAlert('⏳ Загружаю фото...', 'ok');
+                const fd = new FormData();
+                fd.append('photo', photoFile);
+                const upResp = await fetch('/admin/api/specialists/' + encodeURIComponent(savedId) + '/upload-photo', { method: 'POST', body: fd });
+                const upText = await upResp.text().catch(() => '');
+                let upData = {};
+                try { upData = upText ? JSON.parse(upText) : {}; } catch (_) {}
+                if (!upResp.ok || !upData.success) {
+                  const msg = (upData && upData.error) ? String(upData.error) : (upText || 'Ошибка загрузки фото');
+                  return showAlert('HTTP ' + upResp.status + ': ' + msg, 'err');
+                }
+              } catch (e) {
+                console.error('Photo upload exception:', e);
+                return showAlert('❌ ' + (e.message || e), 'err');
+              }
+            }
+
+            showAlert('✅ Сохранено');
+            closeModal();
+            await load();
+          } catch (e) {
+            console.error('Specialist save exception:', e);
+            showAlert('❌ ' + (e.message || e), 'err');
+          }
+        }
+
+        async function deleteSpec() {
+          if (!currentId) return;
+          if (!confirm('Удалить специалиста?')) return;
+          const resp = await fetch('/admin/api/specialists/' + encodeURIComponent(currentId), { method: 'DELETE' });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok || !data.success) return showAlert(data.error || 'Ошибка удаления', 'err');
+          showAlert('✅ Удалено');
+          closeModal();
+          await load();
+        }
+
+        function addServiceRow(svc) {
+          const list = document.getElementById('servicesList');
+          if (!list) return;
+          const row = document.createElement('div');
+          row.setAttribute('data-service-row', '1');
+          row.className = 'row';
+          row.style.alignItems = 'stretch';
+          row.innerHTML =
+            '<div style="flex:1; min-width: 260px;">' +
+              '<div class="muted">Название услуги</div>' +
+              '<input data-service-title placeholder="Например: Определение типажа и цветотипирование">' +
+              '<div class="muted" style="margin-top:10px;">Описание</div>' +
+              '<textarea data-service-desc placeholder="Коротко о том, что входит в услугу" style="min-height: 84px;"></textarea>' +
+            '</div>' +
+            '<div style="width: 220px;">' +
+              '<div class="muted">Формат</div>' +
+              '<select data-service-format>' +
+                '<option value=""></option>' +
+                '<option value="офлайн/онлайн">офлайн/онлайн</option>' +
+                '<option value="офлайн">офлайн</option>' +
+                '<option value="онлайн">онлайн</option>' +
+              '</select>' +
+              '<div class="muted" style="margin-top:10px;">Стоимость (₽)</div>' +
+              '<input data-service-price type="number" min="0" step="1" value="0">' +
+              '<div class="muted" style="margin-top:10px;">Длительность (мин)</div>' +
+              '<input data-service-duration type="number" min="0" step="5" value="0">' +
+              '<div class="muted" style="margin-top:10px;">Ссылка “Подробнее” (опционально)</div>' +
+              '<input data-service-details placeholder="https://..." />' +
+            '</div>' +
+            '<div style="width: 120px; display:flex; align-items:flex-end;">' +
+              '<button type="button" class="btn danger" onclick="this.closest(\\'[data-service-row=\"1\"]\\').remove()">Удалить</button>' +
+            '</div>';
+          try {
+            const titleEl = row.querySelector('[data-service-title]');
+            const priceEl = row.querySelector('[data-service-price]');
+            const descEl = row.querySelector('[data-service-desc]');
+            const formatEl = row.querySelector('[data-service-format]');
+            const durEl = row.querySelector('[data-service-duration]');
+            const detailsEl = row.querySelector('[data-service-details]');
+            if (titleEl) titleEl.value = String(svc?.title || '');
+            if (priceEl) priceEl.value = String(Number(svc?.priceRub || 0));
+            if (descEl) descEl.value = String(svc?.description || '');
+            if (formatEl) formatEl.value = String(svc?.format || '');
+            if (durEl) durEl.value = String(Number(svc?.durationMin || 0));
+            if (detailsEl) detailsEl.value = String(svc?.detailsUrl || '');
+          } catch (_) {}
+          list.appendChild(row);
+        }
+
+        // taxonomy modals (simple prompt-based edit for speed)
+        async function openTaxonomyModal(mode) {
+          taxonomyMode = mode;
+          if (mode === 'categories') {
+            const data = await fetch('/admin/api/specialist-categories').then(r=>r.json()).catch(()=>({}));
+            const names = (data.categories||[]).map(c => (String(c.id) + ' | ' + (c.isActive ? 'ON' : 'OFF') + ' | ' + (c.sortOrder||0) + ' | ' + String(c.name||''))).join('\\n');
+            alert('Категории (id | status | sort | name)\\n\\n' + (names || '(пусто)') + '\\n\\nДобавление/редактирование сделаю отдельным окном следующим патчем — сейчас важнее стабилизировать специалистов.');
+          } else {
+            const catId = prompt('Введите categoryId чтобы показать специальности этой категории (или оставьте пусто):', '');
+            const data = await fetch('/admin/api/specialist-specialties' + (catId ? ('?categoryId=' + encodeURIComponent(catId)) : '')).then(r=>r.json()).catch(()=>({}));
+            const names = (data.specialties||[]).map(s => (String(s.id) + ' | ' + (s.isActive ? 'ON' : 'OFF') + ' | ' + (s.sortOrder||0) + ' | ' + String(s.name||'') + ' | cat:' + String(s.categoryId||''))).join('\\n');
+            alert('Специальности (id | status | sort | name | categoryId)\\n\\n' + (names || '(пусто)') + '\\n\\nUI управления добавлю в следующем шаге.');
+          }
+        }
+
+        document.getElementById('f_categoryId')?.addEventListener('change', () => refreshSpecialtiesForSelectedCategory());
+        document.getElementById('f_photoFile')?.addEventListener('change', () => {
+          try {
+            const file = document.getElementById('f_photoFile')?.files?.[0];
+            const wrap = document.getElementById('photoPreviewWrap');
+            const img = document.getElementById('photoPreview');
+            if (!wrap || !img) return;
+            if (!file) {
+              img.src = '';
+              wrap.style.display = 'none';
+              return;
+            }
+            img.src = URL.createObjectURL(file);
+            wrap.style.display = 'block';
+          } catch (_) {}
+        });
+        loadTaxonomy().then(load);
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+router.get('/api/specialist-categories', requireAdmin, async (_req, res) => {
   try {
-    const { key, title, description, category, language, content, isActive } = req.body;
-    
-    // Validate key format
-    if (!/^[a-z0-9_]+$/.test(key)) {
-      return res.redirect('/admin/content?error=invalid_key');
+    const categories = await prisma.specialistCategory.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
+    res.json({ success: true, categories });
+  } catch (error: any) {
+    console.error('Admin specialist categories list error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка загрузки категорий' });
+  }
+});
+
+router.post('/api/specialist-categories', requireAdmin, async (req, res) => {
+  try {
+    const { name, sortOrder, isActive } = req.body || {};
+    if (!name) return res.status(400).json({ success: false, error: 'name обязателен' });
+    const created = await prisma.specialistCategory.create({
+      data: {
+        name: String(name).trim(),
+        sortOrder: Number(sortOrder || 0),
+        isActive: typeof isActive === 'boolean' ? isActive : true
+      }
+    });
+    res.json({ success: true, category: created });
+  } catch (error: any) {
+    console.error('Admin specialist category create error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка создания категории' });
+  }
+});
+
+router.put('/api/specialist-categories/:id', requireAdmin, async (req, res) => {
+  try {
+    const { name, sortOrder, isActive } = req.body || {};
+    const updated = await prisma.specialistCategory.update({
+      where: { id: req.params.id },
+      data: {
+        ...(name != null ? { name: String(name).trim() } : {}),
+        ...(sortOrder != null ? { sortOrder: Number(sortOrder || 0) } : {}),
+        ...(isActive != null ? { isActive: Boolean(isActive) } : {})
+      }
+    });
+    res.json({ success: true, category: updated });
+  } catch (error: any) {
+    console.error('Admin specialist category update error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка обновления категории' });
+  }
+});
+
+router.delete('/api/specialist-categories/:id', requireAdmin, async (req, res) => {
+  try {
+    await prisma.specialistCategory.update({ where: { id: req.params.id }, data: { isActive: false } });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Admin specialist category delete error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка удаления категории' });
+  }
+});
+
+router.get('/api/specialist-specialties', requireAdmin, async (req, res) => {
+  try {
+    const categoryId = String(req.query?.categoryId || '').trim();
+    const where: any = {};
+    if (categoryId) where.categoryId = categoryId;
+    const specialties = await prisma.specialistSpecialty.findMany({ where, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
+    res.json({ success: true, specialties });
+  } catch (error: any) {
+    console.error('Admin specialist specialties list error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка загрузки специальностей' });
+  }
+});
+
+router.post('/api/specialist-specialties', requireAdmin, async (req, res) => {
+  try {
+    const { categoryId, name, sortOrder, isActive } = req.body || {};
+    if (!categoryId) return res.status(400).json({ success: false, error: 'categoryId обязателен' });
+    if (!name) return res.status(400).json({ success: false, error: 'name обязателен' });
+    const created = await prisma.specialistSpecialty.create({
+      data: {
+        categoryId: String(categoryId),
+        name: String(name).trim(),
+        sortOrder: Number(sortOrder || 0),
+        isActive: typeof isActive === 'boolean' ? isActive : true
+      }
+    });
+    res.json({ success: true, specialty: created });
+  } catch (error: any) {
+    console.error('Admin specialist specialty create error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка создания специальности' });
+  }
+});
+
+router.put('/api/specialist-specialties/:id', requireAdmin, async (req, res) => {
+  try {
+    const { categoryId, name, sortOrder, isActive } = req.body || {};
+    const updated = await prisma.specialistSpecialty.update({
+      where: { id: req.params.id },
+      data: {
+        ...(categoryId != null ? { categoryId: String(categoryId) } : {}),
+        ...(name != null ? { name: String(name).trim() } : {}),
+        ...(sortOrder != null ? { sortOrder: Number(sortOrder || 0) } : {}),
+        ...(isActive != null ? { isActive: Boolean(isActive) } : {})
+      }
+    });
+    res.json({ success: true, specialty: updated });
+  } catch (error: any) {
+    console.error('Admin specialist specialty update error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка обновления специальности' });
+  }
+});
+
+router.delete('/api/specialist-specialties/:id', requireAdmin, async (req, res) => {
+  try {
+    await prisma.specialistSpecialty.update({ where: { id: req.params.id }, data: { isActive: false } });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Admin specialist specialty delete error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка удаления специальности' });
+  }
+});
+
+router.get('/api/specialists', requireAdmin, async (_req, res) => {
+  try {
+    const specialists = await prisma.specialist.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+      include: { category: true, specialtyRef: true }
+    });
+    res.json({ success: true, specialists });
+  } catch (error: any) {
+    console.error('Admin specialists list error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка загрузки' });
+  }
+});
+
+router.get('/api/specialists/:id', requireAdmin, async (req, res) => {
+  try {
+    const specialist = await prisma.specialist.findUnique({
+      where: { id: req.params.id },
+      include: { services: { where: { isActive: true }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] } }
+    });
+    if (!specialist) return res.status(404).json({ success: false, error: 'Не найден' });
+    res.json({ success: true, specialist });
+  } catch (error: any) {
+    console.error('Admin specialist get error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка загрузки' });
+  }
+});
+
+router.post('/api/specialists', requireAdmin, async (req, res) => {
+  try {
+    const { name, categoryId, specialtyId, photoUrl, profile, about, messengerUrl, isActive, sortOrder, services } = req.body || {};
+    if (!name) return res.status(400).json({ success: false, error: 'name обязателен' });
+    if (!categoryId) return res.status(400).json({ success: false, error: 'categoryId обязателен' });
+    if (!specialtyId) return res.status(400).json({ success: false, error: 'specialtyId обязателен' });
+
+    const specialty = await prisma.specialistSpecialty.findUnique({ where: { id: String(specialtyId) } });
+    if (!specialty) return res.status(400).json({ success: false, error: 'Специальность не найдена' });
+
+    const created = await prisma.specialist.create({
+      data: {
+        name: String(name).trim(),
+        specialty: String(specialty.name).trim(), // legacy mirror
+        categoryId: String(categoryId),
+        specialtyId: String(specialtyId),
+        photoUrl: photoUrl ? String(photoUrl).trim() : null,
+        profile: profile ? String(profile).trim() : null,
+        about: about ? String(about).trim() : null,
+        messengerUrl: messengerUrl ? String(messengerUrl).trim() : null,
+        isActive: typeof isActive === 'boolean' ? isActive : true,
+        sortOrder: Number(sortOrder || 0)
+      }
+    });
+
+    const svc = Array.isArray(services) ? services : [];
+    for (const [idx, s] of svc.entries()) {
+      const title = String(s?.title || '').trim();
+      const priceRub = Number(s?.priceRub || 0);
+      if (!title) continue;
+      await prisma.specialistService.create({
+        data: {
+          specialistId: created.id,
+          title,
+          description: s?.description ? String(s.description) : null,
+          format: s?.format ? String(s.format) : null,
+          durationMin: s?.durationMin != null ? Number(s.durationMin) : null,
+          detailsUrl: s?.detailsUrl ? String(s.detailsUrl) : null,
+          priceRub: Math.max(0, Math.round(priceRub)),
+          sortOrder: Number(s?.sortOrder ?? idx) || idx,
+          isActive: true
+        }
+      });
     }
-    
-    // Check for duplicate
-    const existing = await prisma.botContent.findUnique({
-      where: { key }
-    });
-    
-    if (existing) {
-      return res.redirect('/admin/content?error=duplicate_key');
+
+    res.json({ success: true, specialist: created });
+  } catch (error: any) {
+    console.error('Admin specialist create error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка создания', details: error?.code || error?.name });
+  }
+});
+
+router.put('/api/specialists/:id', requireAdmin, async (req, res) => {
+  try {
+    const { name, categoryId, specialtyId, photoUrl, profile, about, messengerUrl, isActive, sortOrder, services } = req.body || {};
+
+    let legacySpecialty = undefined as any;
+    if (specialtyId) {
+      const sp = await prisma.specialistSpecialty.findUnique({ where: { id: String(specialtyId) } });
+      legacySpecialty = sp ? String(sp.name).trim() : undefined;
     }
-    
-    const { upsertBotContent } = await import('../services/bot-content-service.js');
-    await upsertBotContent({
-      key,
-      title,
-      description: description || null,
-      category: category || null,
-      language: language || 'ru',
-      content,
-      isActive: isActive === 'on'
-    });
-    
-    res.redirect('/admin/content?success=created');
-  } catch (error) {
-    console.error('Error creating content:', error);
-    res.redirect('/admin/content?error=create_failed');
-  }
-});
 
-// Update content
-router.post('/content/update', requireAdmin, async (req, res) => {
-  try {
-    const { key, title, description, category, language, content, isActive } = req.body;
-    
-    const existing = await prisma.botContent.findUnique({
-      where: { key }
+    const updated = await prisma.specialist.update({
+      where: { id: req.params.id },
+      data: {
+        ...(name != null ? { name: String(name).trim() } : {}),
+        ...(categoryId != null ? { categoryId: String(categoryId) } : {}),
+        ...(specialtyId != null ? { specialtyId: String(specialtyId) } : {}),
+        ...(legacySpecialty ? { specialty: legacySpecialty } : {}),
+        ...(photoUrl !== undefined ? { photoUrl: photoUrl ? String(photoUrl).trim() : null } : {}),
+        ...(profile !== undefined ? { profile: profile ? String(profile).trim() : null } : {}),
+        ...(about !== undefined ? { about: about ? String(about).trim() : null } : {}),
+        ...(messengerUrl !== undefined ? { messengerUrl: messengerUrl ? String(messengerUrl).trim() : null } : {}),
+        ...(isActive !== undefined ? { isActive: Boolean(isActive) } : {}),
+        ...(sortOrder !== undefined ? { sortOrder: Number(sortOrder || 0) } : {})
+      }
     });
-    
-    if (!existing) {
-      return res.redirect('/admin/content?error=not_found');
+
+    // replace services (non-transactional)
+    await prisma.specialistService.deleteMany({ where: { specialistId: updated.id } });
+    const svc = Array.isArray(services) ? services : [];
+    for (const [idx, s] of svc.entries()) {
+      const title = String(s?.title || '').trim();
+      const priceRub = Number(s?.priceRub || 0);
+      if (!title) continue;
+      await prisma.specialistService.create({
+        data: {
+          specialistId: updated.id,
+          title,
+          description: s?.description ? String(s.description) : null,
+          format: s?.format ? String(s.format) : null,
+          durationMin: s?.durationMin != null ? Number(s.durationMin) : null,
+          detailsUrl: s?.detailsUrl ? String(s.detailsUrl) : null,
+          priceRub: Math.max(0, Math.round(priceRub)),
+          sortOrder: Number(s?.sortOrder ?? idx) || idx,
+          isActive: true
+        }
+      });
     }
-    
-    const { upsertBotContent } = await import('../services/bot-content-service.js');
-    await upsertBotContent({
-      key,
-      title,
-      description: description || null,
-      category: category || null,
-      language: language || 'ru',
-      content,
-      isActive: isActive === 'on'
-    });
-    
-    res.redirect('/admin/content?success=updated');
-  } catch (error) {
-    console.error('Error updating content:', error);
-    res.redirect('/admin/content?error=update_failed');
+
+    res.json({ success: true, specialist: updated });
+  } catch (error: any) {
+    console.error('Admin specialist update error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка обновления' });
   }
 });
 
-// Toggle content status (use Mongoose service to avoid Prisma P2031 replica set requirement)
-router.post('/content/toggle', requireAdmin, async (req, res) => {
+// Upload specialist photo (file -> Cloudinary -> specialist.photoUrl)
+router.post('/api/specialists/:id/upload-photo', requireAdmin, upload.single('photo'), async (req, res) => {
   try {
-    const { key } = req.body;
-    const { getAllBotContents } = await import('../services/bot-content-service.js');
-    const contents = await getAllBotContents();
-    const content = contents.find((c: any) => c.key === key);
-    if (!content) {
-      return res.status(404).json({ error: 'Контент не найден' });
+    const id = String(req.params.id || '').trim();
+    if (!id) return res.status(400).json({ success: false, error: 'id обязателен' });
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'Файл не передан (photo)' });
     }
-    const { upsertBotContent } = await import('../services/bot-content-service.js');
-    await upsertBotContent({
-      ...content,
-      isActive: !content.isActive,
-    });
-    res.redirect('/admin/content');
-  } catch (error) {
-    console.error('Error toggling content status:', error);
-    res.redirect('/admin/content?error=toggle_failed');
-  }
-});
 
-// Delete content
-router.post('/content/delete', requireAdmin, async (req, res) => {
-  try {
-    const { key } = req.body;
-    
-    const { deleteBotContent } = await import('../services/bot-content-service.js');
-    const success = await deleteBotContent(key);
-    
-    if (!success) {
-      return res.redirect('/admin/content?error=not_found');
+    if (!isCloudinaryConfigured()) {
+      return res.status(503).json({ success: false, error: 'Cloudinary не настроен' });
     }
-    
-    res.redirect('/admin/content?success=deleted');
-  } catch (error) {
-    console.error('Error deleting content:', error);
-    res.redirect('/admin/content?error=delete_failed');
+
+    const exists = await prisma.specialist.findUnique({ where: { id } });
+    if (!exists) return res.status(404).json({ success: false, error: 'Специалист не найден' });
+
+    const result = await uploadImage(req.file.buffer, {
+      folder: 'vital/specialists',
+      publicId: `specialist-${id}`,
+      resourceType: 'image'
+    });
+
+    const updated = await prisma.specialist.update({
+      where: { id },
+      data: { photoUrl: result.secureUrl }
+    });
+
+    res.json({ success: true, photoUrl: result.secureUrl, specialist: updated });
+  } catch (error: any) {
+    console.error('Admin specialist photo upload error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка загрузки фото' });
   }
 });
 
-// Database backup endpoint
-router.post('/backup', requireAdmin, async (req, res) => {
+router.delete('/api/specialists/:id', requireAdmin, async (req, res) => {
   try {
-    // @ts-ignore - скрипт не имеет типов
-    const { exportDatabase } = await import('../../scripts/backup-database-railway.js');
-    const result = await exportDatabase();
-    
-    res.json({
-      success: true,
-      message: 'Резервная копия создана успешно',
-      ...result
-    });
-  } catch (error) {
-    console.error('Error creating backup:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Ошибка создания резервной копии',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-// Get backup status
-router.get('/backup/status', requireAdmin, async (req, res) => {
-  try {
-    // Можно добавить логику проверки последнего бэкапа
-    res.json({
-      success: true,
-      lastBackup: null, // TODO: сохранять информацию о последнем бэкапе
-      autoBackupEnabled: true,
-      schedule: 'Ежедневно в 02:00 UTC'
-    });
-  } catch (error) {
-    console.error('Error getting backup status:', error);
-    res.status(500).json({ error: 'Ошибка получения статуса' });
+    await prisma.specialist.update({ where: { id: req.params.id }, data: { isActive: false } });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Admin specialist delete error:', error);
+    res.status(500).json({ success: false, error: error?.message || 'Ошибка удаления' });
   }
 });
 
 export { router as adminWebRouter };
+

@@ -1,169 +1,162 @@
 import { PrismaClient } from '@prisma/client';
+import { env } from '../config/env.js';
 
-// Railway provides MONGO_URL for MongoDB plugin, but we also support DATABASE_URL
-const dbUrl = process.env.DATABASE_URL || process.env.MONGO_URL;
+// Log database URL for debugging (without sensitive info)
+const dbUrl = env.databaseUrl;
 if (dbUrl) {
-  console.log('Database URL configured:', dbUrl.substring(0, 30) + '...');
+  // Extract just the protocol and host part for logging
+  const match = dbUrl.match(/^mongodb:\/\/([^:@]+(@[^/]+)?)(:[^@]+)?/);
+  if (match) {
+    const hostPart = match[0];
+    console.log('Database URL configured:', hostPart + '...');
+  } else {
+    console.log('Database URL configured:', dbUrl.substring(0, 30) + '...');
+  }
   
-  // Проверяем, используется ли Railway MongoDB (Reference Variable)
-  if (dbUrl.includes('${{') || dbUrl.includes('mongodb://mongo')) {
-    console.log('✅ Railway MongoDB detected');
-    // Note: Mongoose doesn't require replica set, so we don't warn about it
-  } else if (dbUrl.includes('mongodb+srv://') && dbUrl.includes('mongodb.net')) {
-    console.log('✅ MongoDB Atlas detected');
+  // Log if database name is present
+  const hasDbName = dbUrl.match(/\/[^/?]+(\?|$)/);
+  if (!hasDbName) {
+    console.warn('⚠️  Database name not found in connection string, will be added automatically');
   }
 } else {
-  console.error('❌ DATABASE_URL or MONGO_URL not found in environment variables');
-  console.error('💡 To use Railway MongoDB, set DATABASE_URL=${{MongoDB.MONGO_URL}}');
+  console.error('DATABASE_URL not found in environment variables');
 }
 
-// Fix MongoDB connection string for Railway and Atlas compatibility
-let fixedDbUrl: string | undefined = undefined;
-if (dbUrl) {
-  try {
-    // Используем URL парсер для правильной обработки строки подключения
-    let url = dbUrl.trim();
-    
-    // Исправляем регистр для retryWrites
-    url = url.replace('retrywrites=true', 'retryWrites=true');
-    
-    // Для mongodb:// (не mongodb+srv://) проверяем и исправляем формат
-    if (url.startsWith('mongodb://') && !url.includes('mongodb+srv://')) {
-      try {
-        // Парсим URL для проверки формата
-        // Если пароль содержит специальные символы, они должны быть URL-кодированы
-        const urlObj = new URL(url);
-        
-        // Если есть username и password, убеждаемся, что они правильно закодированы
-        if (urlObj.username && urlObj.password) {
-          // Декодируем и перекодируем для правильного экранирования
-          const username = decodeURIComponent(urlObj.username);
-          const password = decodeURIComponent(urlObj.password);
-          
-          // Перекодируем специальные символы
-          const encodedUsername = encodeURIComponent(username);
-          const encodedPassword = encodeURIComponent(password);
-          
-          // Если были изменения, пересобираем URL
-          if (username !== encodedUsername || password !== encodedPassword) {
-            urlObj.username = encodedUsername;
-            urlObj.password = encodedPassword;
-            url = urlObj.toString();
-            console.log('URL-encoded username/password in connection string');
-          }
-        }
-        
-        // Если нет pathname (имени базы данных), добавляем по умолчанию
-        if (!urlObj.pathname || urlObj.pathname === '/') {
-          const defaultDb = process.env.MONGODB_DB_NAME || 'plazma_bot';
-          urlObj.pathname = `/${defaultDb}`;
-          url = urlObj.toString();
-          console.log(`Added default database name: ${defaultDb}`);
-        }
-        
-        // Для Railway MongoDB добавляем authSource=admin если его нет
-        if (!urlObj.searchParams.has('authSource')) {
-          urlObj.searchParams.set('authSource', 'admin');
-          url = urlObj.toString();
-          console.log('✅ Added authSource=admin for Railway MongoDB');
-        }
-        
-        // Note: Mongoose doesn't require replica set, so we don't warn about it
-        
-      } catch (urlError) {
-        // Если URL парсер не смог распарсить (возможно, из-за специальных символов в пароле),
-        // пробуем простую проверку и добавление имени БД
-        if (!url.includes('/') || url.match(/^mongodb:\/\/[^/]+$/)) {
-          const defaultDb = process.env.MONGODB_DB_NAME || 'plazma_bot';
-          // Добавляем имя БД перед query параметрами или в конец
-          if (url.includes('?')) {
-            url = url.replace('?', `/${defaultDb}?`);
-          } else {
-            url = `${url}/${defaultDb}`;
-          }
-          console.log(`Added default database name (fallback): ${defaultDb}`);
-        }
-      }
+// Normalize MongoDB connection string for Railway
+// Be very careful not to break credentials or special characters in password
+function normalizeMongoUrl(url: string): string {
+  let normalized = url.trim();
+  
+  // First, fix retrywrites -> retryWrites (case insensitive) in query params only
+  if (normalized.includes('?')) {
+    const [base, query] = normalized.split('?', 2);
+    const fixedQuery = query.replace(/retrywrites=true/gi, 'retryWrites=true');
+    normalized = base + '?' + fixedQuery;
+  } else {
+    normalized = normalized.replace(/retrywrites=true/gi, 'retryWrites=true');
+  }
+  
+  // Check if database name is already present
+  // Look for pattern: /dbname or /dbname?options
+  // Be careful - don't match / in credentials part (username:password)
+  
+  // Split by query params first
+  const queryIndex = normalized.indexOf('?');
+  const urlPart = queryIndex !== -1 ? normalized.substring(0, queryIndex) : normalized;
+  const queryPart = queryIndex !== -1 ? '?' + normalized.substring(queryIndex + 1) : '';
+  
+  // Check if there's a database name after the host:port part
+  // Format: mongodb://[user:pass@]host[:port]/dbname
+  // Find the last / that comes after @ or : (which indicates it's after host:port)
+  
+  // Find position after credentials (after @ if exists)
+  const atIndex = urlPart.indexOf('@');
+  const hostStart = atIndex !== -1 ? atIndex + 1 : (urlPart.indexOf('://') + 3);
+  
+  // Look for / after host part
+  const hostPart = urlPart.substring(hostStart);
+  const slashAfterHost = hostPart.indexOf('/');
+  
+  if (slashAfterHost === -1) {
+    // No slash after host - need to add /vital
+    normalized = urlPart + '/vital' + queryPart;
+  } else {
+    // Has slash - check if database name is empty
+    const afterSlash = hostPart.substring(slashAfterHost + 1);
+    if (!afterSlash || afterSlash.trim() === '') {
+      // Empty database name - add vital
+      normalized = urlPart + 'vital' + queryPart;
     }
-    
-    fixedDbUrl = url;
-  } catch (error) {
-    console.error('Error processing database URL:', error);
-    // Используем исходную строку, если обработка не удалась
-    fixedDbUrl = dbUrl;
+    // Otherwise database name exists, keep as is
+  }
+  
+  return normalized;
+}
+
+let fixedDbUrl = dbUrl ? normalizeMongoUrl(dbUrl) : undefined;
+
+// Log normalized URL (without credentials)
+if (fixedDbUrl && fixedDbUrl !== dbUrl) {
+  const normalizedMatch = fixedDbUrl.match(/^mongodb:\/\/([^:@]+(@[^/]+)?)(:[^@]+)?/);
+  if (normalizedMatch) {
+    console.log('✅ Database URL normalized:', normalizedMatch[0] + '...');
   }
 }
 
-// Кастомный логгер для фильтрации ошибок аутентификации
-const customLogger = {
-  log: (level: string, message: string) => {
-    // Фильтруем ошибки аутентификации из логов
-    if (level === 'error' || level === 'warn') {
-      const lowerMessage = message.toLowerCase();
-      if (lowerMessage.includes('authentication failed') ||
-          lowerMessage.includes('scram failure') ||
-          lowerMessage.includes('authenticationfailed')) {
-        // Не логируем ошибки аутентификации, так как они уже обрабатываются
-        return;
-      }
+// Optimize connection string for better performance and MongoDB Atlas compatibility
+function optimizeConnectionString(url: string): string {
+  let optimized = url;
+  
+  // MongoDB Atlas requires SSL/TLS by default
+  // Add SSL parameters if not present (for mongodb+srv, SSL is automatic)
+  // But we can add explicit TLS parameters for better compatibility
+  
+  // Add connection pooling options if not present
+  if (!optimized.includes('maxPoolSize')) {
+    const separator = optimized.includes('?') ? '&' : '?';
+    optimized = `${optimized}${separator}maxPoolSize=10&minPoolSize=2`;
+  }
+  
+  // Add connection timeout options (increase for Railway network)
+  if (!optimized.includes('connectTimeoutMS')) {
+    optimized = `${optimized}&connectTimeoutMS=30000`;
+  }
+  
+  if (!optimized.includes('socketTimeoutMS')) {
+    optimized = `${optimized}&socketTimeoutMS=30000`;
+  }
+  
+  // Enable keepalive for persistent connections
+  if (!optimized.includes('serverSelectionTimeoutMS')) {
+    optimized = `${optimized}&serverSelectionTimeoutMS=30000`;
+  }
+  
+  // Add heartbeat frequency (keep connections alive)
+  if (!optimized.includes('heartbeatFrequencyMS')) {
+    optimized = `${optimized}&heartbeatFrequencyMS=10000`;
+  }
+  
+  // Add authSource if not present (important for MongoDB Atlas)
+  // MongoDB Atlas often needs authSource=admin for authentication
+  if (!optimized.includes('authSource')) {
+    optimized = `${optimized}&authSource=admin`;
+  }
+  
+  // MongoDB Atlas requires TLS/SSL - ensure it's enabled
+  // For mongodb+srv, TLS is automatic, but we can add explicit parameters
+  if (optimized.startsWith('mongodb+srv://')) {
+    // mongodb+srv automatically uses TLS, but add explicit tls parameter
+    if (!optimized.includes('tls=')) {
+      optimized = `${optimized}&tls=true`;
     }
-    // Логируем остальные сообщения
-    if (level === 'query') {
-      // Логируем только важные запросы, не все
-      return;
-    }
-    console.log(`[Prisma ${level}]`, message);
-  },
-  error: (message: string) => {
-    const lowerMessage = message.toLowerCase();
-    if (lowerMessage.includes('authentication failed') ||
-        lowerMessage.includes('scram failure') ||
-        lowerMessage.includes('authenticationfailed')) {
-      // Не логируем ошибки аутентификации
-      return;
-    }
-    console.error('[Prisma error]', message);
-  },
-  warn: (message: string) => {
-    const lowerMessage = message.toLowerCase();
-    if (lowerMessage.includes('authentication failed') ||
-        lowerMessage.includes('scram failure') ||
-        lowerMessage.includes('authenticationfailed')) {
-      // Не логируем ошибки аутентификации
-      return;
-    }
-    console.warn('[Prisma warn]', message);
-  },
-  info: (message: string) => {
-    console.log('[Prisma info]', message);
-  },
-  debug: (message: string) => {
-    // Не логируем debug сообщения
-  },
-};
+  }
+  
+  // Add retryWrites if not present (default for replica sets)
+  if (!optimized.includes('retryWrites')) {
+    optimized = `${optimized}&retryWrites=true`;
+  }
+  
+  // Add w=majority if not present (default write concern for replica sets)
+  if (!optimized.includes('w=')) {
+    optimized = `${optimized}&w=majority`;
+  }
+  
+  return optimized;
+}
+
+const optimizedDbUrl = fixedDbUrl ? optimizeConnectionString(fixedDbUrl) : undefined;
 
 export const prisma = new PrismaClient({
-  datasources: fixedDbUrl ? {
+  datasources: optimizedDbUrl ? {
     db: {
-      url: fixedDbUrl
+      url: optimizedDbUrl
     }
   } : undefined,
-  log: [
-    { level: 'info', emit: 'event' },
-    { level: 'warn', emit: 'event' },
-    { level: 'error', emit: 'event' },
-  ],
+  // Only log warnings and errors, suppress query and info logs
+  log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['warn'],
 });
 
-// Обработка событий логирования Prisma
-prisma.$on('info' as any, (e: any) => {
-  customLogger.info(e.message);
-});
-
-prisma.$on('warn' as any, (e: any) => {
-  customLogger.warn(e.message);
-});
-
-prisma.$on('error' as any, (e: any) => {
-  customLogger.error(e.message);
+// Ensure connection is ready before first query
+prisma.$connect().catch(() => {
+  // Silent fail - connection will be established on first query
 });
