@@ -188,9 +188,14 @@ async function fetchPdfToTmp(pdfUrl: string): Promise<string> {
 // for each page: collect SKUs found on that page (in order) and images painted on that page (in order),
 // then pair sku[i] -> image[i] (up to min length). This matches the Siam catalog layout.
 async function extractImagesBySkuFromPdf(pdfPath: string): Promise<Map<string, Buffer>> {
-  // Lazy import because pdfjs-dist is heavy
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  // Optional: pdfjs-dist not in package.json; image extraction skipped if missing
+  let pdfjs: typeof import('pdfjs-dist/legacy/build/pdf.mjs') | null = null;
+  try {
+    pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  } catch {
+    return new Map();
+  }
+  if (!pdfjs) return new Map();
 
   const data = new Uint8Array(fs.readFileSync(pdfPath));
   const doc = await pdfjs.getDocument({ data }).promise;
@@ -199,7 +204,12 @@ async function extractImagesBySkuFromPdf(pdfPath: string): Promise<Map<string, B
   const result = new Map<string, Buffer>();
 
   for (let p = 1; p <= doc.numPages; p++) {
-    const page = await doc.getPage(p);
+    const page = (await doc.getPage(p)) as {
+      getTextContent(): Promise<{ items: Array<{ str?: string }> }>;
+      getOperatorList(): Promise<{ fnArray: number[]; argsArray: unknown[][] }>;
+      commonObjs: { get(name: string): unknown };
+      objs: { get(name: string): unknown };
+    };
     const textContent = await page.getTextContent();
     const pageText = textContent.items.map((it: any) => (it.str || '')).join(' ');
     const pageSkus = Array.from(new Set(pageText.match(skuRe) || []));
@@ -225,9 +235,9 @@ async function extractImagesBySkuFromPdf(pdfPath: string): Promise<Map<string, B
     // Pair in order (best-effort)
     const pairs = Math.min(pageSkus.length, imgNames.length);
     for (let i = 0; i < pairs; i++) {
-      const sku = pageSkus[i];
+      const sku = pageSkus[i] as string;
       if (result.has(sku)) continue;
-      const imgName = imgNames[i];
+      const imgName = imgNames[i] as string;
 
       // image data may be in commonObjs or objs
       let img: any = null;

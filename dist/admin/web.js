@@ -12233,8 +12233,8 @@ router.get('/test-referral-links', requireAdmin, async (req, res) => {
         if (!profile) {
             return res.send('❌ No partner profiles found for testing');
         }
-        const directLink = buildReferralLink(profile.referralCode, 'DIRECT');
-        const multiLink = buildReferralLink(profile.referralCode, 'MULTI_LEVEL');
+        const directLink = buildReferralLink(profile.referralCode, 'DIRECT').main;
+        const multiLink = buildReferralLink(profile.referralCode, 'MULTI_LEVEL').main;
         const html = `
       <!DOCTYPE html>
       <html>

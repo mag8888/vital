@@ -32,7 +32,7 @@
     "src/services/user-history.ts",
     "src/admin/**/*",
     "src/webapp/**/*",
-    "src/types/express.d.ts"
+    "src/types/express.d.ts","src/types/pdfjs-dist.d.ts"
   ],
   "exclude": [
     "src/controllers/**/*",

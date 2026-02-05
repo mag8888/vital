@@ -176,15 +176,22 @@ async function fetchPdfToTmp(pdfUrl) {
 // for each page: collect SKUs found on that page (in order) and images painted on that page (in order),
 // then pair sku[i] -> image[i] (up to min length). This matches the Siam catalog layout.
 async function extractImagesBySkuFromPdf(pdfPath) {
-    // Lazy import because pdfjs-dist is heavy
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    // Optional: pdfjs-dist not in package.json; image extraction skipped if missing
+    let pdfjs = null;
+    try {
+        pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    }
+    catch {
+        return new Map();
+    }
+    if (!pdfjs)
+        return new Map();
     const data = new Uint8Array(fs.readFileSync(pdfPath));
     const doc = await pdfjs.getDocument({ data }).promise;
     const skuRe = /\b[A-Z]{1,3}\d{4}-\d{2,4}\b/g;
     const result = new Map();
     for (let p = 1; p <= doc.numPages; p++) {
-        const page = await doc.getPage(p);
+        const page = (await doc.getPage(p));
         const textContent = await page.getTextContent();
         const pageText = textContent.items.map((it) => (it.str || '')).join(' ');
         const pageSkus = Array.from(new Set(pageText.match(skuRe) || []));

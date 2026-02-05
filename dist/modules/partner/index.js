@@ -159,7 +159,7 @@ async function showDashboard(ctx) {
         partners: stats.partners,
         direct: stats.directPartners,
         bonus: Number(profile.bonus).toFixed(2),
-        referral: buildReferralLink(profile.referralCode, profile.programType, user.username || undefined),
+        referral: buildReferralLink(profile.referralCode, profile.programType, user.username || undefined).main,
         transactions,
         isActive: profile.isActive,
         expiresAt: profile.expiresAt,

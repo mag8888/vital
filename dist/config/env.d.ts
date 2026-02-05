@@ -12,6 +12,8 @@ export declare const env: {
     webappUrl: string;
     webappBaseUrl: string;
     videoUrl: string;
+    plazmaApiKey: string;
+    plazmaApiUrl: string;
 };
 export declare function getAdminChatIds(): string[];
 export declare function sendToAllAdmins(bot: any, message: string): Promise<void>;

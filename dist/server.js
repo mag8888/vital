@@ -192,7 +192,7 @@ async function bootstrap() {
             const baseUrl = env.webappUrl || env.publicBaseUrl || 'https://vital-production-82b0.up.railway.app';
             const webappUrl = baseUrl.includes('/webapp') ? baseUrl : `${baseUrl.replace(/\/$/, '')}/webapp`;
             await bot.telegram.setChatMenuButton({
-                menu_button: {
+                menuButton: {
                     type: 'web_app',
                     text: 'Каталог',
                     web_app: { url: webappUrl }
