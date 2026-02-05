@@ -24,6 +24,15 @@ export async function createAudioFile(data: AudioFileData) {
   });
 }
 
+export async function findAudioByFileId(fileId: string, category?: string) {
+  return await prisma.audioFile.findFirst({
+    where: {
+      fileId,
+      ...(category ? { category } : {}),
+    },
+  });
+}
+
 export async function getActiveAudioFiles(category?: string) {
   const where: any = { isActive: true };
   if (category) {

@@ -2,7 +2,7 @@ import { Markup, Telegraf } from 'telegraf';
 import { Context } from '../../bot/context.js';
 import { BotModule } from '../../bot/types.js';
 import { ensureUser, logUserAction } from '../../services/user-history.js';
-import { createAudioFile, getActiveAudioFiles, getAllAudioFiles, formatDuration, getAudioFileById } from '../../services/audio-service.js';
+import { createAudioFile, findAudioByFileId, getActiveAudioFiles, getAllAudioFiles, formatDuration, getAudioFileById } from '../../services/audio-service.js';
 import { getAdminChatIds } from '../../config/env.js';
 import { env } from '../../config/env.js';
 import { isCloudinaryConfigured, listCloudinaryResources } from '../../services/cloudinary-service.js';
@@ -169,7 +169,17 @@ async function handleAudioUpload(ctx: Context) {
   }
 
   try {
-    // Create audio file record
+    // Идемпотентность: если такой file_id уже есть в категории gift — не создаём дубликат
+    const existing = await findAudioByFileId(audio.file_id, 'gift');
+    if (existing) {
+      await ctx.reply(
+        `✅ Этот аудиофайл уже в каталоге.\n\n` +
+        `📝 ${existing.title}\n` +
+        `Раздел «Звуковые матрицы Гаряева».`
+      );
+      return;
+    }
+
     const audioFileData = {
       title: audio.title || 'Безымянный файл',
       description: audio.performer ? `Исполнитель: ${audio.performer}` : undefined,
@@ -177,29 +187,34 @@ async function handleAudioUpload(ctx: Context) {
       duration: audio.duration,
       fileSize: audio.file_size,
       mimeType: audio.mime_type,
-      category: 'gift', // Default category for gift audio files
+      category: 'gift',
     };
 
     const createdFile = await createAudioFile(audioFileData);
-    
-    await logUserAction(ctx, 'audio:upload', { 
+
+    await logUserAction(ctx, 'audio:upload', {
       audioFileId: createdFile.id,
       title: createdFile.title,
-      duration: createdFile.duration 
+      duration: createdFile.duration,
     });
 
     await ctx.reply(
       `✅ Аудиофайл успешно загружен!\n\n` +
-      `📝 Название: ${createdFile.title}\n` +
-      `⏱️ Длительность: ${createdFile.duration ? formatDuration(createdFile.duration) : 'Неизвестно'}\n` +
-      `📁 Размер: ${createdFile.fileSize ? Math.round(createdFile.fileSize / 1024) + ' KB' : 'Неизвестно'}\n` +
-      `🏷️ Категория: ${createdFile.category || 'Не указана'}\n\n` +
-      `Файл добавлен в раздел "Звуковые матрицы Гаряева".`
+        `📝 Название: ${createdFile.title}\n` +
+        `⏱️ Длительность: ${createdFile.duration ? formatDuration(createdFile.duration) : 'Неизвестно'}\n` +
+        `📁 Размер: ${createdFile.fileSize ? Math.round(createdFile.fileSize / 1024) + ' KB' : 'Неизвестно'}\n` +
+        `🏷️ Категория: ${createdFile.category || 'Не указана'}\n\n` +
+        `Файл добавлен в раздел "Звуковые матрицы Гаряева".`
     );
-
-  } catch (error) {
-    console.error('Error uploading audio file:', error);
-    await ctx.reply('❌ Ошибка при загрузке аудиофайла. Попробуйте позже.');
+  } catch (error: any) {
+    console.error('Error uploading audio file:', {
+      message: error?.message,
+      code: error?.code,
+      name: error?.name,
+    });
+    await ctx.reply(
+      '❌ Ошибка при загрузке аудиофайла. Попробуйте позже. Если повторяется — проверьте логи сервера (DATABASE_URL, подключение к БД).'
+    );
   }
 }
 
@@ -392,7 +407,12 @@ export const audioModule: BotModule = {
       if (!voice) return;
 
       try {
-        // Create audio file record for voice message
+        const existing = await findAudioByFileId(voice.file_id, 'voice');
+        if (existing) {
+          await ctx.reply('✅ Это голосовое сообщение уже сохранено в каталоге.');
+          return;
+        }
+
         const audioFileData = {
           title: `Голосовое сообщение от ${ctx.from?.first_name || 'Администратор'}`,
           description: 'Голосовое сообщение',
@@ -404,21 +424,20 @@ export const audioModule: BotModule = {
         };
 
         const createdFile = await createAudioFile(audioFileData);
-        
-        await logUserAction(ctx, 'audio:upload_voice', { 
+
+        await logUserAction(ctx, 'audio:upload_voice', {
           audioFileId: createdFile.id,
-          duration: createdFile.duration 
+          duration: createdFile.duration,
         });
 
         await ctx.reply(
-          `✅ Голосовое сообщение сохранено как аудиофайл!\n\n` +
-          `📝 Название: ${createdFile.title}\n` +
-          `⏱️ Длительность: ${formatDuration(createdFile.duration || 0)}\n` +
-          `🏷️ Категория: ${createdFile.category}`
+          `✅ Голосовое сообщение сохранено!\n\n` +
+            `📝 ${createdFile.title}\n` +
+            `⏱️ ${formatDuration(createdFile.duration || 0)}\n` +
+            `🏷️ Категория: ${createdFile.category}`
         );
-
-      } catch (error) {
-        console.error('Error uploading voice message:', error);
+      } catch (error: any) {
+        console.error('Error uploading voice:', { message: error?.message, code: error?.code });
         await ctx.reply('❌ Ошибка при сохранении голосового сообщения. Попробуйте позже.');
       }
     });
