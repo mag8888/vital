@@ -1,6 +1,10 @@
 import { Markup } from 'telegraf';
 import { logUserAction } from '../../services/user-history.js';
 import { prisma } from '../../lib/prisma.js';
+import { getAdminChatIds } from '../../config/env.js';
+import { uploadImage, isCloudinaryConfigured } from '../../services/cloudinary-service.js';
+import { env } from '../../config/env.js';
+import https from 'https';
 const ADMIN_ACTION = 'admin:main';
 const CATEGORIES_ACTION = 'admin:categories';
 const PRODUCTS_ACTION = 'admin:products';
@@ -170,12 +174,59 @@ async function showOrders(ctx) {
         await ctx.answerCbQuery('Ошибка загрузки заказов');
     }
 }
+function isAdmin(ctx) {
+    const id = ctx.from?.id?.toString();
+    if (!id)
+        return false;
+    const adminIds = getAdminChatIds();
+    return adminIds.length > 0 ? adminIds.includes(id) : id === process.env.ADMIN_CHAT_ID;
+}
+/** Скачать файл по file_path с Telegram и вернуть Buffer */
+async function downloadTelegramFile(filePath) {
+    const token = env.botToken;
+    const url = `https://api.telegram.org/file/bot${token}/${filePath}`;
+    return new Promise((resolve, reject) => {
+        const chunks = [];
+        https.get(url, (res) => {
+            if (res.statusCode !== 200) {
+                reject(new Error(`HTTP ${res.statusCode}`));
+                return;
+            }
+            res.on('data', (chunk) => chunks.push(chunk));
+            res.on('end', () => resolve(Buffer.concat(chunks)));
+            res.on('error', reject);
+        }).on('error', reject);
+    });
+}
 export const adminModule = {
     async register(bot) {
-        // Проверяем, что пользователь админ
-        const isAdmin = (ctx) => {
-            return ctx.from?.id.toString() === process.env.ADMIN_CHAT_ID;
-        };
+        // Загрузка фото админом через бота: фото → Cloudinary → ссылка
+        bot.on('photo', async (ctx, next) => {
+            if (!isAdmin(ctx))
+                return next();
+            const photo = ctx.message.photo;
+            if (!photo?.length)
+                return next();
+            const largest = photo[photo.length - 1];
+            try {
+                if (!isCloudinaryConfigured()) {
+                    await ctx.reply('❌ Cloudinary не настроен (CLOUDINARY_*). Загрузка недоступна.');
+                    return;
+                }
+                const file = await ctx.telegram.getFile(largest.file_id);
+                const buffer = await downloadTelegramFile(file.file_path);
+                const result = await uploadImage(buffer, {
+                    folder: 'plazma/products',
+                    resourceType: 'image',
+                });
+                await logUserAction(ctx, 'admin:photo_upload', { publicId: result.publicId });
+                await ctx.reply(`✅ Фото загружено в Cloudinary.\n\n🔗 URL:\n${result.secureUrl}\n\nСкопируйте ссылку и вставьте в админ-панель для товара или отзыва.`, { parse_mode: 'HTML' });
+            }
+            catch (err) {
+                console.error('Admin photo upload error:', err);
+                await ctx.reply(`❌ Ошибка загрузки: ${err?.message || 'неизвестно'}`);
+            }
+        });
         bot.hears(['админ', 'admin'], async (ctx) => {
             if (!isAdmin(ctx)) {
                 await ctx.reply('У вас нет прав доступа к админ панели');

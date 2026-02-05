@@ -165,26 +165,28 @@ async function handleSupportMessage(ctx: Context) {
   }
 }
 
+/** Текст подарка и кнопки: Слушать звуковые матрицы + ГИД (как в Plazma Water Bot) */
 async function showGiftMessage(ctx: Context) {
   const giftMessage = `🔥 Для Вас уникальный материал.
 
 Аудиофайлы записанные методом Гаряева были списаны с реакторов конкретной плазмы.
 
-Слушая файлы вы можете получить весь спектр воздействия. 👇🏼`;
+Слушая файлы вы можете получить весь спектр воздействия. 👇`;
 
   await ctx.reply(giftMessage, {
     reply_markup: {
       inline_keyboard: [
-        [
-          {
-            text: '📖 ГИД по плазменному здоровью',
-            url: 'https://t.me/plazma_bot',
-          },
-        ],
+        [{ text: '🎶 Слушать звуковые матрицы', callback_data: 'nav:gift_audio' }],
+        [{ text: '📖 ГИД по плазменному здоровью', url: 'https://t.me/plazma_bot' }],
       ],
     },
   });
 }
+
+/** Описание перед списком аудио (звуковые матрицы Гаряева) */
+const GIFT_AUDIO_INTRO = `🎶 Звуковые матрицы с реакторов плазмы по методу Гаряева. Слушаем и исцеляемся.
+
+Перед прослушиванием задать намерение на исцеление, можно точечно. Это чистые звуковые матрицы без обработки и наложения фоновой музыки. Можно слушать как в наушниках, так и фоном.`;
 
 const navigationItems: NavigationItem[] = [
   {
@@ -850,6 +852,18 @@ export const navigationModule: BotModule = {
       await showReviews(ctx);
     });
 
+    bot.hears(['🎶 Звуковые матрицы Гаряева', 'Звуковые матрицы'], async (ctx) => {
+      await logUserAction(ctx, 'menu:gift_audio');
+      await ctx.reply(GIFT_AUDIO_INTRO);
+      try {
+        const { showAudioFiles } = await import('../audio/index.js');
+        await showAudioFiles(ctx, 'gift');
+      } catch (e) {
+        console.warn('hears gift_audio failed:', (e as Error)?.message);
+        await ctx.reply('🎵 Аудиофайлы загружаются. Попробуйте позже или напишите в поддержку.');
+      }
+    });
+
     bot.hears('ℹ️ О нас', async (ctx) => {
       await logUserAction(ctx, 'menu:about');
       const { showAbout } = await import('../about/index.js');
@@ -870,6 +884,19 @@ export const navigationModule: BotModule = {
       await showGiftMessage(ctx);
     });
 
+    bot.action('nav:gift_audio', async (ctx) => {
+      await ctx.answerCbQuery();
+      await logUserAction(ctx, 'cta:gift_audio');
+      await ctx.reply(GIFT_AUDIO_INTRO);
+      try {
+        const { showAudioFiles } = await import('../audio/index.js');
+        await showAudioFiles(ctx, 'gift');
+      } catch (e) {
+        console.warn('nav:gift_audio failed:', (e as Error)?.message);
+        await ctx.reply('🎵 Аудиофайлы загружаются. Попробуйте позже или напишите в поддержку.');
+      }
+    });
+
     bot.action('nav:my_ref_link', async (ctx) => {
       await ctx.answerCbQuery();
       await logUserAction(ctx, 'cta:my_ref_link');
@@ -879,8 +906,12 @@ export const navigationModule: BotModule = {
         return;
       }
       const profile = await getOrCreatePartnerProfile(user.id, 'DIRECT');
-      const link = buildReferralLink(profile.referralCode, profile.programType || 'DIRECT', user.username || undefined).main;
-      await ctx.reply(`🔗 <b>Ваша реферальная ссылка:</b>\n\n${link}\n\nПоделитесь ссылкой с друзьями — вы получите бонусы с их покупок.`, { parse_mode: 'HTML' });
+      const { main: link } = buildReferralLink(profile.referralCode, profile.programType || 'DIRECT', user.username || undefined);
+      const escapedLink = link.replace(/&/g, '&amp;');
+      await ctx.reply(
+        `🔗 <b>Ваша реферальная ссылка:</b>\n\n<a href="${escapedLink}">${escapedLink}</a>\n\nПоделитесь ссылкой с друзьями — вы получите бонусы с их покупок.`,
+        { parse_mode: 'HTML' }
+      );
     });
 
 
