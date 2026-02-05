@@ -2,6 +2,7 @@ import { PartnerProgramType } from '../models/PartnerProfile.js';
 import { TransactionType } from '../models/PartnerTransaction.js';
 import { PartnerProfile, PartnerReferral, PartnerTransaction, User, UserHistory } from '../models/index.js';
 import { randomBytes } from 'crypto';
+import { env } from '../config/env.js';
 import mongoose from 'mongoose';
 function generateReferralCode() {
     return `PW${randomBytes(3).toString('hex').toUpperCase()}`;
@@ -110,10 +111,13 @@ export async function checkAndDeactivateExpiredProfiles(userId) {
     }
     return true;
 }
-export function buildReferralLink(code, programType) {
-    // Create Telegram bot link with referral parameter based on program type
+export function buildReferralLink(code, programType, username) {
+    const botUsername = env.botUsername.replace(/^@/, '');
     const prefix = programType === 'DIRECT' ? 'ref_direct' : 'ref_multi';
-    return `https://t.me/iplazmabot?start=${prefix}_${code}`;
+    const oldLink = `https://t.me/${botUsername}?start=${prefix}_${code}`;
+    const newLink = username ? `https://t.me/${botUsername}?start=${username}` : oldLink;
+    const webappLink = username ? `${env.webappBaseUrl?.replace(/\/$/, '')}/${username}` : `${env.webappBaseUrl}?ref=${code}`;
+    return { old: oldLink, new: newLink, webapp: webappLink, main: newLink };
 }
 export async function getPartnerDashboard(userId) {
     const profile = await PartnerProfile.findOne({ userId: new mongoose.Types.ObjectId(userId) })

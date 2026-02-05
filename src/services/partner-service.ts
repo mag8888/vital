@@ -133,10 +133,13 @@ export async function checkAndDeactivateExpiredProfiles(userId: string): Promise
   return true;
 }
 
-export function buildReferralLink(code: string, programType: 'DIRECT' | 'MULTI_LEVEL') {
-  // Create Telegram bot link with referral parameter based on program type
+export function buildReferralLink(code: string, programType: 'DIRECT' | 'MULTI_LEVEL', username?: string) {
+  const botUsername = env.botUsername.replace(/^@/, '');
   const prefix = programType === 'DIRECT' ? 'ref_direct' : 'ref_multi';
-  return `https://t.me/iplazmabot?start=${prefix}_${code}`;
+  const oldLink = `https://t.me/${botUsername}?start=${prefix}_${code}`;
+  const newLink = username ? `https://t.me/${botUsername}?start=${username}` : oldLink;
+  const webappLink = username ? `${env.webappBaseUrl?.replace(/\/$/, '')}/${username}` : `${env.webappBaseUrl}?ref=${code}`;
+  return { old: oldLink, new: newLink, webapp: webappLink, main: newLink };
 }
 
 export async function getPartnerDashboard(userId: string): Promise<any> {

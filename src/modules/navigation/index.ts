@@ -2,7 +2,7 @@ import { Telegraf, Markup, Input } from 'telegraf';
 import { Context } from '../../bot/context.js';
 import { BotModule } from '../../bot/types.js';
 import { logUserAction, ensureUser, checkUserContact, handlePhoneNumber } from '../../services/user-history.js';
-import { upsertPartnerReferral, recordPartnerTransaction } from '../../services/partner-service.js';
+import { upsertPartnerReferral, recordPartnerTransaction, buildReferralLink } from '../../services/partner-service.js';
 import { PartnerProfile, User, PartnerTransaction } from '../../models/index.js';
 import { TransactionType } from '../../models/PartnerTransaction.js';
 import { PartnerProgramType } from '../../models/PartnerProfile.js';
@@ -329,7 +329,6 @@ async function sendWelcomeVideo(ctx: Context) {
 
 async function sendGiftButton(ctx: Context) {
   try {
-    // Отправляем кнопку "Подарок", которая открывает сообщение про матрицы Гаряева
     await ctx.reply(
       '🎁',
       Markup.inlineKeyboard([
@@ -337,23 +336,54 @@ async function sendGiftButton(ctx: Context) {
       ])
     );
   } catch (error) {
-    // Если бот заблокирован, просто выходим без ошибки
-    if (isBotBlockedError(error)) {
-      console.log('Bot was blocked by user, skipping gift button');
-      return;
-    }
-    // Для других ошибок логируем, но не падаем
+    if (isBotBlockedError(error)) return;
     console.error('Error sending gift button:', error);
+  }
+}
+
+function getWebappUrl(): string {
+  const base = env.webappBaseUrl || env.webappUrl || env.publicBaseUrl || 'https://plazma.up.railway.app';
+  return base.endsWith('/webapp') ? base : `${base.replace(/\/$/, '')}/webapp`;
+}
+
+/** Приветствие с реферальной ссылкой (если есть) и кнопкой «Перейти в мини-приложение» (как в Vital). */
+async function sendWelcomeWithRefAndMiniAppButton(ctx: Context) {
+  try {
+    const user = await ensureUser(ctx);
+    if (!user) return;
+    const userId = (user as any)._id?.toString?.() || (user as any).id;
+    if (!userId) return;
+    const profile = await PartnerProfile.findOne({ userId: user._id }).populate('userId').lean();
+    let refText = '';
+    if (profile?.referralCode) {
+      const username = (profile as any).userId?.username;
+      const link = buildReferralLink(profile.referralCode, profile.programType || 'DIRECT', username).main;
+      refText = `\n\n🔗 Ваша персональная реферальная ссылка:\n${link}`;
+    }
+    const webappUrl = getWebappUrl();
+    await ctx.reply(
+      `👇 Перейдите в мини-приложение — каталог, корзина и заказы${refText}`,
+      Markup.inlineKeyboard([
+        [Markup.button.webApp('📱 Перейти в мини-приложение', webappUrl)]
+      ])
+    );
+  } catch (error) {
+    if (isBotBlockedError(error)) return;
+    const webappUrl = getWebappUrl();
+    await ctx.reply(
+      '👇 Перейдите в мини-приложение',
+      Markup.inlineKeyboard([
+        [Markup.button.webApp('📱 Перейти в мини-приложение', webappUrl)]
+      ])
+    );
   }
 }
 
 async function sendClassicHome(ctx: Context) {
   try {
-    // Отправляем видео с текстом как единое сообщение
     await sendWelcomeVideo(ctx);
-    // Отправляем кнопку "Подарок"
     await sendGiftButton(ctx);
-    // Клавиатура отправляется отдельно после видео
+    await sendWelcomeWithRefAndMiniAppButton(ctx);
     await ctx.reply('👇 Выберите раздел:', mainKeyboard());
   } catch (error) {
     // Если бот заблокирован, просто выходим
@@ -371,19 +401,12 @@ async function sendAppHome(
 ) {
   try {
     const { introText, includeGreeting = true } = options;
-
-    // Сначала отправляем видео с текстом как единое сообщение
     await sendWelcomeVideo(ctx);
-    
-    // Отправляем кнопку "Подарок"
     await sendGiftButton(ctx);
-
+    await sendWelcomeWithRefAndMiniAppButton(ctx);
     if (introText) {
       await ctx.reply(introText, Markup.removeKeyboard());
-    } else if (includeGreeting) {
-      // Текст уже в подписи к видео, не дублируем
     }
-    
     await sendNavigationMenu(ctx);
   } catch (error) {
     // Если бот заблокирован, просто выходим
