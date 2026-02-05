@@ -75,26 +75,33 @@ function getWelcomePhotoUrl(): string {
   return `${base}/webapp/static/images/welcome-plazma.png`;
 }
 
+/** Кнопки приветствия (общие для фото и fallback-текста) */
+function getWelcomeReplyMarkup() {
+  const webappUrl = getWebappUrl();
+  return {
+    inline_keyboard: [
+      [{ text: '🎁 Подарок', callback_data: 'nav:gift' }],
+      [Markup.button.webApp('🛒 Открыть каталог', webappUrl)],
+      [{ text: '🔗 Ваша реф ссылка', callback_data: 'nav:my_ref_link' }],
+    ],
+  };
+}
+
 /** Приветствие с фото PLAZMA, подпись и кнопки: Подарок, Открыть каталог, Ваша реф ссылка */
 async function sendWelcomeWithPhoto(ctx: Context, options?: { referralInviterName?: string }) {
   const caption = options?.referralInviterName
     ? `🎉 Вас пригласил ${options.referralInviterName}\n\n${WELCOME_PHOTO_CAPTION}`
     : WELCOME_PHOTO_CAPTION;
-  const webappUrl = getWebappUrl();
-  await ctx.replyWithPhoto(
-    { url: getWelcomePhotoUrl() },
-    {
-      caption,
-      parse_mode: 'HTML',
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: '🎁 Подарок', callback_data: 'nav:gift' }],
-          [Markup.button.webApp('🛒 Открыть каталог', webappUrl)],
-          [{ text: '🔗 Ваша реф ссылка', callback_data: 'nav:my_ref_link' }],
-        ],
-      },
-    }
-  );
+  const replyMarkup = getWelcomeReplyMarkup();
+  try {
+    await ctx.replyWithPhoto(
+      { url: getWelcomePhotoUrl() },
+      { caption, parse_mode: 'HTML', reply_markup: replyMarkup }
+    );
+  } catch (err: any) {
+    console.warn('⚠️ Welcome photo failed, sending text fallback:', err?.message || err);
+    await ctx.reply(caption, { parse_mode: 'HTML', reply_markup: replyMarkup });
+  }
 }
 
 async function showSupport(ctx: Context) {
@@ -466,14 +473,8 @@ export const navigationModule: BotModule = {
 
     bot.start(async (ctx) => {
       await logUserAction(ctx, 'command:start');
-      
-      // Проверяем наличие username или phone
-      const canContinue = await checkUserContact(ctx);
-      if (!canContinue) {
-        return; // Пользователь должен предоставить номер телефона
-      }
-      
-      // Check if user came from referral link
+
+      // Сначала всегда отправляем приветствие (фото + кнопки), чтобы /start хоть что-то выводил
       const startPayload = ctx.startPayload;
       console.log('🔗 Referral: startPayload =', startPayload);
       
@@ -799,6 +800,8 @@ export const navigationModule: BotModule = {
     }
 
     await sendWelcomeWithPhoto(ctx);
+      // После приветствия — при необходимости запрашиваем телефон (не блокируя показ приветствия)
+      await checkUserContact(ctx);
     });
 
 
