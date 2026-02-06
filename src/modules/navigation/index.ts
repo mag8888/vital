@@ -165,7 +165,7 @@ async function handleSupportMessage(ctx: Context) {
   }
 }
 
-/** Текст подарка и кнопки: Слушать звуковые матрицы + ГИД (как в Plazma Water Bot) */
+/** Текст подарка и кнопки: Слушать звуковые матрицы + Каталог (как в Plazma Water Bot) */
 async function showGiftMessage(ctx: Context) {
   const giftMessage = `🔥 Для Вас уникальный материал.
 
@@ -178,7 +178,7 @@ async function showGiftMessage(ctx: Context) {
     reply_markup: {
       inline_keyboard: [
         [{ text: '🎶 Слушать звуковые матрицы', callback_data: 'nav:gift_audio' }],
-        [Markup.button.webApp('📖 ГИД по плазменному здоровью', webappUrl)],
+        [Markup.button.webApp('📁 Каталог по плазменному здоровью', webappUrl)],
       ],
     },
   });
