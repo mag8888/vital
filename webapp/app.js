@@ -1159,7 +1159,7 @@ function closeSection() {
         if (document && document.body && document.body.classList) {
             document.body.classList.remove('main-section-open');
         }
-    } catch (_) {}
+    } catch (_) { }
     setTimeout(() => {
         overlay.classList.add('hidden');
         currentSection = null;
@@ -1277,8 +1277,8 @@ async function loadSpecialistsContent() {
 
         html += `<div class="specialists-grid-wrap"><div class="specialists-grid">` + specialists.map(sp => {
             const photo = sp.photoUrl
-              ? `<img src="${escapeHtml(sp.photoUrl)}" alt="" class="specialist-photo-img">`
-              : '';
+                ? `<img src="${escapeHtml(sp.photoUrl)}" alt="" class="specialist-photo-img">`
+                : '';
             const spName = sp.specialtyRef?.name || sp.specialty || '';
             const catName = sp.category?.name || '';
             return `
@@ -1324,7 +1324,7 @@ async function loadSpecialistDetailContent() {
         try {
             const titleEl = document.getElementById('section-title');
             if (titleEl) titleEl.textContent = String(sp.name || 'Специалист');
-        } catch (_) {}
+        } catch (_) { }
 
         let services = [];
         if (Array.isArray(sp.services)) services = sp.services;
@@ -1344,11 +1344,11 @@ async function loadSpecialistDetailContent() {
             <div style="font-weight:800; color:var(--text-primary); margin-bottom: 10px;">Услуги</div>
             <div style="display:grid;">
               ${services.map((s, idx) => {
-                const desc = String(s.description || '').trim();
-                const format = String(s.format || '').trim();
-                const dur = fmtDuration(s.durationMin);
-                const detailsUrl = String(s.detailsUrl || '').trim();
-                return `
+            const desc = String(s.description || '').trim();
+            const format = String(s.format || '').trim();
+            const dur = fmtDuration(s.durationMin);
+            const detailsUrl = String(s.detailsUrl || '').trim();
+            return `
                   <div style="padding: 12px 0; ${idx ? 'border-top:1px solid rgba(17,24,39,0.10);' : ''}">
                     <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
                       <div style="font-weight:800; color:var(--text-primary); font-size:18px; line-height:1.25;">${escapeHtml(String(s.title || ''))}</div>
@@ -1364,7 +1364,7 @@ async function loadSpecialistDetailContent() {
                     ${detailsUrl ? `<div style="margin-top:14px;"><a href="#" onclick="openSpecialistServiceLink('${escapeHtml(detailsUrl)}'); return false;" style="font-weight:800; color:var(--text-primary); text-decoration:none;">Подробнее →</a></div>` : ''}
                   </div>
                 `;
-              }).join('')}
+        }).join('')}
             </div>
           </div>
         ` : '';
@@ -1635,7 +1635,7 @@ async function buyCertificateType(typeId, quantity) {
 }
 
 async function loadCertificatesContent() {
-    await ensureShopDataLoaded().catch(() => {});
+    await ensureShopDataLoaded().catch(() => { });
     await ensureCertificateTypesLoaded();
     const categories = Array.isArray(SHOP_CATEGORIES_CACHE) ? SHOP_CATEGORIES_CACHE : [];
     const types = Array.isArray(CERT_TYPES_CACHE) ? CERT_TYPES_CACHE : [];
@@ -1991,7 +1991,8 @@ async function showCosmeticsSubcategories(parentCategoryId) {
 function cleanProductTitle(title) {
     if (!title) return '';
     // Take part before " - " or " | " (removed " with " to keep full names)
-    let clean = title.split(/ - | \| /i)[0];
+    // FIXED: Show full title to distinguish variants
+    let clean = title; // title.split(/ - | \| /i)[0];
 
     // Remove trailing weight info like " 50g", " 50 G", " 50 г"
     clean = clean.replace(/\s+\d+\s*[gг]$/i, '');
@@ -2994,7 +2995,7 @@ async function sendSupportChatMessage() {
         console.error('❌ Error sending support message:', error);
         showError('Не удалось отправить сообщение. Попробуйте еще раз.');
         // Reload to avoid diverging optimistic state
-        await loadSupportChatMessages().catch(() => {});
+        await loadSupportChatMessages().catch(() => { });
     }
 }
 
