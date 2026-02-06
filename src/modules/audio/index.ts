@@ -397,6 +397,41 @@ export const audioModule: BotModule = {
     });
 
     // Handle audio file uploads
+    // DEBUG COMMAND
+    bot.command('debug_diag', async (ctx) => {
+      try {
+        const { prisma } = await import('../../lib/prisma.js');
+        const { env } = await import('../../config/env.js');
+
+        // Mask password
+        const dbUrl = env.databaseUrl ? env.databaseUrl.replace(/:([^:@]+)@/, ':***@') : 'Undefined';
+
+        // Counts
+        const productCount = await prisma.product.count();
+        const activeProductCount = await prisma.product.count({ where: { isActive: true } });
+        const audioCount = await prisma.audioFile.count();
+        const activeAudioCount = await prisma.audioFile.count({ where: { isActive: true } });
+        const giftAudioCount = await prisma.audioFile.count({ where: { isActive: true, category: 'gift' } });
+
+        // Sample Product
+        const sampleProduct = await prisma.product.findFirst({
+          where: { price: { lt: 100 } },
+          select: { title: true, price: true, categoryId: true, isActive: true }
+        });
+
+        await ctx.reply(
+          `🛠 <b>Diagnostics</b>\n` +
+          `DB: ${dbUrl}\n` +
+          `Products: ${activeProductCount} / ${productCount}\n` +
+          `Audio: ${activeAudioCount} / ${audioCount} (Gift: ${giftAudioCount})\n` +
+          `Sample < 100: ${sampleProduct ? `${sampleProduct.title} (${sampleProduct.price})` : 'None'}\n`,
+          { parse_mode: 'HTML' }
+        );
+      } catch (e: any) {
+        await ctx.reply(`Error: ${e.message}`);
+      }
+    });
+
     bot.on('audio', async (ctx) => {
       await handleAudioUpload(ctx);
     });
