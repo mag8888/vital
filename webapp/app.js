@@ -1736,12 +1736,30 @@ async function loadPlazmaProducts() {
         console.log('📍 API endpoint:', `${API_BASE}/plazma/products`);
 
         // Используем бэкенд endpoint для получения товаров из Plazma API
-        const response = await fetch(`${API_BASE}/plazma/products`);
+        let response;
+        try {
+            response = await fetch(`${API_BASE}/plazma/products`);
+        } catch (netEx) {
+            console.warn('⚠️ Network error loading Plazma products:', netEx);
+            plazmaSection.style.display = 'none';
+            return;
+        }
 
         console.log('📡 Response status:', response.status, response.statusText);
 
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('text/html')) {
+            console.warn('⚠️ Plazma API returned HTML instead of JSON. Likely 404 or auth error.');
+            plazmaSection.style.display = 'none';
+            return;
+        }
+
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            let errorData = { error: 'Unknown error' };
+            try {
+                errorData = await response.json();
+            } catch (e) { /* ignore json parse error on error response */ }
+
             console.warn('⚠️ Failed to load Plazma products:', {
                 status: response.status,
                 statusText: response.statusText,
