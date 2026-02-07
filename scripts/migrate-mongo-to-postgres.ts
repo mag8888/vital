@@ -15,20 +15,13 @@ async function migrate() {
     await client.connect();
     console.log('✅ Connected to MongoDB');
 
-    // DATABASE MAPPING BASED ON INSPECTION
-    // Users -> plazma_bot.User (1577 docs)
-    // Products -> plazma.products (22 docs)
-    // Categories -> plazma.categories (4 docs)
-
     const userDb = client.db('plazma_bot');
     const catalogDb = client.db('plazma');
 
-    // --- 1. MIGRATE CATEGORIES (from plazma.categories) ---
+    // --- 1. MIGRATE CATEGORIES ---
     console.log('\n--- Migrating Categories ---');
     let categories = await catalogDb.collection('categories').find({}).toArray();
-    // Fallback: search 'Category' if 'categories' is empty
     if (categories.length === 0) {
-        console.log('categories empty, checking Category...');
         categories = await catalogDb.collection('Category').find({}).toArray();
     }
 
@@ -72,14 +65,12 @@ async function migrate() {
         categoryMap.set(String(cat._id), created.id);
     }
 
-    // --- 2. MIGRATE PRODUCTS (from plazma.products) ---
+    // --- 2. MIGRATE PRODUCTS ---
     console.log('\n--- Migrating Products ---');
-    // Inspection showed 'products' collection in 'plazma' DB
     const products = await catalogDb.collection('products').find({}).toArray();
     console.log(`Found ${products.length} products in 'plazma.products'`);
 
     for (const p of products) {
-        // Map Mongo Category ID to Postgres Category UUID
         let categoryId = categoryMap.get(String(p.categoryId));
         if (!categoryId) {
             categoryId = fallbackCategory.id;
@@ -87,13 +78,11 @@ async function migrate() {
 
         const sku = p.sku || `legacy-${String(p._id)}`;
 
-        // Check if price needs correction (heuristic: if < 500, likely misplaced decimal for RUB)
         let finalPrice = Number(p.price || 0);
         if (finalPrice > 0 && finalPrice < 1000) {
             finalPrice = finalPrice * 100;
         }
 
-        // Use findFirst + update/create because 'sku' might not be unique in schema
         const existing = await prisma.product.findFirst({
             where: { sku: sku }
         });
@@ -118,7 +107,6 @@ async function migrate() {
                 where: { id: existing.id },
                 data: productData
             });
-            // console.log(`Updated product: ${productData.title}`);
         } else {
             await prisma.product.create({
                 data: productData
@@ -128,17 +116,31 @@ async function migrate() {
     }
 
 
-    // --- 3. MIGRATE USERS (from plazma_bot.User) ---
+    // --- 3. MIGRATE USERS (Merge from plazma_bot.User AND plazma.users) ---
     console.log('\n--- Migrating Users ---');
-    // Inspection showed 'User' collection in 'plazma_bot' (1577 docs)
-    const users = await userDb.collection('User').find({}).toArray();
-    console.log(`Found ${users.length} users in 'plazma_bot.User'`);
+
+    // 3a. Users from plazma_bot.User
+    const usersBot = await userDb.collection('User').find({}).toArray();
+    console.log(`Found ${usersBot.length} users in 'plazma_bot.User'`);
+
+    // 3b. Users from plazma.users
+    const usersPlazma = await catalogDb.collection('users').find({}).toArray();
+    console.log(`Found ${usersPlazma.length} users in 'plazma.users'`);
+
+    const allUsers = [...usersBot, ...usersPlazma];
+    console.log(`Total source user documents: ${allUsers.length}`);
 
     let userCount = 0;
-    for (const u of users) {
+    const processedIds = new Set<string>();
+
+    for (const u of allUsers) {
         if (!u.telegramId) continue;
 
         const telegramId = String(u.telegramId);
+
+        if (processedIds.has(telegramId)) continue; // Skip strictly duplicate processing in loop to save DB calls if redundant
+        // Actually, let DB handle upsert to be safe, but let's count unique IDs for report
+
         let region = 'RUSSIA';
         if (u.selectedRegion === 'BALI') region = 'BALI';
         if (u.selectedRegion === 'WORLD') region = 'WORLD';
@@ -155,7 +157,7 @@ async function migrate() {
                     deliveryAddress: u.deliveryAddress,
                     balance: Number(u.balance || 0),
                     selectedRegion: region as any,
-                    photoUrl: u.photoUrl || null // If supported in schema
+                    photoUrl: u.photoUrl || null
                 },
                 create: {
                     telegramId,
@@ -170,13 +172,16 @@ async function migrate() {
                     photoUrl: u.photoUrl || null
                 }
             });
+
+            processedIds.add(telegramId);
             userCount++;
+
             if (userCount % 100 === 0) process.stdout.write('.');
         } catch (e) {
             console.error(`Failed to migrate user ${telegramId}:`, e);
         }
     }
-    console.log(`\n✅ Migrated ${userCount} users.`);
+    console.log(`\n✅ Migrated ${userCount} unique users.`);
 
     await client.close();
     await prisma.$disconnect();
