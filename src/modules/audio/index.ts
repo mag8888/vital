@@ -63,12 +63,35 @@ export async function showAudioFiles(ctx: Context, category?: string) {
       }
 
       console.log('❌ No audio files found for category:', category);
-      await ctx.reply(
-        '🎵 Звуковые матрицы\n\n' +
-        'Пока нет доступных аудиофайлов.\n\n' +
-        'Система проверила базу данных и облачное хранилище (Cloudinary).\n' +
-        'Администратор может загрузить файлы через бота или добавить их в папку "plazma" в Cloudinary.'
-      );
+
+      // DEBUG: Show detailed info why
+      try {
+        const { prisma } = await import('../../lib/prisma.js');
+        const totalActive = await prisma.audioFile.count({ where: { isActive: true } });
+        const totalInCat = category ? await prisma.audioFile.count({ where: { isActive: true, category } }) : 0;
+        const dbUrlRaw = env.databaseUrl || 'unknown';
+        const dbName = dbUrlRaw.split('/').pop()?.split('?')[0] || 'unknown';
+        const dbHost = dbUrlRaw.split('@')[1]?.split('/')[0] || 'unknown host';
+
+        await ctx.reply(
+          `🎵 Звуковые матрицы\n\n` +
+          `Пока нет доступных аудиофайлов.\n\n` +
+          `🔍 <b>Debug Info:</b>\n` +
+          `• Category requested: '${category}'\n` +
+          `• DB Name: ${dbName}\n` +
+          `• DB Host: ${dbHost}\n` +
+          `• Total Active Files in DB: ${totalActive}\n` +
+          `• Files in this Category: ${totalInCat}\n` +
+          `• Cloudinary check: Done`,
+          { parse_mode: 'HTML' }
+        );
+      } catch (err: any) {
+        await ctx.reply(
+          '🎵 Звуковые матрицы\n\n' +
+          'Пока нет доступных аудиофайлов.\n' +
+          `(Debug error: ${err.message})`
+        );
+      }
       return;
     }
 
