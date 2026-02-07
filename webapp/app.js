@@ -182,7 +182,7 @@ function getApiHeaders() {
 }
 
 function pzToRub(pz) {
-    return Math.round(Number(pz || 0) * 100);
+    return Math.round(Number(pz || 0));
 }
 
 function formatRubFromPz(pz) {
