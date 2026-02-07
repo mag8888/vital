@@ -107,17 +107,16 @@ function optimizeConnectionString(url: string): string {
     optimized = `${optimized}&authSource=admin`;
   }
 
-  // FIXED: Do NOT force retryWrites and w=majority if it causes "Replica Set" errors on standalone
-  // We will let the driver decide or the user provide them in the URL
-  // if (!optimized.includes('retryWrites')) {
-  //   optimized = `${optimized}&retryWrites=true`;
-  // }
-  // if (!optimized.includes('w=')) {
-  //   optimized = `${optimized}&w=majority`;
-  // }
+  // Aggressively remove parameters that trigger "Replica Set required" error on standalone MongoDB
+  if (optimized.includes('retryWrites=')) {
+    optimized = optimized.replace(/([?&])retryWrites=[^&]*(&|$)/, '$1').replace(/[?&]$/, '');
+  }
+  if (optimized.includes('w=')) {
+    optimized = optimized.replace(/([?&])w=[^&]*(&|$)/, '$1').replace(/[?&]$/, '');
+  }
 
-  // Special handling for "Replica Set" error: force remove invalid params if needed
-  // But for now, just don't add them.
+  // Clean up potential double && or trailing ?
+  optimized = optimized.replace(/&&+/g, '&').replace(/\?&/g, '?').replace(/[?&]$/, '');
 
   return optimized;
 }
