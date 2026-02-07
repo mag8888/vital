@@ -200,6 +200,20 @@ async function bootstrap() {
         defaultSession: (): SessionData => ({ uiMode: 'classic' }),
       })
     );
+
+    // GLOBAL MIDDLEWARE: Ensure user data is always saved/updated on every interaction
+    bot.use(async (ctx, next) => {
+      try {
+        if (ctx.from) {
+          const { ensureUser } = await import('./services/user-history.js');
+          await ensureUser(ctx);
+        }
+      } catch (err) {
+        console.error('⚠️ Global ensureUser failed:', err);
+      }
+      return next();
+    });
+
     await applyBotModules(bot);
 
     // Register cart actions
