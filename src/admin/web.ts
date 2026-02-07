@@ -402,12 +402,12 @@ function renderAdminShellStart(opts: { title: string; activePath: string; buildM
       <aside class="admin-sidebar">
         <div class="admin-brand">
           <span class="admin-brand-mark"></span>
-        <h2>🔧 Plazma Admin Panel</h2>
+        <h2>🔧 Панель Plazma</h2>
         </div>
 
         <div class="admin-nav-group">Главное</div>
         <nav class="admin-nav">
-          <a class="admin-nav-item ${isActive('/admin')}" href="/admin"><span class="admin-ico">${adminIcon('dashboard')}</span><span>Dashboard</span></a>
+          <a class="admin-nav-item ${isActive('/admin')}" href="/admin"><span class="admin-ico">${adminIcon('dashboard')}</span><span>Дашборд</span></a>
           <a class="admin-nav-item ${isActive('/admin/users-detailed', { also: ['/admin/users'], prefixes: ['/admin/users/'] })}" href="/admin/users-detailed"><span class="admin-ico">${adminIcon('users')}</span><span>Пользователи</span></a>
           <a class="admin-nav-item ${isActive('/admin/partners')}" href="/admin/partners"><span class="admin-ico">${adminIcon('partners')}</span><span>Партнёры</span></a>
         </nav>
@@ -486,7 +486,7 @@ router.get('/login', (req, res) => {
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Plazma Admin Panel</title>
+      <title>Панель управления Plazma</title>
       <meta charset="utf-8">
       <style>
         body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; background: #f5f5f5; }
@@ -505,7 +505,7 @@ router.get('/login', (req, res) => {
     </head>
     <body>
       <div class="login-container">
-        <h2>🔧 Plazma Admin Panel</h2>
+        <h2>🔧 Панель управления Plazma</h2>
         <form method="post" action="/admin/login">
           <div class="form-group">
             <label>Пароль:</label>
