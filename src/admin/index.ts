@@ -24,7 +24,7 @@ export async function setupAdminPanel(app: Application) {
   const admin = new AdminJS({
     rootPath: '/admin',
     branding: {
-      companyName: 'Vital MM',
+      companyName: 'Plazma',
     },
     assets: {
       styles: [
@@ -196,7 +196,7 @@ export async function setupAdminPanel(app: Application) {
                 const product = await prisma.product.findUnique({
                   where: { id: record.params.id }
                 });
-                
+
                 if (product && product.instruction) {
                   return response.send(`
                     <!DOCTYPE html>
@@ -553,49 +553,49 @@ export async function setupAdminPanel(app: Application) {
   // ПОЛНОЕ ОТКЛЮЧЕНИЕ редиректа - просто блокируем без редиректа
   adminRouter.use((req, res, next) => {
     console.log('🚫 AdminJS Request:', req.method, req.path, req.query);
-    
+
     // Блокируем ВСЕ переходы на детальные страницы - БЕЗ РЕДИРЕКТА
-    if (req.path.includes('/show/') || 
-        req.path.includes('/edit/') || 
-        req.path.includes('/users-detailed') ||
-        req.path.includes('/detailed') ||
-        req.path.includes('/show') ||
-        req.path.includes('/edit')) {
+    if (req.path.includes('/show/') ||
+      req.path.includes('/edit/') ||
+      req.path.includes('/users-detailed') ||
+      req.path.includes('/detailed') ||
+      req.path.includes('/show') ||
+      req.path.includes('/edit')) {
       console.log('🚫 BLOCKED DETAIL PAGE:', req.path);
       return res.status(404).send('Detail pages disabled');
     }
-    
+
     // Специальная блокировка для users-detailed с параметрами - ОТКЛЮЧЕНА
     // if (req.path === '/users-detailed' || req.path.includes('users-detailed')) {
     //   console.log('🚫 BLOCKED USERS-DETAILED:', req.path, req.query);
     //   return res.status(404).send('Users detailed page disabled');
     // }
-    
+
     // Блокируем все запросы с параметрами сортировки к users-detailed - ОТКЛЮЧЕНА
     // if (req.path.includes('users-detailed') && (req.query.sort || req.query.order)) {
     //   console.log('🚫 BLOCKED USERS-DETAILED SORT:', req.path, req.query);
     //   return res.status(404).send('Users detailed page disabled');
     // }
-    
+
     // Блокируем все запросы с параметрами сортировки - БЕЗ РЕДИРЕКТА - ОТКЛЮЧЕНА
     // if (req.query.sort || req.query.order) {
     //   console.log('🚫 BLOCKED SORT REQUEST:', req.path, req.query);
     //   return res.status(404).send('Sort requests disabled');
     // }
-    
+
     // Блокируем все запросы к детальным страницам пользователей - БЕЗ РЕДИРЕКТА
     if (req.path.includes('users') && (req.path.includes('show') || req.path.includes('edit'))) {
       console.log('🚫 BLOCKED USER DETAIL:', req.path);
       return res.status(404).send('User detail pages disabled');
     }
-    
+
     // Блокируем все AJAX запросы к детальным страницам
-    if (req.headers['x-requested-with'] === 'XMLHttpRequest' && 
-        (req.path.includes('/show/') || req.path.includes('/edit/'))) {
+    if (req.headers['x-requested-with'] === 'XMLHttpRequest' &&
+      (req.path.includes('/show/') || req.path.includes('/edit/'))) {
       console.log('🚫 BLOCKED AJAX DETAIL:', req.path);
       return res.status(403).json({ error: 'Detail pages disabled' });
     }
-    
+
     next();
   });
 
