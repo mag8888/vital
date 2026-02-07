@@ -10,7 +10,7 @@ export async function ensureInitialData() {
       console.warn('⚠️  Cannot connect to database for initial data setup:', connectError?.message);
       return; // Exit early if connection fails
     }
-    
+
     const reviewCount = await prisma.review.count();
     if (reviewCount === 0) {
       try {
@@ -35,7 +35,7 @@ export async function ensureInitialData() {
 
     // Инициализируем контент бота
     await initializeBotContent();
-    
+
     // Проверяем, пуст ли каталог, и если да - запускаем импорт в фоне
     const productCount = await prisma.product.count();
     if (productCount === 0) {
@@ -76,14 +76,25 @@ export async function ensureInitialData() {
 
         let order = 0;
         for (const c of seed) {
-          const category = await prisma.specialistCategory.create({
-            data: { name: c.name, isActive: true, sortOrder: order++ }
-          });
+          // REFACTOR: Manual upsert to avoid transaction requirement
+          let category = await prisma.specialistCategory.findFirst({ where: { name: c.name } });
+          if (!category) {
+            category = await prisma.specialistCategory.create({
+              data: { name: c.name, isActive: true, sortOrder: order++ }
+            });
+          }
+
           let spOrder = 0;
           for (const s of c.specialties) {
-            await prisma.specialistSpecialty.create({
-              data: { name: s, categoryId: category.id, isActive: true, sortOrder: spOrder++ }
+            // Check existence first
+            const existingSpec = await prisma.specialistSpecialty.findFirst({
+              where: { name: s, categoryId: category.id }
             });
+            if (!existingSpec) {
+              await prisma.specialistSpecialty.create({
+                data: { name: s, categoryId: category.id, isActive: true, sortOrder: spOrder++ }
+              });
+            }
           }
         }
         console.log('✅ Seeded specialists taxonomy');
@@ -92,7 +103,7 @@ export async function ensureInitialData() {
       // do not block startup on seed failures
       console.warn('⚠️  Failed to seed specialists taxonomy:', error?.message || error);
     }
-    
+
     console.log('✅ Initial data ensured');
   } catch (error: any) {
     // MongoDB authentication errors - check connection string

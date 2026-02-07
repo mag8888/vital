@@ -7824,62 +7824,62 @@ router.get('/products', requireAdmin, async (req, res) => {
               </thead>
               <tbody>
                 ${allProducts.map((p) => {
-                  const rubPrice = (p.price * 100).toFixed(2);
-                  const priceFormatted = rubPrice + ' руб. / ' + p.price.toFixed(2) + ' PZ';
-                  const sku = String((p as any).sku || '').trim();
-                  const imgUrl = String((p as any).imageUrl || '').trim();
-                  return (
-                    '<tr ' +
-                      'data-id="' + escapeAttr(p.id) + '" ' +
-                      'data-category-id="' + escapeAttr(p.categoryId) + '" ' +
-                      'data-category="' + escapeAttr(p.categoryName) + '" ' +
-                      'data-title="' + escapeAttr(p.title) + '" ' +
-                      'data-sku="' + escapeAttr(sku) + '">' +
-                      '<td style="padding:10px 12px; border-bottom:1px solid #f1f5f9;">' +
-                        '<button type="button" class="table-thumb" ' +
-                          'data-product-id="' + escapeAttr(p.id) + '" ' +
-                          'data-title="' + escapeAttr(p.title) + '" ' +
-                          'data-image="' + escapeAttr(imgUrl) + '" ' +
-                          'style="width:48px; height:48px; border-radius:10px; overflow:hidden; border:1px solid #e5e7eb; background:#f9fafb; padding:0; cursor:pointer; display:flex; align-items:center; justify-content:center;"' +
-                        '>' +
-                          (imgUrl
-                            ? ('<img src="' + escapeAttr(imgUrl) + '" alt="" style="width:100%; height:100%; object-fit:cover; display:block;" loading="lazy">')
-                            : ('<span style="font-size:16px; color:#9ca3af;">📷</span>')
-                          ) +
-                        '</button>' +
-                      '</td>' +
-                      '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' + escapeHtml(p.title) + '</td>' +
-                      '<td style="padding:12px; border-bottom:1px solid #f1f5f9; color:#6b7280;">' + (sku ? escapeHtml(sku) : '-') + '</td>' +
-                      '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' + escapeHtml(p.categoryName) + '</td>' +
-                      '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' + (p.isActive ? '✅ Активен' : '❌ Неактивен') + '</td>' +
-                      '<td style="padding:12px; border-bottom:1px solid #f1f5f9; white-space:nowrap;">' + priceFormatted + '</td>' +
-                      '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' +
-                        '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
-                          '<button type="button" class="btn-action btn-compact btn-solid-black edit-btn" ' +
-                            'data-id="' + escapeAttr(p.id) + '" ' +
-                            'data-title="' + escapeAttr(p.title) + '" ' +
-                            'data-summary="' + escapeAttr(p.summary) + '" ' +
-                            'data-description="' + escapeAttr((p.description || '').substring(0, 5000)) + '" ' +
-                            'data-instruction="' + escapeAttr((((p as any).instruction || '') as string).substring(0, 5000)) + '" ' +
-                            'data-price="' + (p.price as any) + '" ' +
-                            'data-category-id="' + escapeAttr(p.categoryId) + '" ' +
-                            'data-active="' + (p.isActive ? 'true' : 'false') + '" ' +
-                            'data-russia="' + ((p as any).availableInRussia ? 'true' : 'false') + '" ' +
-                            'data-bali="' + ((p as any).availableInBali ? 'true' : 'false') + '" ' +
-                            'data-image="' + escapeAttr(p.imageUrl) + '" ' +
-                            'onclick="if(typeof window.editProduct===\'function\'){window.editProduct(this);}else{alert(\'Ошибка: функция редактирования не загружена.\');} return false;"' +
-                          '><span class="btn-ico">' + ICONS.pencil + '</span><span>Редактировать</span></button>' +
-                          '<form method="post" action="/admin/products/' + escapeAttr(p.id) + '/toggle-active" style="display:inline;">' +
-                            '<button type="submit" class="btn-action btn-compact btn-outline toggle-btn"><span class="btn-ico">' + ICONS.power + '</span><span>' + (p.isActive ? 'Отключить' : 'Включить') + '</span></button>' +
-                          '</form>' +
-                          '<form method="post" action="/admin/products/' + escapeAttr(p.id) + '/delete" class="delete-product-form" data-product-id="' + escapeAttr(p.id) + '" data-product-title="' + escapeAttr(p.title) + '" style="display:inline;">' +
-                            '<button type="button" class="btn-action btn-compact btn-solid-danger delete-btn"><span class="btn-ico">' + ICONS.trash + '</span><span>Удалить</span></button>' +
-                          '</form>' +
-                        '</div>' +
-                      '</td>' +
-                    '</tr>'
-                  );
-                }).join('')}
+      const rubPrice = (p.price * 100).toFixed(2);
+      const priceFormatted = rubPrice + ' руб. / ' + p.price.toFixed(2) + ' PZ';
+      const sku = String((p as any).sku || '').trim();
+      const imgUrl = String((p as any).imageUrl || '').trim();
+      return (
+        '<tr ' +
+        'data-id="' + escapeAttr(p.id) + '" ' +
+        'data-category-id="' + escapeAttr(p.categoryId) + '" ' +
+        'data-category="' + escapeAttr(p.categoryName) + '" ' +
+        'data-title="' + escapeAttr(p.title) + '" ' +
+        'data-sku="' + escapeAttr(sku) + '">' +
+        '<td style="padding:10px 12px; border-bottom:1px solid #f1f5f9;">' +
+        '<button type="button" class="table-thumb" ' +
+        'data-product-id="' + escapeAttr(p.id) + '" ' +
+        'data-title="' + escapeAttr(p.title) + '" ' +
+        'data-image="' + escapeAttr(imgUrl) + '" ' +
+        'style="width:48px; height:48px; border-radius:10px; overflow:hidden; border:1px solid #e5e7eb; background:#f9fafb; padding:0; cursor:pointer; display:flex; align-items:center; justify-content:center;"' +
+        '>' +
+        (imgUrl
+          ? ('<img src="' + escapeAttr(imgUrl) + '" alt="" style="width:100%; height:100%; object-fit:cover; display:block;" loading="lazy">')
+          : ('<span style="font-size:16px; color:#9ca3af;">📷</span>')
+        ) +
+        '</button>' +
+        '</td>' +
+        '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' + escapeHtml(p.title) + '</td>' +
+        '<td style="padding:12px; border-bottom:1px solid #f1f5f9; color:#6b7280;">' + (sku ? escapeHtml(sku) : '-') + '</td>' +
+        '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' + escapeHtml(p.categoryName) + '</td>' +
+        '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' + (p.isActive ? '✅ Активен' : '❌ Неактивен') + '</td>' +
+        '<td style="padding:12px; border-bottom:1px solid #f1f5f9; white-space:nowrap;">' + priceFormatted + '</td>' +
+        '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' +
+        '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
+        '<button type="button" class="btn-action btn-compact btn-solid-black edit-btn" ' +
+        'data-id="' + escapeAttr(p.id) + '" ' +
+        'data-title="' + escapeAttr(p.title) + '" ' +
+        'data-summary="' + escapeAttr(p.summary) + '" ' +
+        'data-description="' + escapeAttr((p.description || '').substring(0, 5000)) + '" ' +
+        'data-instruction="' + escapeAttr((((p as any).instruction || '') as string).substring(0, 5000)) + '" ' +
+        'data-price="' + (p.price as any) + '" ' +
+        'data-category-id="' + escapeAttr(p.categoryId) + '" ' +
+        'data-active="' + (p.isActive ? 'true' : 'false') + '" ' +
+        'data-russia="' + ((p as any).availableInRussia ? 'true' : 'false') + '" ' +
+        'data-bali="' + ((p as any).availableInBali ? 'true' : 'false') + '" ' +
+        'data-image="' + escapeAttr(p.imageUrl) + '" ' +
+        'onclick="if(typeof window.editProduct===\'function\'){window.editProduct(this);}else{alert(\'Ошибка: функция редактирования не загружена.\');} return false;"' +
+        '><span class="btn-ico">' + ICONS.pencil + '</span><span>Редактировать</span></button>' +
+        '<form method="post" action="/admin/products/' + escapeAttr(p.id) + '/toggle-active" style="display:inline;">' +
+        '<button type="submit" class="btn-action btn-compact btn-outline toggle-btn"><span class="btn-ico">' + ICONS.power + '</span><span>' + (p.isActive ? 'Отключить' : 'Включить') + '</span></button>' +
+        '</form>' +
+        '<form method="post" action="/admin/products/' + escapeAttr(p.id) + '/delete" class="delete-product-form" data-product-id="' + escapeAttr(p.id) + '" data-product-title="' + escapeAttr(p.title) + '" style="display:inline;">' +
+        '<button type="button" class="btn-action btn-compact btn-solid-danger delete-btn"><span class="btn-ico">' + ICONS.trash + '</span><span>Удалить</span></button>' +
+        '</form>' +
+        '</div>' +
+        '</td>' +
+        '</tr>'
+      );
+    }).join('')}
               </tbody>
             </table>
           </div>
@@ -10356,7 +10356,7 @@ router.post('/products/:id/delete', requireAdmin, async (req, res) => {
 router.post('/products/:productId/update', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const { productId } = req.params;
-    
+
     // Правильно обрабатываем данные из FormData
     const title = String(req.body.title || '').trim();
     const price = parseFloat(String(req.body.price || '0'));
@@ -10380,7 +10380,7 @@ router.post('/products/:productId/update', requireAdmin, upload.single('image'),
       stock,
       file: req.file ? 'file present' : 'no file'
     });
-    
+
     // Валидация
     if (!title) {
       return res.status(400).json({ success: false, error: 'Название товара обязательно' });
@@ -10417,11 +10417,11 @@ router.post('/products/:productId/update', requireAdmin, upload.single('image'),
     const existingProduct = await prisma.product.findUnique({
       where: { id: productId }
     });
-    
+
     if (!existingProduct) {
       return res.status(404).json({ success: false, error: 'Товар не найден' });
     }
-    
+
     // Проверяем существование категории
     if (categoryId) {
       const category = await prisma.category.findUnique({
@@ -10444,7 +10444,7 @@ router.post('/products/:productId/update', requireAdmin, upload.single('image'),
       availableInRussia: availableInRussia,
       availableInBali: availableInBali
     };
-    
+
     if (imageUrl) {
       updateData.imageUrl = imageUrl;
     }
@@ -11186,7 +11186,7 @@ router.get('/certificates', requireAdmin, async (req, res) => {
                       <td>${Number(t.valueRub || 0)}</td>
                       <td>${t.isActive ? 'Да' : 'Нет'}</td>
                       <td style="text-align:right; white-space:nowrap;">
-                        <button class="action-btn" onclick='editType(${JSON.stringify(t).replace(/</g,'\\u003c')})'>Редактировать</button>
+                        <button class="action-btn" onclick='editType(${JSON.stringify(t).replace(/</g, '\\u003c')})'>Редактировать</button>
                         <button class="action-btn" onclick='toggleType("${t.id}", ${t.isActive ? 'false' : 'true'})'>${t.isActive ? 'Выключить' : 'Включить'}</button>
                       </td>
                     </tr>
@@ -16556,11 +16556,18 @@ async function getSettingOrDefault(key: string, defaultValue: string): Promise<s
 }
 
 async function upsertSetting(key: string, value: string, description: string) {
-  await prisma.settings.upsert({
-    where: { key },
-    update: { value, description },
-    create: { key, value, description }
-  });
+  // REFACTOR: Avoid upsert on standalone
+  const existing = await prisma.settings.findUnique({ where: { key } });
+  if (existing) {
+    await prisma.settings.update({
+      where: { key },
+      data: { value, description }
+    });
+  } else {
+    await prisma.settings.create({
+      data: { key, value, description }
+    });
+  }
 }
 
 router.get('/api/delivery-settings', requireAdmin, async (_req, res) => {
@@ -17757,6 +17764,13 @@ router.post('/api/specialist-categories', requireAdmin, async (req, res) => {
   try {
     const { name, sortOrder, isActive } = req.body || {};
     if (!name) return res.status(400).json({ success: false, error: 'name обязателен' });
+
+    // REFACTOR: Check existence first to avoid P2031 (Replica Set required for unique constraints in some contexts)
+    const existing = await prisma.specialistCategory.findUnique({ where: { name: String(name).trim() } });
+    if (existing) {
+      return res.status(400).json({ success: false, error: 'Категория с таким именем уже существует' });
+    }
+
     const created = await prisma.specialistCategory.create({
       data: {
         name: String(name).trim(),

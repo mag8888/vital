@@ -20,24 +20,24 @@ export interface InvoiceItem {
 export function parseInvoiceFromDelimitedText(text: string): InvoiceItem[] {
   const items: InvoiceItem[] = [];
   const lines = text.split('\n');
-  
+
   // Группируем товары по SKU (суммируем количество)
   const itemsMap = new Map<string, InvoiceItem>();
-  
+
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
-    
+
     // Формат: SKU|Description|Qty|Rate|Amount
     const parts = trimmed.split('|').map(p => p.trim());
-    
+
     if (parts.length >= 5) {
       const sku = parts[0];
       const description = parts[1];
       const qty = parseInt(parts[2]) || 0;
       const rate = parseFloat(parts[3]) || 0;
       const amount = parseFloat(parts[4]) || 0;
-      
+
       if (sku && qty > 0 && rate > 0) {
         if (itemsMap.has(sku)) {
           // Суммируем количество для одинаковых SKU
@@ -56,7 +56,7 @@ export function parseInvoiceFromDelimitedText(text: string): InvoiceItem[] {
       }
     }
   }
-  
+
   return Array.from(itemsMap.values());
 }
 
@@ -67,16 +67,16 @@ export async function getImportSettings(): Promise<{ exchangeRate: number; price
   // По умолчанию: формула из ТЗ — THB × 2.7 × (2 × 4) = THB × 2.7 × 8
   const defaultExchangeRate = 2.7;
   const defaultMultiplier = 8;
-  
+
   try {
     const exchangeRateSetting = await prisma.settings.findUnique({
       where: { key: 'exchange_rate' }
     });
-    
+
     const multiplierSetting = await prisma.settings.findUnique({
       where: { key: 'price_multiplier' }
     });
-    
+
     return {
       exchangeRate: exchangeRateSetting ? parseFloat(exchangeRateSetting.value) : defaultExchangeRate,
       priceMultiplier: multiplierSetting ? parseFloat(multiplierSetting.value) : defaultMultiplier
@@ -95,25 +95,38 @@ export async function getImportSettings(): Promise<{ exchangeRate: number; price
  */
 export async function saveImportSettings(exchangeRate: number, priceMultiplier: number): Promise<void> {
   try {
-    await prisma.settings.upsert({
-      where: { key: 'exchange_rate' },
-      update: { value: exchangeRate.toString(), description: 'Курс обмена БАТ в рублях' },
-      create: {
-        key: 'exchange_rate',
-        value: exchangeRate.toString(),
-        description: 'Курс обмена БАТ в рублях'
-      }
-    });
-    
-    await prisma.settings.upsert({
-      where: { key: 'price_multiplier' },
-      update: { value: priceMultiplier.toString(), description: 'Мультипликатор для расчета продажной цены' },
-      create: {
-        key: 'price_multiplier',
-        value: priceMultiplier.toString(),
-        description: 'Мультипликатор для расчета продажной цены'
-      }
-    });
+    // REFACTOR: Avoid upsert on standalone
+    let exRate = await prisma.settings.findUnique({ where: { key: 'exchange_rate' } });
+    if (exRate) {
+      await prisma.settings.update({
+        where: { key: 'exchange_rate' },
+        data: { value: exchangeRate.toString(), description: 'Курс обмена БАТ в рублях' }
+      });
+    } else {
+      await prisma.settings.create({
+        data: {
+          key: 'exchange_rate',
+          value: exchangeRate.toString(),
+          description: 'Курс обмена БАТ в рублях'
+        }
+      });
+    }
+
+    let mult = await prisma.settings.findUnique({ where: { key: 'price_multiplier' } });
+    if (mult) {
+      await prisma.settings.update({
+        where: { key: 'price_multiplier' },
+        data: { value: priceMultiplier.toString(), description: 'Мультипликатор для расчета продажной цены' }
+      });
+    } else {
+      await prisma.settings.create({
+        data: {
+          key: 'price_multiplier',
+          value: priceMultiplier.toString(),
+          description: 'Мультипликатор для расчета продажной цены'
+        }
+      });
+    }
   } catch (error) {
     console.error('Error saving import settings:', error);
     throw error;
@@ -149,14 +162,14 @@ export async function importInvoiceItems(invoiceItems: InvoiceItem[]): Promise<{
 }> {
   const settings = await getImportSettings();
   const { exchangeRate, priceMultiplier } = settings;
-  
+
   let updated = 0;
   let created = 0;
   let failed = 0;
   const lowStockWarnings: string[] = [];
   const outOfStock: string[] = [];
   const errors: string[] = [];
-  
+
   for (const item of invoiceItems) {
     try {
       // Находим товар по SKU
@@ -168,15 +181,15 @@ export async function importInvoiceItems(invoiceItems: InvoiceItem[]): Promise<{
           ]
         }
       });
-      
+
       // Рассчитываем продажную цену
       const sellingPrice = calculateSellingPrice(item.rate, exchangeRate, priceMultiplier);
-      
+
       if (existingProduct) {
         // Обновляем существующий товар
         const oldStock = existingProduct.stock;
         const newStock = item.quantity;
-        
+
         // Обновляем товар
         await prisma.product.update({
           where: { id: existingProduct.id },
@@ -189,25 +202,25 @@ export async function importInvoiceItems(invoiceItems: InvoiceItem[]): Promise<{
             isActive: newStock > 0 ? existingProduct.isActive : false
           }
         });
-        
+
         updated++;
-        
+
         // Проверяем низкий остаток
         if (newStock > 0 && newStock <= (existingProduct.lowStockThreshold || 3)) {
           lowStockWarnings.push(`${existingProduct.title} (SKU: ${item.sku}) - осталось ${newStock} шт.`);
         }
-        
+
         // Проверяем нулевой остаток
         if (newStock === 0 && oldStock > 0) {
           outOfStock.push(`${existingProduct.title} (SKU: ${item.sku})`);
         }
-        
+
       } else {
         // Ищем категорию по умолчанию или создаем
         let defaultCategory = await prisma.category.findFirst({
           where: { slug: 'default' }
         });
-        
+
         if (!defaultCategory) {
           defaultCategory = await prisma.category.create({
             data: {
@@ -217,7 +230,7 @@ export async function importInvoiceItems(invoiceItems: InvoiceItem[]): Promise<{
             }
           });
         }
-        
+
         // Создаем новый товар
         await prisma.product.create({
           data: {
@@ -235,14 +248,14 @@ export async function importInvoiceItems(invoiceItems: InvoiceItem[]): Promise<{
             lowStockThreshold: 3
           }
         });
-        
+
         created++;
-        
+
         // Проверяем низкий остаток
         if (item.quantity <= 3) {
           lowStockWarnings.push(`${item.description || item.sku} (SKU: ${item.sku}) - осталось ${item.quantity} шт.`);
         }
-        
+
         // Проверяем нулевой остаток
         if (item.quantity === 0) {
           outOfStock.push(`${item.description || item.sku} (SKU: ${item.sku})`);
@@ -254,31 +267,31 @@ export async function importInvoiceItems(invoiceItems: InvoiceItem[]): Promise<{
       errors.push(`${item.sku}: ${error.message || 'Unknown error'}`);
     }
   }
-  
+
   // Отправляем уведомления админам
   try {
     const { getBotInstance } = await import('../lib/bot-instance.js');
     const { sendToAllAdmins } = await import('../config/env.js');
     const bot = await getBotInstance();
-    
+
     if (bot) {
       if (lowStockWarnings.length > 0) {
         const message = '⚠️ <b>Предупреждение о низком остатке товаров:</b>\n\n' +
           lowStockWarnings.slice(0, 10).map((w, i) => `${i + 1}. ${w}`).join('\n') +
           (lowStockWarnings.length > 10 ? `\n\n... и еще ${lowStockWarnings.length - 10} товаров` : '');
-        
+
         try {
           await sendToAllAdmins(bot, message);
         } catch (error) {
           console.error('Error sending low stock warning:', error);
         }
       }
-      
+
       if (outOfStock.length > 0) {
         const message = '🛑 <b>Товары закончились (деактивированы):</b>\n\n' +
           outOfStock.slice(0, 10).map((w, i) => `${i + 1}. ${w}`).join('\n') +
           (outOfStock.length > 10 ? `\n\n... и еще ${outOfStock.length - 10} товаров` : '');
-        
+
         try {
           await sendToAllAdmins(bot, message);
         } catch (error) {
@@ -289,7 +302,7 @@ export async function importInvoiceItems(invoiceItems: InvoiceItem[]): Promise<{
   } catch (error) {
     console.error('Error getting bot instance for notifications:', error);
   }
-  
+
   return {
     updated,
     created,
