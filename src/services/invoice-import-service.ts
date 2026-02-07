@@ -177,7 +177,7 @@ export async function importInvoiceItems(invoiceItems: InvoiceItem[]): Promise<{
         where: {
           OR: [
             { sku: item.sku },
-            { title: { contains: item.sku, mode: 'insensitive' } }
+            { title: { contains: item.sku } }
           ]
         }
       });

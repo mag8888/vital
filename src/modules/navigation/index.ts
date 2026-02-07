@@ -129,7 +129,7 @@ async function handleSupportMessage(ctx: Context) {
 
   // Send to specific admin @Aurelia_8888
   const { getBotInstance } = await import('../../lib/bot-instance.js');
-  
+
   const bot = await getBotInstance();
   if (bot) {
     const adminMessage = `📨 <b>Сообщение в поддержку</b>\n\n` +
@@ -155,7 +155,7 @@ async function handleSupportMessage(ctx: Context) {
           ]
         }
       });
-      
+
       // Confirm to user
       await ctx.reply('✅ Ваше сообщение отправлено в службу поддержки. Мы ответим как можно скорее!');
     } catch (error) {
@@ -407,11 +407,11 @@ async function collectMenuStats(ctx: Context): Promise<MenuStats> {
     try {
       const user = await ensureUser(ctx);
       if (user) {
-      const { getCartItems } = await import('../../services/cart-service.js');
+        const { getCartItems } = await import('../../services/cart-service.js');
         const cartItems = await getCartItems(user.id);
-      const totalQuantity = cartItems.reduce((sum, item) => sum + (item.quantity ?? 0), 0);
-      if (totalQuantity > 0) {
-        stats.cart = String(totalQuantity);
+        const totalQuantity = cartItems.reduce((sum, item) => sum + (item.quantity ?? 0), 0);
+        if (totalQuantity > 0) {
+          stats.cart = String(totalQuantity);
         }
       }
     } catch (error) {
@@ -480,13 +480,13 @@ export const navigationModule: BotModule = {
       // Сначала всегда отправляем приветствие (фото + кнопки), чтобы /start хоть что-то выводил
       const startPayload = ctx.startPayload;
       console.log('🔗 Referral: startPayload =', startPayload);
-      
+
       // Handle new format: username (simple referral link)
       if (startPayload && !startPayload.startsWith('ref_direct_') && !startPayload.startsWith('ref_multi_')) {
         // Try to find user by username
         try {
           const { prisma } = await import('../../lib/prisma.js');
-          
+
           // Check if user already existed before ensuring
           let existingUserBeforeEnsure: { id: string } | null = null;
           if (ctx.from?.id) {
@@ -502,27 +502,27 @@ export const navigationModule: BotModule = {
               }
             }
           }
-          
+
           const referrerUser = await prisma.user.findFirst({
-            where: { 
+            where: {
               username: startPayload,
             },
             include: { partner: true }
           });
-          
+
           if (referrerUser) {
             console.log('🔗 Referral: Found user by username:', referrerUser.username);
-            
+
             // Ensure current user exists first
             const user = await ensureUser(ctx);
             if (!user) {
               console.log('🔗 Referral: Failed to ensure user');
               return;
             }
-            
+
             const isNewUser = !existingUserBeforeEnsure;
             console.log('🔗 Referral: Is new user:', isNewUser);
-            
+
             // Process referral - create partner profile if it doesn't exist
             let partnerProfile = referrerUser.partner;
             if (!partnerProfile) {
@@ -531,15 +531,15 @@ export const navigationModule: BotModule = {
               partnerProfile = await getOrCreatePartnerProfile(referrerUser.id, 'DIRECT');
               console.log('🔗 Referral: Partner profile created:', partnerProfile.id);
             }
-            
+
             // Create referral record
             if (partnerProfile) {
               const referralLevel = 1;
               const programType = partnerProfile.programType || 'DIRECT';
-              await upsertPartnerReferral(partnerProfile.id, referralLevel, user.id, undefined, programType);
+              await upsertPartnerReferral(partnerProfile.id, referralLevel, user.id, undefined, programType as 'DIRECT' | 'MULTI_LEVEL');
               console.log('🔗 Referral: Referral record created via username');
             }
-            
+
             // Award 3 PZ bonus for new user registration via referral link
             if (isNewUser) {
               try {
@@ -556,13 +556,13 @@ export const navigationModule: BotModule = {
                     }
                   });
                 }
-                
+
                 if (!existingBonus) {
                   // Award 3PZ bonus to inviter for new user registration
                   console.log('🔗 Referral: Awarding 3PZ bonus to inviter for new user registration');
-                  
+
                   let updatedReferrer;
-                  
+
                   // Use partner profile (created above if didn't exist)
                   if (partnerProfile) {
                     await recordPartnerTransaction(
@@ -571,7 +571,7 @@ export const navigationModule: BotModule = {
                       `Бонус 3PZ за приглашение нового пользователя (${user.id})`,
                       'CREDIT'
                     );
-                    
+
                     // Get updated balance after transaction
                     updatedReferrer = await prisma.user.findUnique({
                       where: { id: referrerUser.id },
@@ -598,20 +598,20 @@ export const navigationModule: BotModule = {
                     });
                     console.log('🔗 Referral: Bonus 3PZ added directly to referrer balance (no partner profile)');
                   }
-                  
+
                   console.log('🔗 Referral: Bonus 3PZ processed, new balance:', updatedReferrer?.balance);
-                  
+
                   // Send notification to inviter (always send if bonus was awarded)
                   if (updatedReferrer) {
                     try {
                       const joinedLabel = user.username ? `@${user.username}` : (user.firstName || 'пользователь');
-                      const notificationText = 
+                      const notificationText =
                         '🎉 <b>Баланс пополнен!</b>\n\n' +
                         `💰 Сумма: 3.00 PZ\n` +
                         `💳 Текущий баланс: ${updatedReferrer.balance.toFixed(2)} PZ\n\n` +
                         `✨ К вам присоединился ${joinedLabel} по вашей реферальной ссылке!\n\n` +
                         `Приглашайте больше друзей и получайте бонусы!`;
-                      
+
                       await ctx.telegram.sendMessage(
                         referrerUser.telegramId,
                         notificationText,
@@ -642,22 +642,22 @@ export const navigationModule: BotModule = {
           console.warn('🔗 Referral: Error processing username referral:', error?.message);
         }
       }
-      
+
       // Handle old format: ref_direct_CODE or ref_multi_CODE
       if (startPayload && (startPayload.startsWith('ref_direct_') || startPayload.startsWith('ref_multi_'))) {
         const parts = startPayload.split('_');
         console.log('🔗 Referral: parts =', parts);
-        
+
         const programType = parts[1] === 'direct' ? 'DIRECT' : 'MULTI_LEVEL';
         const referralCode = parts.slice(2).join('_'); // Join remaining parts in case code contains underscores
-        
+
         console.log('🔗 Referral: programType =', programType, 'referralCode =', referralCode);
-        
+
         try {
           // Find partner profile by referral code
           const { prisma } = await import('../../lib/prisma.js');
           console.log('🔗 Referral: Searching for partner profile with code:', referralCode);
-          
+
           let partnerProfile;
           try {
             partnerProfile = await prisma.partnerProfile.findUnique({
@@ -673,9 +673,9 @@ export const navigationModule: BotModule = {
               throw error; // Re-throw non-auth errors
             }
           }
-          
+
           console.log('🔗 Referral: Found partner profile:', partnerProfile ? 'YES' : 'NO');
-          
+
           if (partnerProfile) {
             // Check if user already existed before ensuring
             let existingUserBeforeEnsure: { id: string } | null = null;
@@ -694,7 +694,7 @@ export const navigationModule: BotModule = {
                 }
               }
             }
-            
+
             // Ensure user exists first
             const user = await ensureUser(ctx);
             if (!user) {
@@ -702,15 +702,15 @@ export const navigationModule: BotModule = {
               await ctx.reply('❌ Ошибка при регистрации пользователя.');
               return;
             }
-            
+
             const isExistingUser = Boolean(existingUserBeforeEnsure);
-            
+
             console.log('🔗 Referral: User ensured, upserting referral record');
-            
+
             // Use upsert to create or get existing referral record
             const referralLevel = programType === 'DIRECT' ? 1 : 1; // Both start at level 1
             const referral = await upsertPartnerReferral(partnerProfile.id, referralLevel, user.id, undefined, programType);
-            
+
             // Award bonus only if this is a new user (not existing before)
             if (!isExistingUser) {
               // Check if bonus was already awarded for this user
@@ -723,18 +723,18 @@ export const navigationModule: BotModule = {
                   ]
                 }
               });
-              
+
               if (!existingBonus) {
                 // Award 3PZ to the inviter only if not already awarded
                 console.log('🔗 Referral: Awarding 3PZ bonus to inviter for new user');
-                
+
                 await recordPartnerTransaction(
-                  partnerProfile.id, 
-                  3, 
-                  `Бонус 3PZ за приглашение нового пользователя (${user.id})`, 
+                  partnerProfile.id,
+                  3,
+                  `Бонус 3PZ за приглашение нового пользователя (${user.id})`,
                   'CREDIT'
                 );
-                
+
                 // Get updated user balance after transaction
                 const updatedReferrer = await prisma.user.findUnique({
                   where: { id: partnerProfile.userId },
@@ -744,21 +744,21 @@ export const navigationModule: BotModule = {
                     firstName: true
                   }
                 });
-                
+
                 console.log('🔗 Referral: Bonus awarded successfully, new balance:', updatedReferrer?.balance);
-                
+
                 // Send notification to inviter (always send if bonus was awarded)
                 if (updatedReferrer) {
                   try {
                     console.log('🔗 Referral: Sending notification to inviter:', updatedReferrer.telegramId);
                     const joinedLabel = user.username ? `@${user.username}` : (user.firstName || 'пользователь');
-                    const notificationText = 
+                    const notificationText =
                       '🎉 <b>Баланс пополнен!</b>\n\n' +
                       `💰 Сумма: 3.00 PZ\n` +
                       `💳 Текущий баланс: ${updatedReferrer.balance.toFixed(2)} PZ\n\n` +
                       `✨ К вам присоединился ${joinedLabel} по вашей реферальной ссылке!\n\n` +
                       `Приглашайте больше друзей и получайте бонусы!`;
-                    
+
                     await ctx.telegram.sendMessage(
                       updatedReferrer.telegramId,
                       notificationText,
@@ -781,28 +781,28 @@ export const navigationModule: BotModule = {
             } else {
               console.log('🔗 Referral: User already existed, bonus not awarded');
             }
-            
-          console.log('🔗 Referral: Sending welcome photo with buttons');
-          await sendWelcomeWithPhoto(ctx, { referralInviterName: partnerProfile.user.firstName || 'партнёр' });
-          console.log('🔗 Referral: Welcome message sent');
-          
-          await logUserAction(ctx, 'partner:referral_joined', {
-            referralCode,
-            partnerId: partnerProfile.id,
-            programType
-          });
-          return; // Don't call renderHome to avoid duplicate greeting
-        } else {
-          console.log('🔗 Referral: Partner profile not found for code:', referralCode);
-          await ctx.reply('❌ Реферальная ссылка недействительна. Партнёр не найден.');
-        }
-      } catch (error) {
-        console.error('🔗 Referral: Error processing referral:', error);
-        await ctx.reply('❌ Ошибка при обработке реферальной ссылки. Попробуйте позже.');
-      }
-    }
 
-    await sendWelcomeWithPhoto(ctx);
+            console.log('🔗 Referral: Sending welcome photo with buttons');
+            await sendWelcomeWithPhoto(ctx, { referralInviterName: partnerProfile.user.firstName || 'партнёр' });
+            console.log('🔗 Referral: Welcome message sent');
+
+            await logUserAction(ctx, 'partner:referral_joined', {
+              referralCode,
+              partnerId: partnerProfile.id,
+              programType
+            });
+            return; // Don't call renderHome to avoid duplicate greeting
+          } else {
+            console.log('🔗 Referral: Partner profile not found for code:', referralCode);
+            await ctx.reply('❌ Реферальная ссылка недействительна. Партнёр не найден.');
+          }
+        } catch (error) {
+          console.error('🔗 Referral: Error processing referral:', error);
+          await ctx.reply('❌ Ошибка при обработке реферальной ссылки. Попробуйте позже.');
+        }
+      }
+
+      await sendWelcomeWithPhoto(ctx);
       // После приветствия — при необходимости запрашиваем телефон (не блокируя показ приветствия)
       await checkUserContact(ctx);
     });
@@ -920,7 +920,7 @@ export const navigationModule: BotModule = {
           return;
         }
         const profile = await getOrCreatePartnerProfile(user.id, 'DIRECT');
-        const { main: link } = buildReferralLink(profile.referralCode, profile.programType || 'DIRECT', user.username || undefined);
+        const { main: link } = buildReferralLink(profile.referralCode, (profile.programType || 'DIRECT') as 'DIRECT' | 'MULTI_LEVEL', user.username || undefined);
         const escapedLink = link.replace(/&/g, '&amp;');
         await ctx.reply(
           `🔗 <b>Ваша реферальная ссылка:</b>\n\n<a href="${escapedLink}">${escapedLink}</a>\n\nПоделитесь ссылкой с друзьями — вы получите бонусы с их покупок.`,
@@ -980,22 +980,22 @@ export const navigationModule: BotModule = {
     // Handle admin reply to user support messages
     bot.action(/^admin_reply:(.+):(.+)$/, async (ctx) => {
       await ctx.answerCbQuery();
-      
+
       const matches = ctx.match;
       const userTelegramId = matches[1];
       const userName = matches[2];
-      
+
       // Store the reply context in session for the admin
       if (!ctx.session) ctx.session = {};
       ctx.session.replyingTo = {
         userTelegramId,
         userName
       };
-      
+
       await ctx.reply(
         `📝 <b>Ответ пользователю ${userName}</b>\n\n` +
         `💭 Напишите ваш ответ следующим сообщением, и он будет отправлен пользователю.`,
-        { 
+        {
           parse_mode: 'HTML',
           reply_markup: {
             inline_keyboard: [
@@ -1014,7 +1014,7 @@ export const navigationModule: BotModule = {
     // Handle cancel admin reply
     bot.action('cancel_admin_reply', async (ctx) => {
       await ctx.answerCbQuery();
-      
+
       if (ctx.session && ctx.session.replyingTo) {
         delete ctx.session.replyingTo;
         await ctx.reply('❌ Ответ отменен.');
@@ -1035,7 +1035,7 @@ export const navigationModule: BotModule = {
         await next();
         return;
       }
-      
+
       const buttonTexts = ['🛒 Магазин', '💰 Партнёрка', '⭐ Отзывы', 'ℹ️ О нас', 'Меню', 'Главное меню', 'Назад'];
       if (buttonTexts.includes(messageText)) {
         await next();
@@ -1046,7 +1046,7 @@ export const navigationModule: BotModule = {
       const aureliaAdminId = '7077195545';
       if (ctx.from?.id?.toString() === aureliaAdminId && ctx.session?.replyingTo) {
         const { userTelegramId, userName } = ctx.session.replyingTo;
-        
+
         try {
           // Send admin's reply to the user
           await ctx.telegram.sendMessage(
@@ -1067,21 +1067,21 @@ export const navigationModule: BotModule = {
                 data: {
                   userId: user.id,
                   action: 'support:webapp',
-                  payload: { direction: 'admin', text: messageText }
+                  payload: JSON.stringify({ direction: 'admin', text: messageText })
                 }
               });
             }
           } catch (dbErr) {
             console.error('Failed to log support reply for webapp:', dbErr);
           }
-          
+
           // Confirm to admin
           await ctx.reply(
             `✅ <b>Ответ отправлен пользователю ${userName}</b>\n\n` +
             `💬 Ваше сообщение: "${messageText}"`,
             { parse_mode: 'HTML' }
           );
-          
+
           // Clear the reply context
           delete ctx.session.replyingTo;
         } catch (error) {

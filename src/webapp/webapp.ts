@@ -15,7 +15,6 @@ import { addProductToCart, getCartItems, cartItemsToText } from '../services/car
 import { createOrderRequest } from '../services/order-service.js';
 import { getActiveReviews } from '../services/review-service.js';
 import { getOrCreatePartnerProfile, getPartnerDashboard } from '../services/partner-service.js';
-import { PartnerProgramType } from '@prisma/client';
 import { env } from '../config/env.js';
 
 const router = express.Router();
@@ -61,7 +60,7 @@ const extractTelegramUser = (req: express.Request, res: express.Response, next: 
   try {
     // Try multiple ways to get Telegram user data
     let telegramUser = null;
-    
+
     // Method 1: From X-Telegram-User header (our custom header)
     const telegramUserHeader = req.headers['x-telegram-user'] as string;
     if (telegramUserHeader) {
@@ -73,21 +72,21 @@ const extractTelegramUser = (req: express.Request, res: express.Response, next: 
         console.log('❌ Failed to parse X-Telegram-User:', e);
       }
     }
-    
+
     // Method 2: From x-telegram-init-data header (original Telegram method)
     if (!telegramUser) {
-    const initData = req.headers['x-telegram-init-data'] as string;
-    if (initData) {
+      const initData = req.headers['x-telegram-init-data'] as string;
+      if (initData) {
         console.log('📱 Found x-telegram-init-data:', initData);
-      const urlParams = new URLSearchParams(initData);
-      const userStr = urlParams.get('user');
-      if (userStr) {
+        const urlParams = new URLSearchParams(initData);
+        const userStr = urlParams.get('user');
+        if (userStr) {
           telegramUser = JSON.parse(decodeURIComponent(userStr));
           console.log('✅ Telegram user from init-data:', telegramUser);
         }
       }
     }
-    
+
     // Method 2: From query parameters (fallback)
     if (!telegramUser && req.query.user) {
       console.log('📱 Found user in query params:', req.query.user);
@@ -98,14 +97,14 @@ const extractTelegramUser = (req: express.Request, res: express.Response, next: 
         console.log('❌ Failed to parse user from query:', e);
       }
     }
-    
+
     // Method 3: From body (for POST requests)
     if (!telegramUser && req.body && req.body.user) {
       console.log('📱 Found user in body:', req.body.user);
       telegramUser = req.body.user;
       console.log('✅ Telegram user from body:', telegramUser);
-      }
-    
+    }
+
     // Method 4: Mock user for development/testing
     if (!telegramUser) {
       console.log('⚠️ No Telegram user found, using mock user for development');
@@ -117,7 +116,7 @@ const extractTelegramUser = (req: express.Request, res: express.Response, next: 
         language_code: 'ru'
       };
     }
-    
+
     (req as any).telegramUser = telegramUser;
     console.log('🔐 Final telegram user:', telegramUser);
     next();
@@ -172,8 +171,8 @@ router.get('/api/user/profile', async (req, res) => {
       } catch (error: any) {
         if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
           console.warn('⚠️  MongoDB replica set not configured - user creation skipped');
-          return res.status(503).json({ 
-            error: 'Database temporarily unavailable. Please try again later.' 
+          return res.status(503).json({
+            error: 'Database temporarily unavailable. Please try again later.'
           });
         }
         throw error;
@@ -206,7 +205,7 @@ router.put('/api/user/profile', async (req, res) => {
 
     const { phone, deliveryAddress } = req.body;
     const { prisma } = await import('../lib/prisma.js');
-    
+
     let user = await prisma.user.findUnique({
       where: { telegramId: telegramUser.id.toString() }
     });
@@ -264,7 +263,7 @@ router.post('/api/user/deduct-balance', async (req, res) => {
 
     const currentBalance = (user as any).balance || 0;
     if (currentBalance < amount) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Insufficient balance',
         currentBalance,
         required: amount
@@ -329,7 +328,7 @@ router.get('/api/products/count', async (req, res) => {
       console.warn('⚠️  MongoDB replica set not configured - returning 0');
       return res.json({ totalProducts: 0 });
     }
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Internal server error',
       message: error?.message || 'Unknown error'
     });
@@ -350,7 +349,7 @@ router.get('/api/products', async (req, res) => {
       code: error?.code,
       stack: error?.stack
     });
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Internal server error',
       message: error?.message || 'Unknown error',
       code: error?.code
@@ -362,10 +361,10 @@ router.get('/api/products', async (req, res) => {
 router.get('/api/categories/:categoryId/products', async (req, res) => {
   try {
     const { categoryId } = req.params;
-    
+
     // Получаем все активные товары без фильтрации по региону
     const products = await getProductsByCategory(categoryId);
-    
+
     res.json(products);
   } catch (error) {
     console.error('Error getting products:', error);
@@ -407,8 +406,8 @@ router.get('/api/cart/items', async (req, res) => {
       } catch (error: any) {
         if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
           console.warn('⚠️  MongoDB replica set not configured - user creation failed');
-          return res.status(503).json({ 
-            error: 'Database temporarily unavailable. Please try again later.' 
+          return res.status(503).json({
+            error: 'Database temporarily unavailable. Please try again later.'
           });
         }
         throw error;
@@ -419,7 +418,7 @@ router.get('/api/cart/items', async (req, res) => {
 
     const cartItems = await getCartItems(user.id);
     console.log('✅ Cart items retrieved:', cartItems.length);
-    
+
     // Форматируем данные для ответа, исключая null значения
     const validCartItems = cartItems
       .filter(item => item.product && item.product.isActive)
@@ -439,7 +438,7 @@ router.get('/api/cart/items', async (req, res) => {
           isActive: item.product.isActive,
         }
       }));
-    
+
     console.log('✅ Valid cart items:', validCartItems.length);
     res.json(validCartItems);
   } catch (error: any) {
@@ -449,14 +448,14 @@ router.get('/api/cart/items', async (req, res) => {
       code: error?.code,
       stack: error?.stack
     });
-    
+
     if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
-      return res.status(503).json({ 
-        error: 'База данных временно недоступна. Попробуйте позже.' 
+      return res.status(503).json({
+        error: 'База данных временно недоступна. Попробуйте позже.'
       });
     }
-    
-    res.status(500).json({ 
+
+    res.status(500).json({
       error: 'Внутренняя ошибка сервера',
       details: process.env.NODE_ENV === 'development' ? error?.message : undefined
     });
@@ -508,8 +507,8 @@ router.post('/api/cart/add', async (req, res) => {
       } catch (error: any) {
         if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
           console.warn('⚠️  MongoDB replica set not configured - user creation failed');
-          return res.status(503).json({ 
-            error: 'Database temporarily unavailable. Please try again later.' 
+          return res.status(503).json({
+            error: 'Database temporarily unavailable. Please try again later.'
           });
         }
         throw error;
@@ -564,7 +563,7 @@ router.post('/api/cart/add', async (req, res) => {
     res.json({ success: true });
   } catch (error: any) {
     console.error('❌ Error adding to cart:', error);
-    
+
     // Более детальная обработка ошибок
     if (error?.code === 'P2002') {
       // Unique constraint violation
@@ -593,18 +592,18 @@ router.post('/api/cart/add', async (req, res) => {
         console.error('❌ Retry failed:', retryError);
       }
     }
-    
+
     if (error?.code === 'P2003') {
       return res.status(400).json({ error: 'Товар не найден в базе данных' });
     }
-    
+
     if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
-      return res.status(503).json({ 
-        error: 'База данных временно недоступна. Попробуйте позже.' 
+      return res.status(503).json({
+        error: 'База данных временно недоступна. Попробуйте позже.'
       });
     }
-    
-    res.status(500).json({ 
+
+    res.status(500).json({
       error: error?.message || 'Внутренняя ошибка сервера',
       details: process.env.NODE_ENV === 'development' ? error?.stack : undefined
     });
@@ -621,13 +620,13 @@ router.put('/api/cart/update/:cartItemId', async (req, res) => {
 
     const { cartItemId } = req.params;
     const { quantity } = req.body;
-    
+
     if (!quantity || quantity < 1) {
       return res.status(400).json({ error: 'Invalid quantity' });
     }
 
     const { prisma } = await import('../lib/prisma.js');
-    
+
     const user = await prisma.user.findUnique({
       where: { telegramId: telegramUser.id.toString() }
     });
@@ -667,7 +666,7 @@ router.delete('/api/cart/remove/:cartItemId', async (req, res) => {
 
     const { cartItemId } = req.params;
     const { prisma } = await import('../lib/prisma.js');
-    
+
     const user = await prisma.user.findUnique({
       where: { telegramId: telegramUser.id.toString() }
     });
@@ -783,7 +782,7 @@ router.post('/api/support/messages', async (req, res) => {
       data: {
         userId: user.id,
         action: 'support:webapp',
-        payload: { direction: 'user', text }
+        payload: JSON.stringify({ direction: 'user', text })
       }
     });
 
@@ -954,7 +953,7 @@ router.post('/api/favorites/toggle', async (req, res) => {
       data: {
         userId: user.id,
         action: 'favorites:toggle',
-        payload: { productId, isFavorite: next }
+        payload: JSON.stringify({ productId, isFavorite: next })
       }
     });
 
@@ -1015,8 +1014,8 @@ router.post('/api/orders/create', async (req, res) => {
       } catch (error: any) {
         if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
           console.warn('⚠️  MongoDB replica set not configured - user creation failed');
-          return res.status(503).json({ 
-            error: 'Database temporarily unavailable. Please try again later.' 
+          return res.status(503).json({
+            error: 'Database temporarily unavailable. Please try again later.'
           });
         }
         throw error;
@@ -1027,7 +1026,7 @@ router.post('/api/orders/create', async (req, res) => {
         const updateData: any = {};
         if (phone) updateData.phone = phone;
         if (deliveryAddress) updateData.deliveryAddress = deliveryAddress;
-        
+
         user = await prisma.user.update({
           where: { id: user.id },
           data: updateData
@@ -1108,7 +1107,7 @@ router.post('/api/orders/create', async (req, res) => {
       data: {
         userId: user.id,
         message: fullMessage,
-        itemsJson: items,
+        itemsJson: JSON.stringify(items),
         status: 'NEW',
         contact: contact
       }
@@ -1121,10 +1120,10 @@ router.post('/api/orders/create', async (req, res) => {
       const { getBotInstance } = await import('../lib/bot-instance.js');
       const { getAdminChatIds } = await import('../config/env.js');
       const bot = await getBotInstance();
-      
+
       if (bot) {
         const adminIds = getAdminChatIds();
-        
+
         // Format order items for notification
         let itemsText = '📦 Состав заказа:\n';
         try {
@@ -1138,7 +1137,7 @@ router.post('/api/orders/create', async (req, res) => {
         } catch (error) {
           itemsText += 'Ошибка парсинга товаров\n';
         }
-        
+
         // Get user contact info
         let contactInfo = '';
         if (user.phone) {
@@ -1152,8 +1151,8 @@ router.post('/api/orders/create', async (req, res) => {
         }
         contactInfo += `🆔 User ID: ${user.id}\n`;
         contactInfo += `🆔 Telegram ID: ${telegramUser.id}`;
-        
-        const orderMessage = 
+
+        const orderMessage =
           '🛍️ <b>Новый заказ от пользователя</b>\n\n' +
           `👤 <b>Пользователь:</b> ${user.firstName || ''} ${user.lastName || ''}\n` +
           `${contactInfo}\n\n` +
@@ -1161,7 +1160,7 @@ router.post('/api/orders/create', async (req, res) => {
           (message ? `💬 <b>Сообщение:</b>\n${message}\n\n` : '') +
           `🆔 <b>ID заказа:</b> <code>${order.id}</code>\n` +
           `📅 <b>Дата:</b> ${new Date(order.createdAt).toLocaleString('ru-RU')}`;
-        
+
         // Send to all admins
         for (const adminId of adminIds) {
           try {
@@ -1172,8 +1171,8 @@ router.post('/api/orders/create', async (req, res) => {
                   [
                     {
                       text: '💬 Написать пользователю',
-                      url: telegramUser.username 
-                        ? `https://t.me/${telegramUser.username}` 
+                      url: telegramUser.username
+                        ? `https://t.me/${telegramUser.username}`
                         : `tg://user?id=${telegramUser.id}`
                     },
                     {
@@ -1201,8 +1200,8 @@ router.post('/api/orders/create', async (req, res) => {
       // Don't fail the order creation if notification fails
     }
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       orderId: order.id,
       totalPz,
       certificateAppliedPz: certAppliedPz,
@@ -1217,7 +1216,7 @@ router.post('/api/orders/create', async (req, res) => {
       code: error?.code,
       name: error?.name
     });
-    res.status(500).json({ 
+    res.status(500).json({
       error: error?.message || 'Internal server error',
       details: process.env.NODE_ENV === 'development' ? error?.stack : undefined
     });
@@ -1281,10 +1280,10 @@ router.post('/api/certificates/buy', async (req, res) => {
     const totalCostPz = pricePz * qty;
     const currentBalance = Number((user as any).balance || 0) || 0;
     if (currentBalance < totalCostPz) {
-      return res.status(400).json({ 
-        error: 'Недостаточно средств на балансе', 
-        requiredPz: totalCostPz, 
-        currentBalance 
+      return res.status(400).json({
+        error: 'Недостаточно средств на балансе',
+        requiredPz: totalCostPz,
+        currentBalance
       });
     }
 
@@ -1321,10 +1320,10 @@ router.post('/api/certificates/buy', async (req, res) => {
       if (cert) created.push(cert);
     }
 
-    res.json({ 
-      success: true, 
-      deductedPz: totalCostPz, 
-      newBalance: Number(updatedUser.balance || 0), 
+    res.json({
+      success: true,
+      deductedPz: totalCostPz,
+      newBalance: Number(updatedUser.balance || 0),
       certificates: created.map((c: any) => ({ id: c.id, code: c.code, remainingPz: c.remainingPz }))
     });
   } catch (error: any) {
@@ -1414,9 +1413,9 @@ router.get('/api/partner/dashboard', async (req, res) => {
     }
 
     if (!user.partner) {
-      return res.json({ 
-        isActive: false, 
-        message: 'Партнерская программа не активирована' 
+      return res.json({
+        isActive: false,
+        message: 'Партнерская программа не активирована'
       });
     }
 
@@ -1445,7 +1444,7 @@ router.get('/api/partner/referrals', async (req, res) => {
 
     const { prisma } = await import('../lib/prisma.js');
     const { getPartnerList } = await import('../services/partner-service.js');
-    
+
     let user = await prisma.user.findUnique({
       where: { telegramId: telegramUser.id.toString() }
     });
@@ -1455,7 +1454,7 @@ router.get('/api/partner/referrals', async (req, res) => {
     }
 
     const partnerList = await getPartnerList(user.id);
-    
+
     if (!partnerList) {
       return res.json({
         directPartners: [],
@@ -1512,7 +1511,7 @@ router.post('/api/partner/activate', async (req, res) => {
         }
       });
       console.log('✅ User created:', newUser.id);
-      
+
       // Fetch user with partner relation after creation
       user = await prisma.user.findUnique({
         where: { id: newUser.id },
@@ -1541,7 +1540,7 @@ router.post('/api/partner/activate', async (req, res) => {
     // Create partner profile
     console.log('✅ Creating partner profile...');
     const partnerProfile = await getOrCreatePartnerProfile(user.id, type);
-    
+
     console.log('✅ Partner profile created successfully:', partnerProfile.id);
     res.json({
       success: true,
@@ -1560,23 +1559,23 @@ router.get('/api/products/:id', async (req, res) => {
   try {
     const { prisma } = await import('../lib/prisma.js');
     const productId = req.params.id;
-    
+
     // Validate that ID is a valid MongoDB ObjectID format
     if (!productId || productId.length !== 24 || !/^[0-9a-fA-F]{24}$/.test(productId)) {
       return res.status(400).json({ error: 'Invalid product ID format' });
     }
-    
+
     const product = await prisma.product.findUnique({
       where: { id: productId },
       include: {
         category: true
       }
     });
-    
+
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
     }
-    
+
     res.json(product);
   } catch (error: any) {
     console.error('Error fetching product:', error);
@@ -2072,17 +2071,17 @@ router.post('/api/delivery/quote', async (req, res) => {
 router.post('/api/import-products', async (req, res) => {
   try {
     console.log('🚀 Запрос на импорт продуктов через webapp API');
-    
+
     const { prisma } = await import('../lib/prisma.js');
     const productCount = await prisma.product.count();
-    
+
     if (productCount > 0) {
-      return res.json({ 
-        success: false, 
-        message: `Каталог уже содержит ${productCount} товаров. Импорт не требуется.` 
+      return res.json({
+        success: false,
+        message: `Каталог уже содержит ${productCount} товаров. Импорт не требуется.`
       });
     }
-    
+
     // Запускаем импорт в фоне
     import('../services/siam-import-service.js').then(async (module) => {
       try {
@@ -2095,16 +2094,16 @@ router.post('/api/import-products', async (req, res) => {
     }).catch((error) => {
       console.error('❌ Ошибка запуска импорта через webapp API:', error);
     });
-    
-    res.json({ 
-      success: true, 
-      message: 'Импорт продуктов запущен в фоновом режиме. Проверьте каталог через несколько минут.' 
+
+    res.json({
+      success: true,
+      message: 'Импорт продуктов запущен в фоновом режиме. Проверьте каталог через несколько минут.'
     });
   } catch (error: any) {
     console.error('❌ Ошибка при запуске импорта:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error?.message || 'Internal server error' 
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Internal server error'
     });
   }
 });
@@ -2114,7 +2113,7 @@ router.post('/api/import-products', async (req, res) => {
 router.get('/api/plazma/test', async (req, res) => {
   try {
     const { env } = await import('../config/env.js');
-    
+
     return res.json({
       success: true,
       apiKeyConfigured: !!env.plazmaApiKey,
@@ -2133,17 +2132,17 @@ router.get('/api/plazma/test', async (req, res) => {
 router.get('/api/plazma/products', async (req, res) => {
   try {
     const { env } = await import('../config/env.js');
-    
+
     if (!env.plazmaApiKey) {
       console.warn('⚠️ Plazma API key not configured');
-      return res.status(503).json({ 
+      return res.status(503).json({
         error: 'Plazma API integration not configured',
         products: []
       });
     }
 
     const { region = 'RUSSIA', limit = 20 } = req.query;
-    
+
     // Попробуем сначала /products, затем /catalog как fallback
     let url = `${env.plazmaApiUrl}/products?region=${region}&limit=${limit}`;
     let useCatalog = false;
@@ -2162,7 +2161,7 @@ router.get('/api/plazma/products', async (req, res) => {
       console.log('⚠️ /products endpoint not found, trying /catalog...');
       url = `${env.plazmaApiUrl}/catalog?region=${region}`;
       useCatalog = true;
-      
+
       response = await fetch(url, {
         headers: {
           'X-API-Key': env.plazmaApiKey
@@ -2174,7 +2173,7 @@ router.get('/api/plazma/products', async (req, res) => {
       const errorText = await response.text().catch(() => 'Unable to read error response');
       console.error(`❌ Plazma API error: ${response.status} ${response.statusText}`);
       console.error(`❌ Error details:`, errorText);
-      return res.status(response.status).json({ 
+      return res.status(response.status).json({
         error: `Failed to fetch products from Plazma API: ${response.status} ${response.statusText}`,
         products: []
       });
@@ -2192,7 +2191,7 @@ router.get('/api/plazma/products', async (req, res) => {
 
     // Обрабатываем разные форматы ответа
     let products = [];
-    
+
     if (useCatalog) {
       // Если использовали /catalog, извлекаем товары из категорий
       if (data.success && Array.isArray(data.data)) {
@@ -2217,14 +2216,14 @@ router.get('/api/plazma/products', async (req, res) => {
     }
 
     console.log(`✅ Parsed ${products.length} products from Plazma API`);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       products: products.slice(0, parseInt(limit as string) || 20)
     });
   } catch (error: any) {
     console.error('❌ Error fetching Plazma products:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: error?.message || 'Internal server error',
       products: []
     });
@@ -2236,10 +2235,10 @@ router.get('/api/plazma/products/:id', async (req, res) => {
   try {
     const { env } = await import('../config/env.js');
     const { id } = req.params;
-    
+
     if (!env.plazmaApiKey) {
-      return res.status(503).json({ 
-        error: 'Plazma API integration not configured' 
+      return res.status(503).json({
+        error: 'Plazma API integration not configured'
       });
     }
 
@@ -2251,8 +2250,8 @@ router.get('/api/plazma/products/:id', async (req, res) => {
     });
 
     if (!response.ok) {
-      return res.status(response.status).json({ 
-        error: 'Product not found' 
+      return res.status(response.status).json({
+        error: 'Product not found'
       });
     }
 
@@ -2260,8 +2259,8 @@ router.get('/api/plazma/products/:id', async (req, res) => {
     res.json(data);
   } catch (error: any) {
     console.error('❌ Error fetching Plazma product:', error);
-    res.status(500).json({ 
-      error: error?.message || 'Internal server error' 
+    res.status(500).json({
+      error: error?.message || 'Internal server error'
     });
   }
 });
@@ -2278,8 +2277,8 @@ router.post('/api/plazma/orders', async (req, res) => {
     const { productId, productTitle, price, quantity = 1 } = req.body;
 
     if (!env.plazmaApiKey) {
-      return res.status(503).json({ 
-        error: 'Plazma API integration not configured' 
+      return res.status(503).json({
+        error: 'Plazma API integration not configured'
       });
     }
 
@@ -2312,8 +2311,8 @@ router.post('/api/plazma/orders', async (req, res) => {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      return res.status(response.status).json({ 
-        error: errorData.error || 'Failed to create order' 
+      return res.status(response.status).json({
+        error: errorData.error || 'Failed to create order'
       });
     }
 
@@ -2344,12 +2343,12 @@ router.post('/api/plazma/orders', async (req, res) => {
       const { getBotInstance } = await import('../lib/bot-instance.js');
       const { getAdminChatIds } = await import('../config/env.js');
       const bot = await getBotInstance();
-      
+
       if (bot && user) {
         const adminIds = getAdminChatIds();
         const totalPrice = price * quantity;
         const plazmaOrderId = data.data?.orderId || 'N/A';
-        
+
         // Format order message
         let contactInfo = '';
         if (user.phone) {
@@ -2363,8 +2362,8 @@ router.post('/api/plazma/orders', async (req, res) => {
         }
         contactInfo += `🆔 User ID: ${user.id}\n`;
         contactInfo += `🆔 Telegram ID: ${telegramUser.id}`;
-        
-        const orderMessage = 
+
+        const orderMessage =
           '🛍️ <b>Новый заказ Plazma от пользователя</b>\n\n' +
           `👤 <b>Пользователь:</b> ${user.firstName || ''} ${user.lastName || ''}\n` +
           `${contactInfo}\n\n` +
@@ -2375,7 +2374,7 @@ router.post('/api/plazma/orders', async (req, res) => {
           (order ? `🆔 <b>VITAL Order ID:</b> <code>${order.id}</code>\n` : '') +
           `📅 <b>Дата:</b> ${new Date().toLocaleString('ru-RU')}\n\n` +
           `ℹ️ <i>Заказ отправлен в Plazma API и сохранен в базе VITAL</i>`;
-        
+
         // Send to all admins
         for (const adminId of adminIds) {
           try {
@@ -2386,8 +2385,8 @@ router.post('/api/plazma/orders', async (req, res) => {
                   [
                     {
                       text: '💬 Написать пользователю',
-                      url: telegramUser.username 
-                        ? `https://t.me/${telegramUser.username}` 
+                      url: telegramUser.username
+                        ? `https://t.me/${telegramUser.username}`
                         : `tg://user?id=${telegramUser.id}`
                     },
                     {
@@ -2415,16 +2414,16 @@ router.post('/api/plazma/orders', async (req, res) => {
       // Don't fail the order creation if notification fails
     }
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       orderId: data.data?.orderId,
       vitalOrderId: order?.id,
       message: 'Заказ успешно создан! Администратор свяжется с вами.'
     });
   } catch (error: any) {
     console.error('❌ Error creating Plazma order:', error);
-    res.status(500).json({ 
-      error: error?.message || 'Internal server error' 
+    res.status(500).json({
+      error: error?.message || 'Internal server error'
     });
   }
 });

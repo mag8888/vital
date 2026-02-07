@@ -94,3 +94,7 @@ logs
 # Railway specific
 .railway/
 dist/
+
+# SQLite database
+*.db
+*.db-journal

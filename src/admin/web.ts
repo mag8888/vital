@@ -2860,7 +2860,7 @@ router.get('/users-detailed', requireAdmin, async (req, res) => {
         },
         orders: true
       },
-      where: search ? { username: { contains: search, mode: 'insensitive' } } : undefined,
+      where: search ? { username: { contains: search } } : undefined,
       orderBy: {
         createdAt: sortOrder === 'desc' ? 'desc' : 'asc'
       }
@@ -4065,7 +4065,7 @@ router.get('/users/search', requireAdmin, async (req, res) => {
     const q = String((req.query.q as string) || '').trim().replace(/^@/, '');
     if (!q) return res.json([]);
     const users = await prisma.user.findMany({
-      where: { username: { startsWith: q, mode: 'insensitive' } },
+      where: { username: { startsWith: q } },
       select: { id: true, username: true, firstName: true },
       take: 10,
       orderBy: { username: 'asc' }
@@ -4084,7 +4084,7 @@ router.get('/inviters/search', requireAdmin, async (req, res) => {
     if (q.startsWith('@')) {
       const uname = q.replace(/^@/, '');
       const users = await prisma.user.findMany({
-        where: { username: { startsWith: uname, mode: 'insensitive' } },
+        where: { username: { startsWith: uname } },
         take: 10,
         select: { id: true, username: true, firstName: true }
       });
@@ -4204,7 +4204,7 @@ router.post('/send-messages', requireAdmin, async (req, res) => {
           data: {
             userId: user.id,
             action: 'admin_message_sent',
-            payload: {
+            payload: JSON.stringify({
               type,
               subject,
               messageLength: text.length,
@@ -4212,7 +4212,7 @@ router.post('/send-messages', requireAdmin, async (req, res) => {
               messageText: messageText,
               status: 'sent',
               telegramId: user.telegramId
-            }
+            })
           }
         });
 
@@ -5898,7 +5898,7 @@ router.post('/partners/:id/change-inviter', requireAdmin, async (req, res) => {
     if (inviterUsername) {
       const uname = String(inviterUsername).trim().replace(/^@/, '');
       const inviterUser = await prisma.user.findFirst({
-        where: { username: { equals: uname, mode: 'insensitive' } }
+        where: { username: { equals: uname } }
       });
       if (inviterUser) {
         newInviter = await prisma.partnerProfile.findFirst({ where: { userId: inviterUser.id }, include: { user: true } });
@@ -6017,7 +6017,7 @@ router.post('/users/:id/change-inviter', requireAdmin, async (req, res) => {
     if (inviterUsername) {
       const uname = String(inviterUsername).trim().replace(/^@/, '');
       const inviterUser = await prisma.user.findFirst({
-        where: { username: { equals: uname, mode: 'insensitive' } }
+        where: { username: { equals: uname } }
       });
       if (inviterUser) {
         newInviter = await prisma.partnerProfile.findFirst({ where: { userId: inviterUser.id }, include: { user: true } });
@@ -11764,7 +11764,7 @@ router.post('/chats/:telegramId/reply', requireAdmin, express.urlencoded({ exten
       data: {
         userId: user.id,
         action: 'support:webapp',
-        payload: { direction: 'admin', text }
+        payload: JSON.stringify({ direction: 'admin', text })
       }
     });
 
@@ -13420,13 +13420,13 @@ router.post('/users/:userId/update-balance', requireAdmin, async (req, res) => {
       data: {
         userId,
         action: 'balance_updated',
-        payload: {
+        payload: JSON.stringify({
           operation,
           amount,
           oldBalance: currentBalance,
           newBalance,
           comment: comment || 'Ручное изменение баланса администратором'
-        }
+        })
       }
     });
 
@@ -15588,7 +15588,7 @@ router.post('/users/:userId/orders', requireAdmin, async (req, res) => {
         userId,
         contact: contact?.toString().trim() || null,
         message: message?.toString().trim() || 'Заказ создан администратором',
-        itemsJson: sanitizedItems,
+        itemsJson: JSON.stringify(sanitizedItems),
         status: targetStatus
       }
     });
@@ -15731,11 +15731,11 @@ router.post('/messages/send', requireAdmin, async (req, res) => {
           data: {
             userId: userId,
             action: 'MESSAGE_SENT',
-            payload: {
+            payload: JSON.stringify({
               subject,
               text,
               sentBy: 'admin'
-            }
+            })
           }
         });
 
@@ -15752,11 +15752,11 @@ router.post('/messages/send', requireAdmin, async (req, res) => {
           data: {
             userId: userIds[0], // Используем первого пользователя для шаблона
             action: 'MESSAGE_TEMPLATE_SAVED',
-            payload: {
+            payload: JSON.stringify({
               subject,
               text,
               savedBy: 'admin'
-            }
+            })
           }
         });
       } catch (error) {
@@ -15820,12 +15820,12 @@ router.post('/users/:userId/balance', requireAdmin, async (req, res) => {
       data: {
         userId: userId,
         action: operation === 'add' ? 'BALANCE_ADDED' : 'BALANCE_SUBTRACTED',
-        payload: {
+        payload: JSON.stringify({
           amount: amount,
           operation: operation,
           previousBalance: currentBalance,
           newBalance: newBalance
-        }
+        })
       }
     });
 
@@ -15929,11 +15929,11 @@ router.post('/orders/:orderId/pay', requireAdmin, async (req, res) => {
         data: {
           userId: order.user!.id,
           action: 'ORDER_PAYMENT',
-          payload: {
+          payload: JSON.stringify({
             orderId: orderId,
             amount: -totalAmount,
             description: `Оплата заказа #${orderId.slice(-8)}`
-          }
+          })
         }
       });
     });

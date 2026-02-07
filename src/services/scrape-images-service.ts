@@ -31,7 +31,7 @@ export async function scrapeShopPage(page: number = 1): Promise<{
   hasNextPage: boolean;
 }> {
   const url = `https://siambotanicals.com/shop/${page > 1 ? `page/${page}/` : ''}`;
-  
+
   try {
     const response = await fetch(url, {
       headers: {
@@ -47,12 +47,12 @@ export async function scrapeShopPage(page: number = 1): Promise<{
     const html = await response.text();
     const products: ProductFromSite[] = [];
     const foundUrls = new Set<string>(); // Для избежания дубликатов
-    
+
     // Ищем все ссылки на продукты в HTML
     // WooCommerce обычно использует структуру: <li class="product"> или <article class="product">
     // Ищем все ссылки, содержащие /product/ в href
     const allProductLinks = html.match(/<a[^>]*href="[^"]*\/product\/[^"]*"[^>]*>/gi) || [];
-    
+
     if (allProductLinks.length === 0) {
       // Попробуем альтернативный паттерн
       const altPattern = /href="(https:\/\/siambotanicals\.com\/product\/[^"]+)"/gi;
@@ -61,40 +61,40 @@ export async function scrapeShopPage(page: number = 1): Promise<{
         console.log(`   ℹ️  Найдено товаров альтернативным способом: ${altMatches.length}`);
       }
     }
-    
+
     for (const linkTag of allProductLinks) {
       const urlMatch = linkTag.match(/href="([^"]+)"/i);
       if (!urlMatch) continue;
-      
+
       let productUrl = urlMatch[1];
       if (!productUrl.includes('/product/')) continue;
-      
+
       // Нормализуем URL
       if (!productUrl.startsWith('http')) {
-        productUrl = productUrl.startsWith('/') 
+        productUrl = productUrl.startsWith('/')
           ? `https://siambotanicals.com${productUrl}`
           : `https://siambotanicals.com/${productUrl}`;
       }
-      
+
       // Убираем параметры из URL
       productUrl = productUrl.split('?')[0].split('#')[0];
-      
+
       // Извлекаем slug
       const slugMatch = productUrl.match(/\/product\/([^\/]+)/);
       if (!slugMatch) continue;
-      
+
       const slug = slugMatch[1];
-      
+
       // Пропускаем дубликаты
       if (foundUrls.has(productUrl)) continue;
       foundUrls.add(productUrl);
-      
+
       // Находим блок продукта вокруг этой ссылки
       const linkIndex = html.indexOf(linkTag);
       const productBlockStart = Math.max(0, linkIndex - 1000);
       const productBlockEnd = Math.min(html.length, linkIndex + 2000);
       const productHtml = html.substring(productBlockStart, productBlockEnd);
-      
+
       // Извлекаем название
       let title = '';
       const titlePatterns = [
@@ -105,7 +105,7 @@ export async function scrapeShopPage(page: number = 1): Promise<{
         // Альтернативные паттерны для названия
         new RegExp(`<a[^>]*href="${productUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*>([^<]+)</a>`, 'i')
       ];
-      
+
       for (const pattern of titlePatterns) {
         const match = productHtml.match(pattern);
         if (match && match[1]) {
@@ -113,12 +113,12 @@ export async function scrapeShopPage(page: number = 1): Promise<{
           if (title && title.length > 3) break;
         }
       }
-      
+
       // Если название не найдено, извлекаем из slug
       if (!title || title.length < 3) {
         title = slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
       }
-      
+
       // Извлекаем миниатюру (опционально, основное изображение будет со страницы продукта)
       let imageUrl: string | null = null;
       const imagePatterns = [
@@ -127,7 +127,7 @@ export async function scrapeShopPage(page: number = 1): Promise<{
         /<img[^>]*data-src="([^"]+)"[^>]*>/i,
         /<img[^>]*src="([^"]*\/wp-content\/uploads\/[^"]+\.(jpg|jpeg|png|webp))"[^>]*>/i,
       ];
-      
+
       for (const pattern of imagePatterns) {
         const match = productHtml.match(pattern);
         if (match && match[1]) {
@@ -142,7 +142,7 @@ export async function scrapeShopPage(page: number = 1): Promise<{
           break;
         }
       }
-      
+
       if (title && slug) {
         products.push({
           title: title,
@@ -152,14 +152,14 @@ export async function scrapeShopPage(page: number = 1): Promise<{
         });
       }
     }
-    
+
     // Определяем наличие следующей страницы более точно
-    const hasNextPage = html.includes('next page-numbers') || 
-                       html.includes('next page') ||
-                       html.includes('→') ||
-                       html.match(/page-numbers.*next/) !== null ||
-                       (products.length >= 12); // Если на странице 12 или больше товаров, вероятно есть еще
-    
+    const hasNextPage = html.includes('next page-numbers') ||
+      html.includes('next page') ||
+      html.includes('→') ||
+      html.match(/page-numbers.*next/) !== null ||
+      (products.length >= 12); // Если на странице 12 или больше товаров, вероятно есть еще
+
     return { products, hasNextPage };
   } catch (error: any) {
     console.error(`❌ Ошибка парсинга страницы ${page}: ${error.message || error}`);
@@ -184,7 +184,7 @@ export async function extractImageFromProductPage(productUrl: string): Promise<s
     }
 
     const html = await response.text();
-    
+
     // Ищем основное изображение продукта (высокого качества)
     const patterns = [
       // WooCommerce галерея - главное изображение
@@ -206,7 +206,7 @@ export async function extractImageFromProductPage(productUrl: string): Promise<s
       const match = html.match(pattern);
       if (match && match[1]) {
         let imageUrl = match[1];
-        
+
         // Обработка srcset (выбираем самое большое изображение)
         if (pattern.toString().includes('srcset')) {
           const srcsetParts = imageUrl.split(',').map(p => p.trim());
@@ -215,7 +215,7 @@ export async function extractImageFromProductPage(productUrl: string): Promise<s
             imageUrl = srcsetParts[srcsetParts.length - 1].split(' ')[0];
           }
         }
-        
+
         if (imageUrl.startsWith('//')) {
           imageUrl = 'https:' + imageUrl;
         } else if (imageUrl.startsWith('/')) {
@@ -226,7 +226,7 @@ export async function extractImageFromProductPage(productUrl: string): Promise<s
         imageUrl = imageUrl.replace(/-\d+x\d+\.(jpg|jpeg|png|webp)/i, '.$1');
         imageUrl = imageUrl.split('?')[0];
         imageUrl = imageUrl.split('#')[0];
-        
+
         // Проверяем, что это действительно изображение
         if (imageUrl.match(/\.(jpg|jpeg|png|webp)(\?|$)/i)) {
           return imageUrl;
@@ -279,16 +279,16 @@ export async function downloadAndUploadImage(imageUrl: string, productId: string
       }
 
       const imageBuffer = Buffer.from(await response.arrayBuffer());
-      
+
       if (imageBuffer.length === 0) {
         return imageUrl;
       }
-      
+
       const safeTitle = productTitle.toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '')
         .substring(0, 50);
-      
+
       const result = await uploadImage(imageBuffer, {
         folder: 'vital/products',
         publicId: `siam-${safeTitle}-${Date.now()}`,
@@ -311,8 +311,7 @@ export async function findProductInDB(title: string, slug: string): Promise<{ id
   const exactMatch = await prisma.product.findFirst({
     where: {
       title: {
-        equals: title,
-        mode: 'insensitive'
+        equals: title
       }
     },
     select: {
@@ -321,19 +320,18 @@ export async function findProductInDB(title: string, slug: string): Promise<{ id
       imageUrl: true
     }
   });
-  
+
   if (exactMatch) {
     return exactMatch;
   }
-  
+
   const words = title.toLowerCase().split(/\s+/).filter(w => w.length > 3);
   if (words.length > 0) {
     const partialMatch = await prisma.product.findFirst({
       where: {
         OR: words.map(word => ({
           title: {
-            contains: word,
-            mode: 'insensitive'
+            contains: word
           }
         }))
       },
@@ -343,12 +341,12 @@ export async function findProductInDB(title: string, slug: string): Promise<{ id
         imageUrl: true
       }
     });
-    
+
     if (partialMatch) {
       return partialMatch;
     }
   }
-  
+
   return null;
 }
 
@@ -357,7 +355,7 @@ export async function findProductInDB(title: string, slug: string): Promise<{ id
  */
 export async function scrapeAllMissingImages(): Promise<ScrapeResult> {
   console.log('🚀 Начало сбора всех фотографий продуктов\n');
-  
+
   const result: ScrapeResult = {
     updated: 0,
     skipped: 0,
@@ -377,19 +375,19 @@ export async function scrapeAllMissingImages(): Promise<ScrapeResult> {
   while (hasMorePages && currentPage <= maxPages) {
     console.log(`\n📄 Страница ${currentPage}:`);
     const { products, hasNextPage } = await scrapeShopPage(currentPage);
-    
+
     if (products.length === 0 && currentPage > 1) {
       console.log(`   ✅ Больше товаров нет, завершаю сбор`);
       hasMorePages = false;
       break;
     }
-    
+
     allProductsFromSite.push(...products);
     console.log(`   ✅ Найдено товаров: ${products.length}, всего: ${allProductsFromSite.length}`);
-    
+
     hasMorePages = hasNextPage && products.length > 0;
     currentPage++;
-    
+
     // Задержка между страницами
     await new Promise(resolve => setTimeout(resolve, 2000));
   }
@@ -400,59 +398,59 @@ export async function scrapeAllMissingImages(): Promise<ScrapeResult> {
   for (const siteProduct of allProductsFromSite) {
     try {
       console.log(`\n📦 Обработка продукта: ${siteProduct.title}`);
-      
+
       const dbProduct = await findProductInDB(siteProduct.title, siteProduct.slug);
-      
+
       if (!dbProduct) {
         console.log(`   ⏭️  Не найден в базе данных`);
         result.notFound++;
         continue;
       }
-      
+
       // Всегда заходим на страницу продукта для получения изображения высокого качества
       console.log(`   🔍 Захожу на страницу продукта: ${siteProduct.productUrl}`);
       let imageUrl = await extractImageFromProductPage(siteProduct.productUrl);
-      
+
       // Если не получилось со страницы, пробуем из списка
       if (!imageUrl && siteProduct.imageUrl) {
         console.log(`   🔄 Используем изображение из списка`);
         imageUrl = siteProduct.imageUrl;
       }
-      
+
       if (!imageUrl) {
         console.log(`   ⚠️  Изображение не найдено`);
         result.failed++;
         continue;
       }
-      
+
       console.log(`   📥 Найдено изображение: ${imageUrl.substring(0, 60)}...`);
-      
+
       // Загружаем на Cloudinary или используем прямой URL
       const finalImageUrl = await downloadAndUploadImage(imageUrl, dbProduct.id, dbProduct.title);
-      
+
       if (!finalImageUrl) {
         console.log(`   ⚠️  Не удалось обработать изображение`);
         result.failed++;
         continue;
       }
-      
+
       // Проверяем, что изображение действительно отличается от текущего
       const needsUpdate = !dbProduct.imageUrl || dbProduct.imageUrl !== finalImageUrl;
-      
+
       if (needsUpdate) {
         // Обновляем в базе данных (даже если изображение уже было, обновляем на более качественное)
         await prisma.product.update({
           where: { id: dbProduct.id },
           data: { imageUrl: finalImageUrl }
         });
-        
+
         console.log(`   ✅ Успешно добавлено/обновлено! URL: ${finalImageUrl.substring(0, 60)}...`);
         result.updated++;
       } else {
         console.log(`   ⏭️  Изображение уже актуальное, пропускаю`);
         result.skipped++;
       }
-      
+
       // Задержка между запросами
       await new Promise(resolve => setTimeout(resolve, 2000));
     } catch (error: any) {

@@ -343,12 +343,12 @@ async function downloadAndUploadImage(imageUrl: string, productId: string): Prom
 
   // Пробуем альтернативные варианты URL
   const alternativeUrls: string[] = [imageUrl];
-  
+
   // Вариант без "-1" в конце
   if (imageUrl.includes('-1.jpg')) {
     alternativeUrls.push(imageUrl.replace('-1.jpg', '.jpg'));
   }
-  
+
   // Вариант без расширения и снова с расширением
   const baseUrl = imageUrl.replace(/\.(jpg|jpeg|png)$/i, '');
   alternativeUrls.push(`${baseUrl}.jpg`);
@@ -366,7 +366,7 @@ async function downloadAndUploadImage(imageUrl: string, productId: string): Prom
         },
         signal: AbortSignal.timeout(10000) // 10 секунд таймаут
       });
-      
+
       if (!response.ok) {
         // Если это не последний URL, пробуем следующий
         if (url !== uniqueUrls[uniqueUrls.length - 1]) {
@@ -390,7 +390,7 @@ async function downloadAndUploadImage(imageUrl: string, productId: string): Prom
       }
 
       const imageBuffer = Buffer.from(await response.arrayBuffer());
-      
+
       if (imageBuffer.length === 0) {
         // Если это не последний URL, пробуем следующий
         if (url !== uniqueUrls[uniqueUrls.length - 1]) {
@@ -400,13 +400,13 @@ async function downloadAndUploadImage(imageUrl: string, productId: string): Prom
         console.warn(`⚠️  Изображение пустое: ${shortUrl}`);
         return null;
       }
-      
+
       // Успешно загрузили изображение
       if (url !== imageUrl) {
         const shortUrl = url.split('/').pop() || url;
         console.log(`   ✅ Найдено альтернативное изображение: ${shortUrl}`);
       }
-      
+
       const result = await uploadImage(imageBuffer, {
         folder: 'vital/products',
         publicId: `siam-${productId}`,
@@ -420,11 +420,11 @@ async function downloadAndUploadImage(imageUrl: string, productId: string): Prom
       if (url !== uniqueUrls[uniqueUrls.length - 1]) {
         continue;
       }
-      
+
       // Если это последний URL, логируем ошибку
       const shortUrl = imageUrl.split('/').pop() || imageUrl;
       const errorMessage = error.message || String(error);
-      
+
       if (error.name === 'AbortError' || error.name === 'TimeoutError') {
         console.warn(`⚠️  Таймаут загрузки изображения: ${shortUrl}`);
       } else if (errorMessage.includes('Not Found') || errorMessage.includes('404') || errorMessage.includes('Failed to fetch')) {
@@ -437,7 +437,7 @@ async function downloadAndUploadImage(imageUrl: string, productId: string): Prom
       return null;
     }
   }
-  
+
   // Если дошли до сюда, ни один URL не сработал
   return null;
 }
@@ -452,15 +452,14 @@ async function importProduct(product: SiamProduct): Promise<any> {
   const existingProduct = await prisma.product.findFirst({
     where: {
       title: {
-        contains: product.englishTitle.split(' ')[0], // Проверяем по первому слову
-        mode: 'insensitive'
+        contains: product.englishTitle.split(' ')[0] // Проверяем по первому слову
       }
     }
   });
 
   if (existingProduct) {
     console.log(`⏭️  Продукт "${product.englishTitle}" уже существует`);
-    
+
     // ВСЕГДА обновляем изображение, если оно есть в источнике
     // Это гарантирует, что даже если изображение было загружено, но не отображается, оно обновится
     if (product.imageUrl) {
@@ -580,7 +579,7 @@ export async function importSiamProducts(): Promise<{ success: number; errors: n
     try {
       await importProduct(product as SiamProduct);
       successCount++;
-      
+
       // Пауза между запросами
       await new Promise(resolve => setTimeout(resolve, 2000));
     } catch (error) {
@@ -606,7 +605,7 @@ export async function importSiamProducts(): Promise<{ success: number; errors: n
 async function extractImageFromProductPage(slug: string): Promise<string | null> {
   try {
     const productUrl = `https://siambotanicals.com/product/${slug}/`;
-    
+
     const response = await fetch(productUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -624,13 +623,13 @@ async function extractImageFromProductPage(slug: string): Promise<string | null>
     }
 
     const html = await response.text();
-    
+
     // Проверяем, не является ли страница 404 страницей
     if (html.includes('Page not found') || html.includes('404') || html.includes('Not Found')) {
       console.log(`   ⚠️  Страница товара не найдена (404 в HTML): ${slug}`);
       return null;
     }
-    
+
     // Ищем изображение товара в HTML - расширенный набор паттернов
     const patterns = [
       // WooCommerce галерея - приоритетные паттерны
@@ -652,7 +651,7 @@ async function extractImageFromProductPage(slug: string): Promise<string | null>
       // Общий паттерн для любых изображений из uploads
       /https?:\/\/[^"'\s]+\/wp-content\/uploads\/[^"'\s]+\.(jpg|jpeg|png|webp)/i,
     ];
-    
+
     console.log(`   🔍 Ищу изображение в HTML (длина HTML: ${html.length} символов)...`);
 
     for (let i = 0; i < patterns.length; i++) {
@@ -660,7 +659,7 @@ async function extractImageFromProductPage(slug: string): Promise<string | null>
       const match = html.match(pattern);
       if (match && match[1]) {
         let imageUrl = match[1];
-        
+
         // Преобразуем относительный URL в абсолютный
         if (imageUrl.startsWith('//')) {
           imageUrl = 'https:' + imageUrl;
@@ -670,13 +669,13 @@ async function extractImageFromProductPage(slug: string): Promise<string | null>
 
         // Убираем параметры размера для получения оригинала (например, -300x300.jpg -> .jpg)
         imageUrl = imageUrl.replace(/-\d+x\d+\.(jpg|jpeg|png|webp)/i, '.$1');
-        
+
         // Убираем параметры запроса
         imageUrl = imageUrl.split('?')[0];
-        
+
         // Убираем лишние символы в конце (скобки, кавычки)
         imageUrl = imageUrl.replace(/[)'"]+$/, '');
-        
+
         console.log(`   ✅ Найдено изображение (паттерн ${i + 1}/${patterns.length}): ${imageUrl.split('/').pop()}`);
         return imageUrl;
       }
@@ -760,7 +759,7 @@ export async function updateProductImages(): Promise<{ updated: number; failed: 
       continue;
     }
     const titleLower = siamProduct.englishTitle.toLowerCase();
-    
+
     // Добавляем по ключевым словам из английского названия
     for (const [ruKeyword, enKeyword] of keywordMap.entries()) {
       if (titleLower.includes(enKeyword)) {
@@ -776,7 +775,7 @@ export async function updateProductImages(): Promise<{ updated: number; failed: 
     try {
       let siamProduct: SiamProduct | null = null;
       const productTitleLower = product.title.toLowerCase();
-      
+
       // Ищем по ключевым словам в русском названии
       for (const [ruKeyword, enKeyword] of keywordMap.entries()) {
         if (productTitleLower.includes(ruKeyword)) {
@@ -789,12 +788,12 @@ export async function updateProductImages(): Promise<{ updated: number; failed: 
           }
         }
       }
-      
+
       // Если не нашли по ключевым словам, пробуем поиск по части названия
       if (!siamProduct) {
         for (const siamProd of siamProducts) {
           if (!siamProd.englishTitle || !siamProd.imageUrl) continue;
-          
+
           // Проверяем совпадение ключевых слов
           const siamTitleLower = siamProd.englishTitle.toLowerCase();
           for (const [ruKeyword, enKeyword] of keywordMap.entries()) {
@@ -820,16 +819,16 @@ export async function updateProductImages(): Promise<{ updated: number; failed: 
 
       // Проверяем, нужно ли обновлять изображение
       // Обновляем, если изображения нет, если это старый URL с siambotanicals.com, или если не Cloudinary
-      const needsUpdate = !product.imageUrl || 
-                          product.imageUrl.includes('siambotanicals.com') ||
-                          !product.imageUrl.includes('cloudinary') ||
-                          product.imageUrl.includes('placeholder');
+      const needsUpdate = !product.imageUrl ||
+        product.imageUrl.includes('siambotanicals.com') ||
+        !product.imageUrl.includes('cloudinary') ||
+        product.imageUrl.includes('placeholder');
 
       if (needsUpdate) {
         console.log(`\n📦 Обновляю изображение для: ${product.title}`);
         const tempId = `update-${product.id}-${Date.now()}`;
         const newImageUrl = await downloadAndUploadImage(siamProduct.imageUrl, tempId);
-        
+
         if (newImageUrl) {
           await prisma.product.update({
             where: { id: product.id },
@@ -853,12 +852,12 @@ export async function updateProductImages(): Promise<{ updated: number; failed: 
       failedCount++;
     }
   }
-  
+
   console.log(`\n📊 Итоговая статистика:`);
   console.log(`   ✅ Обновлено изображений: ${updatedCount}`);
   console.log(`   ❌ Не удалось обновить: ${failedCount}`);
   console.log(`   📦 Всего товаров обработано: ${allProducts.length}`);
-  
+
   if (updatedCount === 0 && failedCount > 0) {
     console.log(`\n💡 Совет: Проверьте логи выше. Возможные причины:`);
     console.log(`   - Товары в базе не совпадают с товарами Siam Botanicals`);
@@ -920,7 +919,7 @@ const productSlugs: Record<string, string> = {
  */
 function findProductByEnglishTitle(products: any[], englishTitle: string): any | null {
   const englishTitleLower = englishTitle.toLowerCase();
-  
+
   // Ключевые слова для сопоставления (та же карта, что в updateProductImages)
   const keywordMap = new Map<string, string>([
     ['кастор', 'castor'],
@@ -957,14 +956,14 @@ function findProductByEnglishTitle(products: any[], englishTitle: string): any |
   // Ищем товар по ключевым словам (как в updateProductImages)
   for (const product of products) {
     const productTitleLower = product.title.toLowerCase();
-    
+
     // Проверяем совпадение по ключевым словам из английского названия
     for (const [ruKeyword, enKeyword] of keywordMap.entries()) {
       if (englishTitleLower.includes(enKeyword) && productTitleLower.includes(ruKeyword)) {
         return product;
       }
     }
-    
+
     // Дополнительная проверка: первое слово английского названия
     const firstEnglishWord = englishTitleLower.split(' ')[0];
     if (firstEnglishWord.length > 3) {
@@ -972,7 +971,7 @@ function findProductByEnglishTitle(products: any[], englishTitle: string): any |
       if (productTitleLower.includes(firstEnglishWord)) {
         return product;
       }
-      
+
       // Проверяем обратное: русское ключевое слово соответствует английскому
       for (const [ruKeyword, enKeyword] of keywordMap.entries()) {
         if (productTitleLower.includes(ruKeyword) && englishTitleLower.includes(enKeyword)) {
@@ -981,7 +980,7 @@ function findProductByEnglishTitle(products: any[], englishTitle: string): any |
       }
     }
   }
-  
+
   return null;
 }
 
@@ -1038,7 +1037,7 @@ export async function uploadAllProductImagesFromPages(): Promise<{ updated: numb
 
       console.log(`\n📦 Товар: ${dbProduct.title}`);
       console.log(`   Английское название: ${siamProduct.englishTitle}`);
-      
+
       // Проверяем, нужно ли обновлять изображение
       // Пропускаем, если уже есть изображение на Cloudinary
       if (dbProduct.imageUrl && dbProduct.imageUrl.includes('cloudinary') && !dbProduct.imageUrl.includes('siambotanicals.com')) {
@@ -1050,9 +1049,9 @@ export async function uploadAllProductImagesFromPages(): Promise<{ updated: numb
       // Извлекаем URL изображения со страницы товара
       const productUrl = `https://siambotanicals.com/product/${slug}/`;
       console.log(`   📄 Загружаю страницу: ${productUrl}`);
-      
+
       const imageUrl = await extractImageFromProductPage(slug);
-      
+
       if (!imageUrl) {
         console.log(`   ⚠️  Не удалось получить URL изображения со страницы`);
         console.log(`   💡 Возможные причины:`);
@@ -1089,7 +1088,7 @@ export async function uploadAllProductImagesFromPages(): Promise<{ updated: numb
       }
 
       const imageBuffer = Buffer.from(await response.arrayBuffer());
-      
+
       if (imageBuffer.length === 0) {
         console.log(`   ⚠️  Изображение пустое`);
         failed++;

@@ -1,5 +1,4 @@
 import { Markup, Telegraf } from 'telegraf';
-import { PartnerProgramType } from '@prisma/client';
 import { Context } from '../../bot/context.js';
 import { BotModule } from '../../bot/types.js';
 import { ensureUser, logUserAction } from '../../services/user-history.js';
@@ -122,10 +121,10 @@ async function showDashboard(ctx: Context) {
   }
 
   const { profile, stats } = dashboard;
-  
+
   // Берем только последние 3 транзакции и улучшаем их отображение
   const recentTransactions = profile.transactions.slice(0, 3);
-  
+
   // Собираем все ID пользователей из транзакций для запроса в БД
   const userIds = new Set<string>();
   recentTransactions.forEach(tx => {
@@ -136,23 +135,23 @@ async function showDashboard(ctx: Context) {
       }
     }
   });
-  
+
   // Получаем информацию о пользователях
   const users = userIds.size > 0 ? await prisma.user.findMany({
     where: { id: { in: Array.from(userIds) } },
     select: { id: true, username: true, firstName: true }
   }) : [];
-  
+
   // Создаем мапу для быстрого поиска пользователей
   const userMap = new Map(users.map(user => [user.id, user]));
-  
+
   const transactions = recentTransactions.map((tx) => {
     const sign = tx.type === 'CREDIT' ? '+' : '-';
     const amount = Number(tx.amount).toFixed(2);
-    
+
     // Улучшаем описание транзакции
     let description = tx.description;
-    
+
     // Если это бонус за приглашение друга, пытаемся получить имя пользователя
     if (tx.description.includes('приглашение друга') && tx.description.includes('(')) {
       const userIdMatch = tx.description.match(/\(([^)]+)\)/);
@@ -165,7 +164,7 @@ async function showDashboard(ctx: Context) {
         }
       }
     }
-    
+
     return `${sign}${amount} PZ — ${description}`;
   });
 
@@ -175,7 +174,7 @@ async function showDashboard(ctx: Context) {
     expiresAt: (profile as any).expiresAt,
     activationType: (profile as any).activationType
   });
-  
+
   let activationStatus = '';
   if ((profile as any).isActive) {
     const expiresAt = (profile as any).expiresAt;
@@ -183,7 +182,7 @@ async function showDashboard(ctx: Context) {
       const now = new Date();
       const expiration = new Date(expiresAt);
       const daysLeft = Math.ceil((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-      
+
       if (daysLeft > 0) {
         activationStatus = `\n✅ Активация партнерки 25% до ${expiration.toLocaleDateString('ru-RU')} (осталось ${daysLeft} дней)`;
       } else {
@@ -197,7 +196,7 @@ async function showDashboard(ctx: Context) {
     const currentTurnover = Number(profile.balance); // Используем баланс как показатель активности
     const neededTurnover = 120;
     const remainingTurnover = Math.max(0, neededTurnover - currentTurnover);
-    
+
     if (remainingTurnover > 0) {
       activationStatus = `\n⏳ До активации партнерки осталось ${remainingTurnover} PZ товарооборота (нужно 120 PZ в месяц)`;
     } else {
@@ -211,7 +210,7 @@ async function showDashboard(ctx: Context) {
     partners: stats.partners,
     direct: stats.directPartners,
     bonus: Number(profile.bonus).toFixed(2),
-    referral: buildReferralLink(profile.referralCode, profile.programType, user.username || undefined).main,
+    referral: buildReferralLink(profile.referralCode, profile.programType as 'DIRECT' | 'MULTI_LEVEL', user.username || undefined).main,
     transactions,
     isActive: (profile as any).isActive,
     expiresAt: (profile as any).expiresAt,
@@ -226,28 +225,28 @@ async function showDashboard(ctx: Context) {
 
 async function handlePlanSelection(
   ctx: Context,
-  programType: PartnerProgramType,
+  programType: 'DIRECT' | 'MULTI_LEVEL',
   message: string
 ): Promise<boolean> {
   console.log('💰 Partner: handlePlanSelection called with type:', programType);
-  
-  try {
-  const user = await ensureUser(ctx);
-  if (!user) {
-    console.log('💰 Partner: Failed to ensure user');
-    await ctx.reply('Не удалось активировать программу. Попробуйте позже.');
-      return false;
-  }
 
-  console.log('💰 Partner: User ensured, creating profile');
-  const profile = await getOrCreatePartnerProfile(user.id, programType);
-  console.log('💰 Partner: Profile created:', profile.referralCode);
-  
-  await logUserAction(ctx, 'partner:select-program', { programType });
-  
-  const referralLink = buildReferralLink(profile.referralCode, programType, user.username || undefined);
-  console.log('💰 Partner: Generated referral link:', referralLink);
-  
+  try {
+    const user = await ensureUser(ctx);
+    if (!user) {
+      console.log('💰 Partner: Failed to ensure user');
+      await ctx.reply('Не удалось активировать программу. Попробуйте позже.');
+      return false;
+    }
+
+    console.log('💰 Partner: User ensured, creating profile');
+    const profile = await getOrCreatePartnerProfile(user.id, programType);
+    console.log('💰 Partner: Profile created:', profile.referralCode);
+
+    await logUserAction(ctx, 'partner:select-program', { programType });
+
+    const referralLink = buildReferralLink(profile.referralCode, programType, user.username || undefined);
+    console.log('💰 Partner: Generated referral link:', referralLink);
+
     await ctx.reply(
       `${message}\n\nВаша ссылка: ${referralLink}`,
       partnerActionsKeyboard()
@@ -275,11 +274,11 @@ async function showPartners(ctx: Context) {
 
   const { stats } = dashboard;
   const partnerList = await getPartnerList(user.id);
-  
+
   await ctx.answerCbQuery();
-  
+
   let message = `👥 Мои партнёры\n\n📊 Статистика:\nВсего: ${stats.partners}\nПрямых: ${stats.directPartners}\n\n`;
-  
+
   if (partnerList) {
     // Show direct partners
     if (partnerList.directPartners.length > 0) {
@@ -290,7 +289,7 @@ async function showPartners(ctx: Context) {
       });
       message += '\n';
     }
-    
+
     // Show multi-level partners
     if (partnerList.multiPartners.length > 0) {
       message += `🌳 Многоуровневые партнёры:\n`;
@@ -299,12 +298,12 @@ async function showPartners(ctx: Context) {
         message += `${index + 1}. ${displayName} (${partner.level}-й уровень)\n`;
       });
     }
-    
+
     if (partnerList.directPartners.length === 0 && partnerList.multiPartners.length === 0) {
       message += `📭 Пока нет партнёров.\nПриглашайте друзей по вашей реферальной ссылке!`;
     }
   }
-  
+
   await ctx.reply(message);
 }
 
@@ -322,18 +321,18 @@ async function showPartnersByLevel(ctx: Context, level: number) {
   }
 
   await ctx.answerCbQuery();
-  
+
   console.log(`🔍 Partner: Looking for level ${level} partners for user ${user.id}, profile ${dashboard.profile.id}`);
-  
+
   // Получаем список партнеров конкретного уровня
   let partnerReferrals: PartnerReferralWithUser[] = [];
-  
+
   if (level === 1) {
     // Прямые партнеры - те, кто пришел по нашей ссылке
     partnerReferrals = await prisma.partnerReferral.findMany({
-      where: { 
+      where: {
         profileId: dashboard.profile.id,
-        level: 1 
+        level: 1
       },
       include: {
         profile: {
@@ -345,7 +344,7 @@ async function showPartnersByLevel(ctx: Context, level: number) {
         }
       }
     });
-    
+
     console.log(`🔍 Partner: Found ${partnerReferrals.length} level 1 partners`);
     partnerReferrals.forEach((p, index) => {
       console.log(`🔍 Partner: Level 1 partner ${index + 1}:`, {
@@ -355,7 +354,7 @@ async function showPartnersByLevel(ctx: Context, level: number) {
         profileId: p.profileId
       });
     });
-    
+
     // Дополнительная проверка: кто пригласил каждого из прямых партнеров
     for (const partner of partnerReferrals) {
       if (partner.referredId) {
@@ -371,7 +370,7 @@ async function showPartnersByLevel(ctx: Context, level: number) {
             }
           }
         });
-        
+
         console.log(`🔍 Partner: Who invited ${partner.referredId}:`, whoInvitedThisPartner.map(p => ({
           inviterUsername: p.profile.user.username,
           inviterFirstName: p.profile.user.firstName,
@@ -383,32 +382,32 @@ async function showPartnersByLevel(ctx: Context, level: number) {
     // Партнеры 2-го уровня - партнеры наших партнеров
     // Сначала находим наших прямых партнеров
     const directPartners = await prisma.partnerReferral.findMany({
-      where: { 
+      where: {
         profileId: dashboard.profile.id,
-        level: 1 
+        level: 1
       },
       select: { referredId: true }
     });
-    
+
     console.log(`🔍 Partner: Found ${directPartners.length} direct partners:`, directPartners.map(p => p.referredId));
-    
+
     if (directPartners.length > 0) {
       const directPartnerIds = directPartners.map(p => p.referredId).filter((id): id is string => Boolean(id));
       console.log(`🔍 Partner: Direct partner IDs for level 2 search:`, directPartnerIds);
-      
+
       // Теперь находим партнеров наших прямых партнеров
       // Сначала нужно найти profileId наших прямых партнеров
       const directPartnerProfiles = await prisma.partnerProfile.findMany({
         where: { userId: { in: directPartnerIds } },
         select: { id: true, userId: true }
       });
-      
+
       const directPartnerProfileIds = directPartnerProfiles.map(p => p.id);
       console.log(`🔍 Partner: Direct partner profile IDs for level 2 search:`, directPartnerProfileIds);
-      
+
       // Теперь ищем партнеров наших прямых партнеров
       partnerReferrals = await prisma.partnerReferral.findMany({
-        where: { 
+        where: {
           profileId: { in: directPartnerProfileIds }
         },
         include: {
@@ -421,55 +420,55 @@ async function showPartnersByLevel(ctx: Context, level: number) {
           }
         }
       });
-      
+
       console.log(`🔍 Partner: Found ${partnerReferrals.length} second level partners`);
     }
   } else if (level === 3) {
     // Партнеры 3-го уровня - партнеры партнеров наших партнеров
     const directPartners = await prisma.partnerReferral.findMany({
-      where: { 
+      where: {
         profileId: dashboard.profile.id,
-        level: 1 
+        level: 1
       },
       select: { referredId: true }
     });
-    
+
     if (directPartners.length > 0) {
       const directPartnerIds = directPartners.map(p => p.referredId).filter((id): id is string => Boolean(id));
-      
+
       // Находим profileId наших прямых партнеров
       const directPartnerProfiles = await prisma.partnerProfile.findMany({
         where: { userId: { in: directPartnerIds } },
         select: { id: true, userId: true }
       });
-      
+
       const directPartnerProfileIds = directPartnerProfiles.map(p => p.id);
       console.log(`🔍 Partner: Direct partner profile IDs for level 3 search:`, directPartnerProfileIds);
-      
+
       // Находим партнеров наших прямых партнеров (2-й уровень)
       const secondLevelPartners = await prisma.partnerReferral.findMany({
-        where: { 
+        where: {
           profileId: { in: directPartnerProfileIds }
         },
         select: { referredId: true }
       });
-      
+
       if (secondLevelPartners.length > 0) {
         const secondLevelPartnerIds = secondLevelPartners.map(p => p.referredId).filter((id): id is string => Boolean(id));
         console.log(`🔍 Partner: Second level partner IDs for level 3 search:`, secondLevelPartnerIds);
-        
+
         // Находим profileId партнеров 2-го уровня
         const secondLevelPartnerProfiles = await prisma.partnerProfile.findMany({
           where: { userId: { in: secondLevelPartnerIds } },
           select: { id: true, userId: true }
         });
-        
+
         const secondLevelPartnerProfileIds = secondLevelPartnerProfiles.map(p => p.id);
         console.log(`🔍 Partner: Second level partner profile IDs for level 3 search:`, secondLevelPartnerProfileIds);
-        
+
         // Находим партнеров партнеров наших партнеров (3-й уровень)
         partnerReferrals = await prisma.partnerReferral.findMany({
-          where: { 
+          where: {
             profileId: { in: secondLevelPartnerProfileIds }
           },
           include: {
@@ -482,7 +481,7 @@ async function showPartnersByLevel(ctx: Context, level: number) {
             }
           }
         });
-        
+
         console.log(`🔍 Partner: Found ${partnerReferrals.length} third level partners`);
       }
     }
@@ -491,7 +490,7 @@ async function showPartnersByLevel(ctx: Context, level: number) {
   console.log(`🔍 Partner: Found ${partnerReferrals.length} partners for level ${level}`);
 
   let message = `👥 Партнёры ${level}-го уровня\n\n`;
-  
+
   if (level === 1) {
     message += `Прямые партнёры (${partnerReferrals.length}):\n`;
     message += `Получаете 15% с их покупок\n\n`;
@@ -512,9 +511,9 @@ async function showPartnersByLevel(ctx: Context, level: number) {
       where: { id: { in: referredUserIds } },
       select: { id: true, username: true, firstName: true, telegramId: true }
     }) : [];
-    
+
     const userMap = new Map(referredUsers.map(user => [user.id, user]));
-    
+
     partnerReferrals.forEach((referral, index) => {
       if (referral.referredId) {
         const referredUser = userMap.get(referral.referredId);
@@ -527,7 +526,7 @@ async function showPartnersByLevel(ctx: Context, level: number) {
       }
     });
   }
-  
+
   await ctx.reply(message, partnerLevelsKeyboard());
 }
 
@@ -611,14 +610,14 @@ export const partnerModule: BotModule = {
       // Перенаправляем на многоуровневую программу
       console.log('💰 Partner: Direct plan button pressed, redirecting to multi-level');
       const multiPlanText = await getBotContent('multi_plan_text') || fallbackMultiPlanText;
-      const success = await handlePlanSelection(ctx, PartnerProgramType.MULTI_LEVEL, multiPlanText);
+      const success = await handlePlanSelection(ctx, 'MULTI_LEVEL', multiPlanText);
       await ctx.answerCbQuery(success ? 'Сеть 15% + 5% + 5% активирована' : 'Не удалось активировать программу');
     });
 
     bot.action(MULTI_PLAN_ACTION, async (ctx) => {
       console.log('💰 Partner: Multi-level plan button pressed');
       const multiPlanText = await getBotContent('multi_plan_text') || fallbackMultiPlanText;
-      const success = await handlePlanSelection(ctx, PartnerProgramType.MULTI_LEVEL, multiPlanText);
+      const success = await handlePlanSelection(ctx, 'MULTI_LEVEL', multiPlanText);
       await ctx.answerCbQuery(success ? 'Сеть 15% + 5% + 5% активирована' : 'Не удалось активировать программу');
     });
 

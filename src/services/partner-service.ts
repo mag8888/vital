@@ -1,4 +1,3 @@
-import { PartnerProgramType, TransactionType } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../config/env.js';
@@ -18,7 +17,7 @@ async function ensureReferralCode(): Promise<string> {
   }
 }
 
-export async function getOrCreatePartnerProfile(userId: string, programType: PartnerProgramType = 'DIRECT') {
+export async function getOrCreatePartnerProfile(userId: string, programType: 'DIRECT' | 'MULTI_LEVEL' = 'DIRECT') {
   const existing = await prisma.partnerProfile.findUnique({ where: { userId } });
   if (existing) {
     return existing;
@@ -61,7 +60,7 @@ export async function checkPartnerActivation(userId: string): Promise<boolean> {
 
   // Проверяем, активен ли профиль и не истек ли срок
   if (!profile.isActive) return false;
-  
+
   if (profile.expiresAt && new Date() > profile.expiresAt) {
     // Автоматически деактивируем истекший профиль
     await prisma.partnerProfile.update({
@@ -119,9 +118,9 @@ export async function getPartnerList(userId: string) {
 
   // Get direct partners (level 1) - users who were referred by this partner
   const directReferrals = await prisma.partnerReferral.findMany({
-    where: { 
-      profileId: profile.id, 
-      level: 1 
+    where: {
+      profileId: profile.id,
+      level: 1
     },
     include: {
       profile: {
@@ -135,8 +134,8 @@ export async function getPartnerList(userId: string) {
 
   // Get multi-level partners (level 2 and 3) - users referred by direct partners
   const multiReferrals = await prisma.partnerReferral.findMany({
-    where: { 
-      profileId: profile.id, 
+    where: {
+      profileId: profile.id,
       level: { gt: 1 }
     },
     include: {
@@ -222,7 +221,7 @@ export async function getPartnerList(userId: string) {
   };
 }
 
-export async function recordPartnerTransaction(profileId: string, amount: number, description: string, type: TransactionType = 'CREDIT') {
+export async function recordPartnerTransaction(profileId: string, amount: number, description: string, type: 'CREDIT' | 'DEBIT' = 'CREDIT') {
   // Get partner profile to access userId
   const profile = await prisma.partnerProfile.findUnique({
     where: { id: profileId },
@@ -274,13 +273,13 @@ export async function recordPartnerTransaction(profileId: string, amount: number
 
 export async function recalculatePartnerBonuses(profileId: string) {
   console.log(`🔄 Starting bonus recalculation for profile ${profileId}...`);
-  
+
   const allTransactions = await prisma.partnerTransaction.findMany({
     where: { profileId }
   });
-  
+
   console.log(`📊 Found ${allTransactions.length} transactions for profile ${profileId}`);
-  
+
   const totalBonus = allTransactions.reduce((sum, tx) => {
     const amount = tx.type === 'CREDIT' ? tx.amount : -tx.amount;
     console.log(`  - Transaction: ${tx.type} ${tx.amount} PZ (${tx.description})`);
@@ -301,7 +300,7 @@ export async function recalculatePartnerBonuses(profileId: string) {
   // NOTE: We do NOT update user.balance here to avoid overwriting it
   // user.balance should be managed separately (increments/decrements)
   // partnerProfile.balance is only for partner program display
-  
+
   // Get current user balance for logging
   const currentUser = await prisma.user.findUnique({
     where: { id: updatedProfile.userId },
@@ -316,7 +315,7 @@ export async function recalculatePartnerBonuses(profileId: string) {
 // Функция для поиска всей цепочки партнеров
 async function findAllPartnerChain(orderUserId: string) {
   const allReferrals = [];
-  
+
   // Ищем прямых партнеров (уровень 1)
   const level1Referrals = await prisma.partnerReferral.findMany({
     where: { referredId: orderUserId },
@@ -326,13 +325,13 @@ async function findAllPartnerChain(orderUserId: string) {
       }
     }
   });
-  
+
   for (const referral of level1Referrals) {
     allReferrals.push({
       ...referral,
       level: 1
     });
-    
+
     // Ищем партнеров 2-го уровня (партнеры партнера)
     const level2Referrals = await prisma.partnerReferral.findMany({
       where: { referredId: referral.profile.userId },
@@ -342,13 +341,13 @@ async function findAllPartnerChain(orderUserId: string) {
         }
       }
     });
-    
+
     for (const level2Referral of level2Referrals) {
       allReferrals.push({
         ...level2Referral,
         level: 2
       });
-      
+
       // Ищем партнеров 3-го уровня (партнеры партнера партнера)
       const level3Referrals = await prisma.partnerReferral.findMany({
         where: { referredId: level2Referral.profile.userId },
@@ -358,7 +357,7 @@ async function findAllPartnerChain(orderUserId: string) {
           }
         }
       });
-      
+
       for (const level3Referral of level3Referrals) {
         allReferrals.push({
           ...level3Referral,
@@ -367,14 +366,14 @@ async function findAllPartnerChain(orderUserId: string) {
       }
     }
   }
-  
+
   return allReferrals;
 }
 
 // Новая функция для расчета бонусов по двойной системе
 export async function calculateDualSystemBonuses(orderUserId: string, orderAmount: number, orderId?: string) {
   console.log(`🎯 Calculating dual system bonuses for order ${orderAmount} PZ by user ${orderUserId}`);
-  
+
   // Проверяем, не были ли уже начислены бонусы за этот заказ
   if (orderId) {
     // Ищем все записи о бонусах для этого пользователя
@@ -384,7 +383,7 @@ export async function calculateDualSystemBonuses(orderUserId: string, orderAmoun
         action: 'REFERRAL_BONUS'
       }
     });
-    
+
     // Проверяем, есть ли уже бонусы за этот заказ
     const hasExistingBonus = existingBonuses.some(bonus => {
       try {
@@ -394,31 +393,31 @@ export async function calculateDualSystemBonuses(orderUserId: string, orderAmoun
         return false;
       }
     });
-    
+
     if (hasExistingBonus) {
       console.log(`⚠️ Bonuses already distributed for order ${orderId}, skipping...`);
       return [];
     }
   }
-  
+
   // Находим всех партнеров в цепочке, которые могут получить бонусы
   const allPartnerReferrals = await findAllPartnerChain(orderUserId);
-  
+
   if (allPartnerReferrals.length === 0) {
     console.log(`❌ No partner referrals found for user ${orderUserId}`);
     return;
   }
-  
+
   console.log(`🔍 Found ${allPartnerReferrals.length} partners in chain for user ${orderUserId}`);
 
   const bonuses = [];
 
   for (const referral of allPartnerReferrals) {
     const partnerProfile = referral.profile;
-    
+
     // Проверяем, активен ли партнерский профиль
     const isActive = await checkPartnerActivation(partnerProfile.userId);
-    
+
     let bonusAmount = 0;
     let description = '';
 
@@ -474,14 +473,14 @@ export async function calculateDualSystemBonuses(orderUserId: string, orderAmoun
         data: {
           userId: partnerProfile.userId,
           action: 'REFERRAL_BONUS',
-          payload: {
+          payload: JSON.stringify({
             amount: bonusAmount,
             orderAmount,
             level: referral.level,
             referredUserId: orderUserId,
             orderId: orderId || null,
             type: 'DUAL_SYSTEM'
-          }
+          })
         }
       });
 
@@ -499,22 +498,22 @@ export async function calculateDualSystemBonuses(orderUserId: string, orderAmoun
       try {
         const { getBotInstance } = await import('../lib/bot-instance.js');
         const bot = await getBotInstance();
-        
+
         // Проверяем, активна ли партнерка
         const isPartnerActive = await checkPartnerActivation(partnerProfile.userId);
         let notificationMessage = '';
-        
+
         if (isPartnerActive) {
           // Если партнерка активна - показываем повышенный процент
-          const percentage = referral.level === 1 ? 
-            (referral.referralType === 'DIRECT' ? '25%' : '15%') : 
+          const percentage = referral.level === 1 ?
+            (referral.referralType === 'DIRECT' ? '25%' : '15%') :
             '5%';
           notificationMessage = `🎉 Ваш счет пополнен на сумму ${bonusAmount.toFixed(2)} PZ (${percentage}) от покупки вашего реферала!`;
         } else {
           // Если партнерка не активна - показываем 10% и предлагаем активацию
           notificationMessage = `🎉 Ваш счет пополнен на сумму ${bonusAmount.toFixed(2)} PZ (10%) от покупки вашего реферала!\n\n💡 Если вы желаете получать повышенный % (25% или 15%+5%+5%), вам нужно активировать партнерку на 120 PZ товарооборота в месяц.`;
         }
-        
+
         await bot.telegram.sendMessage(partnerProfile.user.telegramId, notificationMessage);
         console.log(`📱 Notification sent to partner ${partnerProfile.userId} about ${bonusAmount.toFixed(2)} PZ bonus`);
       } catch (error) {

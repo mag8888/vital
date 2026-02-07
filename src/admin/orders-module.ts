@@ -22,27 +22,27 @@ router.get('/orders-test', requireAdmin, async (req, res) => {
 router.get('/orders', requireAdmin, async (req, res) => {
   try {
     console.log('📦 Loading orders for admin panel...');
-    
+
     const orders = await prisma.orderRequest.findMany({
       orderBy: [
         { status: 'asc' }, // NEW заказы сначала
         { createdAt: 'desc' }
       ],
       include: {
-        user: { 
-          select: { 
-            firstName: true, 
-            lastName: true, 
-            username: true, 
+        user: {
+          select: {
+            firstName: true,
+            lastName: true,
+            username: true,
             balance: true,
             partner: {
               select: { id: true }
             }
-          } 
+          }
         }
       }
     });
-    
+
     console.log(`📦 Found ${orders.length} orders in database`);
 
     // Group orders by status
@@ -379,7 +379,7 @@ function createOrderCard(order: any) {
   const totalAmount = items.reduce((sum: number, item: any) => sum + (item.price || 0) * (item.quantity || 1), 0);
   const userBalance = order.user?.balance || 0;
   const canPay = userBalance >= totalAmount && order.status === 'NEW';
-  
+
   return `
     <div class="order-card ${order.status.toLowerCase()}" onclick="openOrderDetails('${order.id}')">
       <div class="order-header">
@@ -473,7 +473,7 @@ function getStatusDisplayName(status: string) {
 router.get('/orders/:orderId', requireAdmin, async (req, res) => {
   try {
     const { orderId } = req.params;
-    
+
     const order = await prisma.orderRequest.findUnique({
       where: { id: orderId },
       include: {
@@ -490,14 +490,14 @@ router.get('/orders/:orderId', requireAdmin, async (req, res) => {
         }
       }
     });
-    
+
     if (!order) {
       return res.status(404).send('Заказ не найден');
     }
-    
+
     const items = JSON.parse((order.itemsJson as string) || '[]');
     const totalAmount = items.reduce((sum: number, item: any) => sum + (item.price || 0) * (item.quantity || 1), 0);
-    
+
     res.send(`
       <div class="modal-overlay" onclick="closeModal()">
         <div class="modal-content" onclick="event.stopPropagation()">
@@ -564,38 +564,38 @@ router.post('/orders/:orderId/status', requireAdmin, async (req, res) => {
   try {
     const { orderId } = req.params;
     const { status } = req.body;
-    
+
     console.log(`📦 Updating order ${orderId} status to ${status}`);
-    
+
     if (!['NEW', 'PROCESSING', 'COMPLETED', 'CANCELLED'].includes(status)) {
       return res.json({ success: false, error: 'Неверный статус' });
     }
-    
+
     const order = await prisma.orderRequest.update({
       where: { id: orderId },
       data: { status }
     });
-    
+
     // Log the status change
     await prisma.userHistory.create({
       data: {
         userId: order.userId || '',
         action: 'order_status_changed',
-        payload: {
+        payload: JSON.stringify({
           orderId: order.id,
           newStatus: status,
           oldStatus: order.status
-        }
+        })
       }
     });
-    
+
     console.log(`✅ Order ${orderId} status updated to ${status}`);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: `Статус заказа изменен на "${getStatusDisplayName(status)}"`
     });
-    
+
   } catch (error) {
     console.error('❌ Update order status error:', error);
     res.json({ success: false, error: 'Ошибка обновления статуса заказа' });
@@ -606,9 +606,9 @@ router.post('/orders/:orderId/status', requireAdmin, async (req, res) => {
 router.post('/orders/:orderId/pay', requireAdmin, async (req, res) => {
   try {
     const { orderId } = req.params;
-    
+
     console.log(`💳 Processing payment for order ${orderId}`);
-    
+
     const order = await prisma.orderRequest.findUnique({
       where: { id: orderId },
       include: {
@@ -617,31 +617,31 @@ router.post('/orders/:orderId/pay', requireAdmin, async (req, res) => {
         }
       }
     });
-    
+
     if (!order) {
       return res.json({ success: false, error: 'Заказ не найден' });
     }
-    
+
     if (order.status !== 'NEW') {
       return res.json({ success: false, error: 'Можно оплачивать только новые заказы' });
     }
-    
+
     const items = JSON.parse((order.itemsJson as string) || '[]');
     const totalAmount = items.reduce((sum: number, item: any) => sum + (item.price || 0) * (item.quantity || 1), 0);
-    
+
     const userBalance = order.user?.balance || 0;
     if (userBalance < totalAmount) {
       return res.json({ success: false, error: 'Недостаточно средств на балансе пользователя' });
     }
-    
+
     // Deduct amount from user balance
     const newBalance = userBalance - totalAmount;
-    
+
     await prisma.user.update({
       where: { id: order.userId || '' },
       data: { balance: newBalance }
     });
-    
+
     // Update partner profile balance if exists
     if (order.user?.partner) {
       await prisma.partnerProfile.update({
@@ -649,13 +649,13 @@ router.post('/orders/:orderId/pay', requireAdmin, async (req, res) => {
         data: { balance: newBalance }
       });
     }
-    
+
     // Update order status to COMPLETED
     await prisma.orderRequest.update({
       where: { id: orderId },
       data: { status: 'COMPLETED' }
     });
-    
+
     // Calculate and distribute referral bonuses using dual system
     try {
       const { calculateDualSystemBonuses } = await import('../services/partner-service.js');
@@ -664,28 +664,28 @@ router.post('/orders/:orderId/pay', requireAdmin, async (req, res) => {
       console.error('❌ Referral bonus distribution error:', bonusError);
       // Don't fail the payment if bonus distribution fails
     }
-    
+
     // Log the payment
     await prisma.userHistory.create({
       data: {
         userId: order.userId || '',
         action: 'order_paid',
-        payload: {
+        payload: JSON.stringify({
           orderId: order.id,
           amount: totalAmount,
           newBalance: newBalance,
           oldBalance: userBalance
-        }
+        })
       }
     });
-    
+
     console.log(`✅ Order ${orderId} paid successfully. Amount: ${totalAmount} PZ`);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: `Заказ оплачен на ${totalAmount.toFixed(2)} PZ. Реферальные бонусы начислены.`
     });
-    
+
   } catch (error) {
     console.error('❌ Pay order error:', error);
     res.json({ success: false, error: 'Ошибка оплаты заказа' });
