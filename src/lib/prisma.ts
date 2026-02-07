@@ -12,7 +12,7 @@ if (dbUrl) {
   } else {
     console.log('Database URL configured:', dbUrl.substring(0, 30) + '...');
   }
-  
+
   // Log if database name is present
   const hasDbName = dbUrl.match(/\/[^/?]+(\?|$)/);
   if (!hasDbName) {
@@ -26,7 +26,7 @@ if (dbUrl) {
 // Be very careful not to break credentials or special characters in password
 function normalizeMongoUrl(url: string): string {
   let normalized = url.trim();
-  
+
   // First, fix retrywrites -> retryWrites (case insensitive) in query params only
   if (normalized.includes('?')) {
     const [base, query] = normalized.split('?', 2);
@@ -35,28 +35,28 @@ function normalizeMongoUrl(url: string): string {
   } else {
     normalized = normalized.replace(/retrywrites=true/gi, 'retryWrites=true');
   }
-  
+
   // Check if database name is already present
   // Look for pattern: /dbname or /dbname?options
   // Be careful - don't match / in credentials part (username:password)
-  
+
   // Split by query params first
   const queryIndex = normalized.indexOf('?');
   const urlPart = queryIndex !== -1 ? normalized.substring(0, queryIndex) : normalized;
   const queryPart = queryIndex !== -1 ? '?' + normalized.substring(queryIndex + 1) : '';
-  
+
   // Check if there's a database name after the host:port part
   // Format: mongodb://[user:pass@]host[:port]/dbname
   // Find the last / that comes after @ or : (which indicates it's after host:port)
-  
+
   // Find position after credentials (after @ if exists)
   const atIndex = urlPart.indexOf('@');
   const hostStart = atIndex !== -1 ? atIndex + 1 : (urlPart.indexOf('://') + 3);
-  
+
   // Look for / after host part
   const hostPart = urlPart.substring(hostStart);
   const slashAfterHost = hostPart.indexOf('/');
-  
+
   if (slashAfterHost === -1) {
     // No slash after host - add default DB name (Railway: plazma_bot)
     normalized = urlPart + '/plazma_bot' + queryPart;
@@ -67,7 +67,7 @@ function normalizeMongoUrl(url: string): string {
       normalized = urlPart + 'plazma_bot' + queryPart;
     }
   }
-  
+
   return normalized;
 }
 
@@ -106,12 +106,19 @@ function optimizeConnectionString(url: string): string {
   if (!optimized.includes('authSource')) {
     optimized = `${optimized}&authSource=admin`;
   }
-  if (!optimized.includes('retryWrites')) {
-    optimized = `${optimized}&retryWrites=true`;
-  }
-  if (!optimized.includes('w=')) {
-    optimized = `${optimized}&w=majority`;
-  }
+
+  // FIXED: Do NOT force retryWrites and w=majority if it causes "Replica Set" errors on standalone
+  // We will let the driver decide or the user provide them in the URL
+  // if (!optimized.includes('retryWrites')) {
+  //   optimized = `${optimized}&retryWrites=true`;
+  // }
+  // if (!optimized.includes('w=')) {
+  //   optimized = `${optimized}&w=majority`;
+  // }
+
+  // Special handling for "Replica Set" error: force remove invalid params if needed
+  // But for now, just don't add them.
+
   return optimized;
 }
 
