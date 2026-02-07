@@ -179,6 +179,63 @@ async function migrate() {
             }
         }
 
+        // --- 3. Migrate Users (from 'plazma_bot') ---
+        const UserSchema = new mongoose.Schema({
+            telegramId: String,
+            telegram_id: Number,
+            id: Number,
+            firstName: String,
+            first_name: String,
+            lastName: String,
+            last_name: String,
+            username: String,
+            balance: Number,
+            role: String,
+        }, { strict: false });
+
+        const UserModel = plazmaDb.model('User', UserSchema, 'User');
+        // fallback to 'users' if 'User' is empty?
+        // const UserModel = plazmaDb.model('User', UserSchema, 'users'); 
+
+        console.log('Reading Users from plazma_bot...');
+        let mongoUsers = await UserModel.find({});
+        if (mongoUsers.length === 0) {
+            console.log('  ⚠️ No users found in "User" collection. Trying "users"...');
+            const UserModelFallback = plazmaDb.model('UserFallback', UserSchema, 'users');
+            mongoUsers = await UserModelFallback.find({});
+        }
+        console.log(`Found ${mongoUsers.length} users.`);
+
+        for (const user of mongoUsers) {
+            // Normalize Telegram ID
+            const tgId = user.telegramId || user.telegram_id || user.id;
+            if (!tgId) {
+                console.warn('Skipping user without telegramId:', user._id);
+                continue;
+            }
+            const telegramIdStr = String(tgId);
+
+            console.log(`Migrating user: ${telegramIdStr} (${user.username || 'No username'})`);
+
+            await prisma.user.upsert({
+                where: { telegramId: telegramIdStr },
+                update: {
+                    firstName: user.firstName || user.first_name,
+                    lastName: user.lastName || user.last_name,
+                    username: user.username,
+                    balance: user.balance || 0,
+                },
+                create: {
+                    telegramId: telegramIdStr,
+                    firstName: user.firstName || user.first_name,
+                    lastName: user.lastName || user.last_name,
+                    username: user.username,
+                    balance: user.balance || 0,
+                }
+            });
+            console.log(`  -> User synced.`);
+        }
+
         console.log('✅ Migration completed successfully.');
 
     } catch (error) {
