@@ -24,7 +24,7 @@ async function bootstrap() {
     try {
       await Promise.race([
         prisma.$connect(),
-        new Promise((_, reject) => 
+        new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Database connection timeout')), 15000)
         )
       ]);
@@ -32,7 +32,7 @@ async function bootstrap() {
       console.log('✅ Database connected successfully');
     } catch (dbError: any) {
       console.warn('⚠️  Database connection failed:', dbError?.message || 'Unknown error');
-      
+
       // Check for specific error types
       if (dbError?.message?.includes('Server selection timeout')) {
         console.error('❌ MongoDB connection issue:');
@@ -45,11 +45,11 @@ async function bootstrap() {
       } else if (dbError?.message?.includes('fatal alert')) {
         console.error('❌ SSL/TLS connection error: check DATABASE_URL and network');
       }
-      
+
       console.warn('⚠️  Server will start, but database operations may fail');
       console.warn('⚠️  Connection will be retried on first database query');
     }
-    
+
     // Run initial data setup in background (non-blocking)
     if (dbConnected) {
       ensureInitialData().catch((err: any) => {
@@ -62,7 +62,7 @@ async function bootstrap() {
     const app = express();
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
-    
+
     // CORS for webapp
     app.use((req, res, next) => {
       res.header('Access-Control-Allow-Origin', '*');
@@ -84,7 +84,7 @@ async function bootstrap() {
       }
       originalWarn.apply(console, args);
     };
-    
+
     app.use(session({
       secret: process.env.SESSION_SECRET || 'plazma-bot-secret-key',
       resave: false,
@@ -97,10 +97,10 @@ async function bootstrap() {
     app.get('/health', (_req, res) => {
       res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
     });
-    
+
     app.get('/api/health', (_req, res) => {
-      res.status(200).json({ 
-        status: 'ok', 
+      res.status(200).json({
+        status: 'ok',
         timestamp: new Date().toISOString(),
         version: '1.0.0-original',
         bot: 'active'
@@ -117,14 +117,44 @@ async function bootstrap() {
       }
     });
 
+    // Alias /products for frontend (which expects it at root)
+    app.get('/products', async (req, res) => {
+      try {
+        const { getProductsByCategory, getAllActiveProducts } = await import('./services/shop-service.js');
+        const categoryId = req.query.categoryId as string;
+        const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+        const offset = req.query.offset ? parseInt(req.query.offset as string) : undefined;
+
+        console.log('🛍️ GET /products (root alias) params:', { categoryId, limit, offset });
+
+        let products;
+        if (categoryId) {
+          products = await getProductsByCategory(categoryId);
+        } else {
+          products = await getAllActiveProducts();
+        }
+
+        // Apply pagination if needed
+        if (limit) {
+          const start = offset || 0;
+          products = products.slice(start, start + limit);
+        }
+
+        res.json(products);
+      } catch (error) {
+        console.error('❌ Error in root /products alias:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
     // Web admin panel
     app.use('/admin', adminWebRouter);
-    
+
     // Webapp routes
     app.use('/webapp', webappRouter);
     app.use('/webapp-v2', webappV2Router);
     app.use('/api/external', externalApiRouter);
-    
+
     // Log route registration
     console.log('✅ Routes registered:');
     console.log('   - GET / → redirects to /webapp');
@@ -132,7 +162,7 @@ async function bootstrap() {
     console.log('   - GET /api/health → API health check');
     console.log('   - /admin → admin panel');
     console.log('   - /webapp → web application');
-    
+
     // Lava webhook routes (only if Lava is enabled)
     const { lavaService } = await import('./services/lava-service.js');
     if (lavaService.isEnabled()) {
@@ -171,7 +201,7 @@ async function bootstrap() {
       })
     );
     await applyBotModules(bot);
-    
+
     // Register cart actions
     const { registerCartActions } = await import('./modules/cart/index.js');
     registerCartActions(bot);
@@ -224,7 +254,7 @@ async function bootstrap() {
     }
 
     console.log('Starting bot in long polling mode...');
-    
+
     // Clear any existing webhook first
     try {
       await bot.telegram.deleteWebhook();
@@ -237,7 +267,7 @@ async function bootstrap() {
         console.log('No webhook to clear or error clearing:', error instanceof Error ? error.message : String(error));
       }
     }
-    
+
     // Try to launch bot with error handling - don't crash server if bot fails
     try {
       await bot.launch();
@@ -245,7 +275,7 @@ async function bootstrap() {
     } catch (error: any) {
       const errorMessage = error?.message || String(error);
       const errorCode = error?.response?.error_code || error?.code;
-      
+
       if (errorCode === 409 || errorMessage.includes('409') || errorMessage.includes('Conflict')) {
         console.warn('⚠️  Bot conflict detected (409). Another bot instance may be running.');
         console.warn('⚠️  Web server will continue running without bot.');
