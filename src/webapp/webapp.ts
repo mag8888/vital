@@ -57,6 +57,9 @@ router.get('/', (req, res) => {
 
 // Middleware to extract user info from Telegram WebApp
 const extractTelegramUser = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  // Skip for OPTIONS requests (preflight)
+  if (req.method === 'OPTIONS') return next();
+
   try {
     // Try multiple ways to get Telegram user data
     let telegramUser = null;
