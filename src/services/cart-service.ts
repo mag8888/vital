@@ -19,11 +19,11 @@ export async function getCartItems(userId: string) {
       },
       orderBy: { createdAt: 'desc' },
     });
-    
+
     // Фильтруем и удаляем товары, которые были удалены или деактивированы
     const validItems = [];
     const invalidItemIds = [];
-    
+
     for (const item of items) {
       if (item.product && item.product.isActive) {
         validItems.push(item);
@@ -31,7 +31,7 @@ export async function getCartItems(userId: string) {
         invalidItemIds.push(item.id);
       }
     }
-    
+
     // Удаляем невалидные товары из корзины
     if (invalidItemIds.length > 0) {
       try {
@@ -46,7 +46,7 @@ export async function getCartItems(userId: string) {
         // Продолжаем даже если не удалось удалить
       }
     }
-    
+
     return validItems;
   } catch (error: any) {
     console.error('❌ Error in getCartItems:', error);
@@ -59,22 +59,30 @@ export async function getCartItems(userId: string) {
 }
 
 export async function addProductToCart(userId: string, productId: string) {
-  return prisma.cartItem.upsert({
+  // REFACTOR: Explicit check to avoid "Replica Set" transaction requirement
+  const existing = await prisma.cartItem.findUnique({
     where: {
       userId_productId: {
         userId,
         productId,
       },
     },
-    update: {
-      quantity: { increment: 1 },
-    },
-    create: {
-      userId,
-      productId,
-      quantity: 1,
-    },
   });
+
+  if (existing) {
+    return prisma.cartItem.update({
+      where: { id: existing.id },
+      data: { quantity: { increment: 1 } },
+    });
+  } else {
+    return prisma.cartItem.create({
+      data: {
+        userId,
+        productId,
+        quantity: 1,
+      },
+    });
+  }
 }
 
 export async function clearCart(userId: string) {
@@ -82,24 +90,30 @@ export async function clearCart(userId: string) {
 }
 
 export async function increaseProductQuantity(userId: string, productId: string) {
-  return prisma.cartItem.upsert({
+  // REFACTOR: Explicit check to avoid "Replica Set" transaction requirement
+  const existing = await prisma.cartItem.findUnique({
     where: {
       userId_productId: {
         userId,
         productId,
       },
     },
-    update: {
-      quantity: {
-        increment: 1,
-      },
-    },
-    create: {
-      userId,
-      productId,
-      quantity: 1,
-    },
   });
+
+  if (existing) {
+    return prisma.cartItem.update({
+      where: { id: existing.id },
+      data: { quantity: { increment: 1 } },
+    });
+  } else {
+    return prisma.cartItem.create({
+      data: {
+        userId,
+        productId,
+        quantity: 1,
+      },
+    });
+  }
 }
 
 export async function decreaseProductQuantity(userId: string, productId: string) {
@@ -171,7 +185,7 @@ export function cartItemsToText(items: Array<{ product: { title: string; price: 
   // Calculate total sum
   let totalPzSum = 0;
   let totalRubSum = 0;
-  
+
   items.forEach((item) => {
     const pzPrice = Number(item.product.price);
     totalPzSum += pzPrice * item.quantity;

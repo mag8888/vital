@@ -21,19 +21,29 @@ export async function ensureUser(ctx: Context) {
   } as const;
 
   try {
-    const user = await prisma.user.upsert({
+    // REFACTOR: Explicit check to avoid "Replica Set" transaction requirement
+    let user = await prisma.user.findUnique({
       where: { telegramId: data.telegramId },
-      update: {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        username: data.username,
-        languageCode: data.languageCode,
-      },
-      create: {
-        ...data,
-        id: generateObjectId(from.id),
-      },
     });
+
+    if (user) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          firstName: data.firstName,
+          lastName: data.lastName,
+          username: data.username,
+          languageCode: data.languageCode,
+        },
+      });
+    } else {
+      user = await prisma.user.create({
+        data: {
+          ...data,
+          id: generateObjectId(from.id),
+        },
+      });
+    }
 
     return user;
   } catch (error: any) {
@@ -102,8 +112,8 @@ export async function handlePhoneNumber(ctx: Context): Promise<void> {
   const from = ctx.from;
   if (!from) return;
 
-  const phoneNumber = ctx.message && 'contact' in ctx.message 
-    ? ctx.message.contact.phone_number 
+  const phoneNumber = ctx.message && 'contact' in ctx.message
+    ? ctx.message.contact.phone_number
     : null;
 
   if (!phoneNumber) {

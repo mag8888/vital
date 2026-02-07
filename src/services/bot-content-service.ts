@@ -57,29 +57,37 @@ export async function getAllBotContents(): Promise<BotContentData[]> {
  */
 export async function upsertBotContent(data: BotContentData): Promise<BotContentData | null> {
   try {
-    const content = await prisma.botContent.upsert({
-      where: {
-        key: data.key,
-      },
-      update: {
-        title: data.title,
-        content: data.content,
-        description: data.description,
-        category: data.category,
-        language: data.language || 'ru',
-        isActive: data.isActive !== undefined ? data.isActive : true,
-        updatedAt: new Date(),
-      },
-      create: {
-        key: data.key,
-        title: data.title,
-        content: data.content,
-        description: data.description,
-        category: data.category,
-        language: data.language || 'ru',
-        isActive: data.isActive !== undefined ? data.isActive : true,
-      },
+    // REFACTOR: Explicit check to avoid "Replica Set" transaction requirement
+    let content = await prisma.botContent.findUnique({
+      where: { key: data.key },
     });
+
+    if (content) {
+      content = await prisma.botContent.update({
+        where: { key: data.key },
+        data: {
+          title: data.title,
+          content: data.content,
+          description: data.description,
+          category: data.category,
+          language: data.language || 'ru',
+          isActive: data.isActive !== undefined ? data.isActive : true,
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      content = await prisma.botContent.create({
+        data: {
+          key: data.key,
+          title: data.title,
+          content: data.content,
+          description: data.description,
+          category: data.category,
+          language: data.language || 'ru',
+          isActive: data.isActive !== undefined ? data.isActive : true,
+        },
+      });
+    }
 
     return content;
   } catch (error) {
