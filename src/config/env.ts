@@ -10,7 +10,8 @@ function requireEnv(key: string): string {
 
 export const env = {
   botToken: requireEnv('BOT_TOKEN'),
-  botUsername: process.env.BOT_USERNAME || 'PLAZMA_test8_bot',
+  /** Имя бота в Telegram (без @), для реф. ссылок и кнопок. В Railway: BOT_USERNAME=Vital_shop_bot */
+  botUsername: process.env.BOT_USERNAME || 'Vital_shop_bot',
   botWebhookUrl: process.env.BOT_WEBHOOK_URL,
   botWebhookSecret: process.env.BOT_WEBHOOK_SECRET,
   adminChatId: process.env.ADMIN_CHAT_ID,

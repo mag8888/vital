@@ -155,6 +155,12 @@ const getTelegramUser = (req: express.Request) => {
 
 // API Routes
 
+// Public config (имя бота для ссылок в веб-приложении)
+router.get('/api/config', (_req, res) => {
+  const botUsername = (env.botUsername || 'Vital_shop_bot').replace(/^@/, '');
+  res.json({ botUsername });
+});
+
 // User profile
 router.get('/api/user/profile', async (req, res) => {
   try {
@@ -201,7 +207,7 @@ router.get('/api/user/profile', async (req, res) => {
     }
 
     const partner = (user as { partner?: unknown }).partner;
-    const botUsername = (env.botUsername || 'PLAZMA_test8_bot').replace(/^@/, '');
+    const botUsername = (env.botUsername || 'Vital_shop_bot').replace(/^@/, '');
     const referralLink = partner && typeof partner === 'object' && 'referralCode' in partner
       ? buildReferralLink((partner as { referralCode: string }).referralCode, ((partner as { programType?: string }).programType || 'DIRECT') as 'DIRECT' | 'MULTI_LEVEL', user.username || undefined).botLink
       : `https://t.me/${botUsername}?start=${encodeURIComponent(user.username?.replace(/^@/, '') || user.telegramId || '')}`;

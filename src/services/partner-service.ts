@@ -80,7 +80,7 @@ export function buildReferralLink(code: string, programType: 'DIRECT' | 'MULTI_L
   const webappBase = (env.webappBaseUrl || 'https://vital.up.railway.app/webapp').replace(/\/$/, '');
   const refParam = (username && username.replace(/^@/, '')) || code;
   const main = `${webappBase}?ref=${encodeURIComponent(refParam)}`;
-  const botUsername = (env.botUsername || 'PLAZMA_test8_bot').replace(/^@/, '');
+  const botUsername = (env.botUsername || 'Vital_shop_bot').replace(/^@/, '');
   const prefix = programType === 'DIRECT' ? 'ref_direct' : 'ref_multi';
   const telegramLink = `https://t.me/${botUsername}?start=${prefix}_${code}`;
   /** Ссылка для шаринга: по клику открывается бот, реферал активируется (username или ref_direct_/ref_multi_код) */

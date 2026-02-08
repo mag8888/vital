@@ -3559,16 +3559,26 @@ function closeBalanceTopUpDialog() {
     }
 }
 
-function openBotForBalance() {
-    // Открываем бота с командой пополнения баланса
-    const botUsername = 'Vital_shop_bot';
+let __cachedBotUsername = null;
+async function getBotUsername() {
+    if (__cachedBotUsername) return __cachedBotUsername;
+    try {
+        const r = await fetch(`${API_BASE}/config`);
+        const d = await r.json().catch(() => ({}));
+        __cachedBotUsername = (d.botUsername || 'Vital_shop_bot').replace(/^@/, '');
+    } catch (_) {
+        __cachedBotUsername = 'Vital_shop_bot';
+    }
+    return __cachedBotUsername;
+}
+
+async function openBotForBalance() {
+    const botUsername = await getBotUsername();
     const botUrl = `https://t.me/${botUsername}?start=add_balance`;
 
-    // Пытаемся открыть через Telegram WebApp
     if (window.Telegram?.WebApp) {
         window.Telegram.WebApp.openTelegramLink(botUrl);
     } else {
-        // Fallback: открываем в новом окне
         window.open(botUrl, '_blank');
     }
 
