@@ -925,10 +925,10 @@ export const navigationModule: BotModule = {
           return;
         }
         const profile = await getOrCreatePartnerProfile(user.id, 'DIRECT');
-        const { main: link } = buildReferralLink(profile.referralCode, (profile.programType || 'DIRECT') as 'DIRECT' | 'MULTI_LEVEL', user.username || undefined);
-        const escapedLink = link.replace(/&/g, '&amp;');
+        const { botLink } = buildReferralLink(profile.referralCode, (profile.programType || 'DIRECT') as 'DIRECT' | 'MULTI_LEVEL', user.username || undefined);
+        const escapedLink = botLink.replace(/&/g, '&amp;');
         await ctx.reply(
-          `🔗 <b>Ваша реферальная ссылка:</b>\n\n<a href="${escapedLink}">${escapedLink}</a>\n\nПоделитесь ссылкой с друзьями — вы получите бонусы с их покупок.`,
+          `🔗 <b>Ваша реферальная ссылка:</b>\n\n<a href="${escapedLink}">${escapedLink}</a>\n\nПоделитесь ссылкой — при переходе откроется бот и реферал закрепится за вами.`,
           { parse_mode: 'HTML' }
         );
       } catch (e: any) {
