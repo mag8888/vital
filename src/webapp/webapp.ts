@@ -200,11 +200,11 @@ router.get('/api/user/profile', async (req, res) => {
       return res.status(500).json({ error: 'User not found' });
     }
 
-    const webappBase = (env.webappBaseUrl || 'https://vital.up.railway.app/webapp').replace(/\/$/, '');
     const partner = (user as { partner?: unknown }).partner;
+    const botUsername = (env.botUsername || 'PLAZMA_test8_bot').replace(/^@/, '');
     const referralLink = partner && typeof partner === 'object' && 'referralCode' in partner
-      ? buildReferralLink((partner as { referralCode: string }).referralCode, ((partner as { programType?: string }).programType || 'DIRECT') as 'DIRECT' | 'MULTI_LEVEL', user.username || undefined).main
-      : `${webappBase}?ref=${encodeURIComponent(user.username?.replace(/^@/, '') || user.telegramId || '')}`;
+      ? buildReferralLink((partner as { referralCode: string }).referralCode, ((partner as { programType?: string }).programType || 'DIRECT') as 'DIRECT' | 'MULTI_LEVEL', user.username || undefined).botLink
+      : `https://t.me/${botUsername}?start=${encodeURIComponent(user.username?.replace(/^@/, '') || user.telegramId || '')}`;
 
     res.json({
       id: user.id,
@@ -1482,7 +1482,7 @@ router.get('/api/partner/dashboard', async (req, res) => {
       user.partner.referralCode,
       (user.partner.programType || 'DIRECT') as 'DIRECT' | 'MULTI_LEVEL',
       user.username || undefined
-    ).main;
+    ).botLink;
 
     res.json({
       isActive: user.partner.isActive,
@@ -1599,7 +1599,7 @@ router.post('/api/partner/activate', async (req, res) => {
         user.partner.referralCode,
         (user.partner.programType || 'DIRECT') as 'DIRECT' | 'MULTI_LEVEL',
         user.username || undefined
-      ).main;
+      ).botLink;
       return res.json({
         success: true,
         message: 'Партнёрская программа уже активирована',
@@ -1618,7 +1618,7 @@ router.post('/api/partner/activate', async (req, res) => {
       partnerProfile.referralCode,
       (partnerProfile.programType || 'DIRECT') as 'DIRECT' | 'MULTI_LEVEL',
       user.username || undefined
-    ).main;
+    ).botLink;
     res.json({
       success: true,
       message: 'Партнёрская программа активирована!',
