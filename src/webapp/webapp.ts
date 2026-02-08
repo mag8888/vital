@@ -172,7 +172,7 @@ router.get('/api/user/profile', async (req, res) => {
 
     if (!user) {
       try {
-        user = await prisma.user.create({
+        const created = await prisma.user.create({
           data: {
             telegramId: telegramUser.id.toString(),
             firstName: telegramUser.first_name,
@@ -180,10 +180,11 @@ router.get('/api/user/profile', async (req, res) => {
             username: telegramUser.username,
           }
         });
-        user = await prisma.user.findUnique({
-          where: { id: user.id },
+        const withPartner = await prisma.user.findUnique({
+          where: { id: created.id },
           include: { partner: true }
-        }) as any;
+        });
+        user = withPartner ?? created;
       } catch (error: any) {
         if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
           console.warn('⚠️  MongoDB replica set not configured - user creation skipped');
@@ -195,9 +196,14 @@ router.get('/api/user/profile', async (req, res) => {
       }
     }
 
+    if (!user) {
+      return res.status(500).json({ error: 'User not found' });
+    }
+
     const webappBase = (env.webappBaseUrl || 'https://vital.up.railway.app/webapp').replace(/\/$/, '');
-    const referralLink = (user as any).partner
-      ? buildReferralLink((user as any).partner.referralCode, ((user as any).partner.programType || 'DIRECT') as 'DIRECT' | 'MULTI_LEVEL', user.username || undefined).main
+    const partner = (user as { partner?: unknown }).partner;
+    const referralLink = partner && typeof partner === 'object' && 'referralCode' in partner
+      ? buildReferralLink((partner as { referralCode: string }).referralCode, ((partner as { programType?: string }).programType || 'DIRECT') as 'DIRECT' | 'MULTI_LEVEL', user.username || undefined).main
       : `${webappBase}?ref=${encodeURIComponent(user.username?.replace(/^@/, '') || user.telegramId || '')}`;
 
     res.json({
@@ -208,7 +214,7 @@ router.get('/api/user/profile', async (req, res) => {
       username: user.username,
       phone: user.phone,
       deliveryAddress: user.deliveryAddress,
-      balance: (user as any).balance || 0,
+      balance: (user as { balance?: number }).balance || 0,
       referralLink
     });
   } catch (error) {
