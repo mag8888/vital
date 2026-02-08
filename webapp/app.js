@@ -1253,11 +1253,12 @@ async function loadSpecialistsContent() {
         const specialties = Array.isArray(data?.specialties) ? data.specialties : [];
         const specialists = Array.isArray(data?.specialists) ? data.specialists : [];
 
+        const placeholderSvg = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="88" height="88" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>');
         let html = `
-          <div style="display:flex; gap:10px; align-items:center; margin-bottom: 12px; flex-wrap: wrap;">
-            <label style="font-weight:600;">Специальность:</label>
-            <select id="specialtyFilter" class="delivery-input" style="max-width: 320px;">
-              <option value="">Все</option>
+          <div class="specialists-filter-wrap">
+            <label for="specialtyFilter">Специальность:</label>
+            <select id="specialtyFilter" class="delivery-input" aria-label="Выберите направление" style="max-width: 320px;">
+              <option value="">Все специалисты</option>
               ${specialties.map(s => `<option value="${escapeHtml(s.id)}" ${s.id === __specialistsState.specialtyId ? 'selected' : ''}>${escapeHtml(s.categoryName ? (s.categoryName + ' — ' + s.name) : s.name)}</option>`).join('')}
             </select>
           </div>
@@ -1276,19 +1277,18 @@ async function loadSpecialistsContent() {
         }
 
         html += `<div class="specialists-grid-wrap"><div class="specialists-grid">` + specialists.map(sp => {
-            const photo = sp.photoUrl
-                ? `<img src="${escapeHtml(sp.photoUrl)}" alt="" class="specialist-photo-img">`
-                : '';
+            const photoUrl = sp.photoUrl || placeholderSvg;
             const spName = sp.specialtyRef?.name || sp.specialty || '';
             const catName = sp.category?.name || '';
+            const meta = [catName && spName ? (catName + ' — ' + spName) : (spName || catName), sp.profile].filter(Boolean).join(' • ');
             return `
               <div class="specialist-card" onclick="openSpecialistDetail('${sp.id}')">
                 <div class="specialist-photo">
-                  ${photo}
+                  <img src="${escapeHtml(photoUrl)}" alt="" class="specialist-photo-img" onerror="this.src=this.dataset.fb" data-fb="${escapeHtml(placeholderSvg)}">
                 </div>
                 <div class="specialist-text">
                   <div class="specialist-name">${escapeHtml(sp.name || '')}</div>
-                  <div class="specialist-meta">${escapeHtml(catName ? (catName + ' — ' + spName) : spName)}${sp.profile ? ' • ' + escapeHtml(sp.profile) : ''}</div>
+                  <div class="specialist-meta">${escapeHtml(meta)}</div>
                 </div>
               </div>
             `;
@@ -4202,7 +4202,8 @@ async function showProductDetails(productId) {
     }
 }
 
-// --- Specialists on Main Page Logic ---
+// --- Specialists on Main Page Logic (карточки внизу + стилизованный фильтр по направлению) ---
+let __mainPageSpecialtyId = '';
 
 async function loadSpecialistsOnMainPage() {
     const container = document.getElementById('specialists-container');
@@ -4210,40 +4211,73 @@ async function loadSpecialistsOnMainPage() {
     if (!container || !section) return;
 
     try {
-        const resp = await fetch(`${API_BASE}/specialists`);
+        const qs = __mainPageSpecialtyId ? `?specialtyId=${encodeURIComponent(__mainPageSpecialtyId)}` : '';
+        const resp = await fetch(`${API_BASE}/specialists${qs}`);
         if (!resp.ok) throw new Error('Failed to fetch specialists');
         const data = await resp.json();
+        const specialties = Array.isArray(data?.specialties) ? data.specialties : [];
         const specialists = Array.isArray(data?.specialists) ? data.specialists : [];
 
-        if (specialists.length === 0) {
-            section.style.display = 'none';
-            return;
-        }
-
-        let html = '<div class="products-horizontal">';
-        specialists.forEach(sp => {
-            html += renderSpecialistCardMainPage(sp);
-        });
-        html += '</div>';
-
-        container.innerHTML = html;
         section.style.display = 'block';
+
+        // Стилизованный фильтр: Специальность — Все / конкретное направление
+        const filterHtml = `
+          <div class="specialists-filter-wrap">
+            <label for="main-specialty-filter">Специальность:</label>
+            <select id="main-specialty-filter" class="delivery-input" aria-label="Выберите направление">
+              <option value="">Все специалисты</option>
+              ${specialties.map(s => `<option value="${escapeHtml(s.id)}" ${s.id === __mainPageSpecialtyId ? 'selected' : ''}>${escapeHtml(s.categoryName ? (s.categoryName + ' — ' + s.name) : s.name)}</option>`).join('')}
+            </select>
+          </div>
+        `;
+
+        // Карточки: фото слева, имя + описание (категория — специальность • опыт/профиль) справа
+        const placeholderSvg = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="88" height="88" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>');
+        const cardsHtml = specialists.length === 0
+            ? '<div class="empty-state" style="padding: 24px; text-align: center;"><p style="color: var(--text-secondary);">По выбранному направлению специалистов пока нет.</p></div>'
+            : `<div class="specialists-main-cards">` + specialists.map(sp => {
+                const photoUrl = sp.photoUrl || placeholderSvg;
+                const catName = sp.category?.name || '';
+                const spName = sp.specialtyRef?.name || sp.specialty || '';
+                const meta = [catName && spName ? (catName + ' — ' + spName) : (spName || catName), sp.profile].filter(Boolean).join(' • ');
+                return `
+                  <div class="specialist-card" onclick="openSpecialistDetail('${escapeHtml(sp.id)}')">
+                    <div class="specialist-photo">
+                      <img src="${escapeHtml(photoUrl)}" alt="" class="specialist-photo-img" onerror="this.src=this.dataset.fb" data-fb="${escapeHtml(placeholderSvg)}">
+                    </div>
+                    <div class="specialist-text">
+                      <div class="specialist-name">${escapeHtml(sp.name || '')}</div>
+                      <div class="specialist-meta">${escapeHtml(meta)}</div>
+                    </div>
+                  </div>
+                `;
+            }).join('') + '</div>';
+
+        container.innerHTML = filterHtml + cardsHtml;
+
+        const selectEl = document.getElementById('main-specialty-filter');
+        if (selectEl) {
+            selectEl.removeEventListener('change', _onMainSpecialtyFilterChange);
+            selectEl.addEventListener('change', _onMainSpecialtyFilterChange);
+        }
     } catch (e) {
         console.error('Error loading main page specialists:', e);
         section.style.display = 'none';
     }
 }
 
+function _onMainSpecialtyFilterChange() {
+    const sel = document.getElementById('main-specialty-filter');
+    __mainPageSpecialtyId = (sel && sel.value) ? sel.value : '';
+    loadSpecialistsOnMainPage();
+}
+
 function renderSpecialistCardMainPage(sp) {
-    const photo = sp.photoUrl
-        ? `<div class="card-image" style="background-image: url('${escapeHtml(sp.photoUrl)}');"></div>`
-        : `<div class="card-image" style="background-color: #f3f4f6; display: flex; align-items: center; justify-content: center;"><span style="font-size: 24px;">👤</span></div>`;
-
+    const photoUrl = sp.photoUrl || ('data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>'));
+    const photo = `<div class="card-image" style="background-image: url('${escapeHtml(photoUrl)}'); background-size: cover; background-position: center;"></div>`;
     const spName = sp.specialtyRef?.name || sp.specialty || '';
-
-    // Using existing shop-card style for consistency but simpler
     return `
-      <div class="shop-card" onclick="openSpecialistDetail('${sp.id}')" style="width: 160px; min-width: 160px;">
+      <div class="shop-card" onclick="openSpecialistDetail('${escapeHtml(sp.id)}')" style="width: 160px; min-width: 160px;">
         <div class="card-inner">
             ${photo}
             <div class="card-title" style="padding: 12px; font-size: 14px; text-shadow: none; color: var(--text-primary); background: white;">
