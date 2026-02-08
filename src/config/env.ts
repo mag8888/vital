@@ -19,16 +19,22 @@ export const env = {
   adminPassword: requireEnv('ADMIN_PASSWORD'),
   publicBaseUrl: process.env.PUBLIC_BASE_URL || 'http://localhost:3000',
   webappUrl: (() => {
-    const u = process.env.WEBAPP_URL || process.env.PUBLIC_BASE_URL || 'https://plazma.up.railway.app';
-    return /example\.(com|org)/i.test(u) ? 'https://plazma.up.railway.app' : u;
+    const u = process.env.WEBAPP_URL || process.env.PUBLIC_BASE_URL || 'https://vital.up.railway.app';
+    return /example\.(com|org)/i.test(u) ? 'https://vital.up.railway.app' : u;
   })(),
   webappBaseUrl: (() => {
-    const u = process.env.WEBAPP_BASE_URL || process.env.WEBAPP_URL || process.env.PUBLIC_BASE_URL || 'https://plazma.up.railway.app/webapp';
-    return /example\.(com|org)/i.test(u) ? 'https://plazma.up.railway.app/webapp' : (u.endsWith('/webapp') ? u : `${u.replace(/\/$/, '')}/webapp`);
+    const u = process.env.WEBAPP_BASE_URL || process.env.WEBAPP_URL || process.env.PUBLIC_BASE_URL || 'https://vital.up.railway.app/webapp';
+    return /example\.(com|org)/i.test(u) ? 'https://vital.up.railway.app/webapp' : (u.endsWith('/webapp') ? u : `${u.replace(/\/$/, '')}/webapp`);
   })(),
   videoUrl: process.env.VIDEO_URL || 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
   plazmaApiKey: process.env.PLAZMA_API_KEY || process.env.EXTERNAL_API_KEY || '',
-  plazmaApiUrl: process.env.PLAZMA_API_URL || process.env.PUBLIC_BASE_URL || process.env.WEBAPP_BASE_URL || 'https://plazma.up.railway.app',
+  plazmaApiUrl: (() => {
+    const raw = process.env.PLAZMA_API_URL || process.env.PUBLIC_BASE_URL || process.env.WEBAPP_BASE_URL || 'https://vital.up.railway.app';
+    if (!raw) return 'https://vital.up.railway.app';
+    const s = String(raw).trim();
+    if (/^https?:\/\//i.test(s)) return s;
+    return `https://${s.replace(/^\/+/, '')}`;
+  })(),
   /** Папка в Cloudinary с аудио для «Звуковые матрицы» (если в БД нет записей) */
   cloudinaryAudioFolder: process.env.CLOUDINARY_AUDIO_FOLDER || 'plazma',
 };

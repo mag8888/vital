@@ -75,14 +75,15 @@ export async function checkPartnerActivation(userId: string): Promise<boolean> {
   return true;
 }
 
-export function buildReferralLink(code: string, programType: 'DIRECT' | 'MULTI_LEVEL', _username?: string) {
+/** Реферальная ссылка: BASE_URL (из Railway) + username ТГ или код, если нет username */
+export function buildReferralLink(code: string, programType: 'DIRECT' | 'MULTI_LEVEL', username?: string) {
+  const webappBase = (env.webappBaseUrl || 'https://vital.up.railway.app/webapp').replace(/\/$/, '');
+  const refParam = (username && username.replace(/^@/, '')) || code;
+  const main = `${webappBase}?ref=${encodeURIComponent(refParam)}`;
   const botUsername = (env.botUsername || 'PLAZMA_test8_bot').replace(/^@/, '');
   const prefix = programType === 'DIRECT' ? 'ref_direct' : 'ref_multi';
-  /** Ссылка с кодом реферала — при переходе бот получит start=ref_direct_PWXXX и засчитает приглашение */
-  const main = `https://t.me/${botUsername}?start=${prefix}_${code}`;
-  const webappBase = env.webappBaseUrl || 'https://plazma.up.railway.app/webapp';
-  const webapp = `${webappBase.replace(/\/$/, '')}?ref=${code}`;
-  return { main, webapp, old: main, new: main };
+  const telegramLink = `https://t.me/${botUsername}?start=${prefix}_${code}`;
+  return { main, webapp: main, old: telegramLink, new: main };
 }
 
 export async function getPartnerDashboard(userId: string) {

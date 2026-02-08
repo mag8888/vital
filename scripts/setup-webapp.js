@@ -13,7 +13,7 @@ import http from 'http';
 config();
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://plazma-production.up.railway.app';
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://vital.up.railway.app';
 const WEBAPP_URL = process.env.WEBAPP_URL || PUBLIC_BASE_URL + '/webapp';
 
 async function setupWebApp() {

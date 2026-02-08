@@ -171,7 +171,7 @@ function checkRailwayVariables() {
   }
   
   console.log('\n🌐 Railway URL будет автоматически установлен как:');
-  console.log(`   PUBLIC_BASE_URL=https://plazma-production.up.railway.app`);
+  console.log(`   PUBLIC_BASE_URL=https://vital.up.railway.app`);
   console.log(`   WEBAPP_URL=https://plazma-production.up.railway.app/webapp`);
 }
 

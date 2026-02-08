@@ -1225,7 +1225,7 @@ router.post('/api/orders/create', async (req, res) => {
                   [
                     {
                       text: '📋 Просмотреть в админ-панели',
-                      url: `${process.env.PUBLIC_BASE_URL || 'https://vital-production-82b0.up.railway.app'}/admin/resources/order-requests/${order.id}`
+                      url: `${process.env.PUBLIC_BASE_URL || 'https://vital.up.railway.app'}/admin/resources/order-requests/${order.id}`
                     }
                   ]
                 ]
@@ -2439,7 +2439,7 @@ router.post('/api/plazma/orders', async (req, res) => {
                   ...(order ? [[
                     {
                       text: '📋 Просмотреть в админ-панели VITAL',
-                      url: `${env.webappUrl || 'https://vital-production-82b0.up.railway.app'}/admin/resources/order-requests/${order.id}`
+                      url: `${env.webappUrl || 'https://vital.up.railway.app'}/admin/resources/order-requests/${order.id}`
                     }
                   ]] : [])
                 ]

@@ -249,7 +249,7 @@ async function bootstrap() {
 
     // Set single blue menu button to open WebApp
     try {
-      const baseUrl = env.webappUrl || env.publicBaseUrl || 'https://vital-production-82b0.up.railway.app';
+      const baseUrl = env.webappUrl || env.publicBaseUrl || 'https://vital.up.railway.app';
       const webappUrl = baseUrl.includes('/webapp') ? baseUrl : `${baseUrl.replace(/\/$/, '')}/webapp`;
       await bot.telegram.setChatMenuButton({
         menuButton: {

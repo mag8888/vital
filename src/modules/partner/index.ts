@@ -246,10 +246,10 @@ async function handlePlanSelection(
     await logUserAction(ctx, 'partner:select-program', { programType });
 
     const referralLink = buildReferralLink(profile.referralCode, programType, user.username || undefined);
-    console.log('💰 Partner: Generated referral link:', referralLink);
+    console.log('💰 Partner: Generated referral link:', referralLink.main);
 
     await ctx.reply(
-      `${message}\n\nВаша ссылка: ${referralLink}`,
+      `${message}\n\nВаша ссылка: ${referralLink.main}`,
       partnerActionsKeyboard()
     );
     return true;

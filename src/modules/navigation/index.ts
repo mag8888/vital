@@ -63,7 +63,7 @@ const WELCOME_VIDEO_URL = 'https://res.cloudinary.com/dt4r1tigf/video/upload/v17
 const DEFAULT_WEBAPP_SUFFIX = '/webapp';
 
 function getWebappUrl(): string {
-  const baseUrl = env.webappUrl || env.publicBaseUrl || 'https://vital-production-82b0.up.railway.app';
+  const baseUrl = env.webappUrl || env.publicBaseUrl || 'https://vital.up.railway.app';
   if (baseUrl.includes(DEFAULT_WEBAPP_SUFFIX)) {
     return baseUrl;
   }
@@ -87,11 +87,13 @@ function getWelcomeReplyMarkup() {
   };
 }
 
-/** Приветствие с фото PLAZMA, подпись и кнопки: Подарок, Открыть каталог, Ваша реф ссылка */
-async function sendWelcomeWithPhoto(ctx: Context, options?: { referralInviterName?: string }) {
-  const caption = options?.referralInviterName
-    ? `🎉 Вас пригласил ${options.referralInviterName}\n\n${WELCOME_PHOTO_CAPTION}`
-    : WELCOME_PHOTO_CAPTION;
+/** Приветствие с фото, подпись и кнопки: Подарок, Открыть каталог, Ваша реф ссылка */
+async function sendWelcomeWithPhoto(ctx: Context, options?: { referralInviterName?: string; referralInviterLabel?: string }) {
+  const caption = options?.referralInviterLabel
+    ? `✅ Вы зарегистрировались по реферальной ссылке.\nВас пригласил ${options.referralInviterLabel}\n\n${WELCOME_PHOTO_CAPTION}`
+    : options?.referralInviterName
+      ? `🎉 Вас пригласил ${options.referralInviterName}\n\n${WELCOME_PHOTO_CAPTION}`
+      : WELCOME_PHOTO_CAPTION;
   const replyMarkup = getWelcomeReplyMarkup();
   try {
     await ctx.replyWithPhoto(
@@ -601,7 +603,7 @@ export const navigationModule: BotModule = {
 
                   console.log('🔗 Referral: Bonus 3PZ processed, new balance:', updatedReferrer?.balance);
 
-                  // Send notification to inviter (always send if bonus was awarded)
+                  // Send notification to inviter: по вашей ссылке присоединился пользователь @username
                   if (updatedReferrer) {
                     try {
                       const joinedLabel = user.username ? `@${user.username}` : (user.firstName || 'пользователь');
@@ -609,7 +611,7 @@ export const navigationModule: BotModule = {
                         '🎉 <b>Баланс пополнен!</b>\n\n' +
                         `💰 Сумма: 3.00 PZ\n` +
                         `💳 Текущий баланс: ${updatedReferrer.balance.toFixed(2)} PZ\n\n` +
-                        `✨ К вам присоединился ${joinedLabel} по вашей реферальной ссылке!\n\n` +
+                        `✨ По вашей реферальной ссылке присоединился пользователь ${joinedLabel}.\n\n` +
                         `Приглашайте больше друзей и получайте бонусы!`;
 
                       await ctx.telegram.sendMessage(
@@ -620,7 +622,6 @@ export const navigationModule: BotModule = {
                       console.log('🔗 Referral: Notification sent successfully to inviter:', referrerUser.telegramId);
                     } catch (error: any) {
                       console.error('🔗 Referral: Failed to send notification to inviter:', error?.message || error);
-                      // Log full error for debugging
                       if (error?.response) {
                         console.error('🔗 Referral: Telegram API error:', JSON.stringify(error.response, null, 2));
                       }
@@ -637,6 +638,10 @@ export const navigationModule: BotModule = {
             } else {
               console.log('🔗 Referral: User already exists, bonus not awarded');
             }
+            // Приглашённому: вы зарегистрировались по ссылке, вас пригласил @username
+            const inviterLabel = referrerUser.username ? `@${referrerUser.username}` : (referrerUser.firstName || 'партнёр');
+            await sendWelcomeWithPhoto(ctx, { referralInviterName: referrerUser.firstName || 'партнёр', referralInviterLabel: inviterLabel });
+            return;
           }
         } catch (error: any) {
           console.warn('🔗 Referral: Error processing username referral:', error?.message);
@@ -747,7 +752,7 @@ export const navigationModule: BotModule = {
 
                 console.log('🔗 Referral: Bonus awarded successfully, new balance:', updatedReferrer?.balance);
 
-                // Send notification to inviter (always send if bonus was awarded)
+                // Уведомление пригласившему: по вашей ссылке присоединился пользователь @username
                 if (updatedReferrer) {
                   try {
                     console.log('🔗 Referral: Sending notification to inviter:', updatedReferrer.telegramId);
@@ -756,7 +761,7 @@ export const navigationModule: BotModule = {
                       '🎉 <b>Баланс пополнен!</b>\n\n' +
                       `💰 Сумма: 3.00 PZ\n` +
                       `💳 Текущий баланс: ${updatedReferrer.balance.toFixed(2)} PZ\n\n` +
-                      `✨ К вам присоединился ${joinedLabel} по вашей реферальной ссылке!\n\n` +
+                      `✨ По вашей реферальной ссылке присоединился пользователь ${joinedLabel}.\n\n` +
                       `Приглашайте больше друзей и получайте бонусы!`;
 
                     await ctx.telegram.sendMessage(
@@ -767,7 +772,6 @@ export const navigationModule: BotModule = {
                     console.log('🔗 Referral: Notification sent successfully to inviter');
                   } catch (error: any) {
                     console.error('🔗 Referral: Failed to send notification to inviter:', error?.message || error);
-                    // Log full error for debugging
                     if (error?.response) {
                       console.error('🔗 Referral: Telegram API error:', JSON.stringify(error.response, null, 2));
                     }
@@ -783,7 +787,8 @@ export const navigationModule: BotModule = {
             }
 
             console.log('🔗 Referral: Sending welcome photo with buttons');
-            await sendWelcomeWithPhoto(ctx, { referralInviterName: partnerProfile.user.firstName || 'партнёр' });
+            const referrerLabel = partnerProfile.user.username ? `@${partnerProfile.user.username}` : (partnerProfile.user.firstName || `пользователь с кодом ${referralCode}`);
+            await sendWelcomeWithPhoto(ctx, { referralInviterName: partnerProfile.user.firstName || 'партнёр', referralInviterLabel: referrerLabel });
             console.log('🔗 Referral: Welcome message sent');
 
             await logUserAction(ctx, 'partner:referral_joined', {
