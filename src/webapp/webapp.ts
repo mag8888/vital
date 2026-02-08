@@ -184,7 +184,7 @@ router.get('/api/user/profile', async (req, res) => {
           where: { id: created.id },
           include: { partner: true }
         });
-        user = withPartner ?? created;
+        user = withPartner ?? { ...created, partner: null };
       } catch (error: any) {
         if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
           console.warn('⚠️  MongoDB replica set not configured - user creation skipped');
