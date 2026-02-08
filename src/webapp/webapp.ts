@@ -14,7 +14,7 @@ import { CATALOG_STRUCTURE } from '../services/catalog-structure.js';
 import { addProductToCart, getCartItems, cartItemsToText } from '../services/cart-service.js';
 import { createOrderRequest } from '../services/order-service.js';
 import { getActiveReviews } from '../services/review-service.js';
-import { getOrCreatePartnerProfile, getPartnerDashboard } from '../services/partner-service.js';
+import { getOrCreatePartnerProfile, getPartnerDashboard, buildReferralLink } from '../services/partner-service.js';
 import { env } from '../config/env.js';
 
 const router = express.Router();
@@ -166,7 +166,8 @@ router.get('/api/user/profile', async (req, res) => {
     // Find or create user
     const { prisma } = await import('../lib/prisma.js');
     let user = await prisma.user.findUnique({
-      where: { telegramId: telegramUser.id.toString() }
+      where: { telegramId: telegramUser.id.toString() },
+      include: { partner: true }
     });
 
     if (!user) {
@@ -179,6 +180,10 @@ router.get('/api/user/profile', async (req, res) => {
             username: telegramUser.username,
           }
         });
+        user = await prisma.user.findUnique({
+          where: { id: user.id },
+          include: { partner: true }
+        }) as any;
       } catch (error: any) {
         if (error?.code === 'P2031' || error?.message?.includes('replica set')) {
           console.warn('⚠️  MongoDB replica set not configured - user creation skipped');
@@ -190,6 +195,11 @@ router.get('/api/user/profile', async (req, res) => {
       }
     }
 
+    const webappBase = (env.webappBaseUrl || 'https://vital.up.railway.app/webapp').replace(/\/$/, '');
+    const referralLink = (user as any).partner
+      ? buildReferralLink((user as any).partner.referralCode, ((user as any).partner.programType || 'DIRECT') as 'DIRECT' | 'MULTI_LEVEL', user.username || undefined).main
+      : `${webappBase}?ref=${encodeURIComponent(user.username?.replace(/^@/, '') || user.telegramId || '')}`;
+
     res.json({
       id: user.id,
       telegramId: user.telegramId,
@@ -198,7 +208,8 @@ router.get('/api/user/profile', async (req, res) => {
       username: user.username,
       phone: user.phone,
       deliveryAddress: user.deliveryAddress,
-      balance: (user as any).balance || 0
+      balance: (user as any).balance || 0,
+      referralLink
     });
   } catch (error) {
     console.error('Error getting user profile:', error);
@@ -1461,6 +1472,12 @@ router.get('/api/partner/dashboard', async (req, res) => {
       });
     }
 
+    const referralLink = buildReferralLink(
+      user.partner.referralCode,
+      (user.partner.programType || 'DIRECT') as 'DIRECT' | 'MULTI_LEVEL',
+      user.username || undefined
+    ).main;
+
     res.json({
       isActive: user.partner.isActive,
       balance: user.partner.balance,
@@ -1468,7 +1485,8 @@ router.get('/api/partner/dashboard', async (req, res) => {
       referralCode: user.partner.referralCode,
       programType: user.partner.programType || 'DIRECT',
       totalPartners: user.partner.totalPartners,
-      directPartners: user.partner.directPartners
+      directPartners: user.partner.directPartners,
+      referralLink
     });
   } catch (error) {
     console.error('Error getting partner dashboard:', error);
@@ -1571,11 +1589,17 @@ router.post('/api/partner/activate', async (req, res) => {
     // Check if user already has a partner profile
     if (user.partner) {
       console.log('✅ User already has partner profile:', user.partner.id);
+      const referralLink = buildReferralLink(
+        user.partner.referralCode,
+        (user.partner.programType || 'DIRECT') as 'DIRECT' | 'MULTI_LEVEL',
+        user.username || undefined
+      ).main;
       return res.json({
         success: true,
         message: 'Партнёрская программа уже активирована',
         isActive: user.partner.isActive,
-        referralCode: user.partner.referralCode
+        referralCode: user.partner.referralCode,
+        referralLink
       });
     }
 
@@ -1584,11 +1608,17 @@ router.post('/api/partner/activate', async (req, res) => {
     const partnerProfile = await getOrCreatePartnerProfile(user.id, type);
 
     console.log('✅ Partner profile created successfully:', partnerProfile.id);
+    const referralLink = buildReferralLink(
+      partnerProfile.referralCode,
+      (partnerProfile.programType || 'DIRECT') as 'DIRECT' | 'MULTI_LEVEL',
+      user.username || undefined
+    ).main;
     res.json({
       success: true,
       message: 'Партнёрская программа активирована!',
       referralCode: partnerProfile.referralCode,
-      programType: partnerProfile.programType
+      programType: partnerProfile.programType,
+      referralLink
     });
   } catch (error) {
     console.error('❌ Error activating partner program:', error);

@@ -527,47 +527,19 @@ async function loadProfileContent() {
         const user = await userResponse.json();
         const partner = partnerResponse.ok ? await partnerResponse.json() : null;
 
-        const telegramUser = getTelegramUserData();
-        // Реферальная ссылка с юзернеймом в конце
-        const botUsername = 'Vital_shop_bot';
-        let referralLink = `https://t.me/${botUsername}`;
-
-        // Получаем username пользователя для реферальной ссылки
-        let username = null;
-        if (telegramUser && telegramUser.username && telegramUser.username !== 'undefined' && telegramUser.username.trim() !== '') {
-            username = telegramUser.username.trim();
-        } else if (user && user.username && user.username !== 'undefined' && user.username.trim() !== '') {
-            username = user.username.trim();
-        }
-
-        // Формируем ссылку с username в конце
-        if (username) {
-            referralLink = `https://t.me/${botUsername}?start=${username}`;
-        } else {
-            // Fallback: используем ID если нет username
-            const userId = telegramUser?.id || user?.telegramId;
-            if (userId && userId !== 'undefined') {
-                referralLink = `https://t.me/${botUsername}?start=${userId}`;
-            }
-        }
-
-        // Final check: ensure referralLink is never undefined, null, or contains "undefined"
+        // Реферальная ссылка с сервера: https://vital.up.railway.app/webapp?ref=username или ?ref=код
+        let referralLink = user.referralLink || (partner && partner.referralLink);
         if (!referralLink ||
             referralLink === 'undefined' ||
             referralLink === 'null' ||
             referralLink.includes('undefined') ||
             referralLink.includes('null')) {
-            referralLink = `https://t.me/${botUsername}`;
+            const webappBase = (typeof API_BASE !== 'undefined' && API_BASE) ? API_BASE.replace(/\/api\/?$/, '') : 'https://vital.up.railway.app/webapp';
+            const ref = (user.username && user.username.replace(/^@/, '')) || (user.telegramId || '');
+            referralLink = `${webappBase}?ref=${encodeURIComponent(ref)}`;
         }
 
-        // Log for debugging
-        console.log('🔗 Referral link generated:', {
-            hasPartner: !!partner,
-            referralCode: partner?.referralCode,
-            telegramUsername: telegramUser?.username,
-            telegramId: telegramUser?.id,
-            finalLink: referralLink
-        });
+        console.log('🔗 Referral link:', { hasPartner: !!partner, referralCode: partner?.referralCode, finalLink: referralLink });
 
         let html = `
             <div class="profile-content-wrapper">
@@ -2656,19 +2628,17 @@ async function buyProduct(productId, quantity = 1) {
 
 async function activatePartnerProgram(type) {
     try {
-        console.log('🤝 Showing partner program info:', type);
+        console.log('🤝 Activating partner program:', type);
+        const res = await fetch(`${API_BASE}/partner/activate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...getApiHeaders() },
+            body: JSON.stringify({ type: type || 'MULTI_LEVEL' })
+        });
+        const data = await res.json().catch(() => ({}));
+        const referralLink = data.referralLink || (data.referralCode ? `${(typeof API_BASE !== 'undefined' && API_BASE ? API_BASE.replace(/\/api\/?$/, '') : 'https://vital.up.railway.app/webapp')}?ref=${encodeURIComponent(data.referralCode)}` : '');
 
-        // Генерируем простой реферальный код для демонстрации
-        const referralCode = 'PLAZMA' + Math.random().toString(36).substr(2, 6).toUpperCase();
-
-        // Создаем реферальную ссылку
-        const referralLink = `https://t.me/ivitalbot?start=${referralCode}`;
-
-        // Текст как в боте
         let message = '';
         let shareText = '';
-
-        // Только многоуровневая программа
         if (type === 'MULTI_LEVEL') {
             message = `📈 Многоуровневая система — 15% + 5% + 5%
 • 15% с покупок ваших друзей (1-й уровень)
@@ -2683,43 +2653,37 @@ async function activatePartnerProgram(type) {
 
             shareText = `Дружище 🌟
 Я желаю тебе энергии, здоровья и внутренней силы, поэтому делюсь с тобой этим ботом 💧
-Попробуй PLAZMA — структурированная вода для здоровья и энергии ⚡️
+Попробуй VITAL — здоровье и жизнь ⚡️
 🔗 Твоя ссылка (сеть 15% + 5% + 5%):
 ${referralLink}`;
         }
 
-        // Показываем информацию о программе
-        showSuccess('Партнёрская программа активирована!');
+        showSuccess(data.message || 'Партнёрская программа активирована!');
 
-        // Показываем реферальную ссылку
+        const safeShare = (shareText || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         setTimeout(() => {
             const content = `
                 <div class="content-section">
                     <h3>🎉 Партнёрская программа активирована!</h3>
                     <p>${message}</p>
-                    
                     <div style="background: #f9f9f9; border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; margin: 20px 0;">
                         <h4 style="color: #000000; margin-bottom: 8px;">🔗 Ваша реферальная ссылка:</h4>
-                        <p style="color: #333333; word-break: break-all; font-family: monospace;">${referralLink}</p>
+                        <p style="color: #333333; word-break: break-all; font-family: monospace;" id="referral-link-display">${escapeHtml(referralLink || '')}</p>
                     </div>
-                    
                     <div style="margin: 20px 0;">
-                        <button class="btn" onclick="copyReferralLink('${referralLink}')">
+                        <button class="btn" onclick="copyReferralLink(document.getElementById('referral-link-display').innerText)">
                             📋 Скопировать ссылку
                         </button>
                     </div>
-                    
                     <div style="margin: 20px 0;">
-                        <button class="btn btn-secondary" onclick="showShareText('${shareText.replace(/'/g, "\\'")}')">
+                        <button class="btn btn-secondary" onclick="showShareText('${safeShare}')">
                             📤 Показать текст для отправки
                         </button>
                     </div>
                 </div>
             `;
-
             showProductsSection(content);
-        }, 1000);
-
+        }, 500);
     } catch (error) {
         console.error('Error showing partner program:', error);
         showError('Ошибка отображения программы');
@@ -3017,9 +2981,21 @@ async function sendSupportChatMessage() {
     }
 }
 
-function showReferralLink() {
-    showSuccess('Копирование реферальной ссылки...');
-    // Здесь можно добавить логику показа ссылки
+async function showReferralLink() {
+    try {
+        const res = await fetch(`${API_BASE}/partner/dashboard`, { headers: getApiHeaders() });
+        const dashboard = res.ok ? await res.json() : null;
+        const link = (dashboard && dashboard.referralLink) || (typeof API_BASE !== 'undefined' && API_BASE ? (await fetch(`${API_BASE}/user/profile`, { headers: getApiHeaders() }).then(r => r.json()).then(u => u.referralLink)) : null);
+        const referralLink = link || `${(typeof API_BASE !== 'undefined' && API_BASE ? API_BASE.replace(/\/api\/?$/, '') : 'https://vital.up.railway.app/webapp')}?ref=`;
+        if (referralLink && !referralLink.endsWith('?ref=')) {
+            await navigator.clipboard.writeText(referralLink);
+            showSuccess('Реферальная ссылка скопирована!');
+        } else {
+            showError('Сначала активируйте партнёрскую программу');
+        }
+    } catch (e) {
+        showError('Не удалось получить ссылку');
+    }
 }
 
 async function showPartners() {
