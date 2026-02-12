@@ -1414,7 +1414,7 @@ function renderCategoryCovers(categories, products) {
     const customCategories = [
         {
             name: 'Косметика',
-            image: '/webapp/static/images/category-cosmetics.png',
+            image: '/webapp/static/images/category-cosmetics.jpg',
             action: function () {
                 const cat = (categories || []).find(c => c.name === 'Косметика');
                 if (cat) openShopCategory(cat.id);
