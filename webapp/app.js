@@ -42,6 +42,7 @@ const API_BASE = '/webapp/api';
 let SHOP_ACTIVE_CATEGORY_ID = 'all'; // 'all' | categoryId
 let SHOP_CATEGORIES_CACHE = null;
 let SHOP_PRODUCTS_CACHE = null;
+let SHOP_PLAZMA_CACHE = null;
 
 // Certificates (types)
 let CERT_TYPES_CACHE = null;
@@ -1423,7 +1424,7 @@ function renderCategoryCovers(categories, products) {
         },
         {
             name: 'Долголетие',
-            image: '/webapp/static/images/welcome-plazma.png',
+            image: '/webapp/static/images/category-longevity.jpg',
             action: function () {
                 const cat = (categories || []).find(c => c.name === 'Долголетие');
                 if (cat) openShopCategory(cat.id);
@@ -1484,17 +1485,33 @@ function setShopActiveCategory(categoryId) {
 
 async function ensureShopDataLoaded() {
     if (SHOP_CATEGORIES_CACHE && SHOP_PRODUCTS_CACHE) return;
+
     try {
-        const [categoriesResponse, productsResponse] = await Promise.all([
+        const [categoriesResponse, productsResponse, plazmaResponse] = await Promise.all([
             fetch(`${API_BASE}/categories`),
-            fetch(`${API_BASE}/products`)
+            fetch(`${API_BASE}/products`),
+            fetch(`${API_BASE}/plazma/products`).catch(e => ({ ok: false }))
         ]);
         if (!categoriesResponse.ok) throw new Error('Failed to fetch categories');
         if (!productsResponse.ok) throw new Error('Failed to fetch products');
         let categories = await categoriesResponse.json();
         const products = await productsResponse.json();
+
+        let plazmaProducts = [];
+        if (plazmaResponse && plazmaResponse.ok) {
+            const plazmaData = await plazmaResponse.json().catch(() => ({}));
+            if (plazmaData && (plazmaData.products || plazmaData.data)) {
+                plazmaProducts = (plazmaData.products || plazmaData.data || []).map(p => ({
+                    ...p,
+                    price: p.price || (p.priceRub ? p.priceRub / 100 : 0),
+                    isPlazma: true
+                }));
+            }
+        }
+
         SHOP_CATEGORIES_CACHE = Array.isArray(categories) ? categories : [];
         SHOP_PRODUCTS_CACHE = Array.isArray(products) ? products : [];
+        SHOP_PLAZMA_CACHE = plazmaProducts;
     } catch (e) {
         throw e;
     }
@@ -1508,7 +1525,15 @@ function getProductsForShopSelection(categoryId, categories, products) {
     if (String(cat.name || '') === 'Косметика') {
         return (products || []).filter(p => p && (p?.category?.name === 'Косметика' || String(p?.category?.name || '').startsWith('Косметика >')));
     }
-    return (products || []).filter(p => String(p?.category?.id || '') === sel);
+    const result = (products || []).filter(p => String(p?.category?.id || '') === sel);
+
+    // Include Plazma products in "Долголетие"
+    if (String(cat.name || '') === 'Долголетие') {
+        const plazma = Array.isArray(SHOP_PLAZMA_CACHE) ? SHOP_PLAZMA_CACHE : [];
+        return [...result, ...plazma];
+    }
+
+    return result;
 }
 
 function renderShopTabs(categories, activeId) {
@@ -2106,16 +2131,20 @@ function renderProductCardHorizontal(product) {
 
 // Render product card in FORMA Store style (for grid view)
 function renderProductCard(product) {
+    const isPlazma = !!product.isPlazma;
+    const clickHandler = isPlazma ? `showPlazmaProductDetails('${product.id}')` : `showProductDetails('${product.id}')`;
+
     const imageHtml = product.imageUrl
-        ? `<div class="product-card-image" onclick="event.stopPropagation(); showProductDetails('${product.id}')"><img src="${product.imageUrl}" alt="${escapeHtml(product.title || 'Товар')}" onerror="this.style.display='none'; this.parentElement.classList.add('no-image');"></div>`
-        : `<div class="product-card-image no-image" onclick="event.stopPropagation(); showProductDetails('${product.id}')"><div class="product-image-placeholder-icon">📦</div></div>`;
+        ? `<div class="product-card-image" onclick="event.stopPropagation(); ${clickHandler}"><img src="${product.imageUrl}" alt="${escapeHtml(product.title || 'Товар')}" onerror="this.style.display='none'; this.parentElement.classList.add('no-image');"></div>`
+        : `<div class="product-card-image no-image" onclick="event.stopPropagation(); ${clickHandler}"><div class="product-image-placeholder-icon">📦</div></div>`;
     const title = cleanProductTitle(product.title || 'Без названия');
     const { weight, cleanSummary } = extractProductWeight(product.summary || product.description || '');
     const summary = escapeHtml(cleanSummary.substring(0, 100));
     const priceRub = product.price ? (product.price * 100).toFixed(0) : '0';
+
     return `
-        <div class="product-card-forma" data-product-id="${escapeAttr(product.id)}" data-product-type="product" onclick="showProductDetails('${product.id}')" style="position: relative;">
-            ${renderFavoriteButton(product.id)}
+        <div class="product-card-forma" data-product-id="${escapeAttr(product.id)}" data-product-type="${isPlazma ? 'plazma' : 'product'}" onclick="${clickHandler}" style="position: relative;">
+            ${!isPlazma ? renderFavoriteButton(product.id) : ''}
             ${imageHtml}
             <div class="product-card-content">
                 <h3 class="product-card-title">${title}</h3>
@@ -2123,7 +2152,7 @@ function renderProductCard(product) {
                     <div class="product-card-price">
                         <span class="price-value">${priceRub} ₽</span>
                     </div>
-                    <button class="product-card-add" type="button" aria-label="Открыть товар" onclick="event.stopPropagation(); showProductDetails('${product.id}')">
+                    <button class="product-card-add" type="button" aria-label="Открыть товар" onclick="event.stopPropagation(); ${clickHandler}">
                         +
                     </button>
                 </div>
