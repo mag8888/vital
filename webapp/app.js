@@ -1529,9 +1529,9 @@ function getProductsForShopSelection(categoryId, categories, products) {
 
     // Include Plazma products in "Долголетие" - NO, handled by renderLongevityCategory
     if (String(cat.name || '') === 'Долголетие') {
-        // Exclude cosmetics from Longevity
-        const resultFiltered = result.filter(p => !String(p?.category?.name || '').startsWith('Косметика'));
-        return resultFiltered;
+        // User requested STRICTLY only Plazma products for now. 
+        // Existing "Cosmetics" products are likely in this category in DB, so we hide EVERYTHING from DB for this category.
+        return [];
     }
 
     return result;
