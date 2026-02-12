@@ -1455,6 +1455,8 @@ function renderCategoryCovers(categories, products) {
         let onClick = '';
         if (item.name === 'Специалисты') {
             onClick = "openSection('specialists')";
+        } else if (item.name === 'Долголетие') {
+            onClick = "openShopCategory('virtual-longevity')";
         } else {
             // Find category ID synchronously here or pass name to a helper
             const cat = (categories || []).find(c => c.name === item.name);
