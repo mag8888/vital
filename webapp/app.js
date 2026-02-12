@@ -1530,7 +1530,8 @@ function getProductsForShopSelection(categoryId, categories, products) {
     // Include Plazma products in "Долголетие"
     if (String(cat.name || '') === 'Долголетие') {
         const plazma = Array.isArray(SHOP_PLAZMA_CACHE) ? SHOP_PLAZMA_CACHE : [];
-        return [...result, ...plazma];
+        // User requested to remove existing products (which were cosmetics) and only show Plazma
+        return plazma;
     }
 
     return result;
