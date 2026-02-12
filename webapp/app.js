@@ -2305,21 +2305,19 @@ function renderLongevityCategory(categoryId, dbProducts, plazmaProducts) {
 
     html += '<div class="products-main-container">';
 
-    // 1. Plazma Section (Horizontal)
+    // 1. Plazma Section (Grid Layout)
     if (plazmaProducts && plazmaProducts.length > 0) {
         html += `
             <div class="products-scroll-container">
                 <div class="section-header-inline">
                     <h2 class="section-title-inline">Плазма</h2>
                 </div>
-                <div class="products-scroll-wrapper">
-                    <div class="products-horizontal">
+                <div class="products-grid">
         `;
         plazmaProducts.forEach(product => {
-            html += renderPlazmaProductCard(product); // Use dedicated renderer or generic horizontal
+            html += renderProductCard(product); // Use standard product card renderer (it handles isPlazma flag)
         });
         html += `
-                    </div>
                 </div>
             </div>
         `;
