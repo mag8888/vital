@@ -1426,8 +1426,7 @@ function renderCategoryCovers(categories, products) {
             name: 'Долголетие',
             image: '/webapp/static/images/category-longevity.jpg',
             action: function () {
-                const cat = (categories || []).find(c => c.name === 'Долголетие');
-                if (cat) openShopCategory(cat.id);
+                openShopCategory('virtual-longevity');
             }
         },
         {
@@ -1520,6 +1519,11 @@ async function ensureShopDataLoaded() {
 function getProductsForShopSelection(categoryId, categories, products) {
     const sel = String(categoryId || 'all');
     if (sel === 'all') return products || [];
+    // Virtual Longevity handling
+    if (sel === 'virtual-longevity') {
+        return [];
+    }
+
     const cat = (categories || []).find(c => String(c?.id || '') === sel);
     if (!cat) return [];
     if (String(cat.name || '') === 'Косметика') {
@@ -1543,8 +1547,12 @@ function renderShopTabs(categories, activeId) {
     let html = `<div class="category-tabs" role="tablist" aria-label="Категории">`;
     html += `<button class="category-tab ${active === 'all' ? 'active' : ''}" type="button" onclick="openShopCategory('all')">Все товары</button>`;
     top.forEach(cat => {
+        // Skip existing Longevity if it exists in DB to avoid duplicates with virtual one
+        if (cat.name === 'Долголетие') return;
         html += `<button class="category-tab ${active === String(cat.id) ? 'active' : ''}" type="button" onclick="openShopCategory('${escapeAttr(cat.id)}')">${escapeHtml(cat.name)}</button>`;
     });
+    // Inject Virtual Longevity Tab
+    html += `<button class="category-tab ${active === 'virtual-longevity' ? 'active' : ''}" type="button" onclick="openShopCategory('virtual-longevity')">Долголетие</button>`;
     html += `<button class="category-tab ${active === 'certificates' ? 'active' : ''}" type="button" onclick="openSection('certificates')">Сертификаты</button>`;
     html += `</div>`;
     return html;
@@ -2351,11 +2359,12 @@ async function loadShopContent() {
         const activeId = String(SHOP_ACTIVE_CATEGORY_ID || 'all');
         const filtered = getProductsForShopSelection(activeId, categories, products);
 
-        // Check if active category is "Longevity"
+        // Check if active category is "Longevity" (virtual or real name match)
         const activeCategory = categories.find(c => String(c.id) === activeId);
-        if (activeCategory && String(activeCategory.name) === 'Долголетие') {
+
+        if (activeId === 'virtual-longevity' || (activeCategory && String(activeCategory.name) === 'Долголетие')) {
             const plazmaProducts = Array.isArray(SHOP_PLAZMA_CACHE) ? SHOP_PLAZMA_CACHE : [];
-            return renderLongevityCategory(activeId, filtered, plazmaProducts);
+            return renderLongevityCategory('virtual-longevity', [], plazmaProducts); // Strictly pass empty DB products
         }
 
         let content = `<div class="shop-catalog">`;
