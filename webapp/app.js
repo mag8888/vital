@@ -1410,24 +1410,70 @@ function findCoverImageForCategory(category, products, categories) {
 }
 
 function renderCategoryCovers(categories, products) {
-    const top = getTopLevelCategories(categories);
-    if (!top.length) return '';
+    // Hardcoded top categories as requested
+    const customCategories = [
+        {
+            name: 'Косметика',
+            image: '/webapp/static/images/category-cosmetics.png',
+            action: function () {
+                const cat = (categories || []).find(c => c.name === 'Косметика');
+                if (cat) openShopCategory(cat.id);
+                else showCosmeticsSubcategories(); // Fallback if main category not found or just open subcats
+            }
+        },
+        {
+            name: 'Долголетие',
+            image: '/webapp/static/images/category-longevity.jpg',
+            action: function () {
+                const cat = (categories || []).find(c => c.name === 'Долголетие');
+                if (cat) openShopCategory(cat.id);
+            }
+        },
+        {
+            name: 'Специалисты',
+            image: '/webapp/static/images/category-specialists.jpg',
+            action: function () {
+                openSection('specialists');
+            }
+        }
+    ];
 
     let html = `
       <div class="category-covers">
         <div class="category-covers-header">Категории</div>
         <div class="category-covers-scroll">
     `;
-    top.forEach(cat => {
-        const cover = findCoverImageForCategory(cat, products, categories);
-        const bg = cover ? `style="background-image:url('${escapeAttr(cover)}')"` : '';
+
+    customCategories.forEach(item => {
+        // Use custom image
+        const bg = `style="background-image:url('${item.image}')"`;
+        // We need to attach the click handler. Since we are generating HTML string, 
+        // we need a way to call the action. 
+        // For 'Specialists', it's simple: openSection('specialists').
+        // For others, we need to find the ID.
+
+        let onClick = '';
+        if (item.name === 'Специалисты') {
+            onClick = "openSection('specialists')";
+        } else {
+            // Find category ID synchronously here or pass name to a helper
+            const cat = (categories || []).find(c => c.name === item.name);
+            if (cat) {
+                onClick = `openShopCategory('${escapeAttr(cat.id)}')`;
+            } else {
+                console.warn(`Category ${item.name} not found for cover link`);
+                onClick = "openSection('shop')"; // Fallback
+            }
+        }
+
         html += `
-          <div class="category-cover-card" ${bg} onclick="openShopCategory('${escapeAttr(cat.id)}')">
+          <div class="category-cover-card" ${bg} onclick="${onClick}">
             <div class="category-cover-overlay"></div>
-            <div class="category-cover-title">${escapeHtml(cat.name)}</div>
+            <div class="category-cover-title">${escapeHtml(item.name)}</div>
           </div>
         `;
     });
+
     html += `</div></div>`;
     return html;
 }
