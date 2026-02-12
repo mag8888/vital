@@ -1527,10 +1527,11 @@ function getProductsForShopSelection(categoryId, categories, products) {
     }
     const result = (products || []).filter(p => String(p?.category?.id || '') === sel);
 
-    // Include Plazma products in "Долголетие"
+    // Include Plazma products in "Долголетие" - NO, handled by renderLongevityCategory
     if (String(cat.name || '') === 'Долголетие') {
-        const plazma = Array.isArray(SHOP_PLAZMA_CACHE) ? SHOP_PLAZMA_CACHE : [];
-        return [...result, ...plazma];
+        // Exclude cosmetics from Longevity
+        const resultFiltered = result.filter(p => !String(p?.category?.name || '').startsWith('Косметика'));
+        return resultFiltered;
     }
 
     return result;
@@ -2286,6 +2287,59 @@ function escapeAttr(text) {
         .replace(/'/g, '&#39;');
 }
 
+// Render Longevity category with Plazma subcategory
+function renderLongevityCategory(categoryId, dbProducts, plazmaProducts) {
+    let html = `<div class="shop-catalog">`;
+    // Render tabs first to keep navigation
+    html += renderShopTabs(SHOP_CATEGORIES_CACHE || [], categoryId);
+
+    html += '<div class="products-main-container">';
+
+    // 1. Plazma Section (Horizontal)
+    if (plazmaProducts && plazmaProducts.length > 0) {
+        html += `
+            <div class="products-scroll-container">
+                <div class="section-header-inline">
+                    <h2 class="section-title-inline">Плазма</h2>
+                </div>
+                <div class="products-scroll-wrapper">
+                    <div class="products-horizontal">
+        `;
+        plazmaProducts.forEach(product => {
+            html += renderPlazmaProductCard(product); // Use dedicated renderer or generic horizontal
+        });
+        html += `
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // 2. Other Longevity Products (Grid or Horizontal)
+    // dbProducts are already filters to exclude Cosmetics
+    if (dbProducts && dbProducts.length > 0) {
+        html += `
+            <div class="products-scroll-container">
+                <div class="section-header-inline">
+                    <h2 class="section-title-inline">Другое</h2>
+                </div>
+                <div class="products-grid">
+        `;
+        dbProducts.forEach(p => {
+            html += renderProductCard(p);
+        });
+        html += `
+                </div>
+            </div>
+        `;
+    } else if (!plazmaProducts || plazmaProducts.length === 0) {
+        html += `<div class="empty-state"><p>Товары не найдены</p></div>`;
+    }
+
+    html += '</div></div>';
+    return html;
+}
+
 // Shop content - каталог с табами категорий + сетка товаров
 async function loadShopContent() {
     try {
@@ -2296,6 +2350,13 @@ async function loadShopContent() {
 
         const activeId = String(SHOP_ACTIVE_CATEGORY_ID || 'all');
         const filtered = getProductsForShopSelection(activeId, categories, products);
+
+        // Check if active category is "Longevity"
+        const activeCategory = categories.find(c => String(c.id) === activeId);
+        if (activeCategory && String(activeCategory.name) === 'Долголетие') {
+            const plazmaProducts = Array.isArray(SHOP_PLAZMA_CACHE) ? SHOP_PLAZMA_CACHE : [];
+            return renderLongevityCategory(activeId, filtered, plazmaProducts);
+        }
 
         let content = `<div class="shop-catalog">`;
         content += renderShopTabs(categories, activeId);
