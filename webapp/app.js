@@ -1423,7 +1423,7 @@ function renderCategoryCovers(categories, products) {
         },
         {
             name: 'Долголетие',
-            image: '/webapp/static/images/category-longevity.jpg',
+            image: '/webapp/static/images/welcome-plazma.png',
             action: function () {
                 const cat = (categories || []).find(c => c.name === 'Долголетие');
                 if (cat) openShopCategory(cat.id);
