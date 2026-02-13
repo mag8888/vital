@@ -9306,24 +9306,8 @@ router.get('/products', requireAdmin, async (req, res) => {
                     '<textarea id="createProductDescription" name="description" rows="5" class="large" placeholder="Подробное описание товара, применение, состав и т.д."></textarea>' +
                   '</div>' +
                 '</div>' +
-                '<div class="form-section">' +
-                  '<div class="form-section-title">Настройки доставки</div>' +
-                  '<div class="form-group">' +
-                    '<label>Регионы доставки</label>' +
-                    '<div class="regions-grid">' +
-                      '<label class="switch-row">' +
-                        '<input type="checkbox" id="createProductRussia" name="availableInRussia" checked>' +
-                        '<span class="switch-slider"></span>' +
-                        '<span class="switch-label">Россия</span>' +
-                      '</label>' +
-                      '<label class="switch-row">' +
-                        '<input type="checkbox" id="createProductBali" name="availableInBali" checked>' +
-                        '<span class="switch-slider"></span>' +
-                        '<span class="switch-label">Бали</span>' +
-                      '</label>' +
-                    '</div>' +
-                  '</div>' +
-                '</div>' +
+                // УДАЛЕНО: Настройки доставки (регионы) по просьбе пользователя
+                // Значения availableInRussia/Bali будут true по умолчанию
                 '<div class="form-section">' +
                   '<div class="form-section-title">Статус публикации</div>' +
                   '<div class="status-section">' +
@@ -9387,8 +9371,9 @@ router.get('/products', requireAdmin, async (req, res) => {
                 
                 // Manual checkbox handling
                 payload.isActive = document.getElementById('createProductStatus').checked;
-                payload.availableInRussia = document.getElementById('createProductRussia').checked;
-                payload.availableInBali = document.getElementById('createProductBali').checked;
+                // Regions are hidden now, default to true
+                payload.availableInRussia = true;
+                payload.availableInBali = true;
                 
                 // Also support image upload if needed, but for now assuming URL or separate upload logic
                 // The API /admin/api/products handles multipart/form-data via multer, so we can send FormData directly if we use fetch body = formData
@@ -9402,8 +9387,8 @@ router.get('/products', requireAdmin, async (req, res) => {
                 const formDataToSend = new FormData(form);
                 // Fix checkboxes in FormData
                 formDataToSend.set('isActive', document.getElementById('createProductStatus').checked ? 'true' : 'false');
-                formDataToSend.set('availableInRussia', document.getElementById('createProductRussia').checked ? 'true' : 'false');
-                formDataToSend.set('availableInBali', document.getElementById('createProductBali').checked ? 'true' : 'false');
+                formDataToSend.set('availableInRussia', 'true');
+                formDataToSend.set('availableInBali', 'true');
                 formDataToSend.set('image', ''); // No file selected by default
 
                 const resp = await fetch('/admin/api/products', {
