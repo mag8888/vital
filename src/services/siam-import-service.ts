@@ -45,7 +45,7 @@ export const siamProducts: Partial<SiamProduct>[] = [
     englishDescription: 'Rose water refreshes and tones the skin, has soothing properties and helps relieve irritation. Suitable for all skin types.',
     price: 885, // THB
     imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Rose-Water-100-Pure-Bulgarian-1.jpg',
-    category: 'Face Care',
+    category: 'Лицо',
     categorySlug: 'face-care'
   },
   {
@@ -63,8 +63,8 @@ export const siamProducts: Partial<SiamProduct>[] = [
     englishDescription: 'Soap with natural sea salt and lemongrass essential oil gently exfoliates the skin, removing dead cells, and leaves a feeling of freshness and cleanliness.',
     price: 175, // THB
     imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Lemongrass-Salt-Scrub-Soap-1.jpg',
-    category: 'Ванна и SPA',
-    categorySlug: 'bath-spa'
+    category: 'Тело',
+    categorySlug: 'body-care'
   },
   {
     englishTitle: 'Ginger Lily & Frankincense Moisturizing Facial Lotion',
@@ -234,8 +234,8 @@ export const siamProducts: Partial<SiamProduct>[] = [
     englishDescription: 'Lavender and eucalyptus body lotion provides deep moisturization while the calming scents offer aromatherapy benefits. It soothes both skin and mind after a long day.',
     price: 720, // THB
     imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Lavender-Eucalyptus-Body-Lotion-1.jpg',
-    category: 'Bath & Spa',
-    categorySlug: 'bath-spa'
+    category: 'Тело',
+    categorySlug: 'body-care'
   },
   {
     englishTitle: 'Dead Sea Salt Scrub',
@@ -243,8 +243,8 @@ export const siamProducts: Partial<SiamProduct>[] = [
     englishDescription: 'Dead Sea salt scrub exfoliates with mineral-rich salt from the Dead Sea. It removes dead cells, improves circulation, and leaves skin smooth, soft, and glowing.',
     price: 650, // THB
     imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Dead-Sea-Salt-Scrub-1.jpg',
-    category: 'Bath & Spa',
-    categorySlug: 'bath-spa'
+    category: 'Тело',
+    categorySlug: 'body-care'
   },
   {
     englishTitle: 'Coconut & Lime Body Wash',
@@ -252,8 +252,8 @@ export const siamProducts: Partial<SiamProduct>[] = [
     englishDescription: 'Coconut and lime body wash provides a refreshing cleansing experience with natural extracts. It gently cleanses while maintaining skin\'s natural moisture balance.',
     price: 380, // THB
     imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Coconut-Lime-Body-Wash-1.jpg',
-    category: 'Bath & Spa',
-    categorySlug: 'bath-spa'
+    category: 'Тело',
+    categorySlug: 'body-care'
   },
   {
     englishTitle: 'Jasmine & Ylang-Ylang Bath Oil',
@@ -261,8 +261,8 @@ export const siamProducts: Partial<SiamProduct>[] = [
     englishDescription: 'Jasmine and ylang-ylang bath oil creates a luxurious spa-like experience. It softens skin and provides calming aromatherapy benefits for relaxation and stress relief.',
     price: 580, // THB
     imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Jasmine-Ylang-Ylang-Bath-Oil-1.jpg',
-    category: 'Bath & Spa',
-    categorySlug: 'bath-spa'
+    category: 'Тело',
+    categorySlug: 'body-care'
   },
   {
     englishTitle: 'Peppermint & Eucalyptus Foot Cream',
@@ -270,8 +270,8 @@ export const siamProducts: Partial<SiamProduct>[] = [
     englishDescription: 'Peppermint and eucalyptus foot cream provides cooling relief for tired, achy feet. The refreshing sensation invigorates while the cream moisturizes and softens rough skin.',
     price: 480, // THB
     imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Peppermint-Eucalyptus-Foot-Cream-1.jpg',
-    category: 'Bath & Spa',
-    categorySlug: 'bath-spa'
+    category: 'Тело',
+    categorySlug: 'body-care'
   },
   {
     englishTitle: 'Argan Oil Hair Treatment',
