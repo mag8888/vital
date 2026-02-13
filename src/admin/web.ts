@@ -245,11 +245,47 @@ const ADMIN_UI_CSS = `
   input, select, textarea{
     font: inherit;
   }
+  .form-group{ margin-bottom: 20px; position:relative; }
+  .form-group label { display: block; margin-bottom: 8px; font-weight: 700; color: var(--admin-text); font-size: 14px; }
+  
   input[type="text"], input[type="password"], input[type="number"], select, textarea{
-    border-radius: 10px;
+    display: block;
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 12px;
     border: 1px solid var(--admin-border-strong);
     background: var(--admin-surface);
+    color: var(--admin-text);
+    box-sizing: border-box;
+    transition: all 0.2s;
   }
+  input[type="text"]:focus, textarea:focus { 
+    border-color: #666; 
+    box-shadow: 0 0 0 4px rgba(0,0,0,0.03); 
+    background: #fff;
+  }
+
+  .checkbox-card{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--admin-border-strong);
+    border-radius: 12px;
+    background: #fff;
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .checkbox-card:hover{ border-color: var(--admin-text); background: #fafafa; }
+  .checkbox-card input[type="checkbox"]{
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: var(--admin-text);
+  }
+  .checkbox-card span{ font-weight: 700; font-size: 14px; }
+
 
   /* Modals (Dribbble-like) */
   .admin-shell .modal-overlay,
@@ -5229,32 +5265,32 @@ router.get('/categories', requireAdmin, async (req, res) => {
               <div class="form-group">
                 <label for="categorySlugInput">Slug (URL)</label>
                 <input id="categorySlugInput" type="text" placeholder="auto-generated-slug">
-                <div class="muted" style="margin-top:4px;">Оставьте пустым для автогенерации</div>
+                <div class="muted" style="margin-top:6px; font-size:13px;">Оставьте пустым для автогенерации из названия</div>
               </div>
               <div class="form-group">
                 <label for="categoryDescInput">Описание</label>
-                <textarea id="categoryDescInput" rows="4" placeholder="Описание категории (опционально)"></textarea>
+                <textarea id="categoryDescInput" rows="4" placeholder="Краткое описание категории"></textarea>
               </div>
               <div class="form-group">
                 <label for="categoryImageInput">Обложка (URL)</label>
                 <input id="categoryImageInput" type="text" placeholder="https://...">
-                <div class="muted" style="margin-top:6px;">Если оставить пустым — в клиенте будет первая картинка товара.</div>
+                <div class="muted" style="margin-top:6px; font-size:13px;">Если пусто — возьмется первое фото из товаров</div>
               </div>
-              <div class="form-group">
-                <label style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--admin-border-strong); border-radius:12px; background:#fff;">
+              
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+                <label class="checkbox-card">
                   <input id="categoryActiveInput" type="checkbox" checked>
-                  <span style="font-weight:800;">Активна</span>
+                  <span>Активна</span>
                 </label>
-              </div>
-              <div class="form-group">
-                <label style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--admin-border-strong); border-radius:12px; background:#fff;">
+                <label class="checkbox-card">
                   <input id="categoryVisibleInput" type="checkbox" checked>
-                  <span style="font-weight:800;">Видима в клиенте</span>
+                  <span>Видима в клиенте</span>
                 </label>
               </div>
-              <div class="form-actions">
-                <button type="button" onclick="window.closeCategoryModal()">Отмена</button>
-                <button type="submit" id="categorySaveBtn">Сохранить</button>
+
+              <div class="form-actions" style="margin-top: 24px;">
+                <button type="button" class="btn" onclick="window.closeCategoryModal()">Отмена</button>
+                <button type="submit" class="btn btn-primary" id="categorySaveBtn" style="background:var(--admin-text); color:#fff;">Сохранить</button>
               </div>
             </form>
           </div>
