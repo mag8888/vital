@@ -159,6 +159,118 @@ const ADMIN_UI_CSS = `
   }
   .admin-content{
     padding: 22px;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  /* Multi-select styles */
+  .multi-select-container {
+    position: relative;
+    width: 100%;
+  }
+  .multi-select-trigger {
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 8px 12px;
+    background: white;
+    cursor: pointer;
+    min-height: 42px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+  }
+  .multi-select-trigger:after {
+    content: '';
+    margin-left: auto;
+    border: 5px solid transparent;
+    border-top-color: #9ca3af;
+  }
+  .multi-select-tag {
+    background: #eff6ff;
+    color: #1d4ed8;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .multi-select-tag-close {
+    cursor: pointer;
+    font-weight: bold;
+    opacity: 0.6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+  }
+  .multi-select-tag-close:hover {
+    opacity: 1;
+    background: rgba(0,0,0,0.1);
+    border-radius: 50%;
+  }
+  .multi-select-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    margin-top: 4px;
+    max-height: 250px;
+    overflow-y: auto;
+    z-index: 10050; /* Higher than modal */
+    display: none;
+  }
+  .multi-select-dropdown.open {
+    display: block;
+  }
+  .multi-select-option {
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.2s;
+  }
+  .multi-select-option:hover {
+    background: #f8fafc;
+  }
+  .multi-select-option.selected {
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-weight: 500;
+    position: relative;
+  }
+  .multi-select-option.selected:after {
+    content: '✓';
+    margin-left: auto;
+    color: #1d4ed8;
+  }
+  .multi-select-search {
+    padding: 8px;
+    border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+    background: white;
+    z-index: 1;
+  }
+  .multi-select-search input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  .multi-select-placeholder {
+    color: #9ca3af;
+  }
+    padding: 22px;
     max-width: 1400px;
     width: 100%;
     box-sizing: border-box;
@@ -2734,7 +2846,7 @@ router.get('/', requireAdmin, async (req, res) => {
             const modal = document.createElement('div');
             modal.id = 'deliveryAddressModal';
             modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;';
-            
+                    
             const modalContent = '<div style="background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 500px;">' +
               '<h3>📍 Редактировать адрес доставки</h3>' +
               '<div style="margin: 15px 0;">' +
@@ -4568,6 +4680,37 @@ router.post('/api/products', requireAdmin, upload.single('image'), async (req, r
     const generatedSku = 'MANUAL-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).slice(2, 5).toUpperCase();
     const finalSku = cleanSku || generatedSku;
 
+    // Handle multiple categories
+    let categoryIds: string[] = [];
+    if (req.body.categoryIds) {
+      if (Array.isArray(req.body.categoryIds)) {
+        categoryIds = req.body.categoryIds.map((id: any) => String(id).trim()).filter(Boolean);
+      } else if (typeof req.body.categoryIds === 'string') {
+        try {
+          // Attempt to parse JSON or split by comma
+          if (req.body.categoryIds.startsWith('[')) {
+            categoryIds = JSON.parse(req.body.categoryIds).map((id: any) => String(id).trim()).filter(Boolean);
+          } else {
+            categoryIds = req.body.categoryIds.split(',').map((id: string) => id.trim()).filter(Boolean);
+          }
+        } catch (e) {
+          categoryIds = [String(req.body.categoryIds).trim()];
+        }
+      }
+    }
+
+    // Fallback or ensure primary categoryId is in list
+    if (categoryId && !categoryIds.includes(categoryId)) {
+      categoryIds.unshift(categoryId);
+    }
+
+    // Ensure primary categoryId matches first element if list exists
+    const primaryCategoryId = categoryIds.length > 0 ? categoryIds[0] : categoryId;
+
+    if (!primaryCategoryId) {
+      return res.status(400).json({ success: false, error: 'Выберите хотя бы одну категорию' });
+    }
+
     // Create product
     const product = await prisma.product.create({
       data: {
@@ -4576,7 +4719,8 @@ router.post('/api/products', requireAdmin, upload.single('image'), async (req, r
         description: fullDescription.trim(),
         instruction: instruction?.trim() || null,
         price: parseFloat(price),
-        categoryId,
+        categoryId: primaryCategoryId,
+        categoryIds: categoryIds,
         imageUrl: imageUrl || null,
         stock: finalStock,
         sku: finalSku,
@@ -6855,7 +6999,21 @@ router.get('/products', requireAdmin, async (req, res) => {
             const summary = String(button.dataset.summary || '').trim();
             const description = String(button.dataset.description || '').trim();
             const price = String(button.dataset.price || '0').trim();
+            const stock = String(button.dataset.stock || '999').trim();
             const categoryId = String(button.dataset.categoryId || '').trim();
+            let categoryIds = [];
+            try {
+              if (button.dataset.categoryIds) {
+                 categoryIds = JSON.parse(button.dataset.categoryIds);
+              }
+            } catch (e) {
+              console.warn('Error parsing categoryIds:', e);
+            }
+            // Fallback if categoryIds empty but categoryId exists
+            if (categoryIds.length === 0 && categoryId) {
+              categoryIds = [categoryId];
+            }
+
             const isActive = String(button.dataset.active || 'false').trim() === 'true';
             const availableInRussia = String(button.dataset.russia || 'false').trim() === 'true';
             const availableInBali = String(button.dataset.bali || 'false').trim() === 'true';
@@ -6866,6 +7024,7 @@ router.get('/products', requireAdmin, async (req, res) => {
               title: title.substring(0, 30) + '...',
               price,
               categoryId,
+              categoryIds,
               isActive,
               availableInRussia,
               availableInBali
@@ -6879,167 +7038,136 @@ router.get('/products', requireAdmin, async (req, res) => {
             
             // Create modal if it doesn't exist
             let modal = document.getElementById('editProductModal');
-            if (!modal) {
-              console.log('🔵 Creating new edit modal');
-              modal = document.createElement('div');
-              modal.id = 'editProductModal';
-              modal.className = 'modal-overlay';
-              modal.style.cssText = 'display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;';
-              modal.onclick = function(e) {
-                if (e.target === modal) {
-                  window.closeEditModal();
-                }
-              };
-              const content = document.createElement('div');
-              content.className = 'modal-content';
-              content.style.cssText = 'background: white; border-radius: 12px; padding: 0; max-width: 800px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
-              content.addEventListener('click', function(e) { e.stopPropagation(); });
-              // Разбиваем длинную innerHTML строку на части для предотвращения SyntaxError
-              content.innerHTML = 
-                '<div class="modal-header">' +
-                  '<h2>Редактировать товар</h2>' +
-                  '<button type="button" class="close-btn" onclick="window.closeEditModal()">&times;</button>' +
+            if (modal) modal.remove(); // Always recreate to ensure fresh state
+
+            console.log('🔵 Creating new edit modal');
+            modal = document.createElement('div');
+            modal.id = 'editProductModal';
+            modal.className = 'modal-overlay';
+            modal.style.cssText = 'display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;';
+            modal.onclick = function(e) {
+              if (e.target === modal) {
+                window.closeEditModal();
+              }
+            };
+            const content = document.createElement('div');
+            content.className = 'modal-content';
+            content.style.cssText = 'background: white; border-radius: 12px; padding: 0; max-width: 800px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+            content.addEventListener('click', function(e) { e.stopPropagation(); });
+            
+            content.innerHTML = 
+              '<div class="modal-header">' +
+                '<h2>Редактировать товар</h2>' +
+                '<button type="button" class="close-btn" onclick="window.closeEditModal()">&times;</button>' +
+              '</div>' +
+              '<form id="editProductForm" enctype="multipart/form-data" class="modal-form">' +
+                '<input type="hidden" id="editProductId" name="productId" value="">' +
+                '<div class="form-section">' +
+                  '<div class="form-section-title">Основная информация</div>' +
+                  '<div class="form-grid single">' +
+                    '<div class="form-group">' +
+                      '<label for="editProductName">Название товара</label>' +
+                      '<input type="text" id="editProductName" name="title" required placeholder="Введите название товара">' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="form-grid">' +
+                    '<div class="form-group">' +
+                      '<label for="editProductPrice">Цена в PZ</label>' +
+                      '<div class="price-input">' +
+                        '<input type="number" id="editProductPrice" name="price" step="0.01" required placeholder="0.00">' +
+                      '</div>' +
+                    '</div>' +
+                    '<div class="form-group">' +
+                      '<label for="editProductPriceRub">Цена в RUB</label>' +
+                      '<div class="price-input rub">' +
+                        '<input type="number" id="editProductPriceRub" name="priceRub" step="0.01" readonly placeholder="0.00">' +
+                      '</div>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="form-grid">' +
+                    '<div class="form-group">' +
+                      '<label for="editProductStock">Остаток на складе</label>' +
+                      '<input type="number" id="editProductStock" name="stock" value="999" required placeholder="999">' +
+                    '</div>' +
+                    '<div class="form-group">' +
+                      '<label>Категории</label>' +
+                      '<div id="editProductCategoryContainer" class="multi-select-container"></div>' +
+                      '<input type="hidden" name="categoryId" id="editProductCategory">' +
+                      '<input type="hidden" name="categoryIds" id="editProductCategoryIds">' +
+                    '</div>' +
+                  '</div>' +
                 '</div>' +
-                '<form id="editProductForm" enctype="multipart/form-data" class="modal-form">' +
-                  '<input type="hidden" id="editProductId" name="productId" value="">' +
-                  '<div class="form-section">' +
-                    '<div class="form-section-title">Основная информация</div>' +
-                    '<div class="form-grid single">' +
-                      '<div class="form-group">' +
-                        '<label for="editProductName">Название товара</label>' +
-                        '<input type="text" id="editProductName" name="title" required placeholder="Введите название товара">' +
-                      '</div>' +
-                    '</div>' +
-                    '<div class="form-grid">' +
-                      '<div class="form-group">' +
-                        '<label for="editProductPrice">Цена в PZ</label>' +
-                        '<div class="price-input">' +
-                          '<input type="number" id="editProductPrice" name="price" step="0.01" required placeholder="0.00">' +
-                        '</div>' +
-                      '</div>' +
-                      '<div class="form-group">' +
-                        '<label for="editProductPriceRub">Цена в RUB</label>' +
-                        '<div class="price-input rub">' +
-                          '<input type="number" id="editProductPriceRub" name="priceRub" step="0.01" readonly placeholder="0.00">' +
-                        '</div>' +
-                      '</div>' +
-                    '</div>' +
-                    '<div class="form-grid">' +
-                      '<div class="form-group">' +
-                        '<label for="editProductStock">Остаток на складе</label>' +
-                        '<input type="number" id="editProductStock" name="stock" value="999" required placeholder="999">' +
-                      '</div>' +
-                      '<div class="form-group">' +
-                        '<label for="editProductCategory">Категория</label>' +
-                        '<select id="editProductCategory" name="categoryId" required>' +
-                          '<option value="">Загрузка категорий...</option>' +
-                        '</select>' +
-                      '</div>' +
-                    '</div>' +
+                '<div class="form-section">' +
+                  '<div class="form-section-title">Описание товара</div>' +
+                  '<div class="form-group">' +
+                    '<label for="editProductSummary">Краткое описание</label>' +
+                    '<textarea id="editProductSummary" name="summary" rows="3" placeholder="Краткое описание для карточки товара"></textarea>' +
                   '</div>' +
-                  '<div class="form-section">' +
-                    '<div class="form-section-title">Описание товара</div>' +
-                    '<div class="form-group">' +
-                      '<label for="editProductSummary">Краткое описание</label>' +
-                      '<textarea id="editProductSummary" name="summary" rows="3" placeholder="Краткое описание для карточки товара"></textarea>' +
-                    '</div>' +
-                    '<div class="form-group">' +
-                      '<label for="editProductDescription">Полное описание</label>' +
-                      '<textarea id="editProductDescription" name="description" rows="5" class="large" placeholder="Подробное описание товара, применение, состав и т.д."></textarea>' +
-                    '</div>' +
+                  '<div class="form-group">' +
+                    '<label for="editProductDescription">Полное описание</label>' +
+                    '<textarea id="editProductDescription" name="description" rows="5" class="large" placeholder="Подробное описание товара, применение, состав и т.д."></textarea>' +
                   '</div>' +
-                  '<div class="form-section">' +
-                    '<div class="form-section-title">Настройки доставки</div>' +
-                    '<div class="form-group">' +
-                      '<label>Регионы доставки</label>' +
-                      '<div class="regions-grid">' +
-                        '<label class="switch-row">' +
-                          '<input type="checkbox" id="editProductRussia" name="availableInRussia">' +
-                          '<span class="switch-slider"></span>' +
-                          '<span class="switch-label">Россия</span>' +
-                        '</label>' +
-                        '<label class="switch-row">' +
-                          '<input type="checkbox" id="editProductBali" name="availableInBali">' +
-                          '<span class="switch-slider"></span>' +
-                          '<span class="switch-label">Бали</span>' +
-                        '</label>' +
-                      '</div>' +
-                    '</div>' +
-                  '</div>' +
-                  '<div class="form-section">' +
-                    '<div class="form-section-title">Статус публикации</div>' +
-                    '<div class="status-section">' +
-                      '<label class="status-row">' +
-                        '<input type="checkbox" id="editProductStatus" name="isActive">' +
+                '</div>' +
+                '<div class="form-section">' +
+                  '<div class="form-section-title">Настройки доставки</div>' +
+                  '<div class="form-group">' +
+                    '<label>Регионы доставки</label>' +
+                    '<div class="regions-grid">' +
+                      '<label class="switch-row">' +
+                        '<input type="checkbox" id="editProductRussia" name="availableInRussia">' +
                         '<span class="switch-slider"></span>' +
-                        '<span class="status-label">Товар активен и доступен для покупки</span>' +
+                        '<span class="switch-label">Россия</span>' +
+                      '</label>' +
+                      '<label class="switch-row">' +
+                        '<input type="checkbox" id="editProductBali" name="availableInBali">' +
+                        '<span class="switch-slider"></span>' +
+                        '<span class="switch-label">Бали</span>' +
                       '</label>' +
                     '</div>' +
                   '</div>' +
-                  '<div class="form-actions">' +
-                    '<button type="button" onclick="window.closeEditModal()">Отмена</button>' +
-                    '<button type="submit">Обновить товар</button>' +
+                '</div>' +
+                '<div class="form-section">' +
+                  '<div class="form-section-title">Статус публикации</div>' +
+                  '<div class="status-section">' +
+                    '<label class="status-row">' +
+                      '<input type="checkbox" id="editProductStatus" name="isActive">' +
+                      '<span class="switch-slider"></span>' +
+                      '<span class="status-label">Товар активен и доступен для покупки</span>' +
+                    '</label>' +
                   '</div>' +
-                '</form>';
-              modal.appendChild(content);
-              document.body.appendChild(modal);
-              
-              // Setup form submission handler - удаляем старый обработчик если есть
-              const editForm = document.getElementById('editProductForm');
-              if (editForm) {
-                // Удаляем старый обработчик если есть
-                const oldHandler = editForm.getAttribute('data-handler-attached');
-                if (oldHandler) {
-                  editForm.removeEventListener('submit', oldHandler);
-                }
-                
-                // Создаем новый обработчик
-                const submitHandler = function(e) {
+                '</div>' +
+                '<div class="form-actions">' +
+                  '<button type="button" onclick="window.closeEditModal()">Отмена</button>' +
+                  '<button type="submit">Обновить товар</button>' +
+                '</div>' +
+              '</form>';
+            modal.appendChild(content);
+            document.body.appendChild(modal);
+            
+            // Setup form submission handler
+            const editForm = document.getElementById('editProductForm');
+            if (editForm) {
+              const submitHandler = function(e) {
                 e.preventDefault();
-                  e.stopPropagation();
-                  
-                  const form = e.target;
-                  const formData = new FormData(form);
+                e.stopPropagation();
+                
+                const form = e.target;
+                const formData = new FormData(form);
                 const productId = formData.get('productId');
-                  
-                  if (!productId) {
-                    alert('Ошибка: ID товара не найден');
-                    return;
-                  }
                 
-                const formDataToSend = new FormData();
-                  formDataToSend.append('productId', String(productId));
-                  formDataToSend.append('title', String(formData.get('title') || ''));
-                  formDataToSend.append('price', String(formData.get('price') || '0'));
-                  formDataToSend.append('summary', String(formData.get('summary') || ''));
-                  formDataToSend.append('description', String(formData.get('description') || ''));
-                  formDataToSend.append('categoryId', String(formData.get('categoryId') || ''));
-                  formDataToSend.append('stock', String(formData.get('stock') || '999'));
-                  
-                  const statusCheckbox = document.getElementById('editProductStatus');
-                  const russiaCheckbox = document.getElementById('editProductRussia');
-                  const baliCheckbox = document.getElementById('editProductBali');
-                  
-                  if (statusCheckbox && statusCheckbox.checked) {
-                  formDataToSend.append('isActive', 'true');
-                  } else {
-                    formDataToSend.append('isActive', 'false');
+                if (!productId) {
+                  alert('Ошибка: ID товара не найден');
+                  return;
                 }
-                  
-                  if (russiaCheckbox && russiaCheckbox.checked) {
-                  formDataToSend.append('availableInRussia', 'true');
-                  } else {
-                    formDataToSend.append('availableInRussia', 'false');
-                }
-                  
-                  if (baliCheckbox && baliCheckbox.checked) {
-                  formDataToSend.append('availableInBali', 'true');
-                  } else {
-                    formDataToSend.append('availableInBali', 'false');
-                }
-                  
-                  console.log('📤 Sending update request for product:', productId);
                 
+                const formDataToSend = new FormData(form);
+                // Fix checkboxes
+                formDataToSend.set('isActive', document.getElementById('editProductStatus').checked ? 'true' : 'false');
+                formDataToSend.set('availableInRussia', document.getElementById('editProductRussia').checked ? 'true' : 'false');
+                formDataToSend.set('availableInBali', document.getElementById('editProductBali').checked ? 'true' : 'false');
+                
+                console.log('📤 Sending update request for product:', productId);
+              
                 fetch('/admin/products/' + productId + '/update', {
                   method: 'POST',
                   body: formDataToSend,
@@ -7072,9 +7200,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 });
               };
                 
-                editForm.addEventListener('submit', submitHandler);
-                editForm.setAttribute('data-handler-attached', 'true');
-              }
+              editForm.addEventListener('submit', submitHandler);
             }
             
             // Helper function to decode HTML entities safely
@@ -7098,31 +7224,17 @@ router.get('/products', requireAdmin, async (req, res) => {
               const editProductRussiaEl = document.getElementById('editProductRussia');
               const editProductBaliEl = document.getElementById('editProductBali');
               
-              if (!editProductIdEl || !editProductNameEl || !editProductPriceEl) {
-                console.error('❌ Required form elements not found');
-                alert('Ошибка: форма редактирования не найдена. Пожалуйста, обновите страницу.');
-                return;
-              }
-              
-              editProductIdEl.value = productId || '';
+              if (editProductIdEl) editProductIdEl.value = productId || '';
               if (editProductNameEl) editProductNameEl.value = decodeHtml(title) || '';
               if (editProductSummaryEl) editProductSummaryEl.value = decodeHtml(summary) || '';
               if (editProductDescriptionEl) editProductDescriptionEl.value = decodeHtml(description) || '';
-              editProductPriceEl.value = price || '0';
+              if (editProductPriceEl) editProductPriceEl.value = price || '0';
               if (editProductPriceRubEl) editProductPriceRubEl.value = ((parseFloat(price) || 0) * 100).toFixed(2);
-              if (editProductStockEl) editProductStockEl.value = '999';
+              if (editProductStockEl) editProductStockEl.value = stock;
               if (editProductStatusEl) editProductStatusEl.checked = isActive;
               if (editProductRussiaEl) editProductRussiaEl.checked = availableInRussia;
               if (editProductBaliEl) editProductBaliEl.checked = availableInBali;
               
-              console.log('✅ Form fields filled:', {
-                productId,
-                title: title.substring(0, 50),
-                price,
-                isActive,
-                availableInRussia,
-                availableInBali
-              });
             } catch (error) {
               console.error('❌ Error filling form fields:', error);
               alert('Ошибка при загрузке данных товара: ' + (error instanceof Error ? error.message : String(error)));
@@ -7133,19 +7245,17 @@ router.get('/products', requireAdmin, async (req, res) => {
             fetch('/admin/api/categories', { credentials: 'include' })
               .then(response => response.json())
               .then(categories => {
-                const select = document.getElementById('editProductCategory');
-                if (select) {
-                  select.innerHTML = '<option value="">Выберите категорию</option>';
-                  categories.forEach(category => {
-                    const option = document.createElement('option');
-                    option.value = category.id;
-                    option.textContent = category.name;
-                    if (category.id === categoryId) {
-                      option.selected = true;
-                    }
-                    select.appendChild(option);
-                  });
-                }
+                const options = categories.map(cat => ({ value: cat.id, label: cat.name }));
+                const initialSelected = categoryIds.length > 0 ? categoryIds : (categoryId ? [categoryId] : []);
+                
+                window.initializeMultiSelect('editProductCategoryContainer', options, initialSelected, (selected) => {
+                   document.getElementById('editProductCategoryIds').value = JSON.stringify(selected);
+                   // Update primary categoryId (first selected)
+                   document.getElementById('editProductCategory').value = selected.length > 0 ? selected[0] : '';
+                });
+                 // Set initial values
+                 document.getElementById('editProductCategoryIds').value = JSON.stringify(initialSelected);
+                 document.getElementById('editProductCategory').value = initialSelected.length > 0 ? initialSelected[0] : '';
               })
               .catch(error => {
                 console.error('Error loading categories:', error);
@@ -7166,13 +7276,8 @@ router.get('/products', requireAdmin, async (req, res) => {
             }
             
             // Show modal
-            console.log('✅ Showing edit modal');
-            console.log('✅ Modal element:', modal);
-            console.log('✅ Modal in DOM:', document.body.contains(modal));
-            
             // Убеждаемся, что модальное окно в DOM
             if (!document.body.contains(modal)) {
-              console.log('⚠️ Modal not in DOM, appending...');
               document.body.appendChild(modal);
             }
             
@@ -7180,34 +7285,9 @@ router.get('/products', requireAdmin, async (req, res) => {
             modal.style.display = 'flex';
             modal.style.alignItems = 'center';
             modal.style.justifyContent = 'center';
-            modal.style.position = 'fixed';
-            modal.style.top = '0';
-            modal.style.left = '0';
-            modal.style.width = '100%';
-            modal.style.height = '100%';
-            modal.style.background = 'rgba(0,0,0,0.6)';
-            modal.style.zIndex = '10000';
+            modal.style.visibility = 'visible';
+            modal.style.opacity = '1';
             
-            console.log('✅ Modal display set to:', modal.style.display);
-            console.log('✅ Modal computed style:', window.getComputedStyle(modal).display);
-            
-            // Убеждаемся, что модальное окно видимо (и не переоткрываем после закрытия)
-            try { modal.dataset.__closing = '0'; } catch (_) {}
-            if (modal.__forceShowTimer) { try { clearTimeout(modal.__forceShowTimer); } catch (_) {} }
-            modal.__forceShowTimer = setTimeout(() => {
-              try {
-                if (modal.dataset && modal.dataset.__closing === '1') return;
-              } catch (_) {}
-              const computedDisplay = window.getComputedStyle(modal).display;
-              if (computedDisplay === 'none') {
-                console.error('❌ Modal still hidden! Forcing display...');
-                modal.style.display = 'flex';
-                modal.style.visibility = 'visible';
-                modal.style.opacity = '1';
-              } else {
-                console.log('✅ Modal is visible, display:', computedDisplay);
-              }
-            }, 50);
           };
           } catch (e) {
             console.error('❌ CRITICAL ERROR defining window.editProduct:', e);
@@ -7362,7 +7442,11 @@ router.get('/products', requireAdmin, async (req, res) => {
 
               const cards = document.querySelectorAll('.product-card');
               cards.forEach(card => {
-                const catOk = (filter === 'all' || __safeStr(card.dataset.category) === filter);
+                const cardCat = __safeStr(card.dataset.category);
+                let cardCatIds = [];
+                try { cardCatIds = JSON.parse(card.dataset.categoryIds || '[]'); } catch(_) {}
+                
+                const catOk = (filter === 'all' || cardCat === filter || cardCatIds.includes(filter));
                 const title = __norm(card.getAttribute('data-title') || '');
                 const sku = __norm(card.getAttribute('data-sku') || '');
                 const qOk = (!q || title.includes(q) || sku.includes(q));
@@ -7372,7 +7456,10 @@ router.get('/products', requireAdmin, async (req, res) => {
               const rows = document.querySelectorAll('#productsTable tbody tr');
               rows.forEach(row => {
                 const rowCat = __safeStr(row.getAttribute('data-category-id') || '');
-                const catOk = (filter === 'all' || rowCat === filter);
+                let rowCatIds = [];
+                try { rowCatIds = JSON.parse(row.getAttribute('data-category-ids') || '[]'); } catch(_) {}
+                
+                const catOk = (filter === 'all' || rowCat === filter || rowCatIds.includes(filter));
                 const title = __norm(row.getAttribute('data-title') || '');
                 const sku = __norm(row.getAttribute('data-sku') || '');
                 const qOk = (!q || title.includes(q) || sku.includes(q));
@@ -7947,6 +8034,7 @@ router.get('/products', requireAdmin, async (req, res) => {
       html += `
           <div class="product-card"
                data-category="${escapeAttr(product.categoryId)}"
+               data-category-ids="${escapeAttr(JSON.stringify((product as any).categoryIds || []))}"
                data-id="${escapeAttr(product.id)}"
                data-title="${escapeAttr(product.title)}"
                data-sku="${escapeAttr(((product as any).sku || ''))}">
@@ -7962,6 +8050,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                 ${(product.description || '').includes('скопировано') ? ' 📷' : ''}
               </h3>
               <span class="badge ${product.isActive ? 'badge-status-active' : 'badge-status-inactive'}">${product.isActive ? 'Активен' : 'Отключен'}</span>
+              <span class="badge badge-category" style="background:#f3f4f6; color:#4b5563; margin-left:8px;">📦 ${product.stock} шт.</span>
             </div>
             ${(product.description || '').includes('скопировано') ? '<div style="margin: 4px 0; font-size: 11px; color: #f59e0b; background: #fef3c7; padding: 4px 8px; border-radius: 4px; display: inline-block;"><strong>📷 Копия фото</strong></div>' : ''}
             ${(product as any).sku ? `<div style="margin: 4px 0; font-size: 12px; color: #6b7280;"><strong>ID товара (Item):</strong> <span style="color: #1f2937; font-weight: 600;">${escapeHtml((product as any).sku)}</span></div>` : ''}
@@ -7984,10 +8073,13 @@ router.get('/products', requireAdmin, async (req, res) => {
                 data-id="${escapeAttr(product.id)}"
                 data-title="${escapeAttr(product.title)}"
                 data-summary="${escapeAttr(product.summary)}"
+                data-stock="${product.stock}"
                 data-description="${escapeAttr((product.description || '').substring(0, 5000))}"
                 data-instruction="${escapeAttr(((product as any).instruction || '').substring(0, 5000))}"
                 data-price="${product.price}"
+                data-price="${product.price}"
                 data-category-id="${escapeAttr(product.categoryId)}"
+                data-category-ids="${escapeAttr(JSON.stringify((product as any).categoryIds || []))}"
                 data-active="${product.isActive ? 'true' : 'false'}"
                 data-russia="${(product as any).availableInRussia ? 'true' : 'false'}"
                 data-bali="${(product as any).availableInBali ? 'true' : 'false'}"
@@ -8015,6 +8107,7 @@ router.get('/products', requireAdmin, async (req, res) => {
                   <th style="padding:12px; border-bottom:1px solid #e5e7eb;">SKU</th>
                   <th style="padding:12px; border-bottom:1px solid #e5e7eb;">Категория</th>
                   <th style="padding:12px; border-bottom:1px solid #e5e7eb;">Статус</th>
+                  <th style="padding:12px; border-bottom:1px solid #e5e7eb;">Склад</th>
                   <th style="padding:12px; border-bottom:1px solid #e5e7eb;">Цена</th>
                   <th style="padding:12px; border-bottom:1px solid #e5e7eb;">Действия</th>
                 </tr>
@@ -8029,6 +8122,7 @@ router.get('/products', requireAdmin, async (req, res) => {
         '<tr ' +
         'data-id="' + escapeAttr(p.id) + '" ' +
         'data-category-id="' + escapeAttr(p.categoryId) + '" ' +
+        'data-category-ids="' + escapeAttr(JSON.stringify((p as any).categoryIds || [])) + '" ' +
         'data-category="' + escapeAttr(p.categoryName) + '" ' +
         'data-title="' + escapeAttr(p.title) + '" ' +
         'data-sku="' + escapeAttr(sku) + '">' +
@@ -8049,6 +8143,7 @@ router.get('/products', requireAdmin, async (req, res) => {
         '<td style="padding:12px; border-bottom:1px solid #f1f5f9; color:#6b7280;">' + (sku ? escapeHtml(sku) : '-') + '</td>' +
         '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' + escapeHtml(p.categoryName) + '</td>' +
         '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' + (p.isActive ? '✅ Активен' : '❌ Неактивен') + '</td>' +
+        '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' + (p.stock !== undefined ? p.stock : 999) + ' шт.</td>' +
         '<td style="padding:12px; border-bottom:1px solid #f1f5f9; white-space:nowrap;">' + priceFormatted + '</td>' +
         '<td style="padding:12px; border-bottom:1px solid #f1f5f9;">' +
         '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
@@ -8056,6 +8151,7 @@ router.get('/products', requireAdmin, async (req, res) => {
         'data-id="' + escapeAttr(p.id) + '" ' +
         'data-title="' + escapeAttr(p.title) + '" ' +
         'data-summary="' + escapeAttr(p.summary) + '" ' +
+        'data-stock="' + (p.stock !== undefined ? p.stock : 999) + '" ' +
         'data-description="' + escapeAttr((p.description || '').substring(0, 5000)) + '" ' +
         'data-instruction="' + escapeAttr((((p as any).instruction || '') as string).substring(0, 5000)) + '" ' +
         'data-price="' + (p.price as any) + '" ' +
@@ -9227,14 +9323,134 @@ router.get('/products', requireAdmin, async (req, res) => {
               initEventDelegation();
             }
           })();
+          // Multi-select component initialization
+          window.initializeMultiSelect = function(containerId, options, selectedValues, onChange) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            
+            // Clear container
+            container.innerHTML = '';
+            
+            // State
+            let selected = new Set(selectedValues.map(String));
+            let isOpen = false;
+            
+            // Elements
+            const trigger = document.createElement('div');
+            trigger.className = 'multi-select-trigger';
+            
+            const dropdown = document.createElement('div');
+            dropdown.className = 'multi-select-dropdown';
+            
+            const searchContainer = document.createElement('div');
+            searchContainer.className = 'multi-select-search';
+            const searchInput = document.createElement('input');
+            searchInput.type = 'text';
+            searchInput.placeholder = 'Поиск...';
+            searchContainer.appendChild(searchInput);
+            
+            const optionsList = document.createElement('div');
+            
+            // Render function
+            const renderTrigger = () => {
+              trigger.innerHTML = '';
+              if (selected.size === 0) {
+                trigger.innerHTML = '<span class="multi-select-placeholder">Выберите категории...</span>';
+              } else {
+                selected.forEach(id => {
+                  const option = options.find(o => String(o.value) === id);
+                  if (option) {
+                    const tag = document.createElement('span');
+                    tag.className = 'multi-select-tag';
+                    tag.textContent = option.label;
+                    
+                    const closeBtn = document.createElement('span');
+                    closeBtn.className = 'multi-select-tag-close';
+                    closeBtn.innerHTML = '&times;';
+                    closeBtn.onclick = (e) => {
+                      e.stopPropagation();
+                      toggleOption(id);
+                    };
+                    
+                    tag.appendChild(closeBtn);
+                    trigger.appendChild(tag);
+                  }
+                });
+              }
+            };
+            
+            const renderOptions = (filter = '') => {
+              optionsList.innerHTML = '';
+              const filtered = options.filter(o => o.label.toLowerCase().includes(filter.toLowerCase()));
+              
+              if (filtered.length === 0) {
+                optionsList.innerHTML = '<div style="padding:10px; color:#6b7280; text-align:center;">Ничего не найдено</div>';
+              } else {
+                filtered.forEach(o => {
+                  const div = document.createElement('div');
+                  div.className = 'multi-select-option' + (selected.has(String(o.value)) ? ' selected' : '');
+                  div.textContent = o.label;
+                  div.onclick = () => {
+                    toggleOption(String(o.value));
+                    searchInput.value = '';
+                    searchInput.focus();
+                  };
+                  optionsList.appendChild(div);
+                });
+              }
+            };
+            
+            const toggleOption = (id) => {
+              if (selected.has(id)) {
+                selected.delete(id);
+              } else {
+                selected.add(id);
+              }
+              renderTrigger();
+              renderOptions(searchInput.value);
+              if (onChange) onChange(Array.from(selected));
+            };
+            
+            // Generate unique event handler name to avoid duplicates if re-initialized
+            const closeHandler = (e) => {
+                if (!container.contains(e.target)) {
+                    isOpen = false;
+                    dropdown.className = 'multi-select-dropdown';
+                }
+            };
+            
+            // Event listeners
+            trigger.onclick = () => {
+              isOpen = !isOpen;
+              dropdown.className = 'multi-select-dropdown' + (isOpen ? ' open' : '');
+              if (isOpen) {
+                renderOptions();
+                setTimeout(() => searchInput.focus(), 0);
+                document.addEventListener('click', closeHandler, { once: true });
+              }
+            };
+            
+            searchInput.oninput = (e) => {
+              renderOptions(e.target.value);
+            };
+            
+            // Assemble
+            dropdown.appendChild(searchContainer);
+            dropdown.appendChild(optionsList);
+            container.appendChild(trigger);
+            container.appendChild(dropdown);
+            
+            // Initial render
+            renderTrigger();
+          };
+
           // ===== Create Product Modal Logic =====
           window.openCreateProductModal = function(categoryId) {
             console.log('🔵 openCreateProductModal called with categoryId:', categoryId);
             
-            // Create modal if it doesn't exist (re-using edit modal ID for simplicity or creating a new one)
-            // Let's create a distinct one to avoid confusion
+            // Create modal if it doesn't exist
             let modal = document.getElementById('createProductModal');
-            if (modal) modal.remove(); // Re-create to ensure fresh state
+            if (modal) modal.remove();
 
             modal = document.createElement('div');
             modal.id = 'createProductModal';
@@ -9284,10 +9500,10 @@ router.get('/products', requireAdmin, async (req, res) => {
                       '<input type="number" id="createProductStock" name="stock" value="999" required placeholder="999">' +
                     '</div>' +
                     '<div class="form-group">' +
-                      '<label for="createProductCategory">Категория</label>' +
-                      '<select id="createProductCategory" name="categoryId" required>' +
-                        '<option value="">Загрузка категорий...</option>' +
-                      '</select>' +
+                      '<label>Категории</label>' +
+                      '<div id="createProductCategoryContainer" class="multi-select-container"></div>' +
+                      '<input type="hidden" name="categoryId" id="createProductCategory">' +
+                      '<input type="hidden" name="categoryIds" id="createProductCategoryIds">' +
                     '</div>' +
                   '</div>' +
                   '<div class="form-group">' +
@@ -10772,11 +10988,42 @@ router.post('/products/:productId/update', requireAdmin, upload.single('image'),
     const availableInRussia = String(req.body.availableInRussia || 'false').toLowerCase() === 'true';
     const availableInBali = String(req.body.availableInBali || 'false').toLowerCase() === 'true';
 
+    // Handle multiple categories
+    let categoryIds: string[] = [];
+    if (req.body.categoryIds) {
+      if (Array.isArray(req.body.categoryIds)) {
+        categoryIds = req.body.categoryIds.map((id: any) => String(id).trim()).filter(Boolean);
+      } else if (typeof req.body.categoryIds === 'string') {
+        try {
+          if (req.body.categoryIds.startsWith('[')) {
+            categoryIds = JSON.parse(req.body.categoryIds).map((id: any) => String(id).trim()).filter(Boolean);
+          } else {
+            categoryIds = req.body.categoryIds.split(',').map((id: string) => id.trim()).filter(Boolean);
+          }
+        } catch (e) {
+          categoryIds = [String(req.body.categoryIds).trim()];
+        }
+      }
+    }
+
+    // Fallback or ensure primary categoryId is in list
+    if (categoryId && !categoryIds.includes(categoryId)) {
+      categoryIds.unshift(categoryId);
+    }
+
+    // Ensure primary categoryId matches first element if list exists
+    const primaryCategoryId = categoryIds.length > 0 ? categoryIds[0] : categoryId;
+
+    if (!primaryCategoryId) {
+      // Validation ensures categoryId is present initially, but let's be safe
+    }
+
     console.log('📥 Update product request:', {
       productId,
       title: title.substring(0, 50),
       price,
-      categoryId,
+      categoryId: primaryCategoryId,
+      categoryIds,
       isActive,
       availableInRussia,
       availableInBali,
@@ -10791,7 +11038,7 @@ router.post('/products/:productId/update', requireAdmin, upload.single('image'),
     if (!price || price <= 0) {
       return res.status(400).json({ success: false, error: 'Цена должна быть больше 0' });
     }
-    if (!categoryId) {
+    if (!primaryCategoryId) {
       return res.status(400).json({ success: false, error: 'Категория обязательна' });
     }
 
@@ -10825,10 +11072,10 @@ router.post('/products/:productId/update', requireAdmin, upload.single('image'),
       return res.status(404).json({ success: false, error: 'Товар не найден' });
     }
 
-    // Проверяем существование категории
-    if (categoryId) {
+    // Проверяем существование категории (primary)
+    if (primaryCategoryId) {
       const category = await prisma.category.findUnique({
-        where: { id: categoryId }
+        where: { id: primaryCategoryId }
       });
       if (!category) {
         return res.status(400).json({ success: false, error: 'Категория не найдена' });
@@ -10841,7 +11088,8 @@ router.post('/products/:productId/update', requireAdmin, upload.single('image'),
       summary: summary,
       description: description,
       instruction: instruction,
-      categoryId: categoryId,
+      categoryId: primaryCategoryId,
+      categoryIds: categoryIds,
       stock: stock,
       isActive: isActive,
       availableInRussia: availableInRussia,

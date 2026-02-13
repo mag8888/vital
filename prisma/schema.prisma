@@ -129,6 +129,7 @@ model Product {
   availableInBali   Boolean    @default(true)
   category          Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   categoryId        String     @db.ObjectId
+  categoryIds       String[]   @db.ObjectId
   cartItems         CartItem[]
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt

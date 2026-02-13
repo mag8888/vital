@@ -18,7 +18,13 @@ export class ProductRepositoryImpl extends BaseRepositoryImpl<ProductApiResponse
   async findByCategory(categoryId: string): Promise<ProductApiResponse[]> {
     try {
       return await this.model.findMany({
-        where: { categoryId },
+        where: {
+          OR: [
+            { categoryId },
+            { categoryIds: { has: categoryId } }
+          ]
+        },
+        include: { category: true },
         orderBy: { createdAt: 'desc' }
       });
     } catch (error) {

@@ -23,6 +23,7 @@
     "setup-railway": "node scripts/setup-railway-webapp.js",
     "check-video": "node scripts/check-video-size.js",
     "compress-video": "./scripts/compress-video.sh",
+    "migrate:categories": "node --loader ts-node/esm scripts/migrate-product-categories.ts",
     "refactor:test": "npm run build:refactored && npm run start:refactored"
   },
   "dependencies": {

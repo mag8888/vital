@@ -22,8 +22,8 @@ export async function getCategoryById(id: string) {
 
 export async function getProductsByCategory(categoryId: string) {
   const products = await prisma.product.findMany({
-    where: { 
-      categoryId, 
+    where: {
+      categoryId,
       isActive: true,
     },
     orderBy: { title: 'asc' },
@@ -41,7 +41,7 @@ export async function getAllActiveProducts() {
   try {
     console.log('📦 getAllActiveProducts: Querying database...');
     const products = await prisma.product.findMany({
-      where: { isActive: true },
+      where: { isActive: true, stock: { gt: 0 } },
       include: { category: true },
       orderBy: { title: 'asc' },
     });

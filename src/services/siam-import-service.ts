@@ -54,7 +54,7 @@ export const siamProducts: Partial<SiamProduct>[] = [
     englishDescription: 'This serum contains a blend of natural oils and extracts that promote skin regeneration, reduce signs of aging and improve overall skin tone.',
     price: 1395, // THB
     imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Rudis-Oleum-Botanical-Repair-Formula-Face-Serum-1.jpg',
-    category: 'Face Care',
+    category: 'Лицо',
     categorySlug: 'face-care'
   },
   {
@@ -63,7 +63,7 @@ export const siamProducts: Partial<SiamProduct>[] = [
     englishDescription: 'Soap with natural sea salt and lemongrass essential oil gently exfoliates the skin, removing dead cells, and leaves a feeling of freshness and cleanliness.',
     price: 175, // THB
     imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Lemongrass-Salt-Scrub-Soap-1.jpg',
-    category: 'Bath & Spa',
+    category: 'Ванна и SPA',
     categorySlug: 'bath-spa'
   },
   {
@@ -72,7 +72,7 @@ export const siamProducts: Partial<SiamProduct>[] = [
     englishDescription: 'This lotion deeply moisturizes the skin, gives it softness and elasticity, and also has a pleasant aroma thanks to the combination of ginger lily and frankincense.',
     price: 660, // THB
     imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Ginger-Lily-Frankincense-Moisturizing-Facial-Lotion-1.jpg',
-    category: 'Face Care',
+    category: 'Лицо',
     categorySlug: 'face-care'
   },
   {
@@ -81,7 +81,7 @@ export const siamProducts: Partial<SiamProduct>[] = [
     englishDescription: 'Sweet almond oil is rich in vitamins and minerals that nourish and moisturize the skin, making it soft and smooth.',
     price: 695, // THB
     imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Organic-Sweet-Almond-Oil-With-Vitamin-E-1.jpg',
-    category: 'Pure Organic Oils',
+    category: 'Органические масла',
     categorySlug: 'pure-organic-oils'
   },
   {
@@ -126,7 +126,7 @@ export const siamProducts: Partial<SiamProduct>[] = [
     englishDescription: 'Grapeseed oil is a light, non-greasy oil packed with antioxidants. It\'s excellent for oily skin, helps balance sebum production, and has pore-tightening properties.',
     price: 640, // THB
     imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Organic-Grapeseed-Oil-1.jpg',
-    category: 'Pure Organic Oils',
+    category: 'Органические масла',
     categorySlug: 'pure-organic-oils'
   },
   {
@@ -135,7 +135,7 @@ export const siamProducts: Partial<SiamProduct>[] = [
     englishDescription: 'Rosehip oil is a powerful anti-aging oil rich in vitamin A and essential fatty acids. It helps reduce scars, fine lines, and significantly improves skin texture and tone.',
     price: 890, // THB
     imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Organic-Rosehip-Oil-1.jpg',
-    category: 'Pure Organic Oils',
+    category: 'Органические масла',
     categorySlug: 'pure-organic-oils'
   },
   {
@@ -144,7 +144,7 @@ export const siamProducts: Partial<SiamProduct>[] = [
     englishDescription: 'Sesame oil is nutrient-rich with natural SPF properties. It\'s excellent for massage, provides skin protection from UV rays, and conditions hair beautifully.',
     price: 540, // THB
     imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Organic-Sesame-Oil-1.jpg',
-    category: 'Pure Organic Oils',
+    category: 'Органические масла',
     categorySlug: 'pure-organic-oils'
   },
   {
@@ -279,7 +279,7 @@ export const siamProducts: Partial<SiamProduct>[] = [
     englishDescription: 'Argan oil hair treatment intensively repairs damaged hair and adds incredible shine. Perfect for dry, damaged, or frizzy hair, it restores health and manageability.',
     price: 890, // THB
     imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Argan-Oil-Hair-Treatment-1.jpg',
-    category: 'Hair Care',
+    category: 'Волосы',
     categorySlug: 'hair-care'
   },
   {
@@ -288,7 +288,7 @@ export const siamProducts: Partial<SiamProduct>[] = [
     englishDescription: 'Coconut oil hair mask provides deep conditioning that penetrates the hair shaft. It restores moisture, prevents protein loss, and strengthens hair from within.',
     price: 550, // THB
     imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Coconut-Oil-Hair-Mask-1.jpg',
-    category: 'Hair Care',
+    category: 'Волосы',
     categorySlug: 'hair-care'
   },
   {
@@ -297,7 +297,7 @@ export const siamProducts: Partial<SiamProduct>[] = [
     englishDescription: 'Rosemary and peppermint shampoo provides deep cleansing without stripping natural oils. It stimulates the scalp and promotes healthy hair growth while refreshing the senses.',
     price: 450, // THB
     imageUrl: 'https://siambotanicals.com/wp-content/uploads/2021/06/Rosemary-Peppermint-Shampoo-1.jpg',
-    category: 'Hair Care',
+    category: 'Волосы',
     categorySlug: 'hair-care'
   }
 ];
