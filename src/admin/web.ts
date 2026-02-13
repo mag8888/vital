@@ -5183,11 +5183,10 @@ router.get('/categories', requireAdmin, async (req, res) => {
                       <td style="text-align:right;">
                         <div class="actions">
                           ${cat.isVirtual ? `
-                             <button type="button" class="btn-mini" onclick="window.openCategoryModal({ 
-                               name: '${escapeAttr(cat.name)}',
-                               slug: '${escapeAttr(cat.slug)}',
-                               description: '${escapeAttr(cat.description || '')}'
-                             })">Создать</button>
+                             <button type="button" class="btn-mini cat-create-virtual" 
+                               data-name="${escapeAttr(cat.name)}"
+                               data-slug="${escapeAttr(cat.slug)}"
+                               data-desc="${escapeAttr(cat.description || '')}">Создать</button>
                           ` : `
                             <button type="button" class="btn-mini cat-edit"
                               data-id="${escapeAttr(cat.id)}"
@@ -5278,6 +5277,14 @@ router.get('/categories', requireAdmin, async (req, res) => {
         <script>
           'use strict';
           window.__categoryDeleteId = null;
+          
+          window.autoAssignCategoryCovers = async function(){
+            if(!confirm('Автоматически назначить обложки для категорий без фото (берется первое фото товара)?')) return;
+            try {
+               await fetch('/admin/categories/auto-covers', { method: 'POST' });
+               window.location.reload();
+            } catch(e) { alert('Ошибка'); }
+          };
 
           window.openCategoryModal = function(cat){
             const modal = document.getElementById('categoryModal');
@@ -5293,7 +5300,6 @@ router.get('/categories', requireAdmin, async (req, res) => {
             if (!modal) return;
 
             const isEdit = !!(cat && cat.id);
-            // Check if it's a "create from virtual" action (has name but no id)
             const isPreill = !!(cat && !cat.id && cat.name);
 
             title.textContent = isEdit ? 'Редактировать категорию' : 'Добавить категорию';
@@ -5316,10 +5322,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
             if (modal) modal.style.display = 'none';
           };
           
-          // ... (rest of start/delete handlers) ...
-          
           window.openDeleteCategoryModal = function(id, name, productsCount){
-             // ... existing logic ...
              const modal = document.getElementById('deleteCategoryModal');
              const text = document.getElementById('deleteCategoryText');
              const btn = document.getElementById('deleteCategoryConfirmBtn');
@@ -5353,6 +5356,14 @@ router.get('/categories', requireAdmin, async (req, res) => {
           
           // Auto-bind edit buttons
           document.addEventListener('click', function(e){
+            if(e.target && e.target.classList.contains('cat-create-virtual')){
+              const btn = e.target;
+              window.openCategoryModal({
+                name: btn.dataset.name,
+                slug: btn.dataset.slug,
+                description: btn.dataset.desc
+              });
+            }
             if(e.target && e.target.classList.contains('cat-edit')){
               const btn = e.target;
               window.openCategoryModal({
