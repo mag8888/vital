@@ -4,7 +4,10 @@ export async function getActiveCategories() {
   try {
     const categories = await prisma.category.findMany({
       where: { isActive: true },
-      orderBy: { name: 'asc' },
+      orderBy: [
+        { sortOrder: 'asc' },
+        { name: 'asc' }
+      ],
     });
     return categories.filter((c: any) => c?.isVisibleInWebapp !== false);
   } catch (error: any) {

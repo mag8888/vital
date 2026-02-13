@@ -4436,7 +4436,7 @@ router.get('/test-dual-system', requireAdmin, async (req, res) => {
 // API: Create category
 router.post('/api/categories', requireAdmin, async (req, res) => {
   try {
-    const { name, description, imageUrl, isVisibleInWebapp, slug: providedSlug } = req.body;
+    const { name, description, imageUrl, isVisibleInWebapp, slug: providedSlug, sortOrder } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, error: 'Название категории обязательно' });
@@ -4451,7 +4451,8 @@ router.post('/api/categories', requireAdmin, async (req, res) => {
         description: description?.trim() || '',
         imageUrl: String(imageUrl || '').trim() || null,
         isVisibleInWebapp: String(isVisibleInWebapp || '').trim() === 'false' ? false : true,
-        isActive: true
+        isActive: true,
+        sortOrder: parseInt(String(sortOrder || '0'), 10)
       }
     });
 
@@ -4476,12 +4477,13 @@ router.post('/api/categories/:id/update', requireAdmin, async (req, res) => {
     const isActiveRaw = (req.body && req.body.isActive);
     const isActive = typeof isActiveRaw === 'boolean' ? isActiveRaw : String(isActiveRaw || '').trim();
     const providedSlug = String((req.body && req.body.slug) || '').trim();
+    const sortOrder = parseInt(String((req.body && req.body.sortOrder) || '0'), 10);
 
     if (!id) return res.status(400).json({ success: false, error: 'category_id_required' });
     if (!name) return res.status(400).json({ success: false, error: 'Название категории обязательно' });
 
     const slug = providedSlug || name.toLowerCase().replace(/\s+/g, '-');
-    const data: any = { name, slug, description, imageUrl: imageUrl || null };
+    const data: any = { name, slug, description, imageUrl: imageUrl || null, sortOrder };
     if (typeof isVisibleRaw === 'boolean') data.isVisibleInWebapp = isVisibleRaw;
     if (String(isVisibleRaw) === 'true' || String(isVisibleRaw) === 'false') data.isVisibleInWebapp = (String(isVisibleRaw) === 'true');
     if (typeof isActive === 'boolean') data.isActive = isActive;
@@ -5323,6 +5325,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
                 <thead>
                   <tr>
                     <th style="width: 35%;">Название</th>
+                    <th style="width: 80px;">Сорт.</th>
                     <th>Обложка</th>
                     <th>Slug</th>
                     <th>Товары</th>
@@ -5340,6 +5343,9 @@ router.get('/categories', requireAdmin, async (req, res) => {
                           ${cat.isVirtual ? '<span class="virtual-badge">Не создана</span>' : ''}
                         </div>
                         ${cat.description ? `<div class="muted" style="margin-top:4px;">${escapeHtml(cat.description)}</div>` : ''}
+                      </td>
+                      <td>
+                        <span class="muted">${cat.sortOrder || 0}</span>
                       </td>
                       <td>
                         ${cat.imageUrl ? `<img src="${escapeAttr(cat.imageUrl)}" alt="" style="width:48px;height:48px;border-radius:10px;object-fit:cover;border:1px solid rgba(17,24,39,0.12);" />` : '<span class="muted">—</span>'}
@@ -5378,6 +5384,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
                               data-description="${escapeAttr(cat.description || '')}"
                               data-image-url="${escapeAttr(cat.imageUrl || '')}"
                               data-visible="${cat.isVisibleInWebapp === false ? 'false' : 'true'}"
+                              data-sort-order="${cat.sortOrder || 0}"
                               data-active="${cat.isActive ? 'true' : 'false'}">Редактировать</button>
                             <button type="button" class="btn-mini danger cat-delete"
                               data-id="${escapeAttr(cat.id)}"
@@ -5411,6 +5418,10 @@ router.get('/categories', requireAdmin, async (req, res) => {
                 <label for="categorySlugInput">Slug (URL)</label>
                 <input id="categorySlugInput" type="text" placeholder="auto-generated-slug">
                 <div class="muted" style="margin-top:6px; font-size:13px;">Оставьте пустым для автогенерации из названия</div>
+              </div>
+              <div class="form-group">
+                <label for="categorySortOrderInput">Сортировка (меньше = выше)</label>
+                <input id="categorySortOrderInput" type="number" value="0">
               </div>
               <div class="form-group">
                 <label for="categoryDescInput">Описание</label>
@@ -5483,6 +5494,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
             const idEl = document.getElementById('categoryId');
             const nameEl = document.getElementById('categoryNameInput');
             const slugEl = document.getElementById('categorySlugInput');
+            const sortEl = document.getElementById('categorySortOrderInput');
             const descEl = document.getElementById('categoryDescInput');
             const imageEl = document.getElementById('categoryImageInput');
             const activeEl = document.getElementById('categoryActiveInput');
@@ -5497,6 +5509,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
             idEl.value = isEdit ? String(cat.id) : '';
             nameEl.value = (cat && cat.name) ? String(cat.name) : '';
             if (slugEl) slugEl.value = (cat && cat.slug) ? String(cat.slug) : '';
+            if (sortEl) sortEl.value = (cat && cat.sortOrder) ? String(cat.sortOrder) : '0';
             descEl.value = (cat && cat.description) ? String(cat.description) : '';
             imageEl.value = (cat && cat.imageUrl) ? String(cat.imageUrl) : '';
             
@@ -5569,6 +5582,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
                 name: edit.getAttribute('data-name'),
                 description: edit.getAttribute('data-description'),
                 imageUrl: edit.getAttribute('data-image-url'),
+                sortOrder: edit.getAttribute('data-sort-order'),
                 isVisibleInWebapp: edit.getAttribute('data-visible'),
                 isActive: edit.getAttribute('data-active')
               });
@@ -5594,6 +5608,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
             const id = document.getElementById('categoryId').value.trim();
             const name = document.getElementById('categoryNameInput').value.trim();
             const slug = document.getElementById('categorySlugInput').value.trim();
+            const sortOrder = document.getElementById('categorySortOrderInput').value || '0';
             const description = document.getElementById('categoryDescInput').value.trim();
             const imageUrl = document.getElementById('categoryImageInput').value.trim();
             const isActive = document.getElementById('categoryActiveInput').checked ? 'true' : 'false';
@@ -5606,7 +5621,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
             if (btn){ btn.disabled = true; btn.textContent = 'Сохранение...'; }
             
             try{
-              const payload = { name, slug, description, imageUrl, isActive, isVisibleInWebapp };
+              const payload = { name, slug, description, imageUrl, isActive, isVisibleInWebapp, sortOrder };
               // Use /admin/api/categories endpoints
               const url = id ? ('/admin/api/categories/' + encodeURIComponent(id) + '/update') : '/admin/api/categories';
               
