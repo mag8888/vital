@@ -69,6 +69,20 @@ export const CATALOG_STRUCTURE: CatalogStructure = [
     ]
   },
   {
+    id: 'longevity',
+    name: 'Долголетие',
+    slug: 'longevity',
+    subcategories: [
+      {
+        id: 'plasma',
+        name: 'Плазма',
+        slug: 'plasma',
+        description: 'Продукты для долголетия и восстановления.',
+        related_skus: [],
+      },
+    ],
+  },
+  {
     id: 'aromatherapy',
     name: 'Ароматерапия',
     slug: 'aromatherapy',

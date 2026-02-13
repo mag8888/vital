@@ -4976,11 +4976,77 @@ router.get('/categories', requireAdmin, async (req, res) => {
     const categoriesRaw = await prisma.category.findMany({
       orderBy: { createdAt: 'desc' }
     });
+
+    // Enrich with product counts
     const categories = await Promise.all(categoriesRaw.map(async (c) => {
       const productsCount = await prisma.product.count({ where: { categoryId: c.id } });
       return { ...c, productsCount };
     }));
+
     const buildMarker = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || '').slice(0, 8) || 'local';
+
+    // Import CATALOG_STRUCTURE dynamically
+    const { CATALOG_STRUCTURE } = await import('../services/catalog-structure.js');
+
+    // Group categories by hierarchy
+    const structureGroups: any[] = [];
+    const usedCategoryIds = new Set<string>();
+
+    for (const mainCat of CATALOG_STRUCTURE) {
+      const group: any = {
+        name: mainCat.name,
+        slug: mainCat.slug,
+        subcategories: []
+      };
+
+      for (const sub of mainCat.subcategories) {
+        // Try to find the category in DB by slug or related SKU logic (simplified to slug here)
+        // Ideally, we should match by checking if a DB category exists with this slug
+        // Or if we created it manually.
+        // For this task, we'll try to match DB categories to this structure.
+
+        // Find matching DB categories for this subcategory
+        // 1. Direct match by slug
+        let dbCat = categories.find(c => c.slug === sub.slug);
+
+        // 2. Fallback: match by ID (if slug doesn't match but ID logic was used elsewhere)
+        if (!dbCat) {
+          dbCat = categories.find(c => c.slug === sub.id || c.name === sub.name);
+        }
+
+        if (dbCat) {
+          group.subcategories.push({ ...dbCat, displayName: sub.name });
+          usedCategoryIds.add(dbCat.id);
+        } else {
+          // Virtual subcategory (defined in structure but not in DB)
+          // We can show it as "Not created" or just skip
+          // For now, let's skip to clear confusion, OR show as grayed out?
+          // User asked "1 Face care - Лицо", "2 Bath & Spa - Тело", these ARE in DB.
+          // "3 Волосы", "4 Для Мужчин" might NOT be in DB yet.
+          group.subcategories.push({
+            id: 'virtual-' + sub.slug,
+            name: sub.name, // Display name from structure
+            slug: sub.slug,
+            productsCount: 0,
+            isActive: false,
+            isVisibleInWebapp: true,
+            isVirtual: true, // Marker
+            description: sub.description
+          });
+        }
+      }
+      structureGroups.push(group);
+    }
+
+    // "Other" group for categories not in structure
+    const otherCategories = categories.filter(c => !usedCategoryIds.has(c.id));
+    if (otherCategories.length > 0) {
+      structureGroups.push({
+        name: 'Другие',
+        slug: 'other',
+        subcategories: otherCategories
+      });
+    }
 
     let html = `
       <!DOCTYPE html>
@@ -4991,35 +5057,58 @@ router.get('/categories', requireAdmin, async (req, res) => {
         <style>
           ${ADMIN_UI_CSS}
           body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--admin-bg); }
-          .page-actions{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom: 14px; }
+          .page-actions{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom: 24px; }
           .page-actions .btn{ height: 40px; border-radius: 14px; font-weight: 800; }
           .alert { padding: 12px 14px; margin: 10px 0; border-radius: 16px; border: 1px solid var(--admin-border); background: #fff; }
           .alert-success { border-color: rgba(34,197,94,0.25); background: rgba(34,197,94,0.08); color: #166534; }
           .alert-error { border-color: rgba(220,38,38,0.25); background: rgba(220,38,38,0.08); color: #991b1b; }
-          table { width: 100%; border-collapse: collapse; margin-top: 12px; background: #fff; border: 1px solid var(--admin-border); border-radius: 18px; overflow:hidden; }
-          th, td { padding: 12px 12px; text-align: left; border-bottom: 1px solid rgba(17,24,39,0.06); vertical-align: middle; }
+          
+          .category-group { margin-bottom: 32px; }
+          .category-group-title { font-size: 20px; font-weight: 900; margin-bottom: 16px; display:flex; align-items:center; gap:10px; }
+          .category-group-title .slug { font-size: 13px; color: var(--admin-muted); font-weight: 400; background: rgba(17,24,39,0.05); padding: 4px 8px; border-radius: 6px; }
+
+          table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--admin-border); border-radius: 18px; overflow:hidden; }
+          th, td { padding: 16px 20px; text-align: left; border-bottom: 1px solid rgba(17,24,39,0.06); vertical-align: middle; }
           th { background: rgba(17,24,39,0.03); font-size: 12px; color: var(--admin-muted); text-transform: uppercase; letter-spacing: .06em; }
           tr:hover td{ background: rgba(17,24,39,0.02); }
+          
           .actions{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:flex-end; }
           .btn-mini{
             height: 34px;
-            padding: 0 10px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 900;
+            padding: 0 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
             border: 1px solid var(--admin-border-strong);
             background: #fff;
             cursor: pointer;
+            text-decoration: none;
+            display: inline-flex; align-items: center; justify-content: center;
+            color: var(--admin-text);
           }
-          .btn-mini:hover{ background: rgba(17,24,39,0.06); }
+          .btn-mini:hover{ background: rgba(17,24,39,0.06); transform:translateY(-1px); }
           .btn-mini.danger{ border-color: rgba(220,38,38,0.35); color: #991b1b; }
           .btn-mini.danger:hover{ background: rgba(220,38,38,0.08); }
-          .pill{ display:inline-flex; align-items:center; justify-content:center; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--admin-border); background: rgba(255,255,255,0.7); font-size: 12px; font-weight: 900; }
-          .muted{ color: var(--admin-muted); font-size: 12px; }
+          
+          .pill-link { 
+            display:inline-flex; align-items:center; justify-content:center; 
+            padding: 6px 12px; border-radius: 999px; 
+            border: 1px solid var(--admin-border); background: rgba(255,255,255,0.7); 
+            font-size: 13px; font-weight: 700; color: var(--admin-primary);
+            text-decoration: none; transition: all 0.2s;
+          }
+          .pill-link:hover { border-color: var(--admin-primary); background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+          
+          .muted{ color: var(--admin-muted); font-size: 13px; }
+          .status-badge { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; }
+          .status-badge.active { color: #166534; }
+          .status-badge.inactive { color: var(--admin-muted); }
+          .virtual-badge { background: #eff6ff; color: #1e40af; padding: 4px 8px; border-radius: 6px; font-size: 11px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; }
         </style>
       </head>
       <body>
         ${renderAdminShellStart({ title: 'Категории', activePath: '/admin/categories', buildMarker })}
+        
         <div class="page-actions">
           <button type="button" class="btn" onclick="window.openCategoryModal()">Добавить категорию</button>
           <button type="button" class="btn btn-secondary" onclick="window.autoAssignCategoryCovers()">Автообложки из товаров</button>
@@ -5028,71 +5117,90 @@ router.get('/categories', requireAdmin, async (req, res) => {
         ${req.query.success ? '<div class="alert alert-success">Изменения сохранены</div>' : ''}
         ${req.query.error ? '<div class="alert alert-error">Ошибка: ' + String(req.query.error) + '</div>' : ''}
 
-        <table>
-          <thead>
-            <tr>
-              <th>Название</th>
-              <th>Обложка</th>
-              <th>Slug</th>
-              <th>Товары</th>
-              <th>Статус</th>
-              <th>Видима</th>
-              <th>Создана</th>
-              <th style="text-align:right;">Действия</th>
-            </tr>
-          </thead>
-          <tbody>
-    `;
-
-    const escapeHtml = (str: any) => String(str ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-
-    const escapeAttr = (str: any) => escapeHtml(str).replace(/'/g, '&#39;');
-
-    categories.forEach(cat => {
-      html += `
-        <tr>
-          <td>
-            <div style="font-weight: 900;">${escapeHtml(cat.name)}</div>
-            ${cat.description ? `<div class="muted">${escapeHtml(cat.description)}</div>` : ''}
-          </td>
-          <td>
-            ${(cat as any).imageUrl ? `<img src="${escapeAttr((cat as any).imageUrl)}" alt="" style="width:46px;height:46px;border-radius:10px;object-fit:cover;border:1px solid rgba(17,24,39,0.12);" />` : '<span class="muted">—</span>'}
-          </td>
-          <td style="color:#6b7280;">${escapeHtml(cat.slug)}</td>
-          <td><span class="pill">${Number((cat as any).productsCount || 0)}</span></td>
-          <td>
-            <form method="post" action="/admin/categories/${escapeAttr(cat.id)}/toggle-active" style="display:inline; margin:0;">
-              <button type="submit" class="btn-mini" title="Переключить статус">${cat.isActive ? 'Активна' : 'Отключена'}</button>
-            </form>
-          </td>
-          <td>${(cat as any).isVisibleInWebapp === false ? 'Нет' : 'Да'}</td>
-          <td>${new Date(cat.createdAt).toLocaleDateString('ru-RU')}</td>
-          <td style="text-align:right;">
-            <div class="actions">
-              <button type="button" class="btn-mini cat-edit"
-                data-id="${escapeAttr(cat.id)}"
-                data-name="${escapeAttr(cat.name)}"
-                data-description="${escapeAttr(cat.description || '')}"
-                data-image-url="${escapeAttr((cat as any).imageUrl || '')}"
-                data-visible="${(cat as any).isVisibleInWebapp === false ? 'false' : 'true'}"
-                data-active="${cat.isActive ? 'true' : 'false'}">Редактировать</button>
-              <button type="button" class="btn-mini danger cat-delete"
-                data-id="${escapeAttr(cat.id)}"
-                data-name="${escapeAttr(cat.name)}"
-                data-products-count="${escapeAttr((cat as any).productsCount || 0)}">Удалить</button>
+        ${structureGroups.map(group => `
+          <div class="category-group">
+            <div class="category-group-title">
+              ${escapeHtml(group.name)}
+              <span class="slug">${escapeHtml(group.slug)}</span>
             </div>
-          </td>
-        </tr>
-      `;
-    });
-
-    html += `
-          </tbody>
-        </table>
+            
+            ${group.subcategories.length === 0 ? '<div class="muted" style="padding: 10px; background: #fff; border-radius: 12px; border: 1px dashed var(--admin-border);">Нет категорий</div>' : ''}
+            
+            ${group.subcategories.length > 0 ? `
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width: 35%;">Название</th>
+                    <th>Обложка</th>
+                    <th>Slug</th>
+                    <th>Товары</th>
+                    <th>Статус</th>
+                    <th>Видима</th>
+                    <th style="text-align:right;">Действия</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${group.subcategories.map((cat: any) => `
+                    <tr style="${cat.isVirtual ? 'opacity: 0.7; background: #fafafa;' : ''}">
+                      <td>
+                        <div style="font-weight: 800; font-size: 15px; display:flex; align-items:center; gap:8px;">
+                          ${escapeHtml(cat.displayName || cat.name)}
+                          ${cat.isVirtual ? '<span class="virtual-badge">Не создана</span>' : ''}
+                        </div>
+                        ${cat.description ? `<div class="muted" style="margin-top:4px;">${escapeHtml(cat.description)}</div>` : ''}
+                      </td>
+                      <td>
+                        ${cat.imageUrl ? `<img src="${escapeAttr(cat.imageUrl)}" alt="" style="width:48px;height:48px;border-radius:10px;object-fit:cover;border:1px solid rgba(17,24,39,0.12);" />` : '<span class="muted">—</span>'}
+                      </td>
+                      <td style="color:#6b7280; font-family:monospace; font-size:13px;">${escapeHtml(cat.slug)}</td>
+                      <td>
+                        ${cat.isVirtual
+        ? '<span class="muted">0</span>'
+        : `<a href="/admin/products?categoryId=${cat.id}" class="pill-link" title="Перейти к товарам">${Number(cat.productsCount || 0)} ↗</a>`
+      }
+                      </td>
+                      <td>
+                        ${cat.isVirtual ? '—' : `
+                          <form method="post" action="/admin/categories/${escapeAttr(cat.id)}/toggle-active" style="display:inline; margin:0;">
+                            <button type="submit" class="status-badge ${cat.isActive ? 'active' : 'inactive'}" style="background:none; border:none; cursor:pointer; padding:0;">
+                              ${cat.isActive ? '🟢 Активна' : '⚫ Отключена'}
+                            </button>
+                          </form>
+                        `}
+                      </td>
+                      <td>
+                        ${cat.isVirtual ? '—' : (cat.isVisibleInWebapp === false ? '<span style="color:var(--admin-danger);">Нет</span>' : 'Да')}
+                      </td>
+                      <td style="text-align:right;">
+                        <div class="actions">
+                          ${cat.isVirtual ? `
+                             <button type="button" class="btn-mini" onclick="window.openCategoryModal({ 
+                               name: '${escapeAttr(cat.name)}',
+                               slug: '${escapeAttr(cat.slug)}',
+                               description: '${escapeAttr(cat.description || '')}'
+                             })">Создать</button>
+                          ` : `
+                            <button type="button" class="btn-mini cat-edit"
+                              data-id="${escapeAttr(cat.id)}"
+                              data-name="${escapeAttr(cat.name)}"
+                              data-description="${escapeAttr(cat.description || '')}"
+                              data-image-url="${escapeAttr(cat.imageUrl || '')}"
+                              data-visible="${cat.isVisibleInWebapp === false ? 'false' : 'true'}"
+                              data-active="${cat.isActive ? 'true' : 'false'}">Редактировать</button>
+                            <button type="button" class="btn-mini danger cat-delete"
+                              data-id="${escapeAttr(cat.id)}"
+                              data-name="${escapeAttr(cat.name)}"
+                              data-products-count="${escapeAttr(cat.productsCount || 0)}">Удалить</button>
+                          `}
+                        </div>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            ` : ''}
+          </div>
+        `).join('')}
 
         <!-- Modal: add/edit category -->
         <div id="categoryModal" class="modal-overlay" style="display:none; z-index: 12000;">
@@ -5106,6 +5214,11 @@ router.get('/categories', requireAdmin, async (req, res) => {
               <div class="form-group">
                 <label for="categoryNameInput">Название *</label>
                 <input id="categoryNameInput" type="text" required placeholder="Например: Косметика">
+              </div>
+              <div class="form-group">
+                <label for="categorySlugInput">Slug (URL)</label>
+                <input id="categorySlugInput" type="text" placeholder="auto-generated-slug">
+                <div class="muted" style="margin-top:4px;">Оставьте пустым для автогенерации</div>
               </div>
               <div class="form-group">
                 <label for="categoryDescInput">Описание</label>
@@ -5162,20 +5275,28 @@ router.get('/categories', requireAdmin, async (req, res) => {
             const title = document.getElementById('categoryModalTitle');
             const idEl = document.getElementById('categoryId');
             const nameEl = document.getElementById('categoryNameInput');
+            const slugEl = document.getElementById('categorySlugInput');
             const descEl = document.getElementById('categoryDescInput');
             const imageEl = document.getElementById('categoryImageInput');
             const activeEl = document.getElementById('categoryActiveInput');
             const visibleEl = document.getElementById('categoryVisibleInput');
-            if (!modal || !title || !idEl || !nameEl || !descEl || !imageEl || !activeEl || !visibleEl) return;
+            
+            if (!modal) return;
 
             const isEdit = !!(cat && cat.id);
+            // Check if it's a "create from virtual" action (has name but no id)
+            const isPreill = !!(cat && !cat.id && cat.name);
+
             title.textContent = isEdit ? 'Редактировать категорию' : 'Добавить категорию';
             idEl.value = isEdit ? String(cat.id) : '';
-            nameEl.value = isEdit ? String(cat.name || '') : '';
-            descEl.value = isEdit ? String(cat.description || '') : '';
-            imageEl.value = isEdit ? String(cat.imageUrl || '') : '';
-            activeEl.checked = isEdit ? (String(cat.isActive) === 'true') : true;
-            visibleEl.checked = isEdit ? (String(cat.isVisibleInWebapp) !== 'false') : true;
+            nameEl.value = (cat && cat.name) ? String(cat.name) : '';
+            if (slugEl) slugEl.value = (cat && cat.slug) ? String(cat.slug) : '';
+            descEl.value = (cat && cat.description) ? String(cat.description) : '';
+            imageEl.value = (cat && cat.imageUrl) ? String(cat.imageUrl) : '';
+            
+            if (activeEl) activeEl.checked = (cat && cat.isActive !== undefined) ? (String(cat.isActive) === 'true') : true;
+            if (visibleEl) visibleEl.checked = (cat && cat.isVisibleInWebapp !== undefined) ? (String(cat.isVisibleInWebapp) !== 'false') : true;
+
             modal.style.display = 'flex';
             modal.onclick = function(e){ if (e && e.target === modal) window.closeCategoryModal(); };
             setTimeout(() => { try { nameEl.focus(); } catch(_){} }, 30);
@@ -5185,19 +5306,91 @@ router.get('/categories', requireAdmin, async (req, res) => {
             const modal = document.getElementById('categoryModal');
             if (modal) modal.style.display = 'none';
           };
-
+          
+          // ... (rest of start/delete handlers) ...
+          
           window.openDeleteCategoryModal = function(id, name, productsCount){
-            const modal = document.getElementById('deleteCategoryModal');
-            const text = document.getElementById('deleteCategoryText');
-            const btn = document.getElementById('deleteCategoryConfirmBtn');
-            if (!modal || !text || !btn) return;
-            window.__categoryDeleteId = String(id || '');
-            const cnt = parseInt(String(productsCount || '0'), 10) || 0;
-            if (cnt > 0){
-              text.textContent = 'Категорию “' + (name || '') + '” нельзя удалить: в ней есть товары (' + cnt + '). Сначала переместите товары в другую категорию.';
-              btn.disabled = true;
-              btn.style.opacity = '0.5';
-            } else {
+             // ... existing logic ...
+             const modal = document.getElementById('deleteCategoryModal');
+             const text = document.getElementById('deleteCategoryText');
+             const btn = document.getElementById('deleteCategoryConfirmBtn');
+             if (!modal || !text || !btn) return;
+             window.__categoryDeleteId = String(id || '');
+             const cnt = parseInt(String(productsCount || '0'), 10) || 0;
+             if (cnt > 0){
+               text.textContent = 'Категорию “' + (name || '') + '” нельзя удалить: в ней есть товары (' + cnt + '). Сначала переместите товары в другую категорию.';
+               btn.disabled = true;
+               btn.style.opacity = '0.5';
+             } else {
+                text.textContent = 'Вы уверены, что хотите удалить категорию “' + (name || '') + '”? Это действие нельзя отменить.';
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.onclick = function(){
+                  const form = document.createElement('form');
+                  form.method = 'POST';
+                  form.action = '/admin/categories/' + id + '/delete';
+                  document.body.appendChild(form);
+                  form.submit();
+                };
+             }
+             modal.style.display = 'flex';
+             modal.onclick = function(e){ if (e && e.target === modal) window.closeDeleteCategoryModal(); };
+          };
+
+          window.closeDeleteCategoryModal = function(){
+             const modal = document.getElementById('deleteCategoryModal');
+             if (modal) modal.style.display = 'none';
+          }
+          
+          // Auto-bind edit buttons
+          document.addEventListener('click', function(e){
+            if(e.target && e.target.classList.contains('cat-edit')){
+              const btn = e.target;
+              window.openCategoryModal({
+                id: btn.dataset.id,
+                name: btn.dataset.name,
+                description: btn.dataset.description,
+                imageUrl: btn.dataset.imageUrl,
+                isActive: btn.dataset.active === 'true',
+                isVisibleInWebapp: btn.dataset.visible !== 'false'
+              });
+            }
+            if(e.target && e.target.classList.contains('cat-delete')){
+               const btn = e.target;
+               window.openDeleteCategoryModal(btn.dataset.id, btn.dataset.name, btn.dataset.productsCount);
+            }
+          });
+          
+          // Handle save
+          const form = document.getElementById('categoryForm');
+          if(form){
+            form.onsubmit = async function(e){
+              e.preventDefault();
+              const id = document.getElementById('categoryId').value;
+              const name = document.getElementById('categoryNameInput').value;
+              const slug = document.getElementById('categorySlugInput').value;
+              const description = document.getElementById('categoryDescInput').value;
+              const imageUrl = document.getElementById('categoryImageInput').value;
+              const isActive = document.getElementById('categoryActiveInput').checked;
+              const isVisibleInWebapp = document.getElementById('categoryVisibleInput').checked;
+              
+              const url = id ? ('/admin/categories/' + id) : '/admin/categories/create';
+              
+              try {
+                const res = await fetch(url, {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({ name, slug, description, imageUrl, isActive, isVisibleInWebapp })
+                });
+                if(res.ok) window.location.reload();
+                else alert('Ошибка сохранения');
+              } catch(err){
+                console.error(err);
+                alert('Ошибка сохранения');
+              }
+            };
+          }
+
               text.textContent = 'Вы точно хотите удалить категорию “' + (name || '') + '”? Это действие нельзя отменить.';
               btn.disabled = false;
               btn.style.opacity = '1';
