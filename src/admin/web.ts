@@ -4288,16 +4288,18 @@ router.get('/test-dual-system', requireAdmin, async (req, res) => {
 // API: Create category
 router.post('/api/categories', requireAdmin, async (req, res) => {
   try {
-    const { name, description, imageUrl, isVisibleInWebapp } = req.body;
+    const { name, description, imageUrl, isVisibleInWebapp, slug: providedSlug } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, error: 'Название категории обязательно' });
     }
 
+    const slug = providedSlug && providedSlug.trim() ? providedSlug.trim() : name.trim().toLowerCase().replace(/\s+/g, '-');
+
     const category = await (prisma as any).category.create({
       data: {
         name: name.trim(),
-        slug: name.trim().toLowerCase().replace(/\s+/g, '-'),
+        slug,
         description: description?.trim() || '',
         imageUrl: String(imageUrl || '').trim() || null,
         isVisibleInWebapp: String(isVisibleInWebapp || '').trim() === 'false' ? false : true,
@@ -4325,11 +4327,12 @@ router.post('/api/categories/:id/update', requireAdmin, async (req, res) => {
     const isVisibleRaw = (req.body && req.body.isVisibleInWebapp);
     const isActiveRaw = (req.body && req.body.isActive);
     const isActive = typeof isActiveRaw === 'boolean' ? isActiveRaw : String(isActiveRaw || '').trim();
+    const providedSlug = String((req.body && req.body.slug) || '').trim();
 
     if (!id) return res.status(400).json({ success: false, error: 'category_id_required' });
     if (!name) return res.status(400).json({ success: false, error: 'Название категории обязательно' });
 
-    const slug = name.toLowerCase().replace(/\s+/g, '-');
+    const slug = providedSlug || name.toLowerCase().replace(/\s+/g, '-');
     const data: any = { name, slug, description, imageUrl: imageUrl || null };
     if (typeof isVisibleRaw === 'boolean') data.isVisibleInWebapp = isVisibleRaw;
     if (String(isVisibleRaw) === 'true' || String(isVisibleRaw) === 'false') data.isVisibleInWebapp = (String(isVisibleRaw) === 'true');
@@ -5277,13 +5280,20 @@ router.get('/categories', requireAdmin, async (req, res) => {
         <script>
           'use strict';
           window.__categoryDeleteId = null;
-          
+
           window.autoAssignCategoryCovers = async function(){
-            if(!confirm('Автоматически назначить обложки для категорий без фото (берется первое фото товара)?')) return;
-            try {
-               await fetch('/admin/categories/auto-covers', { method: 'POST' });
-               window.location.reload();
-            } catch(e) { alert('Ошибка'); }
+            if (!confirm('Заполнить обложки из первых картинок товаров?')) return;
+            const resp = await fetch('/admin/api/categories/auto-covers', {
+              method: 'POST',
+              credentials: 'include'
+            });
+            const result = await resp.json().catch(() => ({}));
+            if (!resp.ok) {
+              alert(result.error || 'Ошибка автообложек');
+              return;
+            }
+            alert('Готово: обновлено ' + (result.updated || 0) + ' категорий');
+            window.location.reload();
           };
 
           window.openCategoryModal = function(cat){
@@ -5300,8 +5310,8 @@ router.get('/categories', requireAdmin, async (req, res) => {
             if (!modal) return;
 
             const isEdit = !!(cat && cat.id);
-            const isPreill = !!(cat && !cat.id && cat.name);
-
+            // If it has name but no ID, it's a "create virtual" action
+            
             title.textContent = isEdit ? 'Редактировать категорию' : 'Добавить категорию';
             idEl.value = isEdit ? String(cat.id) : '';
             nameEl.value = (cat && cat.name) ? String(cat.name) : '';
@@ -5321,14 +5331,16 @@ router.get('/categories', requireAdmin, async (req, res) => {
             const modal = document.getElementById('categoryModal');
             if (modal) modal.style.display = 'none';
           };
-          
+
           window.openDeleteCategoryModal = function(id, name, productsCount){
              const modal = document.getElementById('deleteCategoryModal');
              const text = document.getElementById('deleteCategoryText');
              const btn = document.getElementById('deleteCategoryConfirmBtn');
              if (!modal || !text || !btn) return;
+             
              window.__categoryDeleteId = String(id || '');
              const cnt = parseInt(String(productsCount || '0'), 10) || 0;
+             
              if (cnt > 0){
                text.textContent = 'Категорию “' + (name || '') + '” нельзя удалить: в ней есть товары (' + cnt + '). Сначала переместите товары в другую категорию.';
                btn.disabled = true;
@@ -5337,14 +5349,8 @@ router.get('/categories', requireAdmin, async (req, res) => {
                 text.textContent = 'Вы уверены, что хотите удалить категорию “' + (name || '') + '”? Это действие нельзя отменить.';
                 btn.disabled = false;
                 btn.style.opacity = '1';
-                btn.onclick = function(){
-                  const form = document.createElement('form');
-                  form.method = 'POST';
-                  form.action = '/admin/categories/' + id + '/delete';
-                  document.body.appendChild(form);
-                  form.submit();
-                };
              }
+             
              modal.style.display = 'flex';
              modal.onclick = function(e){ if (e && e.target === modal) window.closeDeleteCategoryModal(); };
           };
@@ -5352,83 +5358,28 @@ router.get('/categories', requireAdmin, async (req, res) => {
           window.closeDeleteCategoryModal = function(){
              const modal = document.getElementById('deleteCategoryModal');
              if (modal) modal.style.display = 'none';
-          }
-          
-          // Auto-bind edit buttons
-          document.addEventListener('click', function(e){
-            if(e.target && e.target.classList.contains('cat-create-virtual')){
-              const btn = e.target;
-              window.openCategoryModal({
-                name: btn.dataset.name,
-                slug: btn.dataset.slug,
-                description: btn.dataset.desc
-              });
-            }
-            if(e.target && e.target.classList.contains('cat-edit')){
-              const btn = e.target;
-              window.openCategoryModal({
-                id: btn.dataset.id,
-                name: btn.dataset.name,
-                description: btn.dataset.description,
-                imageUrl: btn.dataset.imageUrl,
-                isActive: btn.dataset.active === 'true',
-                isVisibleInWebapp: btn.dataset.visible !== 'false'
-              });
-            }
-            if(e.target && e.target.classList.contains('cat-delete')){
-               const btn = e.target;
-               window.openDeleteCategoryModal(btn.dataset.id, btn.dataset.name, btn.dataset.productsCount);
-            }
-          });
-          
-          // Handle save
-          const form = document.getElementById('categoryForm');
-          if(form){
-            form.onsubmit = async function(e){
-              e.preventDefault();
-              const id = document.getElementById('categoryId').value;
-              const name = document.getElementById('categoryNameInput').value;
-              const slug = document.getElementById('categorySlugInput').value;
-              const description = document.getElementById('categoryDescInput').value;
-              const imageUrl = document.getElementById('categoryImageInput').value;
-              const isActive = document.getElementById('categoryActiveInput').checked;
-              const isVisibleInWebapp = document.getElementById('categoryVisibleInput').checked;
-              
-              const url = id ? ('/admin/categories/' + id) : '/admin/categories/create';
-              
-              try {
-                const res = await fetch(url, {
-                  method: 'POST',
-                  headers: {'Content-Type': 'application/json'},
-                  body: JSON.stringify({ name, slug, description, imageUrl, isActive, isVisibleInWebapp })
-                });
-                if(res.ok) window.location.reload();
-                else alert('Ошибка сохранения');
-              } catch(err){
-                console.error(err);
-                alert('Ошибка сохранения');
-              }
-            };
+             window.__categoryDeleteId = null;
           }
 
-              text.textContent = 'Вы точно хотите удалить категорию “' + (name || '') + '”? Это действие нельзя отменить.';
-              btn.disabled = false;
-              btn.style.opacity = '1';
-            }
-            modal.style.display = 'flex';
-            modal.onclick = function(e){ if (e && e.target === modal) window.closeDeleteCategoryModal(); };
-          };
-
-          window.closeDeleteCategoryModal = function(){
-            const modal = document.getElementById('deleteCategoryModal');
-            if (modal) modal.style.display = 'none';
-            window.__categoryDeleteId = null;
-          };
-
+          // Unified click handler
           document.addEventListener('click', function(e){
             const t = e.target;
             const el = (t && t.nodeType === 1) ? t : (t && t.parentElement ? t.parentElement : null);
             if (!el) return;
+
+            // Handle virtual create button (no icon usually, but just in case)
+            const createVirtual = el.closest('.cat-create-virtual');
+            if (createVirtual) {
+              e.preventDefault();
+              window.openCategoryModal({
+                name: createVirtual.getAttribute('data-name'),
+                slug: createVirtual.getAttribute('data-slug'),
+                description: createVirtual.getAttribute('data-desc')
+              });
+              return;
+            }
+
+            // Handle edit
             const edit = el.closest('.cat-edit');
             if (edit){
               e.preventDefault();
@@ -5442,6 +5393,8 @@ router.get('/categories', requireAdmin, async (req, res) => {
               });
               return;
             }
+
+            // Handle delete
             const del = el.closest('.cat-delete');
             if (del){
               e.preventDefault();
@@ -5452,31 +5405,39 @@ router.get('/categories', requireAdmin, async (req, res) => {
               );
               return;
             }
-          }, true);
+          });
 
+          // Handle form submit
           document.getElementById('categoryForm').addEventListener('submit', async function(e){
             e.preventDefault();
             const id = document.getElementById('categoryId').value.trim();
             const name = document.getElementById('categoryNameInput').value.trim();
+            const slug = document.getElementById('categorySlugInput').value.trim();
             const description = document.getElementById('categoryDescInput').value.trim();
             const imageUrl = document.getElementById('categoryImageInput').value.trim();
             const isActive = document.getElementById('categoryActiveInput').checked ? 'true' : 'false';
             const isVisibleInWebapp = document.getElementById('categoryVisibleInput').checked ? 'true' : 'false';
+            
             if (!name) { alert('Введите название'); return; }
 
             const btn = document.getElementById('categorySaveBtn');
             const old = btn ? btn.textContent : '';
             if (btn){ btn.disabled = true; btn.textContent = 'Сохранение...'; }
+            
             try{
-              const payload = { name, description, imageUrl, isActive, isVisibleInWebapp };
+              const payload = { name, slug, description, imageUrl, isActive, isVisibleInWebapp };
+              // Use /admin/api/categories endpoints
               const url = id ? ('/admin/api/categories/' + encodeURIComponent(id) + '/update') : '/admin/api/categories';
+              
               const resp = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
                 body: JSON.stringify(payload)
               });
+              
               const result = await resp.json().catch(() => ({}));
+              
               if (resp.ok && result && result.success){
                 window.closeCategoryModal();
                 window.location.reload();
@@ -5490,21 +5451,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
             }
           });
 
-          window.autoAssignCategoryCovers = async function(){
-            if (!confirm('Заполнить обложки из первых картинок товаров?')) return;
-            const resp = await fetch('/admin/api/categories/auto-covers', {
-              method: 'POST',
-              credentials: 'include'
-            });
-            const result = await resp.json().catch(() => ({}));
-            if (!resp.ok) {
-              alert(result.error || 'Ошибка автообложек');
-              return;
-            }
-            alert('Готово: обновлено ' + (result.updated || 0) + ' категорий');
-            window.location.reload();
-          };
-
+          // Handle delete confirm
           document.getElementById('deleteCategoryConfirmBtn').addEventListener('click', async function(){
             const id = window.__categoryDeleteId;
             if (!id) return;
