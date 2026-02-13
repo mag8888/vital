@@ -5048,6 +5048,15 @@ router.get('/categories', requireAdmin, async (req, res) => {
       });
     }
 
+    // Helper functions for escaping HTML and attributes
+    const escapeHtml = (str: any) => String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    const escapeAttr = (str: any) => escapeHtml(str).replace(/'/g, '&#39;');
+
     let html = `
       <!DOCTYPE html>
       <html>
