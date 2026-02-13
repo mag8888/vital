@@ -5227,6 +5227,7 @@ router.get('/categories', requireAdmin, async (req, res) => {
                                data-slug="${escapeAttr(cat.slug)}"
                                data-desc="${escapeAttr(cat.description || '')}">Создать</button>
                           ` : `
+                            <a href="/admin/products?new=1&categoryId=${cat.id}" class="btn-mini" style="margin-right:4px;">+ Товар</a>
                             <button type="button" class="btn-mini cat-edit"
                               data-id="${escapeAttr(cat.id)}"
                               data-name="${escapeAttr(cat.name)}"
@@ -9226,6 +9227,227 @@ router.get('/products', requireAdmin, async (req, res) => {
               initEventDelegation();
             }
           })();
+          // ===== Create Product Modal Logic =====
+          window.openCreateProductModal = function(categoryId) {
+            console.log('🔵 openCreateProductModal called with categoryId:', categoryId);
+            
+            // Create modal if it doesn't exist (re-using edit modal ID for simplicity or creating a new one)
+            // Let's create a distinct one to avoid confusion
+            let modal = document.getElementById('createProductModal');
+            if (modal) modal.remove(); // Re-create to ensure fresh state
+
+            modal = document.createElement('div');
+            modal.id = 'createProductModal';
+            modal.className = 'modal-overlay';
+            modal.style.cssText = 'display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;';
+            
+            modal.onclick = function(e) {
+              if (e.target === modal) window.closeCreateProductModal();
+            };
+            
+            const content = document.createElement('div');
+            content.className = 'modal-content';
+            content.style.cssText = 'background: white; border-radius: 12px; padding: 0; max-width: 800px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+            content.addEventListener('click', function(e) { e.stopPropagation(); });
+            
+            content.innerHTML = 
+              '<div class="modal-header">' +
+                '<h2>Добавить товар</h2>' +
+                '<button type="button" class="close-btn" onclick="window.closeCreateProductModal()">&times;</button>' +
+              '</div>' +
+              '<form id="createProductForm" enctype="multipart/form-data" class="modal-form">' +
+                '<div class="form-section">' +
+                  '<div class="form-section-title">Основная информация</div>' +
+                  '<div class="form-grid single">' +
+                    '<div class="form-group">' +
+                      '<label for="createProductName">Название товара</label>' +
+                      '<input type="text" id="createProductName" name="title" required placeholder="Введите название товара">' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="form-grid">' +
+                    '<div class="form-group">' +
+                      '<label for="createProductPrice">Цена в PZ</label>' +
+                      '<div class="price-input">' +
+                        '<input type="number" id="createProductPrice" name="price" step="0.01" required placeholder="0.00">' +
+                      '</div>' +
+                    '</div>' +
+                    '<div class="form-group">' +
+                      '<label for="createProductPriceRub">Цена в RUB</label>' +
+                      '<div class="price-input rub">' +
+                        '<input type="number" id="createProductPriceRub" name="priceRub" step="0.01" readonly placeholder="0.00">' +
+                      '</div>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="form-grid">' +
+                    '<div class="form-group">' +
+                      '<label for="createProductStock">Остаток на складе</label>' +
+                      '<input type="number" id="createProductStock" name="stock" value="999" required placeholder="999">' +
+                    '</div>' +
+                    '<div class="form-group">' +
+                      '<label for="createProductCategory">Категория</label>' +
+                      '<select id="createProductCategory" name="categoryId" required>' +
+                        '<option value="">Загрузка категорий...</option>' +
+                      '</select>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="form-group">' +
+                    '<label for="createProductImage">Изображение (URL)</label>' +
+                    '<input type="text" id="createProductImage" name="imageUrl" placeholder="https://...">' +
+                  '</div>' +
+                '</div>' +
+                '<div class="form-section">' +
+                  '<div class="form-section-title">Описание товара</div>' +
+                  '<div class="form-group">' +
+                    '<label for="createProductSummary">Краткое описание</label>' +
+                    '<textarea id="createProductSummary" name="summary" rows="3" placeholder="Краткое описание для карточки товара"></textarea>' +
+                  '</div>' +
+                  '<div class="form-group">' +
+                    '<label for="createProductDescription">Полное описание</label>' +
+                    '<textarea id="createProductDescription" name="description" rows="5" class="large" placeholder="Подробное описание товара, применение, состав и т.д."></textarea>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="form-section">' +
+                  '<div class="form-section-title">Настройки доставки</div>' +
+                  '<div class="form-group">' +
+                    '<label>Регионы доставки</label>' +
+                    '<div class="regions-grid">' +
+                      '<label class="switch-row">' +
+                        '<input type="checkbox" id="createProductRussia" name="availableInRussia" checked>' +
+                        '<span class="switch-slider"></span>' +
+                        '<span class="switch-label">Россия</span>' +
+                      '</label>' +
+                      '<label class="switch-row">' +
+                        '<input type="checkbox" id="createProductBali" name="availableInBali" checked>' +
+                        '<span class="switch-slider"></span>' +
+                        '<span class="switch-label">Бали</span>' +
+                      '</label>' +
+                    '</div>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="form-section">' +
+                  '<div class="form-section-title">Статус публикации</div>' +
+                  '<div class="status-section">' +
+                    '<label class="status-row">' +
+                      '<input type="checkbox" id="createProductStatus" name="isActive" checked>' +
+                      '<span class="switch-slider"></span>' +
+                      '<span class="status-label">Товар активен и доступен для покупки</span>' +
+                    '</label>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="form-actions">' +
+                  '<button type="button" onclick="window.closeCreateProductModal()">Отмена</button>' +
+                  '<button type="submit">Создать товар</button>' +
+                '</div>' +
+              '</form>';
+              
+            modal.appendChild(content);
+            document.body.appendChild(modal);
+            
+            // Logic for price conversion
+            const priceInput = document.getElementById('createProductPrice');
+            const priceRubInput = document.getElementById('createProductPriceRub');
+            if (priceInput && priceRubInput) {
+              priceInput.oninput = function() {
+                const pzPrice = parseFloat(this.value) || 0;
+                priceRubInput.value = (pzPrice * 100).toFixed(2);
+              };
+            }
+            
+            // Load categories
+            fetch('/admin/api/categories', { credentials: 'include' })
+              .then(res => res.json())
+              .then(categories => {
+                const select = document.getElementById('createProductCategory');
+                if (select) {
+                  select.innerHTML = '<option value="">Выберите категорию</option>';
+                  categories.forEach(cat => {
+                    const opt = document.createElement('option');
+                    opt.value = cat.id;
+                    opt.textContent = cat.name;
+                    if (categoryId && String(cat.id) === String(categoryId)) {
+                      opt.selected = true;
+                    }
+                    select.appendChild(opt);
+                  });
+                }
+              })
+              .catch(err => console.error('Error loading categories:', err));
+              
+            // Handle form submit
+            const form = document.getElementById('createProductForm');
+            form.onsubmit = async function(e) {
+              e.preventDefault();
+              const btn = form.querySelector('button[type="submit"]');
+              if(btn) { btn.disabled = true; btn.textContent = 'Создание...'; }
+              
+              try {
+                const formData = new FormData(form);
+                const payload = {};
+                formData.forEach((value, key) => { payload[key] = value; });
+                
+                // Manual checkbox handling
+                payload.isActive = document.getElementById('createProductStatus').checked;
+                payload.availableInRussia = document.getElementById('createProductRussia').checked;
+                payload.availableInBali = document.getElementById('createProductBali').checked;
+                
+                // Also support image upload if needed, but for now assuming URL or separate upload logic
+                // The API /admin/api/products handles multipart/form-data via multer, so we can send FormData directly if we use fetch body = formData
+                // But here I simplified to JSON payload or formData. 
+                // Let's use JSON if the endpoint expects it, OR FormData if it expects file upload.
+                // The endpoint router.post('/api/products', ... upload.single('image') ...) expects FormData with 'image' file.
+                // My form above has imageUrl as text input. 
+                // I should probably support file upload too? Or just text.
+                // Let's stick to FormData.
+                
+                const formDataToSend = new FormData(form);
+                // Fix checkboxes in FormData
+                formDataToSend.set('isActive', document.getElementById('createProductStatus').checked ? 'true' : 'false');
+                formDataToSend.set('availableInRussia', document.getElementById('createProductRussia').checked ? 'true' : 'false');
+                formDataToSend.set('availableInBali', document.getElementById('createProductBali').checked ? 'true' : 'false');
+                formDataToSend.set('image', ''); // No file selected by default
+
+                const resp = await fetch('/admin/api/products', {
+                  method: 'POST',
+                  body: formDataToSend,
+                  credentials: 'include'
+                });
+                
+                const res = await resp.json().catch(() => ({}));
+                if (resp.ok && res.success) {
+                  alert('Товар успешно создан!');
+                  window.location.href = '/admin/products'; // Remove query params
+                } else {
+                  alert('Ошибка: ' + (res.error || 'Unknown error'));
+                  if(btn) { btn.disabled = false; btn.textContent = 'Создать товар'; }
+                }
+              } catch (err) {
+                console.error(err);
+                alert('Ошибка создания товара');
+                if(btn) { btn.disabled = false; btn.textContent = 'Создать товар'; }
+              }
+            };
+          };
+
+          window.closeCreateProductModal = function() {
+            const modal = document.getElementById('createProductModal');
+            if (modal) modal.remove();
+            // Clean URL query params if we want to avoid re-opening
+            const url = new URL(window.location.href);
+            if (url.searchParams.has('new')) {
+              url.searchParams.delete('new');
+              url.searchParams.delete('categoryId');
+              window.history.replaceState(null, '', url.toString());
+            }
+          };
+          
+          // Auto-open if query param exists
+          document.addEventListener('DOMContentLoaded', function() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('new') === '1') {
+              const catId = params.get('categoryId');
+              window.openCreateProductModal(catId);
+            }
+          });
         </script>
         ${renderAdminShellEnd()}
       </body>
